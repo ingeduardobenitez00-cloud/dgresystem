@@ -17,7 +17,9 @@ import { UploadDialog } from '@/components/upload-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useFirebase, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, getDocs, addDoc, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, addDoc, query, where, writeBatch } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type DepartmentWithDistricts = {
   id: string;
@@ -70,13 +72,21 @@ export default function PhotoGallery() {
       where('distrito', '==', distName)
     );
 
-    const querySnapshot = await getDocs(q);
-    const fetchedImages: ImageData[] = [];
-    querySnapshot.forEach((doc) => {
-        fetchedImages.push({ id: doc.id, ...doc.data() } as ImageData);
-    });
+    try {
+        const querySnapshot = await getDocs(q);
+        const fetchedImages: ImageData[] = [];
+        querySnapshot.forEach((doc) => {
+            fetchedImages.push({ id: doc.id, ...doc.data() } as ImageData);
+        });
 
-    setImages(prev => ({ ...prev, [imagesKey]: fetchedImages }));
+        setImages(prev => ({ ...prev, [imagesKey]: fetchedImages }));
+    } catch (error) {
+        const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path: `imagenes`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+    }
   };
 
   const handleOpenUpload = (deptName: string, distName: string) => {
@@ -88,27 +98,37 @@ export default function PhotoGallery() {
     if (!activeDistrict || !firestore) return;
 
     const { deptName, distName } = activeDistrict;
-    const imagesCollectionRef = collection(firestore, 'imagenes');
     
     const addedImages: ImageData[] = [];
+    const batch = writeBatch(firestore);
+    const imagesCollectionRef = collection(firestore, 'imagenes');
 
-    for (const newImage of newImages) {
+    newImages.forEach(newImage => {
+        const docRef = doc(imagesCollectionRef);
         const fullImageData = {
             ...newImage,
             departamento: deptName,
             distrito: distName,
         };
-        const docRef = await addDoc(imagesCollectionRef, fullImageData);
+        batch.set(docRef, fullImageData);
         addedImages.push({ id: docRef.id, ...fullImageData });
-    }
+    });
 
-    const imagesKey = `${deptName}-${distName}`;
-    setImages(prev => ({
-        ...prev,
-        [imagesKey]: [...(prev[imagesKey] || []), ...addedImages]
-    }));
-
-    setUploadOpen(false);
+    batch.commit().then(() => {
+        const imagesKey = `${deptName}-${distName}`;
+        setImages(prev => ({
+            ...prev,
+            [imagesKey]: [...(prev[imagesKey] || []), ...addedImages]
+        }));
+        setUploadOpen(false);
+    }).catch(error => {
+        const contextualError = new FirestorePermissionError({
+            operation: 'write',
+            path: 'imagenes (batch)',
+            requestResourceData: addedImages
+        });
+        errorEmitter.emit('permission-error', contextualError);
+    });
   };
 
   return (
@@ -197,4 +217,3 @@ export default function PhotoGallery() {
   );
 }
 
-    
