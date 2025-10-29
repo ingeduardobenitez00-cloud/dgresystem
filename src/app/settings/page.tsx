@@ -55,7 +55,7 @@ export default function SettingsPage() {
     if (storedData) {
       try {
         setSavedData(JSON.parse(storedData));
-      } catch (error) => {
+      } catch (error) {
         console.error("Error parsing stored data:", error);
       }
     }
