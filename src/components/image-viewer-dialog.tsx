@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from 'next/image';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import type { ImageData } from '@/lib/data';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { cleanFileName } from '@/lib/utils';
 
 type ImageViewerDialogProps = {
   isOpen: boolean;
@@ -22,17 +24,14 @@ type ImageViewerDialogProps = {
 export function ImageViewerDialog({ isOpen, onOpenChange, image }: ImageViewerDialogProps) {
   if (!image) return null;
   
-  const title = [
-    image.category,
-    image.date ? format(new Date(image.date), 'd MMMM, yyyy', {locale: es}) : ''
-  ].filter(Boolean).join(' - ');
+  const cleanedTitle = cleanFileName(image.alt);
 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{title || image.alt}</DialogTitle>
+          <DialogTitle>{cleanedTitle}</DialogTitle>
           <DialogDescription>
             {image.alt}
           </DialogDescription>
@@ -47,15 +46,6 @@ export function ImageViewerDialog({ isOpen, onOpenChange, image }: ImageViewerDi
               data-ai-hint={image.hint}
             />
           </div>
-          {image.tags && image.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {image.tags.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

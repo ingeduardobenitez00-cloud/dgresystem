@@ -18,6 +18,7 @@ import Image from 'next/image';
 import type { ImageData } from '@/lib/data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
+import { cleanFileName } from '@/lib/utils';
 
 type UploadDialogProps = {
   isOpen: boolean;
@@ -75,15 +76,6 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
       reader.readAsDataURL(filePreview.file);
     });
   };
-
-  const cleanFileName = (name: string): string => {
-    const withoutExtension = name.substring(0, name.lastIndexOf('.')) || name;
-    return withoutExtension
-        .replace(/FOTOGRAFIA/ig, '') // Elimina "FOTOGRAFIA" (insensible a mayúsculas/minúsculas)
-        .replace(/[0-9]/g, '')     // Elimina números
-        .replace(/_/g, ' ')         // Reemplaza guiones bajos con espacios
-        .trim();                    // Elimina espacios al inicio y al final
-  }
   
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
