@@ -25,21 +25,17 @@ type SummaryCounts = {
     totalReports: number;
     habitacionSegura: number;
     comisaria: number;
-    registroElectoral: number;
     otros: number;
 };
 
 const ResguardoIcon = ({ lugar }: { lugar: string }) => {
   const normalizedLugar = lugar ? lugar.toLowerCase() : '';
 
-  if (normalizedLugar.includes('habitacion segura')) {
+  if (normalizedLugar.includes('habitacion segura') || normalizedLugar.includes('registro electoral')) {
     return <CheckCircle className="h-5 w-5 text-green-600" />;
   }
   if (normalizedLugar.includes('comisaria')) {
     return <Shield className="h-5 w-5 text-blue-600" />;
-  }
-  if (normalizedLugar.includes('registro electoral')) {
-    return <Landmark className="h-5 w-5 text-indigo-600" />;
   }
   return <Building className="h-5 w-5 text-muted-foreground" />;
 };
@@ -59,7 +55,6 @@ export default function ResumenPage() {
     totalReports: 0,
     habitacionSegura: 0,
     comisaria: 0,
-    registroElectoral: 0,
     otros: 0,
   });
   
@@ -88,17 +83,14 @@ export default function ResumenPage() {
       // Calculate summary counts
       let habitacionSegura = 0;
       let comisaria = 0;
-      let registroElectoral = 0;
       let otros = 0;
 
       reportsData.forEach(report => {
         const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase() : '';
-        if (lugar.includes('habitacion segura')) {
+        if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
           habitacionSegura++;
         } else if (lugar.includes('comisaria')) {
           comisaria++;
-        } else if (lugar.includes('registro electoral')) {
-          registroElectoral++;
         } else if (lugar) {
             otros++;
         }
@@ -108,7 +100,6 @@ export default function ResumenPage() {
         totalReports: reportsData.length,
         habitacionSegura,
         comisaria,
-        registroElectoral,
         otros,
       });
 
@@ -129,7 +120,7 @@ export default function ResumenPage() {
                     Visión global de los informes registrados en el sistema.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+            <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total de Informes</CardTitle>
@@ -141,7 +132,7 @@ export default function ResumenPage() {
                 </Card>
                  <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Habitación Segura</CardTitle>
+                        <CardTitle className="text-sm font-medium">Habitación Segura / Registro</CardTitle>
                         <CheckCircle className="h-4 w-4 text-green-600" />
                     </CardHeader>
                     <CardContent>
@@ -155,15 +146,6 @@ export default function ResumenPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{summaryCounts.comisaria}</div>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Registro Electoral</CardTitle>
-                        <Landmark className="h-4 w-4 text-indigo-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{summaryCounts.registroElectoral}</div>
                     </CardContent>
                 </Card>
                  <Card>
@@ -254,5 +236,3 @@ export default function ResumenPage() {
     </div>
   );
 }
-
-    
