@@ -34,4 +34,9 @@ export type ReportData = {
   'lugar-resguardo'?: string;
 }
 
+export type Dato = {
+    departamento: string;
+    distrito: string;
+}
+
 export const initialDepartments: Department[] = [];

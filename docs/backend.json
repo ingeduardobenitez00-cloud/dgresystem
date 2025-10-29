@@ -1,6 +1,25 @@
 
 {
   "entities": {
+    "Dato": {
+      "title": "Dato",
+      "type": "object",
+      "description": "Represents a department and district pair for data import.",
+      "properties": {
+        "departamento": {
+          "type": "string",
+          "description": "The name of the department."
+        },
+        "distrito": {
+          "type": "string",
+          "description": "The name of the district."
+        }
+      },
+      "required": [
+        "departamento",
+        "distrito"
+      ]
+    },
     "Departamento": {
       "title": "Departamento",
       "type": "object",
@@ -157,6 +176,12 @@
     ]
   },
   "firestore": {
+    "/datos/{datoId}": {
+      "schema": {
+        "$ref": "#/entities/Dato"
+      },
+      "description": "Stores imported department and district data."
+    },
     "/departamentos/{departamentoId}": {
       "schema": {
         "$ref": "#/entities/Departamento"

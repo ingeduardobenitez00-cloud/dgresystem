@@ -10,7 +10,7 @@ import { FileUp, Loader2, CheckCircle2, TableIcon, Database, PlusCircle, Trash2,
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { type Department, type District, type ReportData } from '@/lib/data';
+import { type Dato, type Department, type District, type ReportData } from '@/lib/data';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Dialog,
@@ -48,7 +48,7 @@ type PreviewData = {
 export default function SettingsPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [previewData, setPreviewData] = useState<PreviewData[]>([]);
+  const [previewData, setPreviewData] = useState<Dato[]>([]);
   const [reportPreviewData, setReportPreviewData] = useState<ReportData[]>([]);
   const { toast } = useToast();
   
@@ -123,7 +123,7 @@ export default function SettingsPage() {
           json.shift();
         }
 
-        const parsedData: PreviewData[] = json.map((row: any) => ({
+        const parsedData: Dato[] = json.map((row: any) => ({
           departamento: row.DEPARTAMENTO,
           distrito: row.DISTRITO,
         }));
@@ -213,39 +213,20 @@ export default function SettingsPage() {
 
 
   const handleSaveData = async () => {
-    if (!firestore) return;
+    if (!firestore || previewData.length === 0) return;
 
     const batch = writeBatch(firestore);
-    const deptsMap = new Map<string, { id: string; districts: Map<string, string> }>();
-    
-    for (const dept of departmentsWithDistricts) {
-      const distsMap = new Map(dept.districts.map(d => [d.name.toLowerCase(), d.id]));
-      deptsMap.set(dept.name.toLowerCase(), { id: dept.id, districts: distsMap });
-    }
+    const datosCollection = collection(firestore, 'datos');
 
-    for (const item of previewData) {
-        let deptLower = item.departamento.toLowerCase();
-        let distLower = item.distrito.toLowerCase();
-
-        let deptEntry = deptsMap.get(deptLower);
-        if (!deptEntry) {
-            const newDeptRef = doc(collection(firestore, 'departamentos'));
-            batch.set(newDeptRef, { name: item.departamento });
-            deptEntry = { id: newDeptRef.id, districts: new Map() };
-            deptsMap.set(deptLower, deptEntry);
-        }
-
-        if (!deptEntry.districts.has(distLower)) {
-            const newDistRef = doc(collection(firestore, 'departamentos', deptEntry.id, 'distritos'));
-            batch.set(newDistRef, { name: item.distrito });
-            deptEntry.districts.set(distLower, newDistRef.id);
-        }
-    }
+    previewData.forEach(item => {
+        const newDocRef = doc(datosCollection);
+        batch.set(newDocRef, item);
+    });
 
     batch.commit().then(() => {
         toast({
             title: 'Datos importados',
-            description: 'Los nuevos departamentos y distritos se han añadido con éxito a Firestore.',
+            description: 'Los nuevos departamentos y distritos se han añadido con éxito a la colección "datos".',
             action: <CheckCircle2 className="text-green-500" />,
         });
         setPreviewData([]);
@@ -253,7 +234,7 @@ export default function SettingsPage() {
     }).catch(error => {
         const contextualError = new FirestorePermissionError({
             operation: 'write',
-            path: 'departamentos (batch)',
+            path: 'datos (batch)',
         });
         errorEmitter.emit('permission-error', contextualError);
     });
@@ -301,6 +282,11 @@ export default function SettingsPage() {
       setEditingItem(null);
       toast({ title: 'Elemento actualizado', description: 'El nombre ha sido cambiado con éxito.' });
     } catch (error) {
+       const contextualError = new FirestorePermissionError({
+            operation: 'update',
+            path: type === 'department' ? `departamentos/${deptId}` : `departamentos/${deptId}/distritos/${distId}`,
+       });
+       errorEmitter.emit('permission-error', contextualError);
        toast({ title: 'Error al actualizar', variant: 'destructive' });
     }
   };
@@ -315,6 +301,11 @@ export default function SettingsPage() {
         }
         toast({ title: 'Elemento eliminado', variant: 'destructive' });
       } catch (error) {
+        const contextualError = new FirestorePermissionError({
+            operation: 'delete',
+            path: type === 'department' ? `departamentos/${deptId}` : `departamentos/${deptId}/distritos/${distId}`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
         toast({ title: 'Error al eliminar', variant: 'destructive' });
       }
   };
@@ -614,5 +605,4 @@ export default function SettingsPage() {
       </Dialog>
     </div>
   );
-
-    
+}
