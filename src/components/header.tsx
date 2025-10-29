@@ -1,38 +1,16 @@
-import Link from 'next/link';
-import { BookMarked, Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { BookMarked } from 'lucide-react';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
-export default function Header() {
+export default function Header({ title }: { title?: string }) {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 max-w-screen-2xl items-center">
-        <div className="mr-4 flex">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <BookMarked className="h-6 w-6 text-primary" />
-            <span className="hidden font-bold sm:inline-block">
-              Informe Edilicio
-            </span>
-          </Link>
-          <nav className="flex items-center gap-6 text-sm">
-            <Link
-              href="/"
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
-            >
-              Departamentos
-            </Link>
-            <Link
-              href="/import"
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
-            >
-              Importar
-            </Link>
-            <Link
-              href="/settings"
-              className="transition-colors hover:text-foreground/80 text-foreground/60"
-            >
-              Configuración
-            </Link>
-          </nav>
+    <header className="sticky top-0 z-40 w-full border-b bg-background">
+      <div className="container flex h-14 items-center">
+        <div className="md:hidden">
+          <SidebarTrigger />
+        </div>
+        <div className="flex items-center space-x-2 md:ml-4">
+          <BookMarked className="h-6 w-6 text-primary md:hidden" />
+          {title && <h1 className="text-xl font-semibold hidden md:block">{title}</h1>}
         </div>
       </div>
     </header>

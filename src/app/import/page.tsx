@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from 'react';
-import Header from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { FileUp, Loader2, CheckCircle2 } from 'lucide-react';
+import Header from '@/components/header';
 
 export default function ImportPage() {
   const [fileName, setFileName] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export default function ImportPage() {
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <Header />
+      <Header title="Importar Datos" />
       <main className="flex flex-1 items-center justify-center p-4">
         <Card className="w-full max-w-lg">
           <CardHeader>
