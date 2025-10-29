@@ -268,9 +268,15 @@ export default function SettingsPage() {
       const name = prompt(`Introduce el nombre del nuevo ${type === 'department' ? 'departamento' : 'distrito'}`);
       if (name) {
           if (type === 'department') {
-              await addDoc(collection(firestore, 'departamentos'), { name });
+              addDoc(collection(firestore, 'departamentos'), { name }).catch(err => {
+                 const contextualError = new FirestorePermissionError({operation: 'create', path: `departamentos`});
+                 errorEmitter.emit('permission-error', contextualError);
+              });
           } else if (type === 'district' && deptId) {
-              await addDoc(collection(firestore, 'departamentos', deptId, 'distritos'), { name });
+              addDoc(collection(firestore, 'departamentos', deptId, 'distritos'), { name }).catch(err => {
+                 const contextualError = new FirestorePermissionError({operation: 'create', path: `departamentos/${deptId}/distritos`});
+                 errorEmitter.emit('permission-error', contextualError);
+              });
           }
       }
   };
@@ -306,7 +312,6 @@ export default function SettingsPage() {
       if (!firestore) return;
       try {
         if (type === 'department') {
-            // Note: This does not delete subcollections in Firestore. A more robust solution is needed for production.
             await deleteDoc(doc(firestore, 'departamentos', deptId));
         } else if (distId) {
             await deleteDoc(doc(firestore, 'departamentos', deptId, 'distritos', distId));
@@ -342,8 +347,7 @@ export default function SettingsPage() {
           description: 'No se pudieron guardar los datos del informe en Firestore.',
       });
     }
-  }
-
+  };
 
   return (
     <div className="flex min-h-screen w-full flex-col">
