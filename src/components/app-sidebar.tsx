@@ -10,7 +10,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { BookMarked, FileUp, LayoutGrid, Settings } from "lucide-react";
+import { BookMarked, LayoutGrid, Settings } from "lucide-react";
 
 export default function AppSidebar() {
   const pathname = usePathname();
@@ -20,11 +20,6 @@ export default function AppSidebar() {
       href: "/",
       label: "Departamentos",
       icon: LayoutGrid,
-    },
-    {
-      href: "/import",
-      label: "Importar",
-      icon: FileUp,
     },
     {
       href: "/settings",
