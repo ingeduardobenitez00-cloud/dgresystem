@@ -55,7 +55,7 @@ export default function SettingsPage() {
     if (storedData) {
       try {
         setSavedData(JSON.parse(storedData));
-      } catch (error) {
+      } catch (error) => {
         console.error("Error parsing stored data:", error);
       }
     }
@@ -255,8 +255,8 @@ export default function SettingsPage() {
       <main className="flex flex-1 flex-col items-center p-4 gap-8">
         <Card className="w-full max-w-2xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <FileUp className="h-6 w-6" />
+            <CardTitle className="flex items-center gap-2">
+              <FileUp className="h-5 w-5" />
               Importar Datos
             </CardTitle>
             <CardDescription>
@@ -270,7 +270,7 @@ export default function SettingsPage() {
                 className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted"
               >
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <FileUp className="w-10 h-10 mb-3 text-muted-foreground" />
+                  <FileUp className="w-8 h-8 mb-3 text-muted-foreground" />
                   <p className="mb-2 text-sm text-muted-foreground">
                     <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
                   </p>
@@ -295,8 +295,8 @@ export default function SettingsPage() {
         {previewData.length > 0 && (
           <Card className="w-full max-w-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-2xl">
-                <TableIcon className="h-6 w-6" />
+              <CardTitle className="flex items-center gap-2">
+                <TableIcon className="h-5 w-5" />
                 Vista Previa de Datos
               </CardTitle>
               <CardDescription>
@@ -332,9 +332,9 @@ export default function SettingsPage() {
         {savedData.length > 0 && previewData.length === 0 && (
           <Card className="w-full max-w-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between text-2xl">
+              <CardTitle className="flex items-center justify-between">
                 <div className='flex items-center gap-2'>
-                  <Database className="h-6 w-6" />
+                  <Database className="h-5 w-5" />
                   Datos Guardados
                 </div>
                 <Button variant="outline" size="sm" onClick={() => handleAddItem('department')}>
@@ -351,7 +351,7 @@ export default function SettingsPage() {
                 {savedData.map((department) => (
                   <AccordionItem value={department.id} key={department.id}>
                     <div className="flex items-center w-full">
-                      <AccordionTrigger className="flex-1">{department.name}</AccordionTrigger>
+                      <AccordionTrigger className="flex-1 text-base">{department.name}</AccordionTrigger>
                       <div className="flex gap-2 ml-4">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); handleOpenEditModal('department', department.id, undefined, department.name)}}>
                               <Edit className="h-4 w-4" />
@@ -454,5 +454,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

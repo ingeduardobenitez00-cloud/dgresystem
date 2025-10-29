@@ -64,10 +64,10 @@ export default function PhotoGallery() {
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Galería de Fotos
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground">
+        <p className="mt-2 text-base text-muted-foreground">
           Explore y gestione las imágenes de los registros organizadas por ubicación.
         </p>
       </div>
@@ -75,7 +75,7 @@ export default function PhotoGallery() {
       <Accordion type="single" collapsible className="w-full">
         {departments.map((department) => (
           <AccordionItem value={department.id} key={department.id}>
-            <AccordionTrigger className="text-xl font-semibold hover:no-underline data-[state=open]:text-primary">
+            <AccordionTrigger className="text-lg font-medium hover:no-underline data-[state=open]:text-primary">
               {department.name}
             </AccordionTrigger>
             <AccordionContent>
@@ -83,7 +83,7 @@ export default function PhotoGallery() {
                 {department.districts.map((district) => (
                   <div key={district.id}>
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-medium text-foreground/90">{district.name}</h3>
+                      <h3 className="text-md font-medium text-foreground/90">{district.name}</h3>
                       <Button variant="outline" size="sm" onClick={() => handleOpenUpload(department.id, district.id)}>
                         <Upload className="mr-2 h-4 w-4" />
                         Subir Foto
