@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { ImageData } from '@/lib/data';
-import { generateTagsAction } from '@/lib/actions';
+import { imageAutoTagging } from '@/lib/actions';
 
 type UploadDialogProps = {
   isOpen: boolean;
@@ -70,7 +70,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImageUploaded }: UploadDi
 
   const handleTagGeneration = async (photoDataUri: string) => {
     setIsGeneratingTags(true);
-    const result = await generateTagsAction({ photoDataUri });
+    const result = await imageAutoTagging({ photoDataUri });
     if ('tags' in result) {
       form.setValue('tags', result.tags.join(', '));
       toast({

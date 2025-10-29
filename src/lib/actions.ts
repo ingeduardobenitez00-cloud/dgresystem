@@ -1,12 +1,12 @@
 "use server";
 
-import { imageAutoTagging, type ImageAutoTaggingInput } from "@/ai/flows/image-auto-tagging";
+import { imageAutoTagging as imageAutoTaggingFlow, type ImageAutoTaggingInput } from "@/ai/flows/image-auto-tagging";
 
-export async function generateTagsAction(
+export async function imageAutoTagging(
   input: ImageAutoTaggingInput
 ): Promise<{ tags: string[] } | { error: string }> {
   try {
-    const result = await imageAutoTagging(input);
+    const result = await imageAutoTaggingFlow(input);
     return result;
   } catch (e) {
     console.error(e);
