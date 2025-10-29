@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -11,24 +11,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { type Department, type District, type ReportData } from '@/lib/data';
+import { type Dato, type ReportData } from '@/lib/data';
 import { Label } from '@/components/ui/label';
 import { useFirebase, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { collection, query, where } from 'firebase/firestore';
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
 
-  const departmentsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'departamentos') : null, [firestore]);
-  const { data: departments } = useCollection<Department>(departmentsQuery);
+  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData } = useCollection<Dato>(datosQuery);
 
-  const [districts, setDistricts] = useState<District[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>('');
-  const [selectedDeptId, setSelectedDeptId] = useState<string>('');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('');
+
+  useEffect(() => {
+    if (datosData) {
+      const uniqueDepts = [...new Set(datosData.map(d => d.departamento))].sort();
+      setDepartments(uniqueDepts);
+    }
+  }, [datosData]);
 
   const reportsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -51,36 +56,23 @@ export default function FichaPage() {
 
   const { data: filteredReports } = useCollection<ReportData>(reportsQuery);
 
-  const handleDeptChange = async (deptId: string) => {
+  const handleDeptChange = async (deptName: string) => {
     setSelectedDistrict('');
+    setDistricts([]);
 
-    if (deptId === 'all-depts') {
-        setSelectedDeptId('all-depts');
+    if (deptName === 'all-depts') {
         setSelectedDept('');
-        setDistricts([]);
         return;
     }
 
-    setSelectedDeptId(deptId);
+    setSelectedDept(deptName);
 
-    if (deptId && firestore) {
-      const selectedDepartment = departments?.find(d => d.id === deptId);
-      setSelectedDept(selectedDepartment?.name || '');
-
-      const districtsQuery = collection(firestore, 'departamentos', deptId, 'distritos');
-      getDocs(districtsQuery).then(districtsSnapshot => {
-        const fetchedDistricts = districtsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as District));
-        setDistricts(fetchedDistricts);
-      }).catch(error => {
-        const contextualError = new FirestorePermissionError({
-          operation: 'list',
-          path: `departamentos/${deptId}/distritos`,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-      });
-    } else {
-      setSelectedDept('');
-      setDistricts([]);
+    if (deptName && datosData) {
+        const relatedDistricts = datosData
+            .filter(d => d.departamento === deptName)
+            .map(d => d.distrito)
+            .sort();
+        setDistricts([...new Set(relatedDistricts)]);
     }
   };
 
@@ -106,15 +98,15 @@ export default function FichaPage() {
           <CardContent className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 space-y-2">
               <Label>Departamento</Label>
-              <Select onValueChange={handleDeptChange} value={selectedDeptId}>
+              <Select onValueChange={handleDeptChange} value={selectedDept || 'all-depts'}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar Departamento" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all-depts">Todos los Departamentos</SelectItem>
-                  {departments?.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -125,7 +117,7 @@ export default function FichaPage() {
               <Select
                 onValueChange={handleDistrictChange}
                 value={selectedDistrict || 'all-districts'}
-                disabled={!selectedDeptId || selectedDeptId === 'all-depts'}
+                disabled={!selectedDept}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar Distrito" />
@@ -133,8 +125,8 @@ export default function FichaPage() {
                 <SelectContent>
                   <SelectItem value="all-districts">Todos los Distritos</SelectItem>
                   {districts.map((dist) => (
-                    <SelectItem key={dist.id} value={dist.name}>
-                      {dist.name}
+                    <SelectItem key={dist} value={dist}>
+                      {dist}
                     </SelectItem>
                   ))}
                 </SelectContent>
