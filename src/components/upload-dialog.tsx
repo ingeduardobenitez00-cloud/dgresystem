@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -74,6 +75,15 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
       reader.readAsDataURL(filePreview.file);
     });
   };
+
+  const cleanFileName = (name: string): string => {
+    const withoutExtension = name.substring(0, name.lastIndexOf('.')) || name;
+    return withoutExtension
+        .replace(/FOTOGRAFIA/ig, '') // Elimina "FOTOGRAFIA" (insensible a mayúsculas/minúsculas)
+        .replace(/[0-9]/g, '')     // Elimina números
+        .replace(/_/g, ' ')         // Reemplaza guiones bajos con espacios
+        .trim();                    // Elimina espacios al inicio y al final
+  }
   
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -84,7 +94,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
     startTransition(() => {
       const newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[] = files.map(f => ({
         src: f.previewUrl,
-        alt: f.file.name,
+        alt: cleanFileName(f.file.name),
         hint: 'building',
       }));
 
@@ -112,7 +122,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
         <DialogHeader>
           <DialogTitle>Subir Nuevas Imágenes</DialogTitle>
           <DialogDescription>
-            Selecciona una o varias imágenes para subir.
+            Selecciona una o varias imágenes para subir. Se eliminarán datos innecesarios de los nombres.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-6 py-4">
@@ -148,7 +158,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
                                 )}
                             </div>
                             <div className="p-2">
-                                <p className="text-sm font-medium truncate" title={file.file.name}>{file.file.name}</p>
+                                <p className="text-sm font-medium truncate" title={file.file.name}>{cleanFileName(file.file.name)}</p>
                             </div>
                         </CardContent>
                     </Card>
