@@ -1,3 +1,4 @@
+
 export interface ImageData {
   id: string;
   src: string;
@@ -13,6 +14,7 @@ export interface ImageData {
 export interface District {
   id: string;
   name: string;
+  reports?: ReportData[];
 }
 
 export interface Department {
