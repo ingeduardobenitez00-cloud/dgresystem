@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import type { ImageData } from '@/lib/data';
 import { imageAutoTagging } from '@/lib/actions';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent } from '@/components/ui/card';
 
 type UploadDialogProps = {
   isOpen: boolean;
