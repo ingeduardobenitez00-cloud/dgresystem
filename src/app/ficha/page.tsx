@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -11,11 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { type Dato, type ReportData } from '@/lib/data';
+import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import { Label } from '@/components/ui/label';
 import { useFirebase, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where } from 'firebase/firestore';
+import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
@@ -27,6 +29,7 @@ export default function FichaPage() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('');
+  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
 
   useEffect(() => {
     if (datosData) {
@@ -36,25 +39,27 @@ export default function FichaPage() {
   }, [datosData]);
 
   const reportsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    let q = collection(firestore, 'reports');
-
-    let conditions: any[] = [];
-    if (selectedDept) {
-        conditions.push(where('departamento', '==', selectedDept));
-    }
-    if (selectedDistrict) {
-        conditions.push(where('distrito', '==', selectedDistrict));
-    }
-
-    if (conditions.length > 0) {
-        return query(q, ...conditions);
-    }
-    
-    return q;
+    if (!firestore || !selectedDept || !selectedDistrict) return null;
+    return query(
+      collection(firestore, 'reports'), 
+      where('departamento', '==', selectedDept),
+      where('distrito', '==', selectedDistrict)
+    );
   }, [firestore, selectedDept, selectedDistrict]);
 
   const { data: filteredReports } = useCollection<ReportData>(reportsQuery);
+
+  const imagesQuery = useMemoFirebase(() => {
+    if (!firestore || !selectedDept || !selectedDistrict) return null;
+    return query(
+        collection(firestore, 'imagenes'),
+        where('departamento', '==', selectedDept),
+        where('distrito', '==', selectedDistrict)
+    );
+  }, [firestore, selectedDept, selectedDistrict]);
+
+  const { data: filteredImages } = useCollection<ImageData>(imagesQuery);
+
 
   const handleDeptChange = async (deptName: string) => {
     setSelectedDistrict('');
@@ -135,33 +140,86 @@ export default function FichaPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-6xl mx-auto">
-            {filteredReports && filteredReports.length > 0 ? (
-                filteredReports.map((report, index) => (
-                    <Card key={index}>
-                        <CardHeader>
-                            <CardTitle>{report.distrito}, {report.departamento}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3 text-sm">
-                           {Object.entries(report).map(([key, value]) => {
-                             if (key === 'departamento' || key === 'distrito' || key === 'id') return null;
-                             return (
-                               <div key={key}>
-                                 <p className="font-semibold capitalize text-muted-foreground">{key.replace(/-/g, ' ')}:</p>
-                                 <p>{String(value)}</p>
-                               </div>
-                             );
-                           })}
+        {selectedDept && selectedDistrict ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto">
+                <div>
+                {filteredReports && filteredReports.length > 0 ? (
+                    filteredReports.map((report) => (
+                        <Card key={report.id}>
+                            <CardHeader>
+                                <CardTitle>{report.distrito}, {report.departamento}</CardTitle>
+                                <CardDescription>Detalles del informe.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                            {Object.entries(report).map(([key, value]) => {
+                                if (key === 'departamento' || key === 'distrito' || key === 'id') return null;
+                                return (
+                                    <div key={key}>
+                                    <p className="font-semibold capitalize text-muted-foreground">{key.replace(/-/g, ' ')}:</p>
+                                    <p>{String(value)}</p>
+                                    </div>
+                                );
+                            })}
+                            </CardContent>
+                        </Card>
+                    ))
+                ) : (
+                    <Card>
+                        <CardContent className="p-6 text-center">
+                            <p className="text-muted-foreground">No hay reportes que coincidan con los filtros seleccionados.</p>
                         </CardContent>
                     </Card>
-                ))
-            ) : (
-                <div className="col-span-full text-center py-12">
-                    <p className="text-muted-foreground">No hay reportes que coincidan con los filtros seleccionados.</p>
+                )}
                 </div>
-            )}
-        </div>
+                
+                <div>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Imágenes</CardTitle>
+                            <CardDescription>Imágenes asociadas a la ubicación seleccionada.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                        {filteredImages && filteredImages.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                {filteredImages.map((image) => (
+                                    <Card
+                                        key={image.id}
+                                        className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+                                        onClick={() => setSelectedImage(image)}
+                                    >
+                                        <CardContent className="p-0">
+                                            <Image
+                                                src={image.src}
+                                                alt={image.alt}
+                                                width={600}
+                                                height={400}
+                                                className="aspect-[3/2] w-full object-cover"
+                                                data-ai-hint={image.hint}
+                                            />
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12">
+                                <p className="text-muted-foreground">No hay imágenes para esta ubicación.</p>
+                            </div>
+                        )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        ) : (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+                <p>Por favor, selecciona un departamento y distrito para ver la información.</p>
+            </div>
+        )}
       </main>
+      <ImageViewerDialog
+        isOpen={!!selectedImage}
+        onOpenChange={() => setSelectedImage(null)}
+        image={selectedImage}
+      />
     </div>
   );
 }
