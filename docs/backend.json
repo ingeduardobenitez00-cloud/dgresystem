@@ -80,13 +80,23 @@
         "hint": {
           "type": "string",
           "description": "AI hint for the image."
+        },
+        "departamento": {
+            "type": "string",
+            "description": "The department the image belongs to."
+        },
+        "distrito": {
+            "type": "string",
+            "description": "The district the image belongs to."
         }
       },
       "required": [
         "src",
         "alt",
         "date",
-        "category"
+        "category",
+        "departamento",
+        "distrito"
       ]
     },
     "UserProfile": {
@@ -194,11 +204,11 @@
       },
       "description": "Stores district information for a specific department."
     },
-    "/departamentos/{departamentoId}/distritos/{distritoId}/imagenes/{imagenId}": {
+    "/imagenes/{imagenId}": {
       "schema": {
         "$ref": "#/entities/Imagen"
       },
-      "description": "Stores image information for a specific district."
+      "description": "Stores image information, linked by department and district name."
     },
     "/users/{userId}": {
       "schema": {
@@ -214,3 +224,5 @@
     }
   }
 }
+
+    

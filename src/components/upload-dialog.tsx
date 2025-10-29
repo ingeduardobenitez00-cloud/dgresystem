@@ -36,7 +36,7 @@ import { Card, CardContent } from '@/components/ui/card';
 type UploadDialogProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onImagesUploaded: (newImages: Omit<ImageData, 'id'>[]) => void;
+  onImagesUploaded: (newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[]) => void;
 };
 
 type FormData = {
@@ -138,7 +138,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
       return;
     }
     startTransition(() => {
-      const newImages: Omit<ImageData, 'id'>[] = files.map(f => ({
+      const newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[] = files.map(f => ({
         src: f.previewUrl,
         alt: f.file.name,
         tags: f.tags.split(',').map(tag => tag.trim()).filter(Boolean),
@@ -290,3 +290,5 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
     </Dialog>
   );
 }
+
+    

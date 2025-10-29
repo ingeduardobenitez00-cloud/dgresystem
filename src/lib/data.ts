@@ -6,12 +6,13 @@ export interface ImageData {
   date: string;
   category: string;
   hint: string;
+  departamento?: string;
+  distrito?: string;
 }
 
 export interface District {
   id: string;
   name: string;
-  images: ImageData[];
 }
 
 export interface Department {
@@ -40,3 +41,5 @@ export type Dato = {
 }
 
 export const initialDepartments: Department[] = [];
+
+    
