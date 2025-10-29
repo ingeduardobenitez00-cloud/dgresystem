@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   SidebarHeader,
   SidebarContent,
@@ -10,10 +11,26 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { BookMarked, Settings, ImageIcon, Users, FileText } from "lucide-react";
+import { BookMarked, Settings, ImageIcon, Users, FileText, LogOut } from "lucide-react";
+import { useFirebase } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const { auth } = useFirebase();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await auth.signOut();
+      toast({ title: "Sesión cerrada" });
+      router.push('/login');
+    } catch (error) {
+      toast({ variant: 'destructive', title: "Error al cerrar sesión" });
+    }
+  };
 
   const menuItems = [
     {
@@ -67,7 +84,13 @@ export default function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
-        {/* You can add footer content here */}
+        <SidebarMenu>
+            <SidebarMenuItem>
+                <SidebarMenuButton onClick={handleLogout} icon={<LogOut />} tooltip="Cerrar Sesión">
+                    <span>Cerrar Sesión</span>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </>
   );
