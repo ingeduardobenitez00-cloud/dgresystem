@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Accordion,
@@ -20,6 +20,21 @@ export default function DepartmentList() {
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [isUploadOpen, setUploadOpen] = useState(false);
   const [activeDistrict, setActiveDistrict] = useState<{deptId: string, distId: string} | null>(null);
+
+  useEffect(() => {
+    // On component mount, check for imported data in localStorage
+    const storedData = localStorage.getItem('imported_departments');
+    if (storedData) {
+      try {
+        const importedDepartments = JSON.parse(storedData);
+        // We combine initial data with imported data.
+        // A more robust solution might replace or merge more intelligently.
+        setDepartments(prevDepts => [...importedDepartments, ...prevDepts.filter(pd => !importedDepartments.find((id: Department) => id.name === pd.name))]);
+      } catch (error) {
+        console.error("Failed to parse imported departments from localStorage", error);
+      }
+    }
+  }, []);
 
   const handleOpenUpload = (deptId: string, distId: string) => {
     setActiveDistrict({ deptId, distId });
