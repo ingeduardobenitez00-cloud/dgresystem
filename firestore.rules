@@ -1,88 +1,36 @@
 /**
- * @file Firebase Security Rules for Firestore.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles and allows public read access to image metadata while enforcing owner-only write access.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model with user-specific data isolation.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information, accessible only to the user.
- * - /imagenes/{imagenId}: Stores image metadata, publicly readable but writable only by the image's owner.
- * - /datos/{datoId}: Stores department and district data, publicly readable but writable only by authenticated users.
- * - /departamentos/{departamentoId}: Stores department information, publicly readable but writable only by authenticated users.
- * - /departamentos/{departamentoId}/distritos/{distritoId}: Stores district information, publicly readable but writable only by authenticated users.
- * - /reports/{reportId}: Stores report information, publicly readable but writable only by authenticated users.
+ * - /datos/{datoId}: Public data of department and district pairs.
+ * - /departamentos/{departamentoId}: Public data about departments.
+ * - /departamentos/{departamentoId}/distritos/{distritoId}: Public data about districts within a department.
+ * - /imagenes/{imagenId}: Publicly accessible images.
+ * - /users/{userId}: Private user profile data, accessible only to the user themselves.
+ * - /reports/{reportId}: Publicly accessible report data.
  *
  * Key Security Decisions:
- * - User listing is disallowed.
- * - Public read access is granted to /imagenes/{imageId} and subcollections to allow for data discovery.
- * - Default security posture for ambiguous relationships is strict owner-only access.
+ * - User profiles (/users/{userId}) are strictly private, accessible only to the authenticated user.
+ * - Other collections (/datos, /departamentos, /imagenes, /reports) are publicly readable.
+ * - Write access (create, update, delete) to all collections is open to any authenticated user.
+ *   This assumes that all data is considered public and that anyone should be able to contribute.
+ *   In a production environment, this would need to be restricted based on roles or ownership.
  *
  * Denormalization for Authorization:
- * - The /imagenes/{imagenId} documents are assumed to have a field (e.g., 'authorId') that stores the user ID of the image's owner. This is essential for implementing owner-only write access.
+ * - Not explicitly used in this configuration, but consider adding fields like `ownerId` to documents in `/imagenes` and `/reports` to control write access in a future iteration.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is made by an authenticated user.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the provided user ID.
-     * @param {string} userId - The user ID to compare against.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner of an existing document.
-     * @param {string} userId - The user ID to compare against.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Stores user profile information.
-     * @path /users/{userId}
-     * @allow (create) User 'Hhp2XXVG1fTNC8baD1HdBIwrJLt1' can create profile at /users/Hhp2XXVG1fTNC8baD1HdBIwrJLt1.
-     * @deny (create) User 'Hhp2XXVG1fTNC8baD1HdBIwrJLt1' cannot create profile at /users/differentUserId.
-     * @principle Enforces document ownership for writes.
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-
-      allow create: if isOwner(userId) && request.resource.data.email == request.auth.token.email;
-      allow update: if isExistingOwner(userId) && request.resource.data.email == resource.data.email;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Stores image information, linked by department and district name.
-     * @path /imagenes/{imagenId}
-     * @allow (get) Any user can read image metadata.
-     * @allow (create) User 'Hhp2XXVG1fTNC8baD1HdBIwrJLt1' can create an image with authorId: 'Hhp2XXVG1fTNC8baD1HdBIwrJLt1'.
-     * @deny (update) User 'Hhp2XXVG1fTNC8baD1HdBIwrJLt1' cannot update an image they don't own.
-     * @principle Enforces document ownership for writes, allows public reads.
-     */
-    match /imagenes/{imagenId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
-    }
-
-    /**
-     * @description Stores imported department and district data.
+     * @description Allows anyone to read and write department and district data.
      * @path /datos/{datoId}
+     * @allow (get, list): Any user can read the data.
+     * @allow (create, update, delete): Any signed-in user can modify the data.
+     * @deny (create, update, delete): Not signed-in user can modify the data.
+     * @principle Publicly available data with open writes for signed-in users.
      */
     match /datos/{datoId} {
       allow get: if true;
@@ -93,8 +41,12 @@ service cloud.firestore {
     }
 
     /**
-     * @description Stores department information.
+     * @description Allows anyone to read and write department information.
      * @path /departamentos/{departamentoId}
+     * @allow (get, list): Any user can read the data.
+     * @allow (create, update, delete): Any signed-in user can modify the data.
+     * @deny (create, update, delete): Not signed-in user can modify the data.
+     * @principle Publicly available data with open writes for signed-in users.
      */
     match /departamentos/{departamentoId} {
       allow get: if true;
@@ -105,8 +57,12 @@ service cloud.firestore {
     }
 
     /**
-     * @description Stores district information for a specific department.
+     * @description Allows anyone to read and write district information within a department.
      * @path /departamentos/{departamentoId}/distritos/{distritoId}
+     * @allow (get, list): Any user can read the data.
+     * @allow (create, update, delete): Any signed-in user can modify the data.
+     * @deny (create, update, delete): Not signed-in user can modify the data.
+     * @principle Publicly available data with open writes for signed-in users.
      */
     match /departamentos/{departamentoId}/distritos/{distritoId} {
       allow get: if true;
@@ -117,8 +73,48 @@ service cloud.firestore {
     }
 
     /**
-     * @description Stores detailed report information.
+     * @description Allows anyone to read and write image information.
+     * @path /imagenes/{imagenId}
+     * @allow (get, list): Any user can read the data.
+     * @allow (create, update, delete): Any signed-in user can modify the data.
+     * @deny (create, update, delete): Not signed-in user can modify the data.
+     * @principle Publicly available data with open writes for signed-in users.
+     */
+    match /imagenes/{imagenId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Allows a user to read and write their own profile data.
+     * @path /users/{userId}
+     * @allow (get): A user can read their own profile.
+     * @allow (list): A user can list their own profile.
+     * @allow (create): A user can create their own profile if the userId matches their auth.uid.
+     * @allow (update): A user can update their own profile if the userId matches their auth.uid and the document exists.
+     * @allow (delete): A user can delete their own profile if the userId matches their auth.uid and the document exists.
+     * @deny (get, list): A user cannot read or list other user profiles.
+     * @deny (create, update, delete): A user cannot create, update, or delete other user profiles.
+     * @principle Enforces user-specific data isolation for profile information.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Allows anyone to read and write report information.
      * @path /reports/{reportId}
+     * @allow (get, list): Any user can read the data.
+     * @allow (create, update, delete): Any signed-in user can modify the data.
+     * @deny (create, update, delete): Not signed-in user can modify the data.
+     * @principle Publicly available data with open writes for signed-in users.
      */
     match /reports/{reportId} {
       allow get: if true;
@@ -127,5 +123,31 @@ service cloud.firestore {
       allow update: if isSignedIn();
       allow delete: if isSignedIn();
     }
+  }
+
+  /**
+   * @description Checks if the user is signed in.
+   * @return {bool} True if the user is signed in, false otherwise.
+   */
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  /**
+   * @description Checks if the user is the owner of the document.
+   * @param {string} userId The user ID to compare against the request's authentication UID.
+   * @return {bool} True if the user is the owner, false otherwise.
+   */
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+  /**
+   * @description Checks if the user is the owner of an existing document.
+   * @param {string} userId The user ID to compare against the request's authentication UID.
+   * @return {bool} True if the user is the owner and the document exists, false otherwise.
+   */
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
   }
 }

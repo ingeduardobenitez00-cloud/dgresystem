@@ -34,79 +34,91 @@ type FilePreview = {
 
 export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadDialogProps) {
   const [files, setFiles] = useState<FilePreview[]>([]);
-  const [isSubmitting, startTransition] = useTransition();
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+
+  const resetForm = () => {
+    setFiles([]);
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (!selectedFiles) return;
 
+    setIsProcessing(true);
     const newFilePreviews: FilePreview[] = Array.from(selectedFiles).map(file => ({
       id: `${file.name}-${file.lastModified}`,
       file,
-      previewUrl: '',
+      previewUrl: '', // Will be filled by FileReader
     }));
     
     setFiles(prev => [...prev, ...newFilePreviews]);
 
-    newFilePreviews.forEach((filePreview) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = document.createElement('img');
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1200;
-          const scaleSize = MAX_WIDTH / img.width;
-          canvas.width = MAX_WIDTH;
-          canvas.height = img.height * scaleSize;
-          
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const dataUri = canvas.toDataURL(filePreview.file.type, 0.7);
-
-            setFiles(prev => prev.map(f => f.id === filePreview.id ? { ...f, previewUrl: dataUri } : f));
+    const filePromises = newFilePreviews.map((filePreview) => {
+      return new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = document.createElement('img');
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 1200;
+            const scaleSize = Math.min(1, MAX_WIDTH / img.width);
+            canvas.width = img.width * scaleSize;
+            canvas.height = img.height * scaleSize;
             
-          } else {
-             toast({ variant: 'destructive', title: 'Error', description: `No se pudo procesar la imagen: ${filePreview.file.name}.` });
-          }
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const dataUri = canvas.toDataURL(filePreview.file.type, 0.7);
+              
+              setFiles(prev => prev.map(f => f.id === filePreview.id ? { ...f, previewUrl: dataUri } : f));
+              resolve();
+            } else {
+              reject(new Error(`No se pudo procesar la imagen: ${filePreview.file.name}.`));
+            }
+          };
+          img.onerror = () => reject(new Error('Error al cargar la imagen en el elemento img.'));
+          img.src = e.target?.result as string;
         };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(filePreview.file);
+        reader.onerror = () => reject(new Error('Error al leer el archivo.'));
+        reader.readAsDataURL(filePreview.file);
+      });
     });
+
+    Promise.all(filePromises)
+      .catch(error => {
+        toast({ variant: 'destructive', title: 'Error de Procesamiento', description: error.message });
+      })
+      .finally(() => {
+        setIsProcessing(false);
+      });
   };
   
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (files.length === 0) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Por favor, selecciona al menos una imagen.' });
+    if (files.length === 0 || files.some(f => !f.previewUrl)) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Por favor, espera a que todas las imágenes se procesen.' });
       return;
     }
-    startTransition(() => {
-      const newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[] = files.map(f => ({
-        src: f.previewUrl,
-        alt: cleanFileName(f.file.name),
-        hint: 'building',
-      }));
+    
+    const newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[] = files.map(f => ({
+      src: f.previewUrl,
+      alt: cleanFileName(f.file.name),
+      hint: 'building',
+    }));
 
-      onImagesUploaded(newImages);
-      // No cerramos aquí, el padre lo hará después del commit
-    });
+    onImagesUploaded(newImages);
+    handleOpenChange(false); // Close dialog immediately
   };
-
-  const resetForm = () => {
-    setFiles([]);
-  }
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       resetForm();
     }
     onOpenChange(open);
-  }
+  };
 
-  const allFilesProcessed = files.every(f => f.previewUrl);
+  const allFilesProcessed = !isProcessing && files.length > 0 && files.every(f => f.previewUrl);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -114,7 +126,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
         <DialogHeader>
           <DialogTitle>Subir Nuevas Imágenes</DialogTitle>
           <DialogDescription>
-            Selecciona una o varias imágenes para subir. Se eliminarán datos innecesarios de los nombres.
+            Selecciona una o varias imágenes. Se optimizarán antes de subirlas.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-6 py-4">
@@ -130,7 +142,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
                   </p>
                   <p className="text-xs text-muted-foreground">Puedes seleccionar varias imágenes</p>
                 </div>
-                <Input id="picture" type="file" onChange={handleFileChange} accept="image/*" multiple className="hidden"/>
+                <Input id="picture" type="file" onChange={handleFileChange} accept="image/*" multiple className="hidden" disabled={isProcessing} />
               </label>
           </div>
 
@@ -161,8 +173,8 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={files.length === 0 || !allFilesProcessed || isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button type="submit" disabled={!allFilesProcessed}>
+              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Subir {files.length > 0 ? `${files.length} imágen${files.length > 1 ? 'es' : ''}` : 'Imágenes'}
             </Button>
           </DialogFooter>
@@ -171,3 +183,5 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
     </Dialog>
   );
 }
+
+    
