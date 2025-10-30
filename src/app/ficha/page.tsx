@@ -22,6 +22,8 @@ import { Button } from '@/components/ui/button';
 import { FileDown, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { logo1 } from '@/assets/logo1';
+import { logo2 } from '@/assets/logo2';
 
 
 export default function FichaPage() {
@@ -129,10 +131,9 @@ export default function FichaPage() {
 
     try {
         const canvas = await html2canvas(pdfRef.current, {
-            scale: 2, // Aumenta la resolución para mejor calidad
-            useCORS: true, // Permite cargar imágenes de otros dominios
+            scale: 2,
+            useCORS: true, 
             onclone: (document) => {
-                // Forzar la carga de imágenes en el clon
                 const images = document.getElementsByTagName('img');
                 for (let i = 0; i < images.length; i++) {
                     images[i].crossOrigin = 'anonymous';
@@ -144,6 +145,9 @@ export default function FichaPage() {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
+
+        pdf.addImage(logo1, 'JPEG', 10, 5, 30, 15);
+        pdf.addImage(logo2, 'JPEG', pdfWidth - 40, 5, 30, 15);
 
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
@@ -330,3 +334,4 @@ export default function FichaPage() {
     </div>
   );
 }
+
