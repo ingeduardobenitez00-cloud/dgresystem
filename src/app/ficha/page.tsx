@@ -155,9 +155,9 @@ export default function FichaPage() {
             pdf.setFontSize(11);
             pdf.setFont('helvetica', 'normal');
 
-            for (const [key, value] of Object.entries(report)) {
-                if (['id', 'departamento', 'distrito'].includes(key)) continue;
-
+            const reportFields = Object.entries(report).filter(([key]) => !['id', 'departamento', 'distrito'].includes(key));
+            
+            for (const [key, value] of reportFields) {
                 if (y > pageHeight - margin) {
                     pdf.addPage();
                     y = margin;
@@ -165,12 +165,20 @@ export default function FichaPage() {
 
                 const label = key.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 pdf.setFont('helvetica', 'bold');
+                
+                // Calculate space for label
+                const labelWidth = pdf.getStringUnitWidth(label + ':') * pdf.getFontSize() / pdf.internal.scaleFactor;
                 pdf.text(`${label}:`, margin, y);
                 pdf.setFont('helvetica', 'normal');
                 
-                const textLines = pdf.splitTextToSize(String(value) || 'N/A', pageWidth - margin * 3 - 20);
-                pdf.text(textLines, margin + 50, y);
-                y += (textLines.length * 5) + 4;
+                const valueX = margin + labelWidth + 2;
+                const valueMaxWidth = pageWidth - margin - valueX;
+                const textLines = pdf.splitTextToSize(String(value) || 'N/A', valueMaxWidth);
+
+                pdf.text(textLines, valueX, y, { align: 'justify', maxWidth: valueMaxWidth });
+                
+                const textHeight = pdf.getTextDimensions(textLines).h;
+                y += textHeight + 2; 
             }
         } else {
             pdf.setFontSize(12);
@@ -200,7 +208,7 @@ export default function FichaPage() {
             const imageNameHeight = 10;
             
             for (let i = 0; i < filteredImages.length; i++) {
-                const requiredSpace = imgHeight + imageNameHeight;
+                const requiredSpace = imgHeight + imageNameHeight + 5; // Added some buffer
                 if (y + requiredSpace > pageHeight - margin) {
                     pdf.addPage();
                     y = margin;
@@ -208,7 +216,12 @@ export default function FichaPage() {
 
                 const image = filteredImages[i];
                 try {
-                    pdf.addImage(image.src, 'PNG', margin, y, imgWidth, imgHeight);
+                    // Check if image src is valid data URL
+                    if (image.src && image.src.startsWith('data:image')) {
+                       pdf.addImage(image.src, 'PNG', margin, y, imgWidth, imgHeight);
+                    } else {
+                       throw new Error("Invalid image source");
+                    }
                 } catch (e) {
                     console.error("Error adding image to PDF:", e);
                     pdf.setFontSize(8);
