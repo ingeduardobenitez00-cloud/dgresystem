@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,14 +21,13 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { Button } from '@/components/ui/button';
 import { FileDown, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import { cleanFileName } from '@/lib/utils';
-import { logo1 } from '@/assets/logo1';
-import { logo2 } from '@/assets/logo2';
+import html2canvas from 'html2canvas';
 
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
@@ -121,137 +120,56 @@ export default function FichaPage() {
   };
 
   const handleGeneratePdf = async () => {
-    if (!selectedDept || !selectedDistrict) return;
+    if (!pdfRef.current) return;
+    
     setIsGeneratingPdf(true);
 
+    const pdfButton = document.getElementById('pdf-generate-button');
+    if (pdfButton) pdfButton.style.display = 'none';
+
     try {
+        const canvas = await html2canvas(pdfRef.current, {
+            scale: 2, // Aumenta la resolución para mejor calidad
+            useCORS: true, // Permite cargar imágenes de otros dominios
+            onclone: (document) => {
+                // Forzar la carga de imágenes en el clon
+                const images = document.getElementsByTagName('img');
+                for (let i = 0; i < images.length; i++) {
+                    images[i].crossOrigin = 'anonymous';
+                }
+            }
+        });
+
+        const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const margin = 15;
-        let y = margin;
-        
-        // Add logos
-        const logoWidth = 30;
-        const logoHeight = 15;
-        pdf.addImage(logo1, 'PNG', margin, 5, logoWidth, logoHeight);
-        pdf.addImage(logo2, 'PNG', pageWidth - margin - logoWidth, 5, logoWidth, logoHeight);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
 
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const ratio = canvasWidth / canvasHeight;
 
-        // Header
-        pdf.setFontSize(22);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Informe Edilicio Registro Electoral', pageWidth / 2, y, { align: 'center' });
-        y += 10;
+        const imgWidth = pdfWidth;
+        const imgHeight = imgWidth / ratio;
 
-        pdf.setFontSize(16);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(`${selectedDept} - ${selectedDistrict}`, pageWidth / 2, y, { align: 'center' });
-        y += 15;
-        
-        pdf.setLineWidth(0.5);
-        pdf.line(margin, y - 5, pageWidth - margin, y - 5);
+        let heightLeft = imgHeight;
+        let position = 0;
 
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
 
-        // Report Details
-        if (filteredReports && filteredReports.length > 0) {
-            const report = filteredReports[0];
-            pdf.setFontSize(14);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Detalles del Informe', margin, y);
-            y += 8;
-
-            pdf.setFontSize(11);
-            pdf.setFont('helvetica', 'normal');
-
-            const reportFields = Object.entries(report).filter(([key]) => !['id', 'departamento', 'distrito'].includes(key));
-            
-            for (const [key, value] of reportFields) {
-                if (y > pageHeight - margin) {
-                    pdf.addPage();
-                    y = margin;
-                }
-
-                const label = key.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                pdf.setFont('helvetica', 'bold');
-                
-                // Calculate space for label
-                const labelWidth = pdf.getStringUnitWidth(label + ':') * pdf.getFontSize() / pdf.internal.scaleFactor;
-                pdf.text(`${label}:`, margin, y);
-                pdf.setFont('helvetica', 'normal');
-                
-                const valueX = margin + labelWidth + 2;
-                const valueMaxWidth = pageWidth - margin - valueX;
-                const textLines = pdf.splitTextToSize(String(value) || 'N/A', valueMaxWidth);
-
-                pdf.text(textLines, valueX, y, { align: 'justify', maxWidth: valueMaxWidth });
-                
-                const textHeight = pdf.getTextDimensions(textLines).h;
-                y += textHeight + 2; 
-            }
-        } else {
-            pdf.setFontSize(12);
-            pdf.setTextColor(255, 0, 0);
-            pdf.setFont('helvetica', 'italic');
-            pdf.text('NO REMITIÓ INFORME', margin, y);
-            y += 10;
-        }
-
-        // Images section
-        if (filteredImages && filteredImages.length > 0) {
-            if (y > pageHeight - margin - 20) {
-              pdf.addPage();
-              y = margin;
-            } else {
-              y += 10;
-            }
-
-            pdf.setFontSize(14);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 0, 0);
-            pdf.text('Imagenes de las Oficinas del Registro Electoral', margin, y);
-            y += 10;
-
-            const imgWidth = pageWidth - margin * 2;
-            const imgHeight = imgWidth * (9 / 16); 
-            const imageNameHeight = 10;
-            
-            for (let i = 0; i < filteredImages.length; i++) {
-                const requiredSpace = imgHeight + imageNameHeight + 5; // Added some buffer
-                if (y + requiredSpace > pageHeight - margin) {
-                    pdf.addPage();
-                    y = margin;
-                }
-
-                const image = filteredImages[i];
-                try {
-                    // Check if image src is valid data URL
-                    if (image.src && image.src.startsWith('data:image')) {
-                       pdf.addImage(image.src, 'PNG', margin, y, imgWidth, imgHeight);
-                    } else {
-                       throw new Error("Invalid image source");
-                    }
-                } catch (e) {
-                    console.error("Error adding image to PDF:", e);
-                    pdf.setFontSize(8);
-                    pdf.text("Error al cargar imagen", margin + imgWidth / 2, y + imgHeight / 2, { align: 'center' });
-                }
-                
-                y += imgHeight + 5;
-
-                const imageName = cleanFileName(image.alt);
-                pdf.setFontSize(10);
-                pdf.setFont('helvetica', 'italic');
-                pdf.text(imageName, pageWidth / 2, y, { align: 'center' });
-                
-                y += imageNameHeight;
-            }
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pdfHeight;
         }
 
         pdf.save(`Ficha-${selectedDept}-${selectedDistrict}.pdf`);
     } catch (error) {
         console.error("Error generating PDF:", error);
     } finally {
+        if (pdfButton) pdfButton.style.display = 'flex';
         setIsGeneratingPdf(false);
     }
   };
@@ -313,8 +231,9 @@ export default function FichaPage() {
                     <p>Cargando datos...</p>
                 </div>
             ) : (
-                <div id="pdf-content" className='relative'>
+                <div id="pdf-container" className='relative'>
                     <Button 
+                        id="pdf-generate-button"
                         onClick={handleGeneratePdf} 
                         disabled={isGeneratingPdf}
                         className='absolute -top-4 right-4 z-10'
@@ -322,7 +241,7 @@ export default function FichaPage() {
                        {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
                         Generar PDF
                     </Button>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto p-4 bg-background">
+                    <div ref={pdfRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto p-4 bg-background">
                         <div>
                         {filteredReports && filteredReports.length > 0 ? (
                             filteredReports.map((report) => (
@@ -345,7 +264,7 @@ export default function FichaPage() {
                                 </Card>
                             ))
                         ) : (
-                            <Card>
+                             <Card>
                                 <CardContent className="p-6 text-center">
                                     <p className="text-destructive italic font-semibold">NO REMITIÓ INFORME</p>
                                 </CardContent>
