@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,9 +18,15 @@ import { useFirebase, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where } from 'firebase/firestore';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+import { Button } from '@/components/ui/button';
+import { FileDown, Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
@@ -111,6 +117,45 @@ export default function FichaPage() {
     setSelectedImage(image);
     setIsViewerOpen(true);
   };
+
+  const handleGeneratePdf = async () => {
+    const content = pdfRef.current;
+    if (!content) {
+        return;
+    }
+    setIsGeneratingPdf(true);
+
+    // Use a timeout to ensure all images are loaded
+    setTimeout(async () => {
+        try {
+            const canvas = await html2canvas(content, {
+                scale: 2, // Higher scale for better quality
+                useCORS: true, // Important for external images
+                allowTaint: true,
+                onclone: (document) => {
+                    // This can be used to modify the cloned document before rendering, e.g., hide elements
+                }
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
+            const width = pdfWidth;
+            const height = width / ratio;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, width, height > pdfHeight ? pdfHeight : height);
+            pdf.save(`Ficha-${selectedDept}-${selectedDistrict}.pdf`);
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    }, 500); // 500ms delay to help with image rendering
+  };
   
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -169,72 +214,83 @@ export default function FichaPage() {
                     <p>Cargando datos...</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto">
-                    <div>
-                    {filteredReports && filteredReports.length > 0 ? (
-                        filteredReports.map((report) => (
-                            <Card key={report.id}>
-                                <CardHeader>
-                                    <CardTitle>{report.distrito}, {report.departamento}</CardTitle>
-                                    <CardDescription>Detalles del informe.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-3 text-sm">
-                                {Object.entries(report).map(([key, value]) => {
-                                    if (key === 'departamento' || key === 'distrito' || key === 'id') return null;
-                                    return (
-                                        <div key={key}>
-                                        <p className="font-semibold capitalize text-muted-foreground">{key.replace(/-/g, ' ')}:</p>
-                                        <p>{String(value)}</p>
-                                        </div>
-                                    );
-                                })}
+                <div className='relative'>
+                    <Button 
+                        onClick={handleGeneratePdf} 
+                        disabled={isGeneratingPdf}
+                        className='absolute -top-4 right-4 z-10'
+                    >
+                       {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                        Generar PDF
+                    </Button>
+                    <div ref={pdfRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto p-4 bg-background">
+                        <div>
+                        {filteredReports && filteredReports.length > 0 ? (
+                            filteredReports.map((report) => (
+                                <Card key={report.id}>
+                                    <CardHeader>
+                                        <CardTitle>{report.distrito}, {report.departamento}</CardTitle>
+                                        <CardDescription>Detalles del informe.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3 text-sm">
+                                    {Object.entries(report).map(([key, value]) => {
+                                        if (key === 'departamento' || key === 'distrito' || key === 'id') return null;
+                                        return (
+                                            <div key={key}>
+                                            <p className="font-semibold capitalize text-muted-foreground">{key.replace(/-/g, ' ')}:</p>
+                                            <p>{String(value)}</p>
+                                            </div>
+                                        );
+                                    })}
+                                    </CardContent>
+                                </Card>
+                            ))
+                        ) : (
+                            <Card>
+                                <CardContent className="p-6 text-center">
+                                    <p className="text-destructive italic font-semibold">NO REMITIÓ INFORME</p>
                                 </CardContent>
                             </Card>
-                        ))
-                    ) : (
-                        <Card>
-                            <CardContent className="p-6 text-center">
-                                <p className="text-destructive italic font-semibold">NO REMITIÓ INFORME</p>
-                            </CardContent>
-                        </Card>
-                    )}
-                    </div>
-                    
-                    <div>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Imágenes</CardTitle>
-                                <CardDescription>Imágenes asociadas a la ubicación seleccionada.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                            {filteredImages && filteredImages.length > 0 ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {filteredImages.map((image) => (
-                                        <Card
-                                            key={image.id}
-                                            className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
-                                            onClick={() => handleOpenImageViewer(image)}
-                                        >
-                                            <CardContent className="p-0">
-                                                <Image
-                                                    src={image.src}
-                                                    alt={image.alt}
-                                                    width={600}
-                                                    height={400}
-                                                    className="aspect-[3/2] w-full object-cover"
-                                                    data-ai-hint={image.hint}
-                                                />
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <p className="text-muted-foreground">No hay imágenes para esta ubicación.</p>
-                                </div>
-                            )}
-                            </CardContent>
-                        </Card>
+                        )}
+                        </div>
+                        
+                        <div>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Imágenes</CardTitle>
+                                    <CardDescription>Imágenes asociadas a la ubicación seleccionada.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                {filteredImages && filteredImages.length > 0 ? (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {filteredImages.map((image) => (
+                                            <Card
+                                                key={image.id}
+                                                className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+                                                onClick={() => handleOpenImageViewer(image)}
+                                            >
+                                                <CardContent className="p-0">
+                                                    <Image
+                                                        src={image.src}
+                                                        alt={image.alt}
+                                                        width={600}
+                                                        height={400}
+                                                        className="aspect-[3/2] w-full object-cover"
+                                                        data-ai-hint={image.hint}
+                                                        crossOrigin="anonymous"
+                                                    />
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <p className="text-muted-foreground">No hay imágenes para esta ubicación.</p>
+                                    </div>
+                                )}
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                 </div>
             )
