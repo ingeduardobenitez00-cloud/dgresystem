@@ -200,7 +200,7 @@ export default function FichaPage() {
             pdf.setFontSize(14);
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(0, 0, 0);
-            pdf.text('Galería de Imágenes', margin, y);
+            pdf.text('Imagenes de las Oficinas del Registro Electoral', margin, y);
             y += 10;
 
             const imgWidth = pageWidth - margin * 2;
