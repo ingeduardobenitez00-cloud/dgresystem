@@ -158,19 +158,26 @@ export default function PhotoGallery() {
               {department.name}
             </AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-6 pl-4">
+              <Accordion type="multiple" className="w-full space-y-4 px-4">
                 {department.districts.map((district) => {
                   const imagesKey = `${department.name}-${district.name}`;
                   const districtImages = images[imagesKey] || [];
                   return (
-                    <div key={district.id} onMouseOver={() => getImagesForDistrict(department.name, district.name)}>
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-md font-medium text-foreground/90">{district.name}</h3>
-                        <Button variant="outline" size="sm" onClick={() => handleOpenUpload(department.name, district.name)}>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Subir Foto
-                        </Button>
-                      </div>
+                    <AccordionItem value={district.id} key={district.id}>
+                        <div className="flex w-full items-center">
+                            <AccordionTrigger
+                                onFocus={() => getImagesForDistrict(department.name, district.name)}
+                                onMouseOver={() => getImagesForDistrict(department.name, district.name)}
+                                className="flex-1 text-md font-medium border-b-0"
+                            >
+                                {district.name}
+                            </AccordionTrigger>
+                            <Button variant="outline" size="sm" onClick={() => handleOpenUpload(department.name, district.name)} className="ml-4 shrink-0">
+                                <Upload className="mr-2 h-4 w-4" />
+                                Subir Foto
+                            </Button>
+                        </div>
+                      <AccordionContent className="pt-4">
                       {districtImages.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {districtImages.map((image) => (
@@ -202,10 +209,11 @@ export default function PhotoGallery() {
                           <p className="text-sm text-muted-foreground">Haz clic aquí para subir una.</p>
                         </button>
                       )}
-                    </div>
+                      </AccordionContent>
+                    </AccordionItem>
                   );
                 })}
-              </div>
+              </Accordion>
             </AccordionContent>
           </AccordionItem>
         ))}
@@ -225,3 +233,4 @@ export default function PhotoGallery() {
     </div>
   );
 }
+
