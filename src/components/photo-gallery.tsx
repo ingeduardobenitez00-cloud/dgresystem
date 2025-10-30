@@ -20,6 +20,7 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { cn } from '@/lib/utils';
 
 type DepartmentWithDistricts = {
   id: string;
@@ -162,13 +163,17 @@ export default function PhotoGallery() {
                 {department.districts.map((district) => {
                   const imagesKey = `${department.name}-${district.name}`;
                   const districtImages = images[imagesKey] || [];
+                  const hasImages = districtImages.length > 0;
                   return (
                     <AccordionItem value={district.id} key={district.id}>
                         <div className="flex w-full items-center">
                             <AccordionTrigger
                                 onFocus={() => getImagesForDistrict(department.name, district.name)}
                                 onMouseOver={() => getImagesForDistrict(department.name, district.name)}
-                                className="flex-1 text-md font-medium border-b-0"
+                                className={cn(
+                                    "flex-1 text-md font-medium border-b-0",
+                                    !hasImages && "text-destructive hover:text-destructive"
+                                )}
                             >
                                 {district.name}
                             </AccordionTrigger>
@@ -178,7 +183,7 @@ export default function PhotoGallery() {
                             </Button>
                         </div>
                       <AccordionContent className="pt-4">
-                      {districtImages.length > 0 ? (
+                      {hasImages ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {districtImages.map((image) => (
                             <Card
@@ -205,7 +210,7 @@ export default function PhotoGallery() {
                           className="w-full text-center py-12 border-2 border-dashed rounded-lg flex flex-col items-center justify-center hover:bg-muted/50 transition-colors"
                         >
                           <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                          <p className="text-muted-foreground font-medium">No hay imágenes en este distrito.</p>
+                          <p className="text-destructive font-medium">No hay imágenes en este distrito.</p>
                           <p className="text-sm text-muted-foreground">Haz clic aquí para subir una.</p>
                         </button>
                       )}
@@ -233,4 +238,3 @@ export default function PhotoGallery() {
     </div>
   );
 }
-
