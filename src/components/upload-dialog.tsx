@@ -91,7 +91,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
       }));
 
       onImagesUploaded(newImages);
-      resetForm();
+      // No cerramos aquí, el padre lo hará después del commit
     });
   };
 

@@ -158,7 +158,7 @@ export default function PhotoGallery() {
           const districtsWithImages = department.districts.filter(
             (dist) => (images[`${department.name}-${dist.name}`] || []).length > 0
           ).length;
-          const completionPercentage = (districtsWithImages / department.districts.length) * 100;
+          const completionPercentage = department.districts.length > 0 ? (districtsWithImages / department.districts.length) * 100 : 0;
 
           return (
             <AccordionItem value={department.id} key={department.id}>
