@@ -28,16 +28,16 @@ type SummaryCounts = {
     otros: number;
 };
 
-const ResguardoIcon = ({ lugar }: { lugar: string }) => {
+const ResguardoIcon = ({ lugar }: { lugar: string | undefined }) => {
   const normalizedLugar = lugar ? lugar.toLowerCase() : '';
 
   if (normalizedLugar.includes('habitacion segura') || normalizedLugar.includes('registro electoral')) {
-    return <CheckCircle className="h-5 w-5 text-green-600" />;
+    return <CheckCircle className="h-5 w-5 text-green-600" title="Habitación Segura / Registro Electoral" />;
   }
   if (normalizedLugar.includes('comisaria')) {
-    return <Shield className="h-5 w-5 text-blue-600" />;
+    return <Shield className="h-5 w-5 text-blue-600" title="Comisaría" />;
   }
-  return <Building className="h-5 w-5 text-muted-foreground" />;
+  return <Building className="h-5 w-5 text-muted-foreground" title="Otro Lugar" />;
 };
 
 
@@ -180,51 +180,18 @@ export default function ResumenPage() {
                       {department.name}
                     </AccordionTrigger>
                     <AccordionContent>
-                      <Accordion type="multiple" className="w-full space-y-4 px-4">
+                      <div className="space-y-2 px-4">
                         {department.districts.map((district) => (
-                          <AccordionItem value={district.name} key={district.name}>
-                            <AccordionTrigger className="text-md font-medium border-b-0">
-                                {district.name}
-                            </AccordionTrigger>
-                            <AccordionContent className="pt-2">
-                              {district.report ? (
-                                <Card className="bg-muted/50">
-                                  <CardContent className="p-4 space-y-3 text-sm">
-                                    {Object.entries(district.report).map(([key, value]) => {
-                                      if (key === 'departamento' || key === 'distrito' || key === 'id' || !value) return null;
-                                      
-                                      const formattedKey = key.replace(/-/g, ' ');
-
-                                      if(key === 'lugar-resguardo') {
-                                        return (
-                                          <div key={key}>
-                                            <p className="font-semibold capitalize text-muted-foreground">{formattedKey}:</p>
-                                            <div className="flex items-center gap-2">
-                                              <ResguardoIcon lugar={String(value)} />
-                                              <p>{String(value)}</p>
-                                            </div>
-                                          </div>
-                                        )
-                                      }
-
-                                      return (
-                                          <div key={key}>
-                                            <p className="font-semibold capitalize text-muted-foreground">{formattedKey}:</p>
-                                            <p>{String(value)}</p>
-                                          </div>
-                                      );
-                                    })}
-                                  </CardContent>
-                                </Card>
-                              ) : (
-                                <div className="text-center py-4 text-muted-foreground text-sm">
-                                  <p>No hay informe para este distrito.</p>
-                                </div>
-                              )}
-                            </AccordionContent>
-                          </AccordionItem>
+                          <div key={district.name} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
+                            <span className="text-md font-medium">{district.name}</span>
+                            {district.report ? (
+                              <ResguardoIcon lugar={district.report['lugar-resguardo']} />
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">No hay informe</p>
+                            )}
+                          </div>
                         ))}
-                      </Accordion>
+                      </div>
                     </AccordionContent>
                   </AccordionItem>
                 ))}
