@@ -43,6 +43,8 @@ export default function UsersPage() {
 
     const modules: string[] = [];
     if (formData.get('access-fotos')) modules.push('fotos');
+    if (formData.get('access-ficha')) modules.push('ficha');
+    if (formData.get('access-resumen')) modules.push('resumen');
     if (formData.get('access-config')) modules.push('config');
     if (formData.get('access-users')) modules.push('users');
 
@@ -142,23 +144,37 @@ export default function UsersPage() {
 
               <div className="space-y-4">
                 <Label>Acceso a Módulos</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="access-fotos" name="access-fotos" defaultChecked />
-                  <Label htmlFor="access-fotos" className="font-normal">
-                    Fotos
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="access-config" name="access-config" />
-                  <Label htmlFor="access-config" className="font-normal">
-                    Configuración
-                  </Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                  <Checkbox id="access-users" name="access-users" />
-                  <Label htmlFor="access-users" className="font-normal">
-                    Usuarios
-                  </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="access-fotos" name="access-fotos" defaultChecked />
+                        <Label htmlFor="access-fotos" className="font-normal">
+                            Fotos
+                        </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="access-ficha" name="access-ficha" defaultChecked />
+                        <Label htmlFor="access-ficha" className="font-normal">
+                            Vista de Ficha
+                        </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="access-resumen" name="access-resumen" defaultChecked />
+                        <Label htmlFor="access-resumen" className="font-normal">
+                            Resumen
+                        </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="access-config" name="access-config" />
+                        <Label htmlFor="access-config" className="font-normal">
+                            Configuración
+                        </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Checkbox id="access-users" name="access-users" />
+                        <Label htmlFor="access-users" className="font-normal">
+                            Usuarios
+                        </Label>
+                    </div>
                 </div>
               </div>
 
