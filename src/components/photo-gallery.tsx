@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Accordion,
@@ -11,13 +11,13 @@ import {
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, ImageIcon } from 'lucide-react';
-import { type Dato, type Department, type District, type ImageData } from '@/lib/data';
+import { Upload, ImageIcon, Loader2 } from 'lucide-react';
+import { type Dato, type District, type ImageData } from '@/lib/data';
 import { UploadDialog } from '@/components/upload-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
-import { useFirebase, useMemoFirebase } from '@/firebase';
+import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, getDocs, addDoc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -29,8 +29,9 @@ type DepartmentWithDistricts = {
 
 export default function PhotoGallery() {
   const { firestore } = useFirebase();
+  const { user, isUserLoading } = useUser();
 
-  const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
+  const datosQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'datos') : null), [firestore, user]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   const [departments, setDepartments] = useState<DepartmentWithDistricts[]>([]);
@@ -62,7 +63,7 @@ export default function PhotoGallery() {
   }, [datosData]);
   
   const getImagesForDistrict = async (deptName: string, distName: string) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     const imagesKey = `${deptName}-${distName}`;
     if (images[imagesKey]) return; // Already fetched
 
@@ -94,7 +95,7 @@ export default function PhotoGallery() {
     setUploadOpen(true);
   };
 
-  const handleImagesUploaded = async (newImages: Omit<ImageData, 'id'>[]) => {
+  const handleImagesUploaded = (newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[]) => {
     if (!activeDistrict || !firestore) return;
 
     const { deptName, distName } = activeDistrict;
@@ -130,6 +131,14 @@ export default function PhotoGallery() {
         errorEmitter.emit('permission-error', contextualError);
     });
   };
+
+  if (isLoadingDatos || isUserLoading) {
+      return (
+          <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+      );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -216,4 +225,3 @@ export default function PhotoGallery() {
     </div>
   );
 }
-

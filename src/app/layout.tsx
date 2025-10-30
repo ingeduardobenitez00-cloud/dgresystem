@@ -26,29 +26,22 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isUserLoading) {
-      if (user && pathname === '/login') {
-        router.replace('/');
-      } else if (!user && pathname !== '/login') {
-        router.replace('/login');
-      }
+    if (isUserLoading) {
+      return; // Do nothing while loading
+    }
+    if (user && pathname === '/login') {
+      router.replace('/');
+    } else if (!user && pathname !== '/login') {
+      router.replace('/login');
     }
   }, [user, isUserLoading, router, pathname]);
 
-  if (isUserLoading) {
+  if (isUserLoading || (!user && pathname !== '/login') || (user && pathname === '/login')) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
-  }
-
-  if (!user && pathname !== '/login') {
-    return null; // Don't render anything while redirecting
-  }
-  
-  if (user && pathname === '/login') {
-     return null;
   }
 
   if (pathname === '/login') {
