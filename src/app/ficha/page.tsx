@@ -21,6 +21,8 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { Button } from '@/components/ui/button';
 import { FileDown, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { cleanFileName } from '@/lib/utils';
+
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
@@ -193,31 +195,34 @@ export default function FichaPage() {
             pdf.text('Galería de Imágenes', margin, y);
             y += 10;
 
-            const imgWidth = (pageWidth - margin * 2 - 10) / 2;
-            const imgHeight = imgWidth * (2 / 3);
-            let x = margin;
-
+            const imgWidth = pageWidth - margin * 2;
+            const imgHeight = imgWidth * (9 / 16); 
+            const imageNameHeight = 10;
+            
             for (let i = 0; i < filteredImages.length; i++) {
-                if (y + imgHeight > pageHeight - margin) {
+                const requiredSpace = imgHeight + imageNameHeight;
+                if (y + requiredSpace > pageHeight - margin) {
                     pdf.addPage();
                     y = margin;
-                    x = margin;
                 }
 
                 const image = filteredImages[i];
                 try {
-                    pdf.addImage(image.src, 'PNG', x, y, imgWidth, imgHeight);
+                    pdf.addImage(image.src, 'PNG', margin, y, imgWidth, imgHeight);
                 } catch (e) {
                     console.error("Error adding image to PDF:", e);
                     pdf.setFontSize(8);
-                    pdf.text("Error al cargar imagen", x + imgWidth / 2, y + imgHeight / 2, { align: 'center' });
+                    pdf.text("Error al cargar imagen", margin + imgWidth / 2, y + imgHeight / 2, { align: 'center' });
                 }
                 
-                x += imgWidth + 10;
-                if ((i + 1) % 2 === 0) {
-                    x = margin;
-                    y += imgHeight + 10;
-                }
+                y += imgHeight + 5;
+
+                const imageName = cleanFileName(image.alt);
+                pdf.setFontSize(10);
+                pdf.setFont('helvetica', 'italic');
+                pdf.text(imageName, pageWidth / 2, y, { align: 'center' });
+                
+                y += imageNameHeight;
             }
         }
 
@@ -286,7 +291,7 @@ export default function FichaPage() {
                     <p>Cargando datos...</p>
                 </div>
             ) : (
-                <div className='relative'>
+                <div id="pdf-content" className='relative'>
                     <Button 
                         onClick={handleGeneratePdf} 
                         disabled={isGeneratingPdf}
