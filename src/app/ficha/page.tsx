@@ -194,7 +194,7 @@ export default function FichaPage() {
                     ) : (
                         <Card>
                             <CardContent className="p-6 text-center">
-                                <p className="text-muted-foreground">No hay reportes que coincidan con los filtros seleccionados.</p>
+                                <p className="text-destructive italic font-semibold">NO REMITIÓ INFORME</p>
                             </CardContent>
                         </Card>
                     )}
