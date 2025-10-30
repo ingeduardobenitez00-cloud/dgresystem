@@ -114,7 +114,8 @@ export default function PhotoGallery() {
 
   const handleImagesUploaded = async (newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[]) => {
     if (!activeDistrict || !firestore) return;
-    setUploadOpen(false);
+    
+    setUploadOpen(false); // Close dialog immediately
     setUploadProgress(0);
 
     const { deptName, distName } = activeDistrict;
@@ -259,11 +260,9 @@ export default function PhotoGallery() {
                     const districtImages = images[imagesKey] || [];
                     const hasImages = districtImages.length > 0;
                     return (
-                      <AccordionItem value={district.id} key={district.id}>
+                      <AccordionItem value={district.id} key={district.id} onFocus={() => getImagesForDistrict(department.name, district.name)}>
                           <div className="flex w-full items-center">
                               <AccordionTrigger
-                                  onFocus={() => getImagesForDistrict(department.name, district.name)}
-                                  onMouseOver={() => getImagesForDistrict(department.name, district.name)}
                                   className={cn(
                                       "flex-1 text-md font-medium border-b-0",
                                       !hasImages && "text-destructive hover:text-destructive"

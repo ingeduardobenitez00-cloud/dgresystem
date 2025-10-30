@@ -47,7 +47,7 @@ export default function FichaPage() {
     );
   }, [firestore, selectedDept, selectedDistrict]);
 
-  const { data: filteredReports } = useCollection<ReportData>(reportsQuery);
+  const { data: filteredReports, isLoading: isLoadingReports } = useCollection<ReportData>(reportsQuery);
 
   const imagesQuery = useMemoFirebase(() => {
     if (!firestore || !selectedDept || !selectedDistrict) return null;
@@ -58,10 +58,10 @@ export default function FichaPage() {
     );
   }, [firestore, selectedDept, selectedDistrict]);
 
-  const { data: filteredImages } = useCollection<ImageData>(imagesQuery);
+  const { data: filteredImages, isLoading: isLoadingImages } = useCollection<ImageData>(imagesQuery);
 
 
-  const handleDeptChange = async (deptName: string) => {
+  const handleDeptChange = (deptName: string) => {
     setSelectedDistrict('');
     setDistricts([]);
 
@@ -141,74 +141,80 @@ export default function FichaPage() {
         </Card>
 
         {selectedDept && selectedDistrict ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto">
-                <div>
-                {filteredReports && filteredReports.length > 0 ? (
-                    filteredReports.map((report) => (
-                        <Card key={report.id}>
-                            <CardHeader>
-                                <CardTitle>{report.distrito}, {report.departamento}</CardTitle>
-                                <CardDescription>Detalles del informe.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-3 text-sm">
-                            {Object.entries(report).map(([key, value]) => {
-                                if (key === 'departamento' || key === 'distrito' || key === 'id') return null;
-                                return (
-                                    <div key={key}>
-                                    <p className="font-semibold capitalize text-muted-foreground">{key.replace(/-/g, ' ')}:</p>
-                                    <p>{String(value)}</p>
-                                    </div>
-                                );
-                            })}
+            (isLoadingReports || isLoadingImages) ? (
+                 <div className="col-span-full text-center py-12 text-muted-foreground">
+                    <p>Cargando datos...</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto">
+                    <div>
+                    {filteredReports && filteredReports.length > 0 ? (
+                        filteredReports.map((report) => (
+                            <Card key={report.id}>
+                                <CardHeader>
+                                    <CardTitle>{report.distrito}, {report.departamento}</CardTitle>
+                                    <CardDescription>Detalles del informe.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                {Object.entries(report).map(([key, value]) => {
+                                    if (key === 'departamento' || key === 'distrito' || key === 'id') return null;
+                                    return (
+                                        <div key={key}>
+                                        <p className="font-semibold capitalize text-muted-foreground">{key.replace(/-/g, ' ')}:</p>
+                                        <p>{String(value)}</p>
+                                        </div>
+                                    );
+                                })}
+                                </CardContent>
+                            </Card>
+                        ))
+                    ) : (
+                        <Card>
+                            <CardContent className="p-6 text-center">
+                                <p className="text-muted-foreground">No hay reportes que coincidan con los filtros seleccionados.</p>
                             </CardContent>
                         </Card>
-                    ))
-                ) : (
-                    <Card>
-                        <CardContent className="p-6 text-center">
-                            <p className="text-muted-foreground">No hay reportes que coincidan con los filtros seleccionados.</p>
-                        </CardContent>
-                    </Card>
-                )}
+                    )}
+                    </div>
+                    
+                    <div>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Imágenes</CardTitle>
+                                <CardDescription>Imágenes asociadas a la ubicación seleccionada.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                            {filteredImages && filteredImages.length > 0 ? (
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {filteredImages.map((image) => (
+                                        <Card
+                                            key={image.id}
+                                            className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+                                            onClick={() => setSelectedImage(image)}
+                                        >
+                                            <CardContent className="p-0">
+                                                <Image
+                                                    src={image.src}
+                                                    alt={image.alt}
+                                                    width={600}
+                                                    height={400}
+                                                    className="aspect-[3/2] w-full object-cover"
+                                                    data-ai-hint={image.hint}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12">
+                                    <p className="text-muted-foreground">No hay imágenes para esta ubicación.</p>
+                                </div>
+                            )}
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
-                
-                <div>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Imágenes</CardTitle>
-                            <CardDescription>Imágenes asociadas a la ubicación seleccionada.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                        {filteredImages && filteredImages.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {filteredImages.map((image) => (
-                                    <Card
-                                        key={image.id}
-                                        className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
-                                        onClick={() => setSelectedImage(image)}
-                                    >
-                                        <CardContent className="p-0">
-                                            <Image
-                                                src={image.src}
-                                                alt={image.alt}
-                                                width={600}
-                                                height={400}
-                                                className="aspect-[3/2] w-full object-cover"
-                                                data-ai-hint={image.hint}
-                                            />
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <p className="text-muted-foreground">No hay imágenes para esta ubicación.</p>
-                            </div>
-                        )}
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+            )
         ) : (
             <div className="col-span-full text-center py-12 text-muted-foreground">
                 <p>Por favor, selecciona un departamento y distrito para ver la información.</p>
