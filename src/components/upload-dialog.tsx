@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import type { ImageData } from '@/lib/data';
@@ -47,7 +47,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
 
     setIsProcessing(true);
     const newFilePreviews: FilePreview[] = Array.from(selectedFiles).map(file => ({
-      id: `${file.name}-${file.lastModified}`,
+      id: `${file.name}-${file.lastModified}-${Math.random()}`,
       file,
       previewUrl: '', // Will be filled by FileReader
     }));
@@ -93,10 +93,18 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
         setIsProcessing(false);
       });
   };
+
+  const handleRemoveFile = (fileId: string) => {
+    setFiles(prev => prev.filter(f => f.id !== fileId));
+  };
   
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (files.length === 0 || files.some(f => !f.previewUrl)) {
+    if (files.length === 0) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Por favor, selecciona al menos una imagen.' });
+      return;
+    }
+    if (isProcessing || files.some(f => !f.previewUrl)) {
       toast({ variant: 'destructive', title: 'Error', description: 'Por favor, espera a que todas las imágenes se procesen.' });
       return;
     }
@@ -108,6 +116,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
     }));
 
     onImagesUploaded(newImages);
+    handleOpenChange(false);
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -149,8 +158,8 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
             <ScrollArea className="h-[450px] w-full pr-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {files.map((file) => (
-                    <Card key={file.id} className="overflow-hidden">
-                        <CardContent className="p-2 space-y-2">
+                    <Card key={file.id} className="overflow-hidden group/preview">
+                        <CardContent className="p-2 space-y-2 relative">
                              <div className="relative aspect-video w-full overflow-hidden rounded-md">
                                 {file.previewUrl ? (
                                     <Image src={file.previewUrl} alt={`Vista previa de ${file.file.name}`} fill style={{ objectFit: 'cover' }} />
@@ -163,6 +172,15 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
                             <div className="p-2">
                                 <p className="text-sm font-medium truncate" title={file.file.name}>{cleanFileName(file.file.name)}</p>
                             </div>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-3 right-3 h-7 w-7 opacity-0 group-hover/preview:opacity-100 transition-opacity"
+                                onClick={() => handleRemoveFile(file.id)}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
                         </CardContent>
                     </Card>
                 ))}
@@ -172,7 +190,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={!allFilesProcessed}>
+            <Button type="submit" disabled={!allFilesProcessed && !isProcessing && files.length > 0}>
               {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Subir {files.length > 0 ? `${files.length} imágen${files.length > 1 ? 'es' : ''}` : 'Imágenes'}
             </Button>
