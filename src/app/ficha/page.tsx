@@ -136,8 +136,8 @@ export default function FichaPage() {
         // --- HEADER ---
         const logoWidth = 30;
         const logoHeight = 15;
-        pdf.addImage(logo1, 'JPEG', margin, 5, logoWidth, logoHeight);
-        pdf.addImage(logo2, 'JPEG', pageWidth - margin - logoWidth, 5, logoWidth, logoHeight);
+        pdf.addImage(logo2, 'JPEG', margin, 5, logoWidth, logoHeight);
+        pdf.addImage(logo1, 'JPEG', pageWidth - margin - logoWidth, 5, logoWidth, logoHeight);
 
         pdf.setFontSize(18);
         pdf.setFont('helvetica', 'bold');
@@ -231,7 +231,7 @@ export default function FichaPage() {
                         if (currentY + totalElementHeight > pageHeight - margin) {
                             pdf.addPage();
                             currentY = margin;
-                            addGalleryHeader(); // Add header on new page
+                            addGalleryHeader();
                         }
 
                         pdf.setFontSize(10);
