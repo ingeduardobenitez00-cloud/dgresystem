@@ -132,7 +132,7 @@ export default function FichaPage() {
         // Header
         pdf.setFontSize(22);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('Informe Edilicio de Los Registros Electorales', pageWidth / 2, y, { align: 'center' });
+        pdf.text('Informe Edilicio Registro Electoral', pageWidth / 2, y, { align: 'center' });
         y += 10;
 
         pdf.setFontSize(16);
@@ -389,6 +389,8 @@ export default function FichaPage() {
     </div>
   );
 }
+
+    
 
     
 
