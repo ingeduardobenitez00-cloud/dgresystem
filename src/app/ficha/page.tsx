@@ -24,10 +24,12 @@ import jsPDF from 'jspdf';
 import { logo1 } from '@/assets/logo1';
 import { logo2 } from '@/assets/logo2';
 import { cleanFileName } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
+  const { toast } = useToast();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
@@ -160,7 +162,7 @@ export default function FichaPage() {
             const reportEntries = Object.entries(report).filter(([key]) => !['id', 'departamento', 'distrito'].includes(key));
             
             for (const [key, value] of reportEntries) {
-                if (currentY > pageHeight - margin) {
+                if (currentY > pageHeight - margin - 10) { // Add some buffer
                     pdf.addPage();
                     currentY = margin;
                 }
@@ -191,12 +193,8 @@ export default function FichaPage() {
 
         // --- IMAGE GALLERY ---
         if (filteredImages && filteredImages.length > 0) {
-            currentY += 10;
-
-             if (currentY > pageHeight - margin - 20) { // Check space for header
-                pdf.addPage();
-                currentY = margin;
-            }
+            pdf.addPage();
+            currentY = margin;
 
             pdf.setFontSize(16);
             pdf.setFont('helvetica', 'bold');
@@ -217,7 +215,7 @@ export default function FichaPage() {
                         const pdfImageWidth = pageWidth - margin * 2;
                         const pdfImageHeight = pdfImageWidth / ratio;
                         const imageName = cleanFileName(image.alt);
-                        const nameHeight = 7;
+                        const nameHeight = 10; // Increased space for name
                         
                         const totalElementHeight = pdfImageHeight + nameHeight;
 
@@ -226,13 +224,13 @@ export default function FichaPage() {
                             currentY = margin;
                         }
 
-                        pdf.addImage(img, 'JPEG', margin, currentY, pdfImageWidth, pdfImageHeight);
-                        currentY += pdfImageHeight + 2;
-
                         pdf.setFontSize(10);
-                        pdf.setFont('helvetica', 'italic');
+                        pdf.setFont('helvetica', 'bold');
                         pdf.text(imageName, pageWidth / 2, currentY, { align: 'center' });
-                        currentY += nameHeight + 5;
+                        currentY += nameHeight - 3; // Adjust spacing
+
+                        pdf.addImage(img, 'JPEG', margin, currentY, pdfImageWidth, pdfImageHeight);
+                        currentY += pdfImageHeight + 5;
 
                         resolve(true);
                     };
