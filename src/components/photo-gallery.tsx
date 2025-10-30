@@ -21,6 +21,7 @@ import { collection, doc, getDocs, query, where, writeBatch } from 'firebase/fir
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 
 type DepartmentWithDistricts = {
   id: string;
@@ -153,75 +154,92 @@ export default function PhotoGallery() {
       </div>
 
       <Accordion type="single" collapsible className="w-full">
-        {departments.map((department) => (
-          <AccordionItem value={department.id} key={department.id}>
-            <AccordionTrigger className="text-lg font-medium hover:no-underline data-[state=open]:text-primary">
-              {department.name}
-            </AccordionTrigger>
-            <AccordionContent>
-              <Accordion type="multiple" className="w-full space-y-4 px-4">
-                {department.districts.map((district) => {
-                  const imagesKey = `${department.name}-${district.name}`;
-                  const districtImages = images[imagesKey] || [];
-                  const hasImages = districtImages.length > 0;
-                  return (
-                    <AccordionItem value={district.id} key={district.id}>
-                        <div className="flex w-full items-center">
-                            <AccordionTrigger
-                                onFocus={() => getImagesForDistrict(department.name, district.name)}
-                                onMouseOver={() => getImagesForDistrict(department.name, district.name)}
-                                className={cn(
-                                    "flex-1 text-md font-medium border-b-0",
-                                    !hasImages && "text-destructive hover:text-destructive"
-                                )}
-                            >
-                                {district.name}
-                            </AccordionTrigger>
-                            <Button variant="outline" size="sm" onClick={() => handleOpenUpload(department.name, district.name)} className="ml-4 shrink-0">
-                                <Upload className="mr-2 h-4 w-4" />
-                                Subir Foto
-                            </Button>
+        {departments.map((department) => {
+          const districtsWithImages = department.districts.filter(
+            (dist) => (images[`${department.name}-${dist.name}`] || []).length > 0
+          ).length;
+          const completionPercentage = (districtsWithImages / department.districts.length) * 100;
+
+          return (
+            <AccordionItem value={department.id} key={department.id}>
+              <div className='flex flex-col'>
+                <div className='flex items-center w-full'>
+                    <AccordionTrigger className="text-lg font-medium hover:no-underline data-[state=open]:text-primary flex-1">
+                    <div className='flex flex-col items-start gap-2'>
+                        <span>{department.name}</span>
+                        <div className="w-full flex items-center gap-2 pr-4">
+                            <Progress value={completionPercentage} className="h-2 w-full max-w-xs" />
+                            <span className="text-xs font-mono text-muted-foreground">{Math.round(completionPercentage)}%</span>
                         </div>
-                      <AccordionContent className="pt-4">
-                      {hasImages ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                          {districtImages.map((image) => (
-                            <Card
-                              key={image.id}
-                              className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
-                              onClick={() => setSelectedImage(image)}
-                            >
-                              <CardContent className="p-0">
-                                <Image
-                                  src={image.src}
-                                  alt={image.alt}
-                                  width={600}
-                                  height={400}
-                                  className="aspect-[3/2] w-full object-cover"
-                                  data-ai-hint={image.hint}
-                                />
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleOpenUpload(department.name, district.name)}
-                          className="w-full text-center py-12 border-2 border-dashed rounded-lg flex flex-col items-center justify-center hover:bg-muted/50 transition-colors"
-                        >
-                          <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                          <p className="text-destructive font-medium">No hay imágenes en este distrito.</p>
-                          <p className="text-sm text-muted-foreground">Haz clic aquí para subir una.</p>
-                        </button>
-                      )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+                    </div>
+                    </AccordionTrigger>
+                </div>
+              </div>
+              <AccordionContent>
+                <Accordion type="multiple" className="w-full space-y-4 px-4">
+                  {department.districts.map((district) => {
+                    const imagesKey = `${department.name}-${district.name}`;
+                    const districtImages = images[imagesKey] || [];
+                    const hasImages = districtImages.length > 0;
+                    return (
+                      <AccordionItem value={district.id} key={district.id}>
+                          <div className="flex w-full items-center">
+                              <AccordionTrigger
+                                  onFocus={() => getImagesForDistrict(department.name, district.name)}
+                                  onMouseOver={() => getImagesForDistrict(department.name, district.name)}
+                                  className={cn(
+                                      "flex-1 text-md font-medium border-b-0",
+                                      !hasImages && "text-destructive hover:text-destructive"
+                                  )}
+                              >
+                                  {district.name}
+                              </AccordionTrigger>
+                              <Button variant="outline" size="sm" onClick={() => handleOpenUpload(department.name, district.name)} className="ml-4 shrink-0">
+                                  <Upload className="mr-2 h-4 w-4" />
+                                  Subir Foto
+                              </Button>
+                          </div>
+                        <AccordionContent className="pt-4">
+                        {hasImages ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {districtImages.map((image) => (
+                              <Card
+                                key={image.id}
+                                className="overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+                                onClick={() => setSelectedImage(image)}
+                              >
+                                <CardContent className="p-0">
+                                  <Image
+                                    src={image.src}
+                                    alt={image.alt}
+                                    width={600}
+                                    height={400}
+                                    className="aspect-[3/2] w-full object-cover"
+                                    data-ai-hint={image.hint}
+                                  />
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenUpload(department.name, district.name)}
+                            className="w-full text-center py-12 border-2 border-dashed rounded-lg flex flex-col items-center justify-center hover:bg-muted/50 transition-colors"
+                          >
+                            <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                            <p className="text-destructive font-medium">No hay imágenes en este distrito.</p>
+                            <p className="text-sm text-muted-foreground">Haz clic aquí para subir una.</p>
+                          </button>
+                        )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
       </Accordion>
 
       <UploadDialog
