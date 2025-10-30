@@ -11,7 +11,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { BookMarked, Settings, ImageIcon, Users, FileText, LogOut, BarChart3 } from "lucide-react";
+import { BookMarked, Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,6 +35,11 @@ export default function AppSidebar() {
   const menuItems = [
     {
       href: "/",
+      label: "Principal",
+      icon: LayoutDashboard,
+    },
+    {
+      href: "/fotos",
       label: "Fotos",
       icon: ImageIcon,
     },
