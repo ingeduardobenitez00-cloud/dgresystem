@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -26,6 +27,7 @@ export default function UsersPage() {
   
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const form = event.currentTarget;
     if (!auth || !firestore) {
       toast({
         variant: "destructive",
@@ -35,7 +37,7 @@ export default function UsersPage() {
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
@@ -71,7 +73,7 @@ export default function UsersPage() {
         title: 'Usuario Creado',
         description: 'El nuevo usuario ha sido guardado con éxito.',
       });
-      event.currentTarget.reset();
+      form.reset();
     } catch (error: any) {
       console.error("Error creating user:", error);
       toast({
