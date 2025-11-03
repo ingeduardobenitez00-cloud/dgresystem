@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, getDocs, deleteDoc, setDoc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, getDocs, deleteDoc, setDoc, addDoc, updateDoc, where, query } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -48,7 +48,7 @@ type PreviewData = {
 export default function SettingsPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  const [isUploading, setIsUploading] = useState(isUploading);
+  const [isUploading, setIsUploading] = useState(false);
   const [previewData, setPreviewData] = useState<Dato[]>([]);
   const [reportPreviewData, setReportPreviewData] = useState<ReportData[]>([]);
   const { toast } = useToast();
@@ -677,3 +677,5 @@ export default function SettingsPage() {
 }
 
   
+
+    
