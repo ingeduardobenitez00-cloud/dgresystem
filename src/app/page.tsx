@@ -9,7 +9,7 @@ import Header from '@/components/header';
 const menuItems = [
   {
     href: '/fotos',
-    label: 'Fotos',
+    label: 'Imágenes de los Registros Electorales',
     icon: ImageIcon,
     description: 'Visualiza y gestiona las imágenes por ubicación.',
   },

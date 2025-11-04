@@ -40,7 +40,7 @@ export default function AppSidebar() {
     },
     {
       href: "/fotos",
-      label: "Fotos",
+      label: "Imágenes",
       icon: ImageIcon,
     },
     {

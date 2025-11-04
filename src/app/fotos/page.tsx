@@ -5,7 +5,7 @@ import Header from '@/components/header';
 export default function FotosPage() {
   return (
     <div className="flex min-h-screen w-full flex-col">
-       <Header title="Galería de Fotos" />
+       <Header title="Imágenes de los Registros Electorales" />
       <main className="flex-1">
         <PhotoGallery />
       </main>

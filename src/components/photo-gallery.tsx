@@ -263,7 +263,7 @@ export default function PhotoGallery() {
         )}
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          Galería de Fotos
+          Imágenes de los Registros Electorales
         </h1>
         <p className="mt-2 text-base text-muted-foreground">
           Explore y gestione las imágenes de los registros organizadas por ubicación.
