@@ -8,15 +8,29 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, EyeOff, UserPlus, Users, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 type UserProfile = {
   id: string;
@@ -27,6 +41,9 @@ type UserProfile = {
   permissions: string[];
 };
 
+const ALL_MODULES = ['fotos', 'ficha', 'resumen', 'config', 'users'];
+const ALL_PERMISSIONS = ['add', 'edit', 'delete'];
+
 export default function UsersPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const { toast } = useToast();
@@ -34,6 +51,10 @@ export default function UsersPage() {
 
   const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!passwordVisible);
@@ -51,30 +72,20 @@ export default function UsersPage() {
       return;
     }
 
+    setIsSubmitting(true);
     const formData = new FormData(form);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
-    const role = formData.get('role') as string;
-
-    const modules: string[] = [];
-    if (formData.get('access-fotos')) modules.push('fotos');
-    if (formData.get('access-ficha')) modules.push('ficha');
-    if (formData.get('access-resumen')) modules.push('resumen');
-    if (formData.get('access-config')) modules.push('config');
-    if (formData.get('access-users')) modules.push('users');
-
-    const permissions: string[] = [];
-    if (formData.get('perm-add')) permissions.push('add');
-    if (formData.get('perm-edit')) permissions.push('edit');
-    if (formData.get('perm-delete')) permissions.push('delete');
+    const role = formData.get('role') as 'admin' | 'editor' | 'viewer';
+    
+    const modules = ALL_MODULES.filter(module => formData.get(`access-${module}`));
+    const permissions = ALL_PERMISSIONS.filter(permission => formData.get(`perm-${permission}`));
 
     try {
-      // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Store additional user info in Firestore
       await setDoc(doc(firestore, 'users', user.uid), {
         username,
         email,
@@ -97,12 +108,72 @@ export default function UsersPage() {
             description: 'El correo electrónico ya está registrado. Por favor, utiliza otro.',
         });
       } else {
+        const contextualError = new FirestorePermissionError({
+            operation: 'create',
+            path: `users/<new_user_id>`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
         toast({
             variant: "destructive",
             title: 'Error al crear usuario',
             description: error.message || 'Ocurrió un error inesperado.',
         });
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleOpenEditModal = (user: UserProfile) => {
+    setEditingUser(user);
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!firestore || !editingUser) return;
+
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    const role = formData.get('role') as 'admin' | 'editor' | 'viewer';
+    const modules = ALL_MODULES.filter(module => formData.get(`access-${module}`));
+    const permissions = ALL_PERMISSIONS.filter(permission => formData.get(`perm-${permission}`));
+    
+    const userDocRef = doc(firestore, 'users', editingUser.id);
+
+    try {
+      await updateDoc(userDocRef, {
+        role,
+        modules,
+        permissions
+      });
+      toast({ title: 'Usuario Actualizado', description: 'Los datos del usuario se han guardado.' });
+      setEditModalOpen(false);
+      setEditingUser(null);
+    } catch (error) {
+       const contextualError = new FirestorePermissionError({
+            operation: 'update',
+            path: `users/${editingUser.id}`,
+       });
+       errorEmitter.emit('permission-error', contextualError);
+       toast({ title: 'Error al actualizar', variant: 'destructive', description: 'No se pudo actualizar el usuario.' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!firestore) return;
+    try {
+        await deleteDoc(doc(firestore, 'users', userId));
+        toast({ title: 'Usuario Eliminado', description: 'El registro del usuario ha sido eliminado de Firestore.' });
+    } catch (error) {
+        const contextualError = new FirestorePermissionError({
+            operation: 'delete',
+            path: `users/${userId}`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        toast({ title: 'Error al eliminar', variant: 'destructive', description: 'No se pudo eliminar el usuario.' });
     }
   };
 
@@ -151,7 +222,7 @@ export default function UsersPage() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="role">Rol</Label>
-                    <Select name="role" required>
+                    <Select name="role" required defaultValue="viewer">
                         <SelectTrigger id="role">
                         <SelectValue placeholder="Seleccionar un rol" />
                         </SelectTrigger>
@@ -168,37 +239,15 @@ export default function UsersPage() {
 
               <div className="space-y-4">
                 <Label>Acceso a Módulos</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="access-fotos" name="access-fotos" defaultChecked />
-                        <Label htmlFor="access-fotos" className="font-normal">
-                            Fotos
-                        </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="access-ficha" name="access-ficha" defaultChecked />
-                        <Label htmlFor="access-ficha" className="font-normal">
-                            Vista de Ficha
-                        </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="access-resumen" name="access-resumen" defaultChecked />
-                        <Label htmlFor="access-resumen" className="font-normal">
-                            Resumen
-                        </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="access-config" name="access-config" />
-                        <Label htmlFor="access-config" className="font-normal">
-                            Configuración
-                        </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="access-users" name="access-users" />
-                        <Label htmlFor="access-users" className="font-normal">
-                            Usuarios
-                        </Label>
-                    </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {ALL_MODULES.map(module => (
+                        <div key={module} className="flex items-center space-x-2">
+                            <Checkbox id={`access-${module}`} name={`access-${module}`} defaultChecked={['fotos', 'ficha', 'resumen'].includes(module)} />
+                            <Label htmlFor={`access-${module}`} className="font-normal capitalize">
+                                {module === 'config' ? 'Configuración' : module}
+                            </Label>
+                        </div>
+                    ))}
                 </div>
               </div>
 
@@ -207,35 +256,30 @@ export default function UsersPage() {
               <div className="space-y-4">
                 <Label>Permisos</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="perm-add" name="perm-add" />
-                        <Label htmlFor="perm-add" className="font-normal">
-                            Agregar
-                        </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="perm-edit" name="perm-edit" />
-                        <Label htmlFor="perm-edit" className="font-normal">
-                            Editar
-                        </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="perm-delete" name="perm-delete" />
-                        <Label htmlFor="perm-delete" className="font-normal">
-                            Borrar
-                        </Label>
-                    </div>
+                    {ALL_PERMISSIONS.map(permission => (
+                        <div key={permission} className="flex items-center space-x-2">
+                            <Checkbox id={`perm-${permission}`} name={`perm-${permission}`} />
+                            <Label htmlFor={`perm-${permission}`} className="font-normal capitalize">
+                                {permission === 'add' && 'Agregar'}
+                                {permission === 'edit' && 'Editar'}
+                                {permission === 'delete' && 'Borrar'}
+                            </Label>
+                        </div>
+                    ))}
                 </div>
               </div>
 
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="w-full">Guardar Usuario</Button>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Guardar Usuario
+              </Button>
             </CardFooter>
           </form>
         </Card>
 
-        <Card className="w-full max-w-4xl">
+        <Card className="w-full max-w-6xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -260,6 +304,7 @@ export default function UsersPage() {
                             <TableHead>Rol</TableHead>
                             <TableHead>Módulos</TableHead>
                             <TableHead>Permisos</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -268,22 +313,48 @@ export default function UsersPage() {
                             <TableRow key={user.id}>
                                 <TableCell className="font-medium">{user.username}</TableCell>
                                 <TableCell>{user.email}</TableCell>
-                                <TableCell className="capitalize">{user.role}</TableCell>
+                                <TableCell>
+                                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">{user.role}</Badge>
+                                </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
-                                        {user.modules.map(module => <Badge key={module} variant="secondary" className="capitalize">{module}</Badge>)}
+                                        {user.modules.map(module => <Badge key={module} variant="outline" className="capitalize">{module}</Badge>)}
                                     </div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
-                                        {user.permissions.map(permission => <Badge key={permission} variant="outline" className="capitalize">{permission}</Badge>)}
+                                        {user.permissions.map(permission => <Badge key={permission} variant="secondary" className="capitalize">{permission}</Badge>)}
                                     </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(user)}>
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Esta acción eliminará el registro del usuario de la base de datos, pero no su cuenta de autenticación.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </TableCell>
                             </TableRow>
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
+                                <TableCell colSpan={6} className="h-24 text-center">
                                     No hay usuarios registrados.
                                 </TableCell>
                             </TableRow>
@@ -296,6 +367,77 @@ export default function UsersPage() {
         </Card>
 
       </main>
+      
+      {editingUser && (
+        <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Editar Usuario: {editingUser.username}</DialogTitle>
+                    <DialogDescription>
+                        Ajusta el rol, los módulos y los permisos para este usuario.
+                    </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleUpdateUser}>
+                    <div className="py-4 space-y-6">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-role">Rol</Label>
+                            <Select name="role" required defaultValue={editingUser.role}>
+                                <SelectTrigger id="edit-role">
+                                <SelectValue placeholder="Seleccionar un rol" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="admin">Administrador</SelectItem>
+                                    <SelectItem value="editor">Editor</SelectItem>
+                                    <SelectItem value="viewer">Visualizador</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Separator />
+                        <div className="space-y-4">
+                            <Label>Acceso a Módulos</Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                {ALL_MODULES.map(module => (
+                                    <div key={`edit-mod-${module}`} className="flex items-center space-x-2">
+                                        <Checkbox id={`edit-access-${module}`} name={`access-${module}`} defaultChecked={editingUser.modules.includes(module)} />
+                                        <Label htmlFor={`edit-access-${module}`} className="font-normal capitalize">
+                                            {module === 'config' ? 'Configuración' : module}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <Separator />
+                        <div className="space-y-4">
+                            <Label>Permisos</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {ALL_PERMISSIONS.map(permission => (
+                                    <div key={`edit-perm-${permission}`} className="flex items-center space-x-2">
+                                        <Checkbox id={`edit-perm-${permission}`} name={`perm-${permission}`} defaultChecked={editingUser.permissions.includes(permission)} />
+                                        <Label htmlFor={`edit-perm-${permission}`} className="font-normal capitalize">
+                                            {permission === 'add' && 'Agregar'}
+                                            {permission === 'edit' && 'Editar'}
+                                            {permission === 'delete' && 'Borrar'}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancelar</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Guardar Cambios
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
+
+    
