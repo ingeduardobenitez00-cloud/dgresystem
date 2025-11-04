@@ -8,18 +8,32 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Users, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { useFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc } from 'firebase/firestore';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+
+type UserProfile = {
+  id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'editor' | 'viewer';
+  modules: string[];
+  permissions: string[];
+};
 
 export default function UsersPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const { toast } = useToast();
   const { auth, firestore } = useFirebase();
+
+  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!passwordVisible);
@@ -220,6 +234,67 @@ export default function UsersPage() {
             </CardFooter>
           </form>
         </Card>
+
+        <Card className="w-full max-w-4xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Listado de Usuarios
+            </CardTitle>
+            <CardDescription>
+                Usuarios registrados en el sistema.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingUsers ? (
+                <div className="flex justify-center items-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : (
+                <div className="border rounded-md">
+                    <Table>
+                        <TableHeader>
+                        <TableRow>
+                            <TableHead>Usuario</TableHead>
+                            <TableHead>Correo Electrónico</TableHead>
+                            <TableHead>Rol</TableHead>
+                            <TableHead>Módulos</TableHead>
+                            <TableHead>Permisos</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {users && users.length > 0 ? (
+                            users.map((user) => (
+                            <TableRow key={user.id}>
+                                <TableCell className="font-medium">{user.username}</TableCell>
+                                <TableCell>{user.email}</TableCell>
+                                <TableCell className="capitalize">{user.role}</TableCell>
+                                <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                        {user.modules.map(module => <Badge key={module} variant="secondary" className="capitalize">{module}</Badge>)}
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                        {user.permissions.map(permission => <Badge key={permission} variant="outline" className="capitalize">{permission}</Badge>)}
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    No hay usuarios registrados.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
+          </CardContent>
+        </Card>
+
       </main>
     </div>
   );
