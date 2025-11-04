@@ -45,6 +45,8 @@ type PreviewData = {
   distrito: string;
 };
 
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 export default function SettingsPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -238,6 +240,7 @@ export default function SettingsPage() {
         });
         
         await batch.commit();
+        await delay(1000); // Pause for 1 second between batches
       }
 
       toast({
@@ -371,6 +374,7 @@ export default function SettingsPage() {
                 batch.set(newReportRef, report);
             });
             await batch.commit();
+            await delay(1000); // Pause for 1 second between batches
         }
 
         toast({
