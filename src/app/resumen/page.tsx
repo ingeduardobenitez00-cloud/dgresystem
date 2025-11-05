@@ -238,11 +238,26 @@ export default function ResumenPage() {
                           <AccordionItem value="item-1">
                             <AccordionTrigger className="p-0 hover:no-underline">Ver desglose</AccordionTrigger>
                             <AccordionContent className="pt-2 space-y-1">
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('parroquia', 'Parroquia')}><span className="flex items-center"><Landmark className="mr-2 h-4 w-4 text-amber-600" />Parroquia:</span> <span>{summaryData.parroquia.count}</span></div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('localVotacion', 'Local de Votación')}><span><Vote className="mr-2 h-4 w-4 text-cyan-600" />Local de Votación:</span> <span>{summaryData.localVotacion.count}</span></div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('juzgado', 'Juzgado')}><span><Scale className="mr-2 h-4 w-4 text-gray-600" />Juzgado:</span> <span>{summaryData.juzgado.count}</span></div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('propiedadIntendencia', 'Prop. Intendencia')}><span><Home className="mr-2 h-4 w-4 text-rose-600" />Prop. Intendencia:</span> <span>{summaryData.propiedadIntendencia.count}</span></div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('otrosNoEspecificado', 'Otros no especificados')}><span><HelpCircle className="mr-2 h-4 w-4 text-gray-400" />Otros no especificados:</span> <span>{summaryData.otrosNoEspecificado.count}</span></div>
+                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('parroquia', 'Parroquia')}>
+                                <span className="flex items-center"><Landmark className="mr-2 h-4 w-4 text-amber-600" />Parroquia:</span>
+                                <span>{summaryData.parroquia.count}</span>
+                              </div>
+                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('localVotacion', 'Local de Votación')}>
+                                <span className="flex items-center"><Vote className="mr-2 h-4 w-4 text-cyan-600" />Local de Votación:</span>
+                                <span>{summaryData.localVotacion.count}</span>
+                              </div>
+                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('juzgado', 'Juzgado')}>
+                                <span className="flex items-center"><Scale className="mr-2 h-4 w-4 text-gray-600" />Juzgado:</span>
+                                <span>{summaryData.juzgado.count}</span>
+                              </div>
+                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('propiedadIntendencia', 'Prop. Intendencia')}>
+                                <span className="flex items-center"><Home className="mr-2 h-4 w-4 text-rose-600" />Prop. Intendencia:</span>
+                                <span>{summaryData.propiedadIntendencia.count}</span>
+                              </div>
+                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold" onClick={() => handleCategoryClick('otrosNoEspecificado', 'Otros no especificados')}>
+                                <span className="flex items-center"><HelpCircle className="mr-2 h-4 w-4 text-gray-400" />Otros no especificados:</span>
+                                <span>{summaryData.otrosNoEspecificado.count}</span>
+                              </div>
                             </AccordionContent>
                           </AccordionItem>
                         </Accordion>
