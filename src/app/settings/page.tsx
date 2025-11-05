@@ -226,7 +226,7 @@ export default function SettingsPage() {
     if (!firestore || previewData.length === 0) return;
     setIsUploading(true);
 
-    const BATCH_SIZE = 500;
+    const BATCH_SIZE = 100;
     const datosCollection = collection(firestore, 'datos');
     
     try {
@@ -240,7 +240,7 @@ export default function SettingsPage() {
         });
         
         await batch.commit();
-        await delay(1000); // Pause for 1 second between batches
+        await delay(2000); // Pause for 2 seconds between batches
       }
 
       toast({
@@ -362,7 +362,7 @@ export default function SettingsPage() {
     if (!firestore) return;
     setIsUploading(true);
 
-    const BATCH_SIZE = 500;
+    const BATCH_SIZE = 100;
     const reportsCollection = collection(firestore, 'reports');
 
     try {
@@ -374,7 +374,7 @@ export default function SettingsPage() {
                 batch.set(newReportRef, report);
             });
             await batch.commit();
-            await delay(1000); // Pause for 1 second between batches
+            await delay(2000); // Pause for 2 seconds between batches
         }
 
         toast({
