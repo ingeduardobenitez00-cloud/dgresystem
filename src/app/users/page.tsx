@@ -12,7 +12,7 @@ import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, KeyRound } from 'l
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -41,15 +41,28 @@ type UserProfile = {
   permissions: string[];
 };
 
-const ALL_MODULES = ['fotos', 'ficha', 'resumen', 'config', 'users'];
+const ALL_MODULES = ['imagenes', 'ficha', 'resumen', 'settings', 'users'];
+const MODULE_LABELS: { [key: string]: string } = {
+  imagenes: 'Imágenes',
+  ficha: 'Vista de Ficha',
+  resumen: 'Resumen',
+  settings: 'Configuración',
+  users: 'Usuarios',
+};
 const ALL_PERMISSIONS = ['add', 'edit', 'delete'];
+const PERMISSION_LABELS: { [key: string]: string } = {
+    add: 'Agregar',
+    edit: 'Editar',
+    delete: 'Borrar',
+};
+
 
 export default function UsersPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const { toast } = useToast();
   const { auth, firestore } = useFirebase();
 
-  const usersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'users') : null), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -261,7 +274,7 @@ export default function UsersPage() {
                         <div key={module} className="flex items-center space-x-2">
                             <Checkbox id={`access-${module}`} name={`access-${module}`} />
                             <Label htmlFor={`access-${module}`} className="font-normal capitalize">
-                                {module === 'config' ? 'Configuración' : module}
+                                {MODULE_LABELS[module] || module}
                             </Label>
                         </div>
                     ))}
@@ -277,9 +290,7 @@ export default function UsersPage() {
                         <div key={permission} className="flex items-center space-x-2">
                             <Checkbox id={`perm-${permission}`} name={`perm-${permission}`} />
                             <Label htmlFor={`perm-${permission}`} className="font-normal capitalize">
-                                {permission === 'add' && 'Agregar'}
-                                {permission === 'edit' && 'Editar'}
-                                {permission === 'delete' && 'Borrar'}
+                                {PERMISSION_LABELS[permission] || permission}
                             </Label>
                         </div>
                     ))}
@@ -335,12 +346,12 @@ export default function UsersPage() {
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
-                                        {user.modules.map(module => <Badge key={module} variant="outline" className="capitalize">{module}</Badge>)}
+                                        {user.modules.map(module => <Badge key={module} variant="outline" className="capitalize">{MODULE_LABELS[module] || module}</Badge>)}
                                     </div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">
-                                        {user.permissions.map(permission => <Badge key={permission} variant="secondary" className="capitalize">{permission}</Badge>)}
+                                        {user.permissions.map(permission => <Badge key={permission} variant="secondary" className="capitalize">{PERMISSION_LABELS[permission] || permission}</Badge>)}
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
@@ -436,7 +447,7 @@ export default function UsersPage() {
                                     <div key={`edit-mod-${module}`} className="flex items-center space-x-2">
                                         <Checkbox id={`edit-access-${module}`} name={`access-${module}`} defaultChecked={editingUser.modules.includes(module)} />
                                         <Label htmlFor={`edit-access-${module}`} className="font-normal capitalize">
-                                            {module === 'config' ? 'Configuración' : module}
+                                            {MODULE_LABELS[module] || module}
                                         </Label>
                                     </div>
                                 ))}
@@ -450,9 +461,7 @@ export default function UsersPage() {
                                     <div key={`edit-perm-${permission}`} className="flex items-center space-x-2">
                                         <Checkbox id={`edit-perm-${permission}`} name={`perm-${permission}`} defaultChecked={editingUser.permissions.includes(permission)} />
                                         <Label htmlFor={`edit-perm-${permission}`} className="font-normal capitalize">
-                                            {permission === 'add' && 'Agregar'}
-                                            {permission === 'edit' && 'Editar'}
-                                            {permission === 'delete' && 'Borrar'}
+                                            {PERMISSION_LABELS[permission] || permission}
                                         </Label>
                                     </div>
                                 ))}
