@@ -124,6 +124,23 @@ export default function FichaPage() {
   const isLoading = isLoadingDatos || (shouldFetch && (isLoadingReport || isLoadingImages));
   const currentReport = reportData && reportData.length > 0 ? reportData[0] : null;
 
+  const currentImageIndex = useMemo(() => {
+    if (!selectedImage || !imagesData) return -1;
+    return imagesData.findIndex(img => img.id === selectedImage.id);
+  }, [selectedImage, imagesData]);
+
+  const handleNextImage = () => {
+    if (imagesData && currentImageIndex < imagesData.length - 1) {
+      setSelectedImage(imagesData[currentImageIndex + 1]);
+    }
+  };
+
+  const handlePreviousImage = () => {
+    if (imagesData && currentImageIndex > 0) {
+      setSelectedImage(imagesData[currentImageIndex - 1]);
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full flex-col">
       <Header title="Vista de Ficha" />
@@ -230,7 +247,15 @@ export default function FichaPage() {
             </>
         )}
       </main>
-       <ImageViewerDialog isOpen={isViewerOpen} onOpenChange={setViewerOpen} image={selectedImage} />
+       <ImageViewerDialog 
+        isOpen={isViewerOpen} 
+        onOpenChange={setViewerOpen} 
+        image={selectedImage}
+        onNext={handleNextImage}
+        onPrevious={handlePreviousImage}
+        canNavigateNext={imagesData ? currentImageIndex < imagesData.length - 1 : false}
+        canNavigatePrevious={currentImageIndex > 0}
+      />
     </div>
   );
 }
