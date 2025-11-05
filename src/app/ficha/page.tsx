@@ -19,11 +19,9 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where } from 'firebase/firestore';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileDown } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams, useRouter } from 'next/navigation';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
@@ -40,9 +38,6 @@ export default function FichaPage() {
   const [selectedDistrict, setSelectedDistrict] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const pdfContainerRef = useRef<HTMLDivElement>(null);
-
 
   useEffect(() => {
     if (datosData) {
@@ -154,53 +149,6 @@ export default function FichaPage() {
     setIsViewerOpen(true);
   };
   
-  const handleGeneratePdf = async () => {
-    if (!pdfContainerRef.current) return;
-    setIsGeneratingPdf(true);
-
-    try {
-        const canvas = await html2canvas(pdfContainerRef.current, {
-            scale: 2,
-            useCORS: true,
-            onclone: (document) => {
-              // This is a workaround for html2canvas not capturing images with crossOrigin="anonymous" correctly
-              const images = document.getElementsByTagName('img');
-              for (let i = 0; i < images.length; i++) {
-                images[i].crossOrigin = '';
-              }
-            }
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        const ratio = canvasWidth / canvasHeight;
-        const width = pdfWidth - 20; // with margin
-        const height = width / ratio;
-
-        let position = 10;
-        
-        pdf.text(`Ficha de ${selectedDistrict}, ${selectedDept}`, 10, position);
-        position += 10;
-
-        pdf.addImage(imgData, 'PNG', 10, position, width, height > pdfHeight - position - 10 ? pdfHeight - position - 10 : height);
-
-        pdf.save(`ficha-${selectedDistrict}-${selectedDept}.pdf`);
-    } catch (error) {
-        console.error("Error generating PDF:", error);
-        toast({
-            variant: "destructive",
-            title: "Error al generar PDF",
-            description: "Ocurrió un problema al intentar crear el archivo PDF.",
-        });
-    } finally {
-        setIsGeneratingPdf(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen w-full flex-col">
       <Header title="Vista de Ficha" />
@@ -213,12 +161,6 @@ export default function FichaPage() {
                 Selecciona un departamento y distrito para ver la información detallada.
                 </CardDescription>
             </div>
-             {selectedDept && selectedDistrict && (
-                <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf}>
-                    {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
-                    Generar PDF
-                </Button>
-            )}
           </CardHeader>
           <CardContent className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 space-y-2">
@@ -267,7 +209,7 @@ export default function FichaPage() {
                     <p className="mt-2">Cargando datos...</p>
                 </div>
             ) : (
-                <div id="pdf-container" ref={pdfContainerRef} className='relative bg-background'>
+                <div className='relative bg-background'>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-6xl mx-auto p-4 bg-inherit">
                         <div>
                         {filteredReports && filteredReports.length > 0 ? (
