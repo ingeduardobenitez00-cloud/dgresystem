@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -271,21 +272,10 @@ export default function ResumenPage() {
                                         <AccordionTrigger className="p-0 hover:no-underline text-xs">
                                            {dept} ({districts.length})
                                         </AccordionTrigger>
-                                        <AccordionContent className="pt-2 pl-2">
-                                            {districts.length > 1 ? (
-                                                <Accordion type="single" collapsible className="w-full">
-                                                    <AccordionItem value="distritos">
-                                                        <AccordionTrigger className="p-0 hover:no-underline text-xs">Ver Distritos</AccordionTrigger>
-                                                        <AccordionContent className="pt-2 pl-2">
-                                                            {districts.map(dist => (
-                                                                <div key={dist} className="text-xs cursor-pointer hover:font-semibold" onClick={() => handleDistrictClick(dept, dist)}>{dist}</div>
-                                                            ))}
-                                                        </AccordionContent>
-                                                    </AccordionItem>
-                                                </Accordion>
-                                            ) : (
-                                                <div className="text-xs cursor-pointer hover:font-semibold" onClick={() => handleDistrictClick(dept, districts[0])}>{districts[0]}</div>
-                                            )}
+                                        <AccordionContent className="pt-2 pl-4 space-y-1">
+                                            {districts.map(dist => (
+                                                <div key={dist} className="text-xs cursor-pointer hover:font-semibold" onClick={() => handleDistrictClick(dept, dist)}>{dist}</div>
+                                            ))}
                                         </AccordionContent>
                                     </AccordionItem>
                                 ))}
@@ -404,3 +394,5 @@ export default function ResumenPage() {
     </div>
   );
 }
+
+    
