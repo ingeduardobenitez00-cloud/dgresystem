@@ -128,15 +128,15 @@ export default function ResumenPage() {
         const distName = report.distrito!;
         
         if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
-          summary.habitacionSegura.count++;
-          summary.habitacionSegura.districts.push(fullDistrictName);
+            summary.habitacionSegura.count++;
+            summary.habitacionSegura.districts.push(fullDistrictName);
         } else if (lugar.includes('comisaria')) {
-          summary.comisaria.count++;
-          summary.comisaria.districts.push(fullDistrictName);
-          if (!comisariaSummary[deptName]) {
-            comisariaSummary[deptName] = [];
-          }
-          comisariaSummary[deptName].push(distName);
+            summary.comisaria.count++;
+            summary.comisaria.districts.push(fullDistrictName);
+            if (!comisariaSummary[deptName]) {
+              comisariaSummary[deptName] = [];
+            }
+            comisariaSummary[deptName].push(distName);
         } else if (lugar.includes('parroquia')) {
             summary.parroquia.count++;
             summary.parroquia.districts.push(fullDistrictName);
