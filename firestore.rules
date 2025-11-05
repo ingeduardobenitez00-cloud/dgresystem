@@ -92,7 +92,7 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list: if isSignedIn();
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
+      allow update: if isExistingOwner(userId) || isAdmin();
       allow delete: if isExistingOwner(userId);
     }
 
@@ -134,5 +134,13 @@ service cloud.firestore {
    */
   function isExistingOwner(userId) {
     return isOwner(userId) && resource != null;
+  }
+   /**
+   * @description Checks if the user has the 'admin' role.
+   * It reads the user's profile from the /users/ collection.
+   * @return {bool} True if the user is an admin, false otherwise.
+   */
+  function isAdmin() {
+    return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
   }
 }
