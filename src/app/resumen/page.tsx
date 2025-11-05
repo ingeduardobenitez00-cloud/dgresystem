@@ -133,6 +133,7 @@ export default function ResumenPage() {
         if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
           summary.habitacionSegura.count++;
           summary.habitacionSegura.districts.push(fullDistrictName);
+          categorized = true;
         }
         if (lugar.includes('comisaria')) {
           summary.comisaria.count++;
@@ -143,28 +144,30 @@ export default function ResumenPage() {
           comisariaSummary[deptName!].push(districtName!);
           categorized = true;
         }
+        
+        let inOtherCategory = false;
         if (lugar.includes('parroquia')) {
           summary.parroquia.count++;
           summary.parroquia.districts.push(fullDistrictName);
-          categorized = true;
+          inOtherCategory = true;
         }
         if (lugar.includes('local de votacion') || lugar.includes('local votacion')) {
           summary.localVotacion.count++;
           summary.localVotacion.districts.push(fullDistrictName);
-          categorized = true;
+          inOtherCategory = true;
         }
         if (lugar.includes('juzgado')) {
           summary.juzgado.count++;
           summary.juzgado.districts.push(fullDistrictName);
-          categorized = true;
+          inOtherCategory = true;
         }
         if (lugar.includes('intendencia')) {
           summary.propiedadIntendencia.count++;
           summary.propiedadIntendencia.districts.push(fullDistrictName);
-          categorized = true;
+          inOtherCategory = true;
         }
         
-        if (!categorized && lugar) {
+        if (!categorized && !inOtherCategory && lugar) {
             summary.otrosNoEspecificado.count++;
             summary.otrosNoEspecificado.districts.push(fullDistrictName);
         }
@@ -191,7 +194,7 @@ export default function ResumenPage() {
         districts = summaryData[category].districts;
     } else {
         // We handle comisaria separately with its own accordion
-        return;
+        districts = summaryData.comisaria.districts;
     }
     
     setSelectedCategory(title);
