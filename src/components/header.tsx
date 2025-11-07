@@ -1,4 +1,5 @@
-import { BookMarked } from 'lucide-react';
+
+import Image from 'next/image';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function Header({ title }: { title?: string }) {
@@ -9,7 +10,9 @@ export default function Header({ title }: { title?: string }) {
           <SidebarTrigger />
         </div>
         <div className="flex items-center space-x-2 md:ml-4">
-          <BookMarked className="h-6 w-6 text-primary md:hidden" />
+          <div className="h-6 w-6 relative md:hidden">
+             <Image src="/logo.png" alt="Logo" fill />
+          </div>
           {title && <h1 className="text-xl font-semibold hidden md:block">{title}</h1>}
         </div>
       </div>

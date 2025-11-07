@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,7 +21,7 @@ import {
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { BookMarked, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const { auth } = useFirebase();
@@ -82,7 +83,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
        <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center">
-            <BookMarked className="h-10 w-10 text-primary" />
+            <Image src="/logo.png" alt="Logo de la aplicación" width={80} height={80} className="mb-4" />
              <h1 className="text-2xl font-semibold tracking-tight mt-2">
                 Informe Edilicio
              </h1>

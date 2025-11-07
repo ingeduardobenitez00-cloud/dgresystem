@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SidebarHeader,
@@ -11,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { BookMarked, Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard } from "lucide-react";
+import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -69,7 +70,7 @@ export default function AppSidebar() {
     <>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-            <BookMarked className="h-7 w-7 text-primary" />
+            <Image src="/logo.png" alt="Logo" width={32} height={32} />
             <span className="text-lg font-semibold text-foreground">
                 Informe Edilicio
             </span>

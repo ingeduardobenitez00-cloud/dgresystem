@@ -16,15 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, ImageIcon, Building, MapPin, Search, Download } from 'lucide-react';
+import { Loader2, FileText, ImageIcon, Building, MapPin, Search } from 'lucide-react';
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { capitalizeWords } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { capitalizeWords } from '@/lib/utils';
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
@@ -44,7 +40,6 @@ export default function FichaPage() {
   const [districtFromUrl, setDistrictFromUrl] = useState<string | null>(null);
   
   const [shouldFetch, setShouldFetch] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const reportQuery = useMemoFirebase(() => {
     if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict) return null;
@@ -146,116 +141,6 @@ export default function FichaPage() {
       setSelectedImage(imagesData[currentImageIndex - 1]);
     }
   };
-  
-  const handleGeneratePdf = async () => {
-    if (!currentReport && (!imagesData || imagesData.length === 0)) {
-        toast({
-            variant: "destructive",
-            title: "No hay datos para generar el PDF",
-            description: "Asegúrate de que haya un informe o imágenes para la ubicación seleccionada."
-        });
-        return;
-    }
-    
-    setIsGeneratingPdf(true);
-    
-    const doc = new jsPDF();
-    let yPos = 20;
-
-    // Title
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text("Informe Edilicio", doc.internal.pageSize.getWidth() / 2, yPos, { align: 'center' });
-    yPos += 10;
-    
-    // Subtitle
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${selectedDepartment} - ${selectedDistrict}`, doc.internal.pageSize.getWidth() / 2, yPos, { align: 'center' });
-    yPos += 15;
-
-    // Report Data Table
-    if (currentReport) {
-        const reportBody = Object.entries(currentReport)
-            .filter(([key, value]) => key !== 'id' && key !== 'departamento' && key !== 'distrito' && value)
-            .map(([key, value]) => [capitalizeWords(key.replace(/-/g, ' ')), value]);
-        
-        autoTable(doc, {
-            startY: yPos,
-            head: [['Campo', 'Valor']],
-            body: reportBody,
-            theme: 'striped',
-            headStyles: { fillColor: [41, 128, 185] },
-            didDrawPage: (data) => {
-              yPos = data.cursor?.y ?? yPos;
-            }
-        });
-        yPos += 10;
-    }
-
-    // Images Section
-    if (imagesData && imagesData.length > 0) {
-        const checkAndAddPage = (neededHeight: number) => {
-            if (yPos + neededHeight > doc.internal.pageSize.getHeight() - 20) {
-                doc.addPage();
-                yPos = 20;
-            }
-        };
-
-        yPos += 5;
-        checkAndAddPage(10);
-        doc.setFontSize(18);
-        doc.setFont("helvetica", "bold");
-        doc.text("Imágenes Adjuntas", 14, yPos);
-        yPos += 10;
-
-        for (const image of imagesData) {
-            try {
-                const img = new window.Image();
-                img.src = image.src;
-                img.crossOrigin = "Anonymous";
-
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                });
-                
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0);
-                const dataUrl = canvas.toDataURL('image/jpeg');
-
-                const imgProps = doc.getImageProperties(dataUrl);
-                const imgWidth = 180;
-                const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-                
-                checkAndAddPage(imgHeight + 15);
-                
-                doc.setFontSize(10);
-                doc.setFont("helvetica", "italic");
-                doc.text(image.alt, 14, yPos);
-                yPos += 5;
-                
-                doc.addImage(dataUrl, 'JPEG', 14, yPos, imgWidth, imgHeight);
-                yPos += imgHeight + 10;
-
-            } catch (error) {
-                console.error("Error al procesar imagen para PDF:", error);
-                checkAndAddPage(15);
-                doc.setFontSize(10);
-                doc.setTextColor(255, 0, 0);
-                doc.text(`Error al cargar la imagen: ${image.alt}`, 14, yPos);
-                doc.setTextColor(0, 0, 0);
-                yPos += 10;
-            }
-        }
-    }
-
-    doc.save(`Informe_${selectedDepartment}_${selectedDistrict}.pdf`);
-    setIsGeneratingPdf(false);
-  };
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -325,10 +210,6 @@ export default function FichaPage() {
                             </CardTitle>
                             <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
                           </div>
-                          <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf}>
-                              {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                              Generar PDF
-                          </Button>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -397,4 +278,3 @@ function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: stri
         </div>
     );
 }
-
