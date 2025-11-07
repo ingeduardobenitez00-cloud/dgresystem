@@ -156,63 +156,57 @@ export default function FichaPage() {
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
-        
-        // Add Logo
-        const logoImg = new window.Image();
-        logoImg.src = '/logo.png';
-        await new Promise(resolve => logoImg.onload = resolve);
-        doc.addImage(logoImg, 'PNG', 15, 12, 20, 20);
+        const margin = 20;
+        let yPos = 30;
 
-        // Add Header
-        doc.setFontSize(20);
+        doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
-        doc.text('Informe Edilicio', pageWidth / 2, 20, { align: 'center' });
+        doc.text('Informe Edilicio Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
+        
         doc.setFontSize(12);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Ficha del Distrito: ${selectedDistrict}`, pageWidth / 2, 28, { align: 'center' });
-        doc.text(`Departamento: ${selectedDepartment}`, pageWidth / 2, 34, { align: 'center' });
-        
+        doc.text(`${selectedDepartment.toUpperCase()} - ${selectedDistrict.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
+
         doc.setLineWidth(0.5);
-        doc.line(15, 40, pageWidth - 15, 40);
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 12;
 
-        // Add Report Data
-        const reportBody = Object.entries(currentReport)
-            .filter(([key, value]) => value && key !== 'id' && key !== 'departamento' && key !== 'distrito')
-            .map(([key, value]) => {
-                const formattedKey = key.split('-').map(capitalizeWords).join(' ');
-                return [formattedKey, String(value)];
-            });
-
-        doc.autoTable({
-            startY: 50,
-            head: [['Campo', 'Valor']],
-            body: reportBody,
-            theme: 'striped',
-            headStyles: { fillColor: [41, 128, 185] }, // A professional blue
-            styles: {
-                fontSize: 10,
-                cellPadding: 3
-            },
-            columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 50 },
-                1: { cellWidth: 'auto' }
-            },
-            didDrawPage: (data) => {
-              doc.setFontSize(8);
-              doc.text(`Página ${doc.internal.pages.length}`, data.settings.margin.left, doc.internal.pageSize.getHeight() - 10);
+        const addField = (label: string, value: string | undefined | null) => {
+            if (value) {
+                const lines = doc.splitTextToSize(String(value), pageWidth - margin * 2 - 50);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${label}:`, margin, yPos);
+                doc.setFont('helvetica', 'normal');
+                doc.text(lines, margin + 50, yPos);
+                yPos += lines.length * 5 + 5;
             }
-        });
+        };
 
-        // Add Images
+        addField('Estado Fisico', currentReport['estado-fisico']);
+        addField('Habitacion Segura', currentReport['habitacion-segura']);
+        addField('Lugar Resguardo', currentReport['lugar-resguardo']);
+        addField('Descripcion Situacion', currentReport['descripcion-situacion']);
+        addField('Cantidad Habitaciones', currentReport['cantidad-habitaciones']);
+        addField('Dimensiones Habitacion', currentReport['dimensiones-habitacion']);
+        addField('Caracteristicas Habitacion', currentReport['caracteristicas-habitacion']);
+        addField('Cantidad Maquinas', currentReport['cantidad-maquinas']);
+
+        // Add Images section if there are any
         if (imagesData && imagesData.length > 0) {
-            doc.addPage();
-            doc.autoTable({
-              startY: 20,
-              head: [['Imágenes del Distrito']],
-              headStyles: {halign: 'center', fillColor: [41, 128, 185]}
-            })
+            if (yPos > 240) { // Check if there's enough space, otherwise new page
+                doc.addPage();
+                yPos = 20;
+            } else {
+                yPos += 10;
+            }
+            
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Imágenes del Distrito', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 10;
 
-            let yPos = 40;
             for (const image of imagesData) {
                 try {
                     const img = new window.Image();
@@ -224,17 +218,17 @@ export default function FichaPage() {
                     const imgWidth = 100;
                     const imgHeight = (img.height * imgWidth) / img.width;
 
-                    if (yPos + imgHeight > doc.internal.pageSize.getHeight() - 20) {
+                    if (yPos + imgHeight > doc.internal.pageSize.getHeight() - margin) {
                         doc.addPage();
-                        yPos = 20;
+                        yPos = margin;
                     }
                     doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, yPos, imgWidth, imgHeight);
                     yPos += imgHeight + 10;
                 } catch (error) {
                     console.error("Error loading image for PDF:", error);
-                    if (yPos + 10 > doc.internal.pageSize.getHeight() - 20) {
+                    if (yPos + 10 > doc.internal.pageSize.getHeight() - margin) {
                         doc.addPage();
-                        yPos = 20;
+                        yPos = margin;
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
@@ -244,7 +238,7 @@ export default function FichaPage() {
                 }
             }
         }
-
+        
         doc.save(`Informe-${selectedDepartment}-${selectedDistrict}.pdf`);
 
     } catch (error) {
@@ -399,3 +393,5 @@ function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: stri
         </div>
     );
 }
+
+    
