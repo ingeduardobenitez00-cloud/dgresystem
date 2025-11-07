@@ -20,7 +20,7 @@ import { Loader2, FileText, ImageIcon, Building, MapPin, Search, Download } from
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { capitalizeWords } from '@/lib/utils';
+import { capitalizeWords, cleanFileName } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -150,7 +150,7 @@ export default function FichaPage() {
   };
   
   const handleGeneratePdf = async () => {
-    if (!currentReport || !selectedDepartment || !selectedDistrict) return;
+    if ((!currentReport && (!imagesData || imagesData.length === 0)) || !selectedDepartment || !selectedDistrict) return;
     setIsGeneratingPdf(true);
     
     try {
@@ -183,29 +183,38 @@ export default function FichaPage() {
                 yPos += lines.length * 5 + 5;
             }
         };
+        
+        if (currentReport) {
+            addField('Estado Fisico', currentReport['estado-fisico']);
+            addField('Habitacion Segura', currentReport['habitacion-segura']);
+            addField('Lugar Resguardo', currentReport['lugar-resguardo']);
+            addField('Descripcion Situacion', currentReport['descripcion-situacion']);
+            addField('Cantidad Habitaciones', currentReport['cantidad-habitaciones']);
+            addField('Dimensiones Habitacion', currentReport['dimensiones-habitacion']);
+            addField('Caracteristicas Habitacion', currentReport['caracteristicas-habitacion']);
+            addField('Cantidad Maquinas', currentReport['cantidad-maquinas']);
+        }
 
-        addField('Estado Fisico', currentReport['estado-fisico']);
-        addField('Habitacion Segura', currentReport['habitacion-segura']);
-        addField('Lugar Resguardo', currentReport['lugar-resguardo']);
-        addField('Descripcion Situacion', currentReport['descripcion-situacion']);
-        addField('Cantidad Habitaciones', currentReport['cantidad-habitaciones']);
-        addField('Dimensiones Habitacion', currentReport['dimensiones-habitacion']);
-        addField('Caracteristicas Habitacion', currentReport['caracteristicas-habitacion']);
-        addField('Cantidad Maquinas', currentReport['cantidad-maquinas']);
 
         // Add Images section if there are any
         if (imagesData && imagesData.length > 0) {
-            if (yPos > 240) { // Check if there's enough space, otherwise new page
+            if (yPos > 180) { // Check space, more aggressively for image section
                 doc.addPage();
-                yPos = 20;
+                yPos = margin;
             } else {
-                yPos += 10;
+                yPos += 15;
             }
             
             doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
-            doc.text('Imágenes del Distrito', pageWidth / 2, yPos, { align: 'center' });
-            yPos += 10;
+            doc.text('Imagenes de las Oficinas del Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 8;
+
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${selectedDepartment.toUpperCase()} - ${selectedDistrict.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 12;
+
 
             for (const image of imagesData) {
                 try {
@@ -215,15 +224,23 @@ export default function FichaPage() {
                         img.onload = resolve;
                         img.onerror = reject;
                     });
-                    const imgWidth = 100;
+                    
+                    const imgWidth = 150; // Increased image width
                     const imgHeight = (img.height * imgWidth) / img.width;
 
-                    if (yPos + imgHeight > doc.internal.pageSize.getHeight() - margin) {
+                    if (yPos + imgHeight + 15 > doc.internal.pageSize.getHeight() - margin) {
                         doc.addPage();
                         yPos = margin;
                     }
                     doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, yPos, imgWidth, imgHeight);
-                    yPos += imgHeight + 10;
+                    yPos += imgHeight + 5;
+                    
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'normal');
+                    const imageTitle = cleanFileName(image.alt).toUpperCase();
+                    doc.text(imageTitle, pageWidth / 2, yPos, { align: 'center' });
+                    yPos += 15;
+
                 } catch (error) {
                     console.error("Error loading image for PDF:", error);
                     if (yPos + 10 > doc.internal.pageSize.getHeight() - margin) {
@@ -393,5 +410,7 @@ function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: stri
         </div>
     );
 }
+
+    
 
     
