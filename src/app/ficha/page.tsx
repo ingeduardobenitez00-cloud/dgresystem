@@ -16,11 +16,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, ImageIcon, Building, MapPin, Search } from 'lucide-react';
+import { Loader2, FileText, ImageIcon, Building, MapPin, Search, Download } from 'lucide-react';
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+interface jsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: any) => jsPDF;
+}
 
 export default function FichaPage() {
   const { firestore } = useFirebase();
@@ -40,6 +46,7 @@ export default function FichaPage() {
   const [districtFromUrl, setDistrictFromUrl] = useState<string | null>(null);
   
   const [shouldFetch, setShouldFetch] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const reportQuery = useMemoFirebase(() => {
     if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict) return null;
@@ -141,6 +148,116 @@ export default function FichaPage() {
       setSelectedImage(imagesData[currentImageIndex - 1]);
     }
   };
+  
+  const handleGeneratePdf = async () => {
+    if (!currentReport || !selectedDepartment || !selectedDistrict) return;
+    setIsGeneratingPdf(true);
+    
+    try {
+        const doc = new jsPDF() as jsPDFWithAutoTable;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        
+        // Add Logo
+        const logoImg = new window.Image();
+        logoImg.src = '/logo.png';
+        await new Promise(resolve => logoImg.onload = resolve);
+        doc.addImage(logoImg, 'PNG', 15, 12, 20, 20);
+
+        // Add Header
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Informe Edilicio', pageWidth / 2, 20, { align: 'center' });
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Ficha del Distrito: ${selectedDistrict}`, pageWidth / 2, 28, { align: 'center' });
+        doc.text(`Departamento: ${selectedDepartment}`, pageWidth / 2, 34, { align: 'center' });
+        
+        doc.setLineWidth(0.5);
+        doc.line(15, 40, pageWidth - 15, 40);
+
+        // Add Report Data
+        const reportBody = Object.entries(currentReport)
+            .filter(([key, value]) => value && key !== 'id' && key !== 'departamento' && key !== 'distrito')
+            .map(([key, value]) => {
+                const formattedKey = key.split('-').map(capitalizeWords).join(' ');
+                return [formattedKey, String(value)];
+            });
+
+        autoTable(doc, {
+            startY: 50,
+            head: [['Campo', 'Valor']],
+            body: reportBody,
+            theme: 'striped',
+            headStyles: { fillColor: [41, 128, 185] }, // A professional blue
+            styles: {
+                fontSize: 10,
+                cellPadding: 3
+            },
+            columnStyles: {
+                0: { fontStyle: 'bold', cellWidth: 50 },
+                1: { cellWidth: 'auto' }
+            },
+            didDrawPage: (data) => {
+              doc.setFontSize(8);
+              doc.text(`Página ${doc.internal.pages.length}`, data.settings.margin.left, doc.internal.pageSize.getHeight() - 10);
+            }
+        });
+
+        // Add Images
+        if (imagesData && imagesData.length > 0) {
+            doc.addPage();
+            autoTable(doc, {
+              startY: 20,
+              head: [['Imágenes del Distrito']],
+              headStyles: {halign: 'center', fillColor: [41, 128, 185]}
+            })
+
+            let yPos = 40;
+            for (const image of imagesData) {
+                try {
+                    const img = new window.Image();
+                    img.src = image.src;
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                    });
+                    const imgWidth = 100;
+                    const imgHeight = (img.height * imgWidth) / img.width;
+
+                    if (yPos + imgHeight > doc.internal.pageSize.getHeight() - 20) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                    doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, yPos, imgWidth, imgHeight);
+                    yPos += imgHeight + 10;
+                } catch (error) {
+                    console.error("Error loading image for PDF:", error);
+                    if (yPos + 10 > doc.internal.pageSize.getHeight() - 20) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                    doc.setFontSize(10);
+                    doc.setTextColor(255, 0, 0);
+                    doc.text('Error al cargar imagen', pageWidth / 2, yPos, { align: 'center' });
+                    doc.setTextColor(0, 0, 0);
+                    yPos += 10;
+                }
+            }
+        }
+
+        doc.save(`Informe-${selectedDepartment}-${selectedDistrict}.pdf`);
+
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        toast({
+            variant: "destructive",
+            title: "Error al generar PDF",
+            description: "Hubo un problema al crear el documento. Inténtelo de nuevo.",
+        });
+    } finally {
+        setIsGeneratingPdf(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -210,6 +327,10 @@ export default function FichaPage() {
                             </CardTitle>
                             <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
                           </div>
+                           <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf} size="sm">
+                              {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                              Generar PDF
+                           </Button>
                         </div>
                       </CardHeader>
                       <CardContent>

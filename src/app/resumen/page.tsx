@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -118,21 +119,19 @@ export default function ResumenPage() {
       };
       
       const comisariaSummary: ComisariaData = {};
-
-      summary.totalReports.count = datosData.length;
-      summary.totalReports.districts = datosData.map(r => `${r.departamento} - ${r.distrito}`);
+      
+      summary.totalReports.count = reportsData.length;
+      summary.totalReports.districts = reportsData.map(r => `${r.departamento} - ${r.distrito}`);
 
       reportsData.forEach(report => {
-        const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase() : '';
+        const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
         const fullDistrictName = `${report.departamento} - ${report.distrito}`;
         const deptName = report.departamento!;
         const distName = report.distrito!;
-        let categorized = false;
 
         if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
             summary.habitacionSegura.count++;
             summary.habitacionSegura.districts.push(fullDistrictName);
-            categorized = true;
         } else if (lugar.includes('comisaria')) {
             summary.comisaria.count++;
             summary.comisaria.districts.push(fullDistrictName);
@@ -140,26 +139,21 @@ export default function ResumenPage() {
               comisariaSummary[deptName] = [];
             }
             comisariaSummary[deptName].push(distName);
-            categorized = true;
-        }
-        
-        if (!categorized && lugar) {
-            if (lugar.includes('parroquia')) {
-                summary.parroquia.count++;
-                summary.parroquia.districts.push(fullDistrictName);
-            } else if (lugar.includes('local de votacion') || lugar.includes('local votacion')) {
-                summary.localVotacion.count++;
-                summary.localVotacion.districts.push(fullDistrictName);
-            } else if (lugar.includes('juzgado')) {
-                summary.juzgado.count++;
-                summary.juzgado.districts.push(fullDistrictName);
-            } else if (lugar.includes('intendencia')) {
-                summary.propiedadIntendencia.count++;
-                summary.propiedadIntendencia.districts.push(fullDistrictName);
-            } else {
-                summary.otrosNoEspecificado.count++;
-                summary.otrosNoEspecificado.districts.push(fullDistrictName);
-            }
+        } else if (lugar.includes('parroquia')) {
+            summary.parroquia.count++;
+            summary.parroquia.districts.push(fullDistrictName);
+        } else if (lugar.includes('local de votacion') || lugar.includes('local votacion')) {
+            summary.localVotacion.count++;
+            summary.localVotacion.districts.push(fullDistrictName);
+        } else if (lugar.includes('juzgado')) {
+            summary.juzgado.count++;
+            summary.juzgado.districts.push(fullDistrictName);
+        } else if (lugar.includes('intendencia')) {
+            summary.propiedadIntendencia.count++;
+            summary.propiedadIntendencia.districts.push(fullDistrictName);
+        } else {
+            summary.otrosNoEspecificado.count++;
+            summary.otrosNoEspecificado.districts.push(fullDistrictName);
         }
       });
 
@@ -212,7 +206,7 @@ export default function ResumenPage() {
   }
 
   const summaryCards = [
-    { key: 'totalReports', title: 'Total de Oficinas', icon: FileText, onClick: () => handleCategoryClick('totalReports', 'Total de Oficinas') },
+    { key: 'totalReports', title: 'Total de Informes', icon: FileText, onClick: () => handleCategoryClick('totalReports', 'Total de Informes') },
     { key: 'habitacionSegura', title: 'Registros con Habitaciones Seguras', icon: CheckCircle, className: 'text-green-600', onClick: () => handleCategoryClick('habitacionSegura', 'Registros con Habitaciones Seguras') },
   ] as const;
 
@@ -242,7 +236,7 @@ export default function ResumenPage() {
                             <Icon className={`h-4 w-4 text-muted-foreground ${card.className || ''}`} />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{card.key === 'totalReports' ? datosData?.length || 0 : summaryData[card.key].count}</div>
+                            <div className="text-2xl font-bold">{summaryData[card.key].count}</div>
                         </CardContent>
                     </Card>
                  )
@@ -386,3 +380,5 @@ export default function ResumenPage() {
     </div>
   );
 }
+
+    
