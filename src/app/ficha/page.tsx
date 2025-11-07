@@ -22,7 +22,7 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -183,7 +183,7 @@ export default function FichaPage() {
                 return [formattedKey, String(value)];
             });
 
-        autoTable(doc, {
+        doc.autoTable({
             startY: 50,
             head: [['Campo', 'Valor']],
             body: reportBody,
@@ -206,7 +206,7 @@ export default function FichaPage() {
         // Add Images
         if (imagesData && imagesData.length > 0) {
             doc.addPage();
-            autoTable(doc, {
+            doc.autoTable({
               startY: 20,
               head: [['Imágenes del Distrito']],
               headStyles: {halign: 'center', fillColor: [41, 128, 185]}
