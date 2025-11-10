@@ -210,41 +210,47 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
 
         const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
+            doc.setFontSize(10);
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-            doc.setFontSize(10);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
         
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Detalle: ${title}`, pageWidth / 2, 30, { align: 'center' });
+        doc.text(title, pageWidth / 2, 30, { align: 'center' });
 
-        const body = districts.sort().map(dist => {
-            const parts = dist.split(' - ');
-            const department = parts[0] || '';
-            const districtName = parts.slice(1).join(' - ') || '';
-            return [department, districtName];
+        const groupedByDept: Record<string, string[]> = districts.sort().reduce((acc, dist) => {
+          const parts = dist.split(' - ');
+          const department = parts[0] || 'Sin Departamento';
+          const districtName = parts.slice(1).join(' - ') || '';
+          if (!acc[department]) {
+            acc[department] = [];
+          }
+          acc[department].push(districtName);
+          return acc;
+        }, {} as Record<string, string[]>);
+        
+        const body: any[] = [];
+        Object.entries(groupedByDept).forEach(([dept, dists]) => {
+          body.push([{ content: `${dept.toUpperCase()} (${dists.length})`, colSpan: 1, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }]);
+          dists.forEach(d => body.push([d]));
         });
+
 
         autoTable(doc, {
             startY: 40,
-            head: [['Departamento', 'Distrito']],
             body: body,
             theme: 'striped',
-            headStyles: { fillColor: [0, 0, 0] },
             styles: { fontSize: 8 },
+            columnStyles: { 0: { cellWidth: 180 } },
+            didDrawPage: (data) => {
+              addHeaderAndFooter(data.pageNumber, (doc as any).internal.getNumberOfPages());
+            }
         });
-
-        const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addHeaderAndFooter(i, totalPages);
-        }
         
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
