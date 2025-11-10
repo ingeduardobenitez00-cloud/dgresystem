@@ -207,23 +207,29 @@ export default function ResumenPage() {
     }
 }, [reportsData]);
 
+const addPageHeader = (doc: jsPDF, title: string) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    if (logo1Base64) doc.addImage(logo1Base64, 'PNG', 15, 5, 20, 20);
+    if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - 15 - 20, 5, 20, 20);
+    
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, pageWidth / 2, 30, { align: 'center' });
+};
+
+const addPageFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(10);
+    doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - 15, pageHeight - 10, { align: 'right' });
+};
+
 const handleGeneratePdf = async () => {
     if (!structuredData || !logo1Base64 || !logoBase64) return;
     setIsGeneratingPdf(true);
 
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
-
-        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
-            if (logo1Base64) doc.addImage(logo1Base64, 'PNG', 15, 5, 20, 20);
-            if (logoBase64) doc.addImage(logoBase64, 'PNG', doc.internal.pageSize.getWidth() - 15 - 20, 5, 20, 20);
-            doc.setFontSize(10);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        };
-
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text("Informe Detallado por Ubicación", doc.internal.pageSize.getWidth() / 2, 40, { align: 'center' });
 
         const body = structuredData.flatMap(department => {
             const departmentHeader = [{ content: `Departamento: ${department.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [220, 220, 220] } }];
@@ -237,12 +243,13 @@ const handleGeneratePdf = async () => {
 
         autoTable(doc, {
             body: body,
-            startY: 50, // Ajustado para no superponerse con el título
+            startY: 50,
             theme: 'grid',
             styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1, lineColor: [100, 100, 100] },
             columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
             didDrawPage: (data) => {
-                addHeaderAndFooter(data.pageNumber, (doc.internal as any).getNumberOfPages());
+                addPageHeader(doc, "Informe Detallado por Ubicación");
+                addPageFooter(doc, data.pageNumber, (doc.internal as any).getNumberOfPages());
             }
         });
         
@@ -275,38 +282,29 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         
-        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
-            if (logo1Base64) doc.addImage(logo1Base64, 'PNG', 15, 5, 20, 20);
-            if (logoBase64) doc.addImage(logoBase64, 'PNG', doc.internal.pageSize.getWidth() - 15 - 20, 5, 20, 20);
-            doc.setFontSize(10);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        };
-
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text(title, doc.internal.pageSize.getWidth() / 2, 40, { align: 'center' });
-        
-        const groupedByDept: Record<string, {distrito: string}[]> = categoryReports
+        const groupedByDept: Record<string, ReportData[]> = categoryReports
             .sort((a,b) => (a.departamento || '').localeCompare(b.departamento || ''))
             .reduce((acc, report) => {
                 const department = report.departamento || 'Sin Departamento';
                 if (!acc[department]) {
                     acc[department] = [];
                 }
-                acc[department].push({
-                  distrito: report.distrito || 'Sin Distrito',
-                });
+                acc[department].push(report);
                 return acc;
-            }, {} as Record<string, {distrito: string}[]>);
+            }, {} as Record<string, ReportData[]>);
 
         let finalBody: any[] = [];
-        Object.entries(groupedByDept).forEach(([dept, districts]) => {
-          finalBody.push([
-            { content: `Departamento: ${dept.toUpperCase()} (${districts.length})`, colSpan: 1, styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0 } },
-          ]);
-          districts.sort((a,b) => a.distrito.localeCompare(b.distrito)).forEach(d => {
-            finalBody.push([d.distrito]);
-          });
+        Object.entries(groupedByDept).forEach(([dept, reports]) => {
+            finalBody.push([
+                { content: `Departamento: ${dept.toUpperCase()} (${reports.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0 } },
+            ]);
+             finalBody.push([
+                { content: 'Distrito', styles: { fontStyle: 'bold' } },
+                { content: 'Lugar de Resguardo', styles: { fontStyle: 'bold' } }
+            ]);
+            reports.sort((a,b) => (a.distrito || '').localeCompare(b.distrito || '')).forEach(report => {
+                finalBody.push([report.distrito || 'N/A', report['lugar-resguardo'] || 'N/A']);
+            });
         });
         
         autoTable(doc, {
@@ -314,8 +312,10 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             startY: 50,
             theme: 'grid',
             styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1, lineColor: [100, 100, 100] },
+             columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
             didDrawPage: (data) => {
-              addHeaderAndFooter(data.pageNumber, (doc.internal as any).getNumberOfPages());
+              addPageHeader(doc, title);
+              addPageFooter(doc, data.pageNumber, (doc.internal as any).getNumberOfPages());
             }
         });
         
