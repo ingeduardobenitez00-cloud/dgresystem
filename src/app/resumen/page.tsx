@@ -192,113 +192,100 @@ export default function ResumenPage() {
   
   const handleGeneratePdf = async () => {
     if (!structuredData || !logo1Base64 || !logoBase64 || !summaryData) {
-      toast({ title: 'Error', description: 'Datos insuficientes para generar el PDF.', variant: 'destructive' });
-      return;
+        toast({ title: 'Error', description: 'Datos insuficientes para generar el PDF.', variant: 'destructive' });
+        return;
     }
     setIsGeneratingPdf(true);
 
     try {
-      const doc = new jsPDF() as jsPDFWithAutoTable;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 15;
-      let yPos = 0;
+        const doc = new jsPDF() as jsPDFWithAutoTable;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 15;
+        let yPos = 0;
 
-      const addPageHeader = (doc: jsPDF) => {
-        if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
-        if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-      };
+        const addHeaderAndFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
+            if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
+            if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
 
-      // --- Resumen General ---
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Resumen General de Informes', pageWidth / 2, 30, { align: 'center' });
-      yPos = 40;
+            doc.setFontSize(10);
+            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        };
+        
+        // --- PAGE 1: GENERAL SUMMARY ---
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Resumen General de Informes', pageWidth / 2, 30, { align: 'center' });
+        yPos = 40;
 
-      const otrosCount = summaryData.parroquia.count + summaryData.localVotacion.count + summaryData.juzgado.count + summaryData.propiedadIntendencia.count + summaryData.otrosNoEspecificado.count;
-
-      const summaryBody = [
-        ['Total de Informes', summaryData.totalReports.count],
-        ['Registros con Habitaciones Seguras', summaryData.habitacionSegura.count],
-        ['Lugar de Resguardo Comisaria', summaryData.comisaria.count],
-        ['Resguardo en Otros Lugares', otrosCount],
-      ];
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Concepto', 'Cantidad']],
-        body: summaryBody,
-        theme: 'striped',
-        headStyles: { fillColor: [0, 0, 0] },
-      });
-      yPos = (doc as any).lastAutoTable.finalY + 15;
-
-
-      // --- Informe Detallado por Ubicación ---
-      doc.addPage();
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Informe Detallado por Ubicación', pageWidth / 2, 30, { align: 'center' });
-      yPos = 35; // Start content below title
-
-      for (const department of structuredData) {
-        const departmentBody = department.districts.map(dist => {
-          const lugarResguardo = dist.report ? (dist.report['lugar-resguardo'] || 'N/A') : 'Sin informe';
-          return [dist.name, lugarResguardo];
-        });
-
-        const departmentHeader = [[{ content: department.name, colSpan: 2 }]];
+        const otrosCount = summaryData.parroquia.count + summaryData.localVotacion.count + summaryData.juzgado.count + summaryData.propiedadIntendencia.count + summaryData.otrosNoEspecificado.count;
+        const summaryBody = [
+            ['Total de Informes', summaryData.totalReports.count],
+            ['Registros con Habitaciones Seguras', summaryData.habitacionSegura.count],
+            ['Lugar de Resguardo Comisaria', summaryData.comisaria.count],
+            ['Resguardo en Otros Lugares', otrosCount],
+        ];
 
         autoTable(doc, {
-          startY: yPos,
-          head: departmentHeader,
-          body: departmentBody,
-          headStyles: {
-            fillColor: [0, 0, 0],
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            halign: 'center',
-          },
-          columnStyles: {
-            0: { fontStyle: 'bold' },
-          },
-          theme: 'striped',
-          didDrawPage: (data) => {
-            // Add headers to new pages created by autoTable
-             addPageHeader(doc);
-             if (data.pageNumber > 1 && data.pageNumber === (doc.internal.getNumberOfPages())) { 
-                // Only draw the title if it's the start of this section on a new page.
-                const isNewSectionPage = data.cursor?.y && data.cursor.y < 40;
-                if (isNewSectionPage) {
-                    doc.setFontSize(18);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Informe Detallado por Ubicación', pageWidth / 2, 30, { align: 'center' });
-                }
-             }
-          },
+            startY: yPos,
+            head: [['Concepto', 'Cantidad']],
+            body: summaryBody,
+            theme: 'striped',
+            headStyles: { fillColor: [0, 0, 0] },
         });
+        
+        // --- START NEW PAGE FOR DETAILED REPORT ---
+        doc.addPage();
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Informe Detallado por Ubicación', pageWidth / 2, 30, { align: 'center' });
+        yPos = 35;
 
-        yPos = (doc as any).lastAutoTable.finalY + 10;
-      }
+        for (const department of structuredData) {
+            const departmentBody = department.districts.map(dist => {
+                const lugarResguardo = dist.report ? (dist.report['lugar-resguardo'] || 'N/A') : 'Sin informe';
+                return [dist.name, lugarResguardo];
+            });
 
-      // Final pass for headers and footers
-      const totalPages = doc.internal.getNumberOfPages();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        addPageHeader(doc);
-        doc.setFontSize(10);
-        doc.text(`Página ${i} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-      }
+            // Check if there is enough space for the header and at least one row
+            const tableHeight = (departmentBody.length + 1) * 10; // Approximate height
+            if (yPos + tableHeight > pageHeight - 25) {
+                doc.addPage();
+                yPos = 30; // Reset Y position for new page
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Informe Detallado por Ubicación', pageWidth / 2, yPos, { align: 'center' });
+                yPos = 35;
+            }
 
-      doc.save(`Informe-Resumen-Detallado.pdf`);
+            autoTable(doc, {
+                startY: yPos,
+                head: [[{ content: department.name, colSpan: 2, styles: { halign: 'center', fillColor: [0,0,0], textColor: [255,255,255] } }]],
+                body: departmentBody,
+                theme: 'striped',
+                columnStyles: {
+                    0: { fontStyle: 'bold' },
+                },
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+
+        // --- FINAL LOOP TO ADD HEADERS AND FOOTERS TO ALL PAGES ---
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            addHeaderAndFooter(doc, i, totalPages);
+        }
+
+        doc.save(`Informe-Resumen-Detallado.pdf`);
 
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast({ title: 'Error', description: 'No se pudo generar el informe en PDF.', variant: 'destructive' });
+        console.error("Error generating PDF:", error);
+        toast({ title: 'Error', description: 'No se pudo generar el informe en PDF.', variant: 'destructive' });
     } finally {
-      setIsGeneratingPdf(false);
+        setIsGeneratingPdf(false);
     }
-  };
+};
 
 
   const handleCategoryClick = (category: keyof SummaryData | 'otros', title: string) => {
@@ -526,7 +513,5 @@ export default function ResumenPage() {
     </div>
   );
 }
-
-    
 
     
