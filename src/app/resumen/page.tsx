@@ -190,6 +190,93 @@ export default function ResumenPage() {
     }
   }, [datosData, reportsData]);
 
+const handleGeneratePdf = async () => {
+    if (!structuredData || !summaryData || !logo1Base64 || !logoBase64) return;
+    setIsGeneratingPdf(true);
+
+    try {
+        const doc = new jsPDF() as jsPDFWithAutoTable;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 15;
+        let yPos = 30;
+
+        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
+            doc.setFontSize(10);
+            if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
+            if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
+            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        };
+        
+        // --- SECCIÓN 1: RESUMEN GENERAL ---
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Resumen General de Informes", pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
+        
+        const summaryBody = [
+            ['Total de Informes', summaryData.totalReports.count],
+            ['Registros con Habitaciones Seguras', summaryData.habitacionSegura.count],
+            ['Lugar de Resguardo: Comisaría', summaryData.comisaria.count],
+            ['Lugar de Resguardo: Parroquia', summaryData.parroquia.count],
+            ['Lugar de Resguardo: Local de Votación', summaryData.localVotacion.count],
+            ['Lugar de Resguardo: Juzgado', summaryData.juzgado.count],
+            ['Lugar de Resguardo: Prop. Intendencia', summaryData.propiedadIntendencia.count],
+            ['Lugar de Resguardo: Otros/No especificado', summaryData.otrosNoEspecificado.count],
+        ];
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Categoría', 'Cantidad']],
+            body: summaryBody,
+            theme: 'striped',
+            headStyles: { fillColor: [0, 0, 0], textColor: 255 },
+            styles: { fontSize: 9 },
+        });
+
+        // --- SECCIÓN 2: INFORME DETALLADO POR UBICACIÓN ---
+        doc.addPage();
+        yPos = 30;
+
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text("Informe Detallado por Ubicación", pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
+
+        const detailedBody: any[] = [];
+        structuredData.forEach(department => {
+            detailedBody.push([{ content: `Departamento: ${department.name.toUpperCase()} (${department.districts.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [0, 0, 0], textColor: 255 } }]);
+            department.districts.forEach(district => {
+                detailedBody.push([
+                    district.name,
+                    district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe'
+                ]);
+            });
+        });
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Distrito', 'Lugar de Resguardo']],
+            body: detailedBody,
+            theme: 'grid', // 'grid' para tener todos los bordes
+            headStyles: { fillColor: [0, 0, 0], textColor: 255 },
+            styles: { fontSize: 8, fillColor: [255, 255, 255] }, // fondo blanco
+        });
+
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            addHeaderAndFooter(i, totalPages);
+        }
+        
+        doc.save(`Informe-Resumen-Detallado.pdf`);
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        toast({ title: 'Error', description: 'No se pudo generar el informe en PDF.', variant: 'destructive' });
+    } finally {
+        setIsGeneratingPdf(false);
+    }
+};
+
 const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros', title: string) => {
     if (!summaryData || !logo1Base64 || !logoBase64) return;
     setIsGeneratingPdf(true);
@@ -211,19 +298,17 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
-        let yPos = 30;
-
-        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
-            doc.setFontSize(10);
+        
+        const addHeaderAndFooter = (data: any) => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            doc.setFontSize(10);
+            doc.text(`Página ${data.pageNumber} / ${data.pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
         
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text(title, pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
+        doc.text(title, pageWidth / 2, 30, { align: 'center' });
 
         const groupedByDept: Record<string, string[]> = districts.sort().reduce((acc, dist) => {
           const parts = dist.split(' - ');
@@ -238,24 +323,20 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         
         const body: any[] = [];
         Object.entries(groupedByDept).forEach(([dept, dists]) => {
-          body.push([{ content: `Departamento: ${dept.toUpperCase()} (${dists.length})`, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }]);
+          body.push([{ content: `Departamento: ${dept.toUpperCase()} (${dists.length})`, colSpan: 1, styles: { fontStyle: 'bold', fillColor: [220, 220, 220] } }]);
           dists.forEach(d => body.push([d]));
         });
 
-
         autoTable(doc, {
-            startY: yPos,
+            startY: 40,
+            head: [['Detalle']],
             body: body,
             theme: 'striped',
             styles: { fontSize: 8 },
-            columnStyles: { 0: { cellWidth: pageWidth - (margin * 2) } },
+            headStyles: { fillColor: [0, 0, 0] },
+            didDrawPage: addHeaderAndFooter,
+            margin: { top: 30 }
         });
-
-        const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addHeaderAndFooter(i, totalPages);
-        }
         
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
@@ -331,6 +412,10 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                           Visión global de los informes registrados en el sistema. Haz clic en una tarjeta para ver los distritos.
                       </CardDescription>
                   </div>
+                   <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf} size="sm">
+                       {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                       Generar PDF
+                   </Button>
                 </div>
             </CardHeader>
             <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -523,7 +608,3 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
-
-    
-
-    
