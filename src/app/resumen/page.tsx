@@ -226,7 +226,9 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         yPos += 15;
 
         const body = districts.sort().map(dist => {
-            const [department, districtName] = dist.split(' - ');
+            const parts = dist.split(' - ');
+            const department = parts[0];
+            const districtName = parts.slice(1).join(' - ');
             return [department, districtName];
         });
 
@@ -237,13 +239,19 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             theme: 'striped',
             headStyles: { fillColor: [0, 0, 0] },
             styles: { fontSize: 8 },
+            didDrawPage: (data) => {
+                const totalPages = (doc as any).internal.getNumberOfPages();
+                addHeaderAndFooter(data.pageNumber, totalPages);
+            }
         });
-
+        
         const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addHeaderAndFooter(i, totalPages);
+        // This loop is to fix a bug in jspdf-autotable where didDrawPage might not be called for the last page
+        if ((doc as any).lastAutoTable.finalY > doc.internal.pageSize.getHeight()) {
+            doc.setPage(totalPages);
+            addHeaderAndFooter(totalPages, totalPages);
         }
+
 
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
@@ -336,14 +344,14 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                         >
                            {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                         </Button>
-                        <div onClick={card.onClick} className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+                        <div onClick={card.onClick} className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md p-6 pb-4">
+                            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <h3 className="text-sm font-medium">{card.title}</h3>
                                 <Icon className={`h-4 w-4 text-muted-foreground ${card.className || ''}`} />
-                            </CardHeader>
-                            <CardContent>
+                            </div>
+                            <div>
                                 <div className="text-2xl font-bold">{summaryData[card.key].count}</div>
-                            </CardContent>
+                            </div>
                         </div>
                     </Card>
                  )
@@ -359,12 +367,12 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                     >
                         {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
-                    <div onClick={() => handleCategoryClick('comisaria', 'Lugar de Resguardo Comisaria')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Lugar de Resguardo Comisaria</CardTitle>
+                    <div onClick={() => handleCategoryClick('comisaria', 'Lugar de Resguardo Comisaria')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md p-6 pb-4">
+                        <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 className="text-sm font-medium">Lugar de Resguardo Comisaria</h3>
                             <Shield className="h-4 w-4 text-muted-foreground text-blue-600" />
-                        </CardHeader>
-                        <CardContent>
+                        </div>
+                        <div className="space-y-2">
                             <div className="text-2xl font-bold">{summaryData.comisaria.count}</div>
                             <Accordion type="single" collapsible className="w-full text-xs">
                               <AccordionItem value="item-1">
@@ -387,7 +395,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                                 </AccordionContent>
                               </AccordionItem>
                             </Accordion>
-                        </CardContent>
+                        </div>
                     </div>
                 </Card>
                  <Card className="relative">
@@ -401,12 +409,12 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                     >
                         {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
-                    <div onClick={() => handleCategoryClick('otros', 'Resguardo en Otros Lugares')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Resguardo en Otros Lugares</CardTitle>
+                    <div onClick={() => handleCategoryClick('otros', 'Resguardo en Otros Lugares')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md p-6 pb-4">
+                        <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <h3 className="text-sm font-medium">Resguardo en Otros Lugares</h3>
                             <Building className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
+                        </div>
+                        <div>
                             <div className="text-2xl font-bold">{otrosCount}</div>
                             <Accordion type="single" collapsible className="w-full text-xs">
                               <AccordionItem value="item-1">
@@ -435,7 +443,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                                 </AccordionContent>
                               </AccordionItem>
                             </Accordion>
-                        </CardContent>
+                        </div>
                     </div>
                 </Card>
             </CardContent>
@@ -512,4 +520,3 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
   );
 }
 
-    
