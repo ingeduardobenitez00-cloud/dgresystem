@@ -207,8 +207,7 @@ const handleGeneratePdf = async () => {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
-        let yPos = 30;
-
+        
         const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
             doc.setFontSize(10);
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
@@ -219,8 +218,7 @@ const handleGeneratePdf = async () => {
         // --- SECCIÓN 1: RESUMEN GENERAL ---
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text("Resumen General de Informes", pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
+        doc.text("Resumen General de Informes", pageWidth / 2, 30, { align: 'center' });
         
         const summaryBody = [
             ['Total de Informes', summaryData.totalReports.count],
@@ -234,50 +232,41 @@ const handleGeneratePdf = async () => {
         ];
 
         autoTable(doc, {
-            startY: yPos,
+            startY: 40,
             head: [['Categoría', 'Cantidad']],
             body: summaryBody,
             theme: 'striped',
             headStyles: { fillColor: [0, 0, 0], textColor: 255 },
             styles: { fontSize: 9 },
         });
-        yPos = (doc as any).lastAutoTable.finalY + 15;
 
         // --- SECCIÓN 2: INFORME DETALLADO POR UBICACIÓN ---
         doc.addPage();
-        yPos = 30;
-
+        
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text("Informe Detallado por Ubicación", pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
+        doc.text("Informe Detallado por Ubicación", pageWidth / 2, 30, { align: 'center' });
         
+        const detailedBody: any[][] = [];
         structuredData.forEach(department => {
-            const bodyRows: any[][] = [];
+            detailedBody.push([
+              { content: `Departamento: ${department.name.toUpperCase()} (${department.districts.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0, halign: 'left' } }
+            ]);
             department.districts.forEach(district => {
-                bodyRows.push([
+                detailedBody.push([
                     district.name,
                     district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe'
                 ]);
             });
+        });
 
-            if (yPos > 240) { // Check if there's enough space for the header and a few rows
-                doc.addPage();
-                yPos = 30;
-            }
-
-            autoTable(doc, {
-                startY: yPos,
-                head: [
-                  [{ content: `Departamento: ${department.name.toUpperCase()} (${department.districts.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [255,255,255], textColor: 0, halign: 'center' } }],
-                  ['Distrito', 'Lugar de Resguardo']
-                ],
-                body: bodyRows,
-                theme: 'grid',
-                headStyles: { fillColor: [0, 0, 0], textColor: 255 },
-                styles: { fontSize: 8 },
-            });
-            yPos = (doc as any).lastAutoTable.finalY + 10;
+        autoTable(doc, {
+            startY: 40,
+            head: [['Distrito', 'Lugar de Resguardo']],
+            body: detailedBody,
+            theme: 'grid',
+            headStyles: { fillColor: [0, 0, 0], textColor: 255 },
+            styles: { fontSize: 8 },
         });
 
         // FINAL LOOP TO ADD HEADERS AND FOOTERS
@@ -340,7 +329,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         
         const body: any[] = [];
         Object.entries(groupedByDept).forEach(([dept, reports]) => {
-          body.push([{ content: `Departamento: ${dept.toUpperCase()} (${reports.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [255,255,255], textColor: 0, halign: 'center' } }]);
+          body.push([{ content: `Departamento: ${dept.toUpperCase()} (${reports.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0, halign: 'left' } }]);
           reports.sort((a,b) => (a.distrito || '').localeCompare(b.distrito || '')).forEach(r => body.push([r.distrito, r['lugar-resguardo']]));
         });
 
@@ -349,10 +338,10 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             head: [['Distrito', 'Lugar de Resguardo']],
             body: body,
             theme: 'grid',
-            styles: { fontSize: 8, fillColor: [255, 255, 255] },
             headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 8, cellPadding: 2 },
             didDrawPage: addHeaderAndFooter,
-            margin: { top: 30 }
+            margin: { top: 35 }
         });
         
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
@@ -515,7 +504,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                     >
                         {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
-                    <div role="button" className="hover:bg-muted/50 transition-colors h-full rounded-md p-6 pb-4">
+                    <div role="button" className="transition-colors h-full rounded-md p-6 pb-4">
                         <div className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <h3 className="text-sm font-medium">Resguardo en Otros Lugares</h3>
                             <Building className="h-4 w-4 text-muted-foreground" />
