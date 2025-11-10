@@ -213,6 +213,7 @@ export default function ResumenPage() {
         };
         
         // --- PAGE 1: GENERAL SUMMARY ---
+        doc.setPage(1);
         yPos = 30;
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
@@ -241,7 +242,7 @@ export default function ResumenPage() {
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.text('Informe Detallado por Ubicación', pageWidth / 2, yPos, { align: 'center' });
-        yPos += 5;
+        yPos += 10;
 
         for (const department of structuredData) {
             const departmentBody = department.districts.map(dist => {
@@ -249,15 +250,10 @@ export default function ResumenPage() {
                 return [dist.name, lugarResguardo];
             });
 
-            // Check if there is enough space for the header and at least one row
-            const tableHeight = (departmentBody.length + 1) * 10;
+            const tableHeight = (departmentBody.length + 1) * 10; // Simple height estimation
             if (yPos + tableHeight > pageHeight - 25) {
                 doc.addPage();
-                yPos = 30; 
-                doc.setFontSize(18);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Informe Detallado por Ubicación', pageWidth / 2, yPos, { align: 'center' });
-                yPos += 5;
+                yPos = 30;
             }
 
             autoTable(doc, {
@@ -269,15 +265,11 @@ export default function ResumenPage() {
                 columnStyles: {
                     0: { fontStyle: 'bold' },
                 },
-                didDrawPage: (data) => {
-                    // This function is called after a page is drawn (including auto-added pages)
-                    addHeaderAndFooter(data.pageNumber, (doc as any).internal.getNumberOfPages());
-                }
             });
             yPos = (doc as any).lastAutoTable.finalY + 10;
         }
 
-        // --- FINAL LOOP TO ADD HEADERS AND FOOTERS TO ALL PAGES (except first, already done by didDrawPage) ---
+        // FINAL LOOP TO ADD HEADERS AND FOOTERS TO ALL PAGES
         const totalPages = (doc as any).internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
@@ -520,7 +512,3 @@ export default function ResumenPage() {
     </div>
   );
 }
-
-    
-
-    
