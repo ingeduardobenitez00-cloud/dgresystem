@@ -275,7 +275,7 @@ export default function FichaPage() {
                         img.onerror = reject;
                     });
                     
-                    const imgWidth = 150;
+                    const imgWidth = 170;
                     const imgHeight = (img.height * imgWidth) / img.width;
                     const titleHeight = 10;
 
@@ -481,4 +481,6 @@ function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: stri
 }
 
     
+    
+
     
