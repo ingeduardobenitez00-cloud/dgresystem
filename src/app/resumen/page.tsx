@@ -210,26 +210,16 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
-        const margin = 15;
         const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 15;
 
-        const addHeaderAndFooter = (data: any) => {
-            // Header
+        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-            
-            // Footer
-            const pageCount = (doc as any).internal.getNumberOfPages();
             doc.setFontSize(10);
-            doc.text(
-                `Página ${data.pageNumber} / ${pageCount}`,
-                pageWidth - margin,
-                pageHeight - 10,
-                { align: 'right' }
-            );
+            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
         };
-
-        // Main Title
+        
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.text(`Detalle: ${title}`, pageWidth / 2, 30, { align: 'center' });
@@ -248,8 +238,13 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             theme: 'striped',
             headStyles: { fillColor: [0, 0, 0] },
             styles: { fontSize: 8 },
-            didDrawPage: addHeaderAndFooter
         });
+
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            addHeaderAndFooter(i, totalPages);
+        }
         
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
@@ -517,3 +512,5 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
+
+    
