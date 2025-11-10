@@ -156,8 +156,21 @@ export default function FichaPage() {
     try {
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
         let yPos = 20;
+
+        const addImageHeader = () => {
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Imágenes de las Oficinas del Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 8;
+
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 12;
+        }
 
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
@@ -211,7 +224,6 @@ export default function FichaPage() {
         }
 
         if (imagesData && imagesData.length > 0) {
-            const pageHeight = doc.internal.pageSize.getHeight();
             // Check if there is enough space for the image section header and at least one image
             if (yPos > pageHeight - 80) {
                 doc.addPage();
@@ -220,16 +232,7 @@ export default function FichaPage() {
                 yPos += 5; // Some space before the next section
             }
             
-            const imageSectionStartY = yPos;
-            doc.setFontSize(16);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Imágenes de las Oficinas del Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
-            yPos += 8;
-
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`${selectedDepartment.toUpperCase()} - ${selectedDistrict.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-            yPos += 12;
+            addImageHeader();
 
             for (const image of imagesData) {
                 try {
@@ -246,6 +249,7 @@ export default function FichaPage() {
                     if (yPos + imgHeight + 20 > pageHeight - margin) {
                         doc.addPage();
                         yPos = margin;
+                        addImageHeader();
                     }
                     doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, yPos, imgWidth, imgHeight);
                     yPos += imgHeight + 5;
@@ -261,6 +265,7 @@ export default function FichaPage() {
                     if (yPos + 10 > pageHeight - margin) {
                         doc.addPage();
                         yPos = margin;
+                        addImageHeader();
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
