@@ -225,14 +225,18 @@ export default function FichaPage() {
 
         if (imagesData && imagesData.length > 0) {
             // Check if there is enough space for the image section header and at least one image
-            if (yPos > pageHeight - 80) {
+            if (yPos > pageHeight - 80) { // Not enough space, start a new page
                 doc.addPage();
                 yPos = margin;
-            } else {
+                addImageHeader();
+            } else { // Enough space on current page
                 yPos += 5; // Some space before the next section
+                 if(currentReport) { // Only add header if there was a report, otherwise it's the first content
+                    addImageHeader();
+                 } else { // No report, so this is the first content, we need the main header, not image header
+                    // No need to add header here, it's already there from the top
+                 }
             }
-            
-            addImageHeader();
 
             for (const image of imagesData) {
                 try {
@@ -434,3 +438,4 @@ function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: stri
     
 
     
+
