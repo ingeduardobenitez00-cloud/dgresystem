@@ -211,6 +211,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
+        let yPos = 30;
 
         const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
             doc.setFontSize(10);
@@ -221,7 +222,8 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text(title, pageWidth / 2, 30, { align: 'center' });
+        doc.text(title, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
 
         const groupedByDept: Record<string, string[]> = districts.sort().reduce((acc, dist) => {
           const parts = dist.split(' - ');
@@ -236,21 +238,24 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         
         const body: any[] = [];
         Object.entries(groupedByDept).forEach(([dept, dists]) => {
-          body.push([{ content: `${dept.toUpperCase()} (${dists.length})`, colSpan: 1, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }]);
+          body.push([{ content: `Departamento: ${dept.toUpperCase()} (${dists.length})`, styles: { fontStyle: 'bold', fillColor: '#f0f0f0' } }]);
           dists.forEach(d => body.push([d]));
         });
 
 
         autoTable(doc, {
-            startY: 40,
+            startY: yPos,
             body: body,
             theme: 'striped',
             styles: { fontSize: 8 },
-            columnStyles: { 0: { cellWidth: 180 } },
-            didDrawPage: (data) => {
-              addHeaderAndFooter(data.pageNumber, (doc as any).internal.getNumberOfPages());
-            }
+            columnStyles: { 0: { cellWidth: pageWidth - (margin * 2) } },
         });
+
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            addHeaderAndFooter(i, totalPages);
+        }
         
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
@@ -518,5 +523,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
+
+    
 
     
