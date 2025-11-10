@@ -207,7 +207,8 @@ const handleGeneratePdf = async () => {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
-        
+        let yPos = 30;
+
         const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
             doc.setFontSize(10);
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
@@ -215,10 +216,10 @@ const handleGeneratePdf = async () => {
             doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
         
-        // --- SECCIÓN 1: RESUMEN GENERAL ---
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text("Resumen General de Informes", pageWidth / 2, 30, { align: 'center' });
+        doc.text("Resumen General de Informes", pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
         
         const summaryBody = [
             ['Total de Informes', summaryData.totalReports.count],
@@ -232,7 +233,7 @@ const handleGeneratePdf = async () => {
         ];
 
         autoTable(doc, {
-            startY: 40,
+            startY: yPos,
             head: [['Categoría', 'Cantidad']],
             body: summaryBody,
             theme: 'striped',
@@ -240,36 +241,51 @@ const handleGeneratePdf = async () => {
             styles: { fontSize: 9 },
         });
 
-        // --- SECCIÓN 2: INFORME DETALLADO POR UBICACIÓN ---
-        doc.addPage();
-        
+        yPos = (doc as any).lastAutoTable.finalY + 15;
+
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text("Informe Detallado por Ubicación", pageWidth / 2, 30, { align: 'center' });
-        
-        const detailedBody: any[][] = [];
+        doc.text("Informe Detallado por Ubicación", pageWidth / 2, yPos, { align: 'center' });
+        yPos += 10;
+
         structuredData.forEach(department => {
-            detailedBody.push([
-              { content: `Departamento: ${department.name.toUpperCase()} (${department.districts.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0, halign: 'left' } }
-            ]);
+            const departmentHeader = [[`Departamento: ${department.name.toUpperCase()} (${department.districts.length})`]];
+            autoTable(doc, {
+                startY: yPos,
+                head: departmentHeader,
+                body: [],
+                theme: 'plain',
+                headStyles: {
+                    fillColor: [220, 220, 220],
+                    textColor: 0,
+                    fontStyle: 'bold',
+                    halign: 'left'
+                },
+                columnStyles: { 0: { cellWidth: 'auto' } },
+            });
+            yPos = (doc as any).lastAutoTable.finalY;
+
+            const detailedBody: any[][] = [];
             department.districts.forEach(district => {
                 detailedBody.push([
                     district.name,
                     district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe'
                 ]);
             });
+
+            autoTable(doc, {
+                startY: yPos,
+                head: [['Distrito', 'Lugar de Resguardo']],
+                body: detailedBody,
+                theme: 'grid',
+                headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
+                styles: { fontSize: 8 },
+                columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } }
+            });
+            yPos = (doc as any).lastAutoTable.finalY + 10;
         });
 
-        autoTable(doc, {
-            startY: 40,
-            head: [['Distrito', 'Lugar de Resguardo']],
-            body: detailedBody,
-            theme: 'grid',
-            headStyles: { fillColor: [0, 0, 0], textColor: 255 },
-            styles: { fontSize: 8 },
-        });
-
-        // FINAL LOOP TO ADD HEADERS AND FOOTERS
+        // FINAL LOOP TO ADD HEADERS AND FOOTERS TO ALL PAGES
         const totalPages = (doc as any).internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
@@ -307,11 +323,11 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
         
-        const addHeaderAndFooter = (data: any) => {
+        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
             doc.setFontSize(10);
-            doc.text(`Página ${data.pageNumber} / ${data.pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
         
         doc.setFontSize(18);
@@ -340,10 +356,15 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             theme: 'grid',
             headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
             styles: { fontSize: 8, cellPadding: 2 },
-            didDrawPage: addHeaderAndFooter,
             margin: { top: 35 }
         });
         
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            addHeaderAndFooter(i, totalPages);
+        }
+
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
         console.error("Error generating category PDF:", error);
@@ -462,7 +483,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                     >
                         {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
-                    <div onClick={() => handleCategoryClick('comisaria', 'Lugar de Resguardo Comisaria')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md p-6 pb-4">
+                    <div className="transition-colors h-full rounded-md p-6 pb-4">
                         <div className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <h3 className="text-sm font-medium">Lugar de Resguardo Comisaria</h3>
                             <Shield className="h-4 w-4 text-muted-foreground text-blue-600" />
@@ -504,7 +525,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                     >
                         {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
-                    <div role="button" className="transition-colors h-full rounded-md p-6 pb-4">
+                    <div className="transition-colors h-full rounded-md p-6 pb-4">
                         <div className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <h3 className="text-sm font-medium">Resguardo en Otros Lugares</h3>
                             <Building className="h-4 w-4 text-muted-foreground" />
