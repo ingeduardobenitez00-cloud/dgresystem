@@ -147,8 +147,6 @@ export default function ResumenPage() {
         otrosNoEspecificado: initialCategoryData(),
       };
       
-      const comisariaSummary: ComisariaData = {};
-      
       summary.totalReports.count = reportsData.length;
       summary.totalReports.districts = reportsData.map(r => `${r.departamento} - ${r.distrito}`);
       summary.totalReports.reports = reportsData;
@@ -156,9 +154,7 @@ export default function ResumenPage() {
       reportsData.forEach(report => {
         const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
         const fullDistrictName = `${report.departamento} - ${report.distrito}`;
-        const deptName = report.departamento!;
-        const distName = report.distrito!;
-
+        
         if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
             summary.habitacionSegura.count++;
             summary.habitacionSegura.districts.push(fullDistrictName);
@@ -167,10 +163,6 @@ export default function ResumenPage() {
             summary.comisaria.count++;
             summary.comisaria.districts.push(fullDistrictName);
             summary.comisaria.reports.push(report);
-            if (!comisariaSummary[deptName]) {
-              comisariaSummary[deptName] = [];
-            }
-            comisariaSummary[deptName].push(distName);
         } else if (lugar.includes('parroquia')) {
             summary.parroquia.count++;
             summary.parroquia.districts.push(fullDistrictName);
@@ -193,11 +185,27 @@ export default function ResumenPage() {
             summary.otrosNoEspecificado.reports.push(report);
         }
       });
-
       setSummaryData(summary);
-      setComisariaData(comisariaSummary);
     }
   }, [datosData, reportsData]);
+
+  useEffect(() => {
+    if (reportsData) {
+        const comisariaSummary: ComisariaData = {};
+        reportsData.forEach(report => {
+            const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
+            if (lugar.includes('comisaria')) {
+                const deptName = report.departamento!;
+                const distName = report.distrito!;
+                if (!comisariaSummary[deptName]) {
+                    comisariaSummary[deptName] = [];
+                }
+                comisariaSummary[deptName].push(distName);
+            }
+        });
+        setComisariaData(comisariaSummary);
+    }
+}, [reportsData]);
 
 const handleGeneratePdf = async () => {
     if (!structuredData || !summaryData || !logo1Base64 || !logoBase64) return;
@@ -219,7 +227,7 @@ const handleGeneratePdf = async () => {
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.text("Resumen General de Informes", pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
+        yPos += 15;
         
         const summaryBody = [
             ['Total de Informes', summaryData.totalReports.count],
@@ -241,49 +249,35 @@ const handleGeneratePdf = async () => {
             styles: { fontSize: 9 },
         });
 
-        yPos = (doc as any).lastAutoTable.finalY + 15;
+        doc.addPage();
+        yPos = 30; 
 
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.text("Informe Detallado por Ubicación", pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
-
+        yPos += 15;
+        
+        const detailedBody: any[][] = [];
         structuredData.forEach(department => {
-            const departmentHeader = [[`Departamento: ${department.name.toUpperCase()} (${department.districts.length})`]];
-            autoTable(doc, {
-                startY: yPos,
-                head: departmentHeader,
-                body: [],
-                theme: 'plain',
-                headStyles: {
-                    fillColor: [220, 220, 220],
-                    textColor: 0,
-                    fontStyle: 'bold',
-                    halign: 'left'
-                },
-                columnStyles: { 0: { cellWidth: 'auto' } },
-            });
-            yPos = (doc as any).lastAutoTable.finalY;
-
-            const detailedBody: any[][] = [];
+            detailedBody.push([{ content: `Departamento: ${department.name.toUpperCase()} (${department.districts.length})`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [220, 220, 220], textColor: 0, halign: 'left' } }]);
             department.districts.forEach(district => {
                 detailedBody.push([
                     district.name,
                     district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe'
                 ]);
             });
-
-            autoTable(doc, {
-                startY: yPos,
-                head: [['Distrito', 'Lugar de Resguardo']],
-                body: detailedBody,
-                theme: 'grid',
-                headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
-                styles: { fontSize: 8 },
-                columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } }
-            });
-            yPos = (doc as any).lastAutoTable.finalY + 10;
         });
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Distrito', 'Lugar de Resguardo']],
+            body: detailedBody,
+            theme: 'grid',
+            headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 8 },
+            columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } }
+        });
+
 
         // FINAL LOOP TO ADD HEADERS AND FOOTERS TO ALL PAGES
         const totalPages = (doc as any).internal.getNumberOfPages();
@@ -305,6 +299,19 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     if (!summaryData || !logo1Base64 || !logoBase64) return;
     setIsGeneratingPdf(true);
     
+    let categoryDistricts: string[] = [];
+    if (categoryKey === 'otros') {
+        categoryDistricts = [
+            ...summaryData.parroquia.districts,
+            ...summaryData.localVotacion.districts,
+            ...summaryData.juzgado.districts,
+            ...summaryData.propiedadIntendencia.districts,
+            ...summaryData.otrosNoEspecificado.districts,
+        ];
+    } else {
+        categoryDistricts = summaryData[categoryKey].districts;
+    }
+    
     let categoryReports: ReportData[] = [];
      if (categoryKey === 'otros') {
         categoryReports = [
@@ -317,6 +324,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     } else {
         categoryReports = summaryData[categoryKey].reports;
     }
+
 
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
@@ -332,7 +340,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text(title, pageWidth / 2, 30, { align: 'center' });
+        doc.text(title, pageWidth / 2, 22, { align: 'center' });
 
         const groupedByDept: Record<string, ReportData[]> = categoryReports.sort((a,b) => (a.departamento || '').localeCompare(b.departamento || '')).reduce((acc, report) => {
           const department = report.departamento || 'Sin Departamento';
@@ -350,21 +358,17 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         });
 
         autoTable(doc, {
-            startY: 40,
+            startY: 30,
             head: [['Distrito', 'Lugar de Resguardo']],
             body: body,
             theme: 'grid',
             headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
             styles: { fontSize: 8, cellPadding: 2 },
-            margin: { top: 35 }
+            didDrawPage: (data) => {
+              addHeaderAndFooter(data.pageNumber, (doc as any).internal.getNumberOfPages());
+            }
         });
         
-        const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addHeaderAndFooter(i, totalPages);
-        }
-
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
         console.error("Error generating category PDF:", error);
@@ -441,7 +445,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                   </div>
                    <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf} size="sm">
                        {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                       Generar PDF
+                       Generar Resumen PDF
                    </Button>
                 </div>
             </CardHeader>
@@ -635,3 +639,5 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
+
+    
