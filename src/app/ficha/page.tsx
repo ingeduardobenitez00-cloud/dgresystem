@@ -226,22 +226,10 @@ export default function FichaPage() {
         if (imagesData && imagesData.length > 0) {
             const needsNewPageForImages = currentReport && yPos > pageHeight - 80;
 
-            if (needsNewPageForImages) {
+            if (needsNewPageForImages || !currentReport) {
                 doc.addPage();
                 yPos = margin;
                 addImageHeader();
-            } else if (!currentReport) {
-                // This case is for an image-only PDF, so we need the image header
-                yPos = margin;
-                addImageHeader();
-            } else {
-                // There is a report and images will start on the same page.
-                // Add a title for the image section.
-                yPos += 5; // Space between report table and images section title
-                doc.setFontSize(16);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Imagenes del Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
-                yPos += 12;
             }
 
             for (const image of imagesData) {
