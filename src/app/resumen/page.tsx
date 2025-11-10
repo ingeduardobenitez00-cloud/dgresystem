@@ -208,54 +208,63 @@ export default function ResumenPage() {
 }, [reportsData]);
 
 const handleGeneratePdf = async () => {
-    if (!structuredData || !summaryData || !logo1Base64 || !logoBase64) return;
-    setIsGeneratingPdf(true);
+  if (!structuredData || !logo1Base64 || !logoBase64) return;
+  setIsGeneratingPdf(true);
 
-    try {
-        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
-        
-        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
-            if (logo1Base64) doc.addImage(logo1Base64, 'PNG', 15, 5, 20, 20);
-            if (logoBase64) doc.addImage(logoBase64, 'PNG', doc.internal.pageSize.getWidth() - 15 - 20, 5, 20, 20);
-            doc.setFontSize(10);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        };
+  try {
+      const doc = new jsPDF() as jsPDFWithAutoTable;
 
-        const detailedBody = structuredData.flatMap(department => {
-            const departmentHeader = [{ content: `Departamento: ${department.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [220, 220, 220] } }];
-            const tableHeader = [{ content: 'Distrito', styles: { fontStyle: 'bold' } }, { content: 'Lugar de Resguardo', styles: { fontStyle: 'bold' } }];
-            const departmentRows = department.districts.map(district => [
-                district.name,
-                district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe'
-            ]);
-            return [departmentHeader, tableHeader, ...departmentRows];
-        });
+      const addPageHeader = (title: string) => {
+          if (logo1Base64) doc.addImage(logo1Base64, 'PNG', 15, 5, 20, 20);
+          if (logoBase64) doc.addImage(logoBase64, 'PNG', doc.internal.pageSize.getWidth() - 15 - 20, 5, 20, 20);
+          
+          doc.setFontSize(18);
+          doc.setFont('helvetica', 'bold');
+          doc.text(title, doc.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
+      };
 
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text("Informe Detallado por Ubicación", doc.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
+      const addPageFooter = (pageNumber: number, totalPages: number) => {
+          doc.setFontSize(10);
+          doc.text(`Página ${pageNumber} / ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+      };
 
-        autoTable(doc, {
-            body: detailedBody,
-            theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1, lineColor: [100, 100, 100] },
-            columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
-            startY: 40,
-        });
-        
-        const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addHeaderAndFooter(i, totalPages);
-        }
+      addPageHeader("Informe Detallado por Ubicación");
+      
+      const body = structuredData.flatMap(department => {
+          const departmentHeader = [{ content: `Departamento: ${department.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [220, 220, 220] } }];
+          const tableHeader = [{ content: 'Distrito', styles: { fontStyle: 'bold' } }, { content: 'Lugar de Resguardo', styles: { fontStyle: 'bold' } }];
+          const departmentRows = department.districts.map(district => [
+              district.name,
+              district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe'
+          ]);
+          return [departmentHeader, tableHeader, ...departmentRows];
+      });
 
-        doc.save(`Informe-Resumen-Detallado.pdf`);
-    } catch (error) {
-        console.error("Error generating PDF:", error);
-        toast({ title: 'Error', description: 'No se pudo generar el informe en PDF.', variant: 'destructive' });
-    } finally {
-        setIsGeneratingPdf(false);
-    }
+      autoTable(doc, {
+          body: body,
+          startY: 40,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1, lineColor: [100, 100, 100] },
+          columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
+      });
+
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+          doc.setPage(i);
+          addPageFooter(i, totalPages);
+          // Re-add header for subsequent pages if autoTable doesn't do it for body rows
+          if (i > 1) {
+            addPageHeader("Informe Detallado por Ubicación");
+          }
+      }
+
+      doc.save(`Informe-Resumen-Detallado.pdf`);
+  } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: 'Error', description: 'No se pudo generar el informe en PDF.', variant: 'destructive' });
+  } finally {
+      setIsGeneratingPdf(false);
+  }
 };
 
 const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros', title: string) => {
@@ -278,10 +287,16 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         
-        const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
+        const addPageHeader = (title: string) => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', 15, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', doc.internal.pageSize.getWidth() - 15 - 20, 5, 20, 20);
             
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text(title, doc.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
+        };
+
+        const addPageFooter = (pageNumber: number, totalPages: number) => {
             doc.setFontSize(10);
             doc.text(`Página ${pageNumber} / ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
@@ -308,24 +323,20 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             finalBody.push([d.distrito]);
           });
         });
-
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text(title, doc.internal.pageSize.getWidth() / 2, 30, { align: 'center' });
         
+        addPageHeader(title);
+
         autoTable(doc, {
             body: finalBody,
             theme: 'grid',
-            headStyles: { halign: 'center', fillColor: [255, 255, 255], textColor: 0, fontStyle: 'bold', fontSize: 18, lineWidth: 0 },
-            styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1, lineColor: [100, 100, 100] },
             startY: 40,
+            styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1, lineColor: [100, 100, 100] },
+            didDrawPage: (data) => {
+              // Add footer to each page
+              const totalPages = (doc as any).internal.getNumberOfPages();
+              addPageFooter(data.pageNumber, totalPages);
+            }
         });
-
-        const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-          doc.setPage(i);
-          addHeaderAndFooter(i, totalPages);
-        }
         
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
@@ -597,5 +608,3 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
-
-    
