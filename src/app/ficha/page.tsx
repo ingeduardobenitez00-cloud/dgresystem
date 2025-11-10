@@ -48,6 +48,29 @@ export default function FichaPage() {
   const [shouldFetch, setShouldFetch] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+  const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Cargar logos como base64 al montar el componente
+    const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
+        try {
+            const response = await fetch(path);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setter(reader.result as string);
+            };
+            reader.readAsDataURL(blob);
+        } catch (error) {
+            console.error(`Error fetching logo ${path}:`, error);
+        }
+    };
+
+    fetchLogo('/logo1.png', setLogo1Base64);
+    fetchLogo('/logo.png', setLogoBase64);
+  }, []);
+
   const reportQuery = useMemoFirebase(() => {
     if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict) return null;
     return query(
@@ -150,7 +173,7 @@ export default function FichaPage() {
   };
   
   const handleGeneratePdf = async () => {
-    if ((!currentReport && (!imagesData || imagesData.length === 0)) || !selectedDepartment || !selectedDistrict) return;
+    if ((!currentReport && (!imagesData || imagesData.length === 0)) || !selectedDepartment || !selectedDistrict || !logo1Base64 || !logoBase64) return;
     setIsGeneratingPdf(true);
     
     try {
@@ -160,7 +183,27 @@ export default function FichaPage() {
         const margin = 15;
         let yPos = 20;
 
-        const addImageHeader = () => {
+        const addPageHeader = () => {
+            if (logo1Base64) {
+                doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
+            }
+            if (logoBase64) {
+                doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
+            }
+        };
+
+        const addPageFooter = (data: any) => {
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.setFontSize(10);
+            doc.text(
+                `Página ${data.pageNumber} / ${pageCount}`,
+                pageWidth - margin,
+                pageHeight - 10,
+                { align: 'right' }
+            );
+        };
+        
+        const addImageSectionHeader = () => {
             doc.setFontSize(16);
             doc.setFont('helvetica', 'bold');
             doc.text('Imagenes del Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
@@ -173,6 +216,7 @@ export default function FichaPage() {
         }
 
         if (currentReport) {
+            yPos = 30; // Ajustar yPos inicial para dejar espacio a los logos
             doc.setFontSize(18);
             doc.setFont('helvetica', 'bold');
             doc.text('Informe Edilicio Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
@@ -196,7 +240,7 @@ export default function FichaPage() {
                 ['Dimensiones de Habitación Segura', currentReport['dimensiones-habitacion']],
                 ['Características de Habitación Segura', currentReport['caracteristicas-habitacion']],
                 ['Cantidad de Máquinas de Votación', currentReport['cantidad-maquinas']],
-            ].filter(row => row[1]); // Filter out rows with no value
+            ].filter(row => row[1]);
 
             autoTable(doc, {
                 startY: yPos,
@@ -217,7 +261,21 @@ export default function FichaPage() {
                     1: { cellWidth: 'auto' },
                 },
                 didDrawPage: (data) => {
-                    yPos = data.cursor?.y ?? yPos;
+                    addPageHeader();
+                    addPageFooter(data);
+                    if (data.pageNumber === 1) { // Solo en la primera página
+                        yPos = 30; // Reset yPos
+                        doc.setFontSize(18);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text('Informe Edilicio Registro Electoral', pageWidth / 2, yPos, { align: 'center' });
+                        yPos += 8;
+                        doc.setFontSize(14);
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(`${selectedDepartment.toUpperCase()} - ${selectedDistrict.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
+                        yPos += 8;
+                        doc.setLineWidth(0.5);
+                        doc.line(margin, yPos, pageWidth - margin, yPos);
+                    }
                 }
             });
             yPos = (doc as any).lastAutoTable.finalY + 10;
@@ -225,34 +283,31 @@ export default function FichaPage() {
 
         if (imagesData && imagesData.length > 0) {
             const needsNewPageForImages = currentReport && yPos > pageHeight - 80;
-
+            
             if (needsNewPageForImages || !currentReport) {
                 doc.addPage();
-                yPos = margin;
-                addImageHeader();
-            } else if (currentReport) {
-                // Do not add image header on the first page if there is a report
-            } else {
-                 addImageHeader();
+                yPos = 30; // Espacio para el encabezado con logos
+                addImageSectionHeader();
             }
 
             for (const image of imagesData) {
                 try {
+                    // Pre-cargar la imagen para obtener sus dimensiones
                     const img = new window.Image();
                     img.src = image.src;
                     await new Promise((resolve, reject) => {
                         img.onload = resolve;
-                        img.onerror = (e) => reject(e);
+                        img.onerror = reject;
                     });
                     
                     const imgWidth = 150;
                     const imgHeight = (img.height * imgWidth) / img.width;
-                    const titleHeight = 10; // Estimated height for the title
+                    const titleHeight = 10;
 
                     if (yPos + imgHeight + titleHeight > pageHeight - margin) {
                         doc.addPage();
-                        yPos = margin;
-                        addImageHeader();
+                        yPos = 30; // Reset Y pos for new page
+                        addImageSectionHeader();
                     }
                     
                     doc.setFontSize(10);
@@ -269,8 +324,8 @@ export default function FichaPage() {
                     console.error("Error loading image for PDF:", error);
                     if (yPos + 10 > pageHeight - margin) {
                         doc.addPage();
-                        yPos = margin;
-                        addImageHeader();
+                        yPos = 30;
+                        addImageSectionHeader();
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
@@ -279,6 +334,14 @@ export default function FichaPage() {
                     yPos += 10;
                 }
             }
+        }
+        
+        // Final pass to add headers and footers to all pages
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          doc.setPage(i);
+          addPageHeader();
+          addPageFooter({ pageNumber: i });
         }
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
@@ -435,16 +498,5 @@ function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: stri
         </div>
     );
 }
-
-    
-
-    
-
-
-
-
-    
-
-    
 
     
