@@ -189,103 +189,70 @@ export default function ResumenPage() {
       setComisariaData(comisariaSummary);
     }
   }, [datosData, reportsData]);
-  
-  const handleGeneratePdf = async () => {
-    if (!structuredData || !logo1Base64 || !logoBase64 || !summaryData) {
-        toast({ title: 'Error', description: 'Datos insuficientes para generar el PDF.', variant: 'destructive' });
-        return;
-    }
+
+const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros', title: string) => {
+    if (!summaryData || !logo1Base64 || !logoBase64) return;
     setIsGeneratingPdf(true);
+    
+    let districts: string[] = [];
+    if (categoryKey === 'otros') {
+        districts = [
+            ...summaryData.parroquia.districts,
+            ...summaryData.localVotacion.districts,
+            ...summaryData.juzgado.districts,
+            ...summaryData.propiedadIntendencia.districts,
+            ...summaryData.otrosNoEspecificado.districts,
+        ];
+    } else {
+        districts = summaryData[categoryKey].districts;
+    }
 
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
+        let yPos = 30;
         const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
-        let yPos = 0;
 
         const addHeaderAndFooter = (pageNumber: number, totalPages: number) => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-
             doc.setFontSize(10);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
-        
-        // --- PAGE 1: GENERAL SUMMARY ---
-        doc.setPage(1);
-        yPos = 30;
+
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text('Resumen General de Informes', pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
+        doc.text(`Detalle: ${title}`, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 15;
 
-        const otrosCount = summaryData.parroquia.count + summaryData.localVotacion.count + summaryData.juzgado.count + summaryData.propiedadIntendencia.count + summaryData.otrosNoEspecificado.count;
-        const summaryBody = [
-            ['Total de Informes', summaryData.totalReports.count],
-            ['Registros con Habitaciones Seguras', summaryData.habitacionSegura.count],
-            ['Lugar de Resguardo Comisaria', summaryData.comisaria.count],
-            ['Resguardo en Otros Lugares', otrosCount],
-        ];
+        const body = districts.sort().map(dist => {
+            const [department, districtName] = dist.split(' - ');
+            return [department, districtName];
+        });
 
         autoTable(doc, {
             startY: yPos,
-            head: [['Concepto', 'Cantidad']],
-            body: summaryBody,
+            head: [['Departamento', 'Distrito']],
+            body: body,
             theme: 'striped',
             headStyles: { fillColor: [0, 0, 0] },
+            styles: { fontSize: 8 },
         });
-        
-        // --- START NEW PAGE FOR DETAILED REPORT ---
-        doc.addPage();
-        yPos = 30;
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Informe Detallado por Ubicación', pageWidth / 2, yPos, { align: 'center' });
-        yPos += 10;
 
-        for (const department of structuredData) {
-            const departmentBody = department.districts.map(dist => {
-                const lugarResguardo = dist.report ? (dist.report['lugar-resguardo'] || 'N/A') : 'Sin informe';
-                return [dist.name, lugarResguardo];
-            });
-
-            const tableHeight = (departmentBody.length + 1) * 10; // Simple height estimation
-            if (yPos + tableHeight > pageHeight - 25) {
-                doc.addPage();
-                yPos = 30;
-            }
-
-            autoTable(doc, {
-                startY: yPos,
-                head: [[{ content: department.name, colSpan: 2, styles: { halign: 'center', fillColor: [0,0,0], textColor: [255,255,255] } }]],
-                body: departmentBody,
-                theme: 'striped',
-                styles: { fontSize: 8 },
-                columnStyles: {
-                    0: { fontStyle: 'bold' },
-                },
-            });
-            yPos = (doc as any).lastAutoTable.finalY + 10;
-        }
-
-        // FINAL LOOP TO ADD HEADERS AND FOOTERS TO ALL PAGES
         const totalPages = (doc as any).internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
             addHeaderAndFooter(i, totalPages);
         }
 
-        doc.save(`Informe-Resumen-Detallado.pdf`);
-
+        doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
-        console.error("Error generating PDF:", error);
+        console.error("Error generating category PDF:", error);
         toast({ title: 'Error', description: 'No se pudo generar el informe en PDF.', variant: 'destructive' });
     } finally {
         setIsGeneratingPdf(false);
     }
 };
-
 
   const handleCategoryClick = (category: keyof SummaryData | 'otros', title: string) => {
     if (!summaryData) return;
@@ -352,92 +319,124 @@ export default function ResumenPage() {
                           Visión global de los informes registrados en el sistema. Haz clic en una tarjeta para ver los distritos.
                       </CardDescription>
                   </div>
-                   <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf}>
-                      {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                      Generar PDF
-                  </Button>
                 </div>
             </CardHeader>
             <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                {summaryCards.map(card => {
                  const Icon = card.icon;
                  return (
-                    <Card key={card.key} onClick={card.onClick} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
-                            <Icon className={`h-4 w-4 text-muted-foreground ${card.className || ''}`} />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{summaryData[card.key].count}</div>
-                        </CardContent>
+                    <Card key={card.key} className="relative">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 h-7 w-7 text-muted-foreground"
+                            onClick={(e) => { e.stopPropagation(); handleGenerateCategoryPdf(card.key, card.title); }}
+                            disabled={isGeneratingPdf}
+                            aria-label={`Generar PDF para ${card.title}`}
+                        >
+                           {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        </Button>
+                        <div onClick={card.onClick} className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+                                <Icon className={`h-4 w-4 text-muted-foreground ${card.className || ''}`} />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{summaryData[card.key].count}</div>
+                            </CardContent>
+                        </div>
                     </Card>
                  )
                })}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Lugar de Resguardo Comisaria</CardTitle>
-                        <Shield className="h-4 w-4 text-muted-foreground text-blue-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold" onClick={() => handleCategoryClick('comisaria', 'Lugar de Resguardo Comisaria')} role="button">{summaryData.comisaria.count}</div>
-                        <Accordion type="single" collapsible className="w-full text-xs">
-                          <AccordionItem value="item-1">
-                            <AccordionTrigger className="p-0 hover:no-underline">Ver desglose</AccordionTrigger>
-                            <AccordionContent className="pt-2 space-y-1">
-                                <Accordion type="multiple" className="w-full">
-                                {Object.entries(comisariaData).sort(([deptA], [deptB]) => deptA.localeCompare(deptB)).map(([dept, districts]) => (
-                                    <AccordionItem value={dept} key={dept}>
-                                        <AccordionTrigger className="p-0 hover:no-underline text-xs">
-                                           {dept} ({districts.length})
-                                        </AccordionTrigger>
-                                        <AccordionContent className="pt-2 pl-4 space-y-1">
-                                            {districts.map(dist => (
-                                                <div key={dist} className="text-xs cursor-pointer hover:font-semibold" onClick={() => handleDistrictClick(dept, dist)}>{dist}</div>
-                                            ))}
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                ))}
-                                </Accordion>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                    </CardContent>
+                <Card className="relative">
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-7 w-7 text-muted-foreground"
+                        onClick={(e) => { e.stopPropagation(); handleGenerateCategoryPdf('comisaria', 'Lugar de Resguardo Comisaria'); }}
+                        disabled={isGeneratingPdf}
+                        aria-label="Generar PDF para Lugar de Resguardo Comisaria"
+                    >
+                        {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    </Button>
+                    <div onClick={() => handleCategoryClick('comisaria', 'Lugar de Resguardo Comisaria')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Lugar de Resguardo Comisaria</CardTitle>
+                            <Shield className="h-4 w-4 text-muted-foreground text-blue-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{summaryData.comisaria.count}</div>
+                            <Accordion type="single" collapsible className="w-full text-xs">
+                              <AccordionItem value="item-1">
+                                <AccordionTrigger className="p-0 hover:no-underline">Ver desglose</AccordionTrigger>
+                                <AccordionContent className="pt-2 space-y-1">
+                                    <Accordion type="multiple" className="w-full">
+                                    {Object.entries(comisariaData).sort(([deptA], [deptB]) => deptA.localeCompare(deptB)).map(([dept, districts]) => (
+                                        <AccordionItem value={dept} key={dept}>
+                                            <AccordionTrigger className="p-0 hover:no-underline text-xs">
+                                               {dept} ({districts.length})
+                                            </AccordionTrigger>
+                                            <AccordionContent className="pt-2 pl-4 space-y-1">
+                                                {districts.map(dist => (
+                                                    <div key={dist} className="text-xs cursor-pointer hover:font-semibold" onClick={(e) => { e.stopPropagation(); handleDistrictClick(dept, dist); }}>{dist}</div>
+                                                ))}
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))}
+                                    </Accordion>
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </div>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Resguardo en Otros Lugares</CardTitle>
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold" onClick={() => handleCategoryClick('otros', 'Resguardo en Otros Lugares')} role="button">{otrosCount}</div>
-                        <Accordion type="single" collapsible className="w-full text-xs">
-                          <AccordionItem value="item-1">
-                            <AccordionTrigger className="p-0 hover:no-underline">Ver desglose</AccordionTrigger>
-                            <AccordionContent className="pt-2 space-y-1">
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={() => handleCategoryClick('parroquia', 'Parroquia')}>
-                                <span className="flex items-center"><Landmark className="mr-2 h-4 w-4 text-amber-600" />Parroquia:</span>
-                                <span>{summaryData.parroquia.count}</span>
-                              </div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={() => handleCategoryClick('localVotacion', 'Local de Votación')}>
-                                <span className="flex items-center"><Vote className="mr-2 h-4 w-4 text-cyan-600" />Local de Votación:</span>
-                                <span>{summaryData.localVotacion.count}</span>
-                              </div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={() => handleCategoryClick('juzgado', 'Juzgado')}>
-                                <span className="flex items-center"><Scale className="mr-2 h-4 w-4 text-gray-600" />Juzgado:</span>
-                                <span>{summaryData.juzgado.count}</span>
-                              </div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={() => handleCategoryClick('propiedadIntendencia', 'Prop. Intendencia')}>
-                                <span className="flex items-center"><Home className="mr-2 h-4 w-4 text-rose-600" />Prop. Intendencia:</span>
-                                <span>{summaryData.propiedadIntendencia.count}</span>
-                              </div>
-                              <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={() => handleCategoryClick('otrosNoEspecificado', 'Otros no especificados')}>
-                                <span className="flex items-center"><HelpCircle className="mr-2 h-4 w-4 text-gray-400" />Otros no especificados:</span>
-                                <span>{summaryData.otrosNoEspecificado.count}</span>
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                    </CardContent>
+                 <Card className="relative">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-7 w-7 text-muted-foreground"
+                        onClick={(e) => { e.stopPropagation(); handleGenerateCategoryPdf('otros', 'Resguardo en Otros Lugares'); }}
+                        disabled={isGeneratingPdf}
+                        aria-label="Generar PDF para Resguardo en Otros Lugares"
+                    >
+                        {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    </Button>
+                    <div onClick={() => handleCategoryClick('otros', 'Resguardo en Otros Lugares')} role="button" className="cursor-pointer hover:bg-muted/50 transition-colors h-full rounded-md">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Resguardo en Otros Lugares</CardTitle>
+                            <Building className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{otrosCount}</div>
+                            <Accordion type="single" collapsible className="w-full text-xs">
+                              <AccordionItem value="item-1">
+                                <AccordionTrigger className="p-0 hover:no-underline">Ver desglose</AccordionTrigger>
+                                <AccordionContent className="pt-2 space-y-1">
+                                  <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={(e) => { e.stopPropagation(); handleCategoryClick('parroquia', 'Parroquia');}}>
+                                    <span className="flex items-center"><Landmark className="mr-2 h-4 w-4 text-amber-600" />Parroquia:</span>
+                                    <span>{summaryData.parroquia.count}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={(e) => { e.stopPropagation(); handleCategoryClick('localVotacion', 'Local de Votación');}}>
+                                    <span className="flex items-center"><Vote className="mr-2 h-4 w-4 text-cyan-600" />Local de Votación:</span>
+                                    <span>{summaryData.localVotacion.count}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={(e) => { e.stopPropagation(); handleCategoryClick('juzgado', 'Juzgado');}}>
+                                    <span className="flex items-center"><Scale className="mr-2 h-4 w-4 text-gray-600" />Juzgado:</span>
+                                    <span>{summaryData.juzgado.count}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={(e) => { e.stopPropagation(); handleCategoryClick('propiedadIntendencia', 'Prop. Intendencia');}}>
+                                    <span className="flex items-center"><Home className="mr-2 h-4 w-4 text-rose-600" />Prop. Intendencia:</span>
+                                    <span>{summaryData.propiedadIntendencia.count}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center cursor-pointer hover:font-semibold text-xs" onClick={(e) => { e.stopPropagation(); handleCategoryClick('otrosNoEspecificado', 'Otros no especificados');}}>
+                                    <span className="flex items-center"><HelpCircle className="mr-2 h-4 w-4 text-gray-400" />Otros no especificados:</span>
+                                    <span>{summaryData.otrosNoEspecificado.count}</span>
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
+                        </CardContent>
+                    </div>
                 </Card>
             </CardContent>
         </Card>
@@ -512,3 +511,5 @@ export default function ResumenPage() {
     </div>
   );
 }
+
+    
