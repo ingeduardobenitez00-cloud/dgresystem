@@ -235,17 +235,18 @@ export default function ResumenPage() {
     try {
         const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
         let yPos = 0;
 
-        const addPageHeader = () => {
-            if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
-            if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
+        const addPageHeader = (docInstance: jsPDF) => {
+            if (logo1Base64) docInstance.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
+            if (logoBase64) docInstance.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
         };
         
-        const addPageFooter = (doc: jsPDF, pageNum: number, totalPages: number) => {
-            doc.setFontSize(10);
-            doc.text(`Página ${pageNum} / ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        const addPageFooter = (docInstance: jsPDF, pageNum: number, totalPages: number) => {
+            docInstance.setFontSize(10);
+            docInstance.text(`Página ${pageNum} / ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
         };
         
         // --- Title Page ---
@@ -278,55 +279,57 @@ export default function ResumenPage() {
         });
         
         yPos = (doc as any).lastAutoTable.finalY + 15;
+        
+        // --- Detailed Breakdown Section ---
+        const categories: {key: keyof SummaryData, title: string}[] = [
+            { key: 'totalReports', title: 'Detalle: Total de Informes' },
+            { key: 'habitacionSegura', title: 'Detalle: Registros con Habitaciones Seguras' },
+            { key: 'comisaria', title: 'Detalle: Resguardo en Comisaría' },
+            { key: 'parroquia', title: 'Detalle: Resguardo en Parroquia' },
+            { key: 'localVotacion', title: 'Detalle: Resguardo en Local de Votación' },
+            { key: 'juzgado', title: 'Detalle: Resguardo en Juzgado' },
+            { key: 'propiedadIntendencia', title: 'Detalle: Resguardo en Propiedad de Intendencia' },
+            { key: 'otrosNoEspecificado', title: 'Detalle: Otros/No Especificado' },
+        ];
 
-        // --- Detailed Section by Department ---
-        doc.addPage();
-        yPos = 30;
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Informe Detallado por Ubicación', pageWidth / 2, yPos, { align: 'center' });
-        yPos += 15;
-
-
-        for (const dept of structuredData) {
-            const departmentBody = dept.districts.map(dist => [
-                dist.name,
-                dist.report ? 'Sí' : 'No',
-                dist.report ? dist.report['lugar-resguardo'] || 'No especificado' : 'N/A'
-            ]);
-
-            // Check if there is enough space, otherwise add a new page
-            const tableHeight = (departmentBody.length + 1) * 10 + 20; // Approximation
-            if (yPos + tableHeight > doc.internal.pageSize.getHeight() - 20) {
-                doc.addPage();
-                yPos = 30;
-            }
-
-            autoTable(doc, {
-                startY: yPos,
-                head: [[dept.name, 'Informe', 'Lugar de Resguardo']],
-                body: departmentBody,
-                headStyles: { fillColor: [0, 0, 0], textColor: 255 },
-                theme: 'striped',
-                columnStyles: {
-                    0: { cellWidth: 'auto' },
-                    1: { cellWidth: 20, halign: 'center' },
-                    2: { cellWidth: 'auto' },
+        for (const category of categories) {
+            const data = summaryData[category.key];
+            if (data.count > 0) {
+                if (yPos + 20 > pageHeight - margin) {
+                    doc.addPage();
+                    yPos = 30;
                 }
-            });
-            
-            yPos = (doc as any).lastAutoTable.finalY + 10;
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text(category.title, margin, yPos);
+                yPos += 8;
+
+                const breakdownBody = data.districts.map(d => d.split(' - '));
+
+                autoTable(doc, {
+                    startY: yPos,
+                    head: [['Departamento', 'Distrito']],
+                    body: breakdownBody,
+                    headStyles: { fillColor: [0, 0, 0], textColor: 255 },
+                    theme: 'striped',
+                    didDrawPage: (data) => {
+                      yPos = data.cursor?.y ?? 30;
+                    }
+                });
+                yPos = (doc as any).lastAutoTable.finalY + 15;
+            }
         }
 
-        // Add headers and footers to all pages
+
+        // Final pass for headers and footers
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
           doc.setPage(i);
-          addPageHeader();
+          addPageHeader(doc);
           addPageFooter(doc, i, totalPages);
         }
 
-        doc.save('Resumen-General-Informes.pdf');
+        doc.save('Resumen-General-Detallado.pdf');
 
     } catch (error) {
         console.error("Error generating PDF:", error);
@@ -537,3 +540,4 @@ export default function ResumenPage() {
   );
 }
 
+    
