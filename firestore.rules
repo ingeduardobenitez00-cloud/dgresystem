@@ -10,13 +10,11 @@
  * - /imagenes/{imagenId}: Publicly accessible images.
  * - /users/{userId}: Private user profile data, accessible only to the user themselves or an admin.
  * - /reports/{reportId}: Publicly accessible report data.
- * - /audit-logs/{logId}: Restricted audit log data, only accessible by admins.
  *
  * Key Security Decisions:
  * - User profiles (/users/{userId}) are private, readable only by the user themselves, but listable by any authenticated user. Admins can update any profile.
  * - Other collections (/datos, /departamentos, /imagenes, /reports) are publicly readable.
  * - Write access (create, update, delete) to most public collections is open to any authenticated user.
- * - The audit log is read-only for admins to ensure integrity. Writes are handled by trusted server logic (via Firestore SDK).
  */
 rules_version = '2';
 service cloud.firestore {
@@ -78,16 +76,6 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow read: if true;
       allow write: if isSignedIn();
-    }
-
-     /**
-     * @description Manages access to audit logs. Only admins can read.
-     * No client-side writes are allowed to ensure integrity.
-     * @path /audit-logs/{logId}
-     */
-    match /audit-logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin(); // Allow server-side admin writes
     }
   }
 

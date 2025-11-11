@@ -25,6 +25,7 @@ export interface UseCollectionResult<T> {
   data: WithId<T>[] | null; // Document data with ID, or null.
   isLoading: boolean;       // True if loading.
   error: FirestoreError | Error | null; // Error object, or null.
+  setData: React.Dispatch<React.SetStateAction<WithId<T>[] | null>>;
 }
 
 /* Internal implementation of Query:
@@ -111,5 +112,5 @@ export function useCollection<T = any>(
     return () => unsubscribe();
   }, [query]);
 
-  return { data, isLoading, error };
+  return { data, isLoading, error, setData };
 }

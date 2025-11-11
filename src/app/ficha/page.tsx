@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, setDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {
   Select,
@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, ImageIcon, Search, Download, Edit } from 'lucide-react';
+import { Loader2, FileText, ImageIcon, Search, Download, Edit, Upload, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -33,7 +33,21 @@ import {
   DialogFooter,
   DialogClose
 } from '@/components/ui/dialog';
-import { logUserAction } from '@/lib/audit-log';
+import { UploadDialog } from '@/components/upload-dialog';
+import { Progress } from '@/components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 interface jsPDFWithAutoTable extends jsPDF {
@@ -60,6 +74,9 @@ export default function FichaPage() {
 
   const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  
+  const [isUploadOpen, setUploadOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
@@ -98,8 +115,8 @@ export default function FichaPage() {
     );
   }, [firestore, shouldFetch, selectedDepartment, selectedDistrict]);
 
-  const { data: reportData, isLoading: isLoadingReport, error: reportError } = useCollection<ReportData>(reportQuery);
-  const { data: imagesData, isLoading: isLoadingImages } = useCollection<ImageData>(imagesQuery);
+  const { data: reportData, isLoading: isLoadingReport, error: reportError, setData: setReportData } = useCollection<ReportData>(reportQuery);
+  const { data: imagesData, isLoading: isLoadingImages, setData: setImagesData } = useCollection<ImageData>(imagesQuery);
   
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [isViewerOpen, setViewerOpen] = useState(false);
@@ -202,11 +219,15 @@ export default function FichaPage() {
             doc.text(title, pageWidth / 2, 30, { align: 'center' });
         };
         
-        const addPageFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
+        const addPageFooter = (doc: jsPDF) => {
+            const pageCount = (doc.internal as any).getNumberOfPages();
             const pageHeight = doc.internal.pageSize.getHeight();
             const pageWidth = doc.internal.pageSize.getWidth();
             doc.setFontSize(10);
-            doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - 15, pageHeight - 10, { align: 'right' });
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.text(`Página ${i} de ${pageCount}`, pageWidth - 15, pageHeight - 10, { align: 'right' });
+            }
         };
         
         addPageHeader(doc, 'Informe Edilicio Registro Electoral');
@@ -313,11 +334,7 @@ export default function FichaPage() {
             }
         }
         
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-          doc.setPage(i);
-          addPageFooter(doc, i, totalPages);
-        }
+        addPageFooter(doc);
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
 
@@ -340,12 +357,10 @@ export default function FichaPage() {
         // Update existing report
         const reportRef = doc(firestore, 'reports', currentReport.id);
         await setDoc(reportRef, data, { merge: true });
-        await logUserAction({ firestore, user: currentUser, action: 'update-report', entity: 'report', entityId: currentReport.id, details: data });
         toast({ title: "Informe actualizado", description: "Los cambios han sido guardados." });
       } else {
         // Create new report
-        const docRef = await addDoc(collection(firestore, 'reports'), data);
-        await logUserAction({ firestore, user: currentUser, action: 'create-report', entity: 'report', entityId: docRef.id, details: data });
+        await addDoc(collection(firestore, 'reports'), data);
         toast({ title: "Informe creado", description: "El nuevo informe ha sido guardado." });
       }
       setEditModalOpen(false);
@@ -358,9 +373,95 @@ export default function FichaPage() {
     }
   };
 
+  const handleImagesUploaded = async (newImages: Omit<ImageData, 'id' | 'departamento' | 'distrito'>[]) => {
+    if (!selectedDepartment || !selectedDistrict || !firestore || !currentUser) return;
+    
+    setUploadOpen(false);
+    setUploadProgress(0);
+
+    const imagesCollectionRef = collection(firestore, 'imagenes');
+    const totalImages = newImages.length;
+    let uploadedCount = 0;
+    const uploadedImages: ImageData[] = [];
+
+    for (const newImage of newImages) {
+        const fullImageData = {
+            ...newImage,
+            departamento: selectedDepartment,
+            distrito: selectedDistrict,
+        };
+        try {
+            const docRef = await addDoc(imagesCollectionRef, fullImageData);
+            if (setImagesData) {
+              setImagesData(prev => [...(prev || []), { id: docRef.id, ...fullImageData }]);
+            }
+            uploadedImages.push({ id: docRef.id, ...fullImageData });
+            uploadedCount++;
+            setUploadProgress((uploadedCount / totalImages) * 100);
+        } catch (error) {
+            const contextualError = new FirestorePermissionError({
+                operation: 'create',
+                path: 'imagenes',
+                requestResourceData: fullImageData
+            });
+            errorEmitter.emit('permission-error', contextualError);
+            toast({
+                title: "Error de Subida",
+                description: `No se pudo subir la imagen ${newImage.alt}.`,
+                variant: 'destructive',
+            });
+        }
+    }
+
+    if (uploadedImages.length > 0) {
+      toast({
+        title: 'Subida Completada',
+        description: `${uploadedCount} de ${totalImages} imágenes subidas con éxito.`,
+      });
+    }
+    
+    setTimeout(() => setUploadProgress(null), 2000);
+  };
+  
+  const handleDeleteImage = async (imageToDelete: ImageData) => {
+    if (!firestore || !currentUser) return;
+
+    try {
+        await deleteDoc(doc(firestore, 'imagenes', imageToDelete.id));
+        if (setImagesData) {
+          setImagesData(prev => (prev || []).filter(img => img.id !== imageToDelete.id));
+        }
+        
+        toast({
+            title: "Imagen eliminada",
+            description: "La imagen ha sido eliminada con éxito.",
+            variant: "destructive",
+        });
+    } catch (error) {
+        const contextualError = new FirestorePermissionError({
+            operation: 'delete',
+            path: `imagenes/${imageToDelete.id}`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        toast({
+            title: "Error al eliminar",
+            description: "No se pudo eliminar la imagen.",
+            variant: "destructive",
+        });
+    }
+  };
+
 
   return (
     <div className="flex min-h-screen w-full flex-col">
+       {uploadProgress !== null && (
+          <div className="fixed top-14 left-0 right-0 z-50 p-4 bg-background/80 backdrop-blur-sm">
+             <div className="max-w-4xl mx-auto space-y-2">
+                <p className="text-sm font-medium text-center">Subiendo imágenes... {Math.round(uploadProgress)}%</p>
+                <Progress value={uploadProgress} className="w-full" />
+             </div>
+          </div>
+        )}
       <Header title="Vista de Ficha" />
       <main className="flex flex-1 flex-col p-4 md:p-6 lg:p-8 gap-8">
         <Card className="w-full max-w-6xl mx-auto">
@@ -454,23 +555,61 @@ export default function FichaPage() {
                       </CardContent>
                     </Card>
                   
-                  {imagesData && imagesData.length > 0 && (
+                  {imagesData && (
                      <Card>
                        <CardHeader>
-                        <CardTitle className="flex items-center gap-3">
-                          <ImageIcon className="h-6 w-6 text-primary" />
-                          <span>Imágenes</span>
-                        </CardTitle>
-                        <CardDescription>Imágenes asociadas a {selectedDistrict}</CardDescription>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <CardTitle className="flex items-center gap-3">
+                                <ImageIcon className="h-6 w-6 text-primary" />
+                                <span>Imágenes</span>
+                                </CardTitle>
+                                <CardDescription>Imágenes asociadas a {selectedDistrict}</CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                                <Upload className="mr-2 h-4 w-4" />
+                                Subir Fotos
+                            </Button>
+                        </div>
                       </CardHeader>
                       <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {imagesData.map(image => (
-                          <Card key={image.id} className="overflow-hidden cursor-pointer group" onClick={() => handleOpenImageViewer(image)}>
+                          <Card key={image.id} className="overflow-hidden group/image-card">
                             <div className="relative aspect-video">
-                              <Image src={image.src} alt={image.alt} fill className="object-cover transition-transform group-hover:scale-105" data-ai-hint={image.hint} />
+                              <Image src={image.src} alt={image.alt} fill className="object-cover transition-transform group-hover/image-card:scale-105" data-ai-hint={image.hint} onClick={() => handleOpenImageViewer(image)} />
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="destructive"
+                                            size="icon"
+                                            className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover/image-card:opacity-100 transition-opacity"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>¿Estás seguro de que quieres eliminar esta imagen?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Esta acción no se puede deshacer. La imagen se eliminará permanentemente.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteImage(image)} className="bg-destructive hover:bg-destructive/90">
+                                                Eliminar
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </div>
                           </Card>
                         ))}
+                         {imagesData.length === 0 && (
+                             <div className="col-span-full text-center py-12 border-2 border-dashed rounded-lg">
+                                <p className="text-muted-foreground">No hay imágenes para este distrito.</p>
+                             </div>
+                         )}
                       </CardContent>
                      </Card>
                   )}
@@ -515,6 +654,11 @@ export default function FichaPage() {
         onPrevious={handlePreviousImage}
         canNavigateNext={imagesData ? currentImageIndex < imagesData.length - 1 : false}
         canNavigatePrevious={currentImageIndex > 0}
+      />
+      <UploadDialog
+        isOpen={isUploadOpen}
+        onOpenChange={setUploadOpen}
+        onImagesUploaded={handleImagesUploaded}
       />
     </div>
   );

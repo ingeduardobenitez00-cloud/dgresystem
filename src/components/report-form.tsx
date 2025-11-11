@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Building, MapPin } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface ReportFormProps {
     initialData?: ReportData | null;
@@ -21,6 +22,10 @@ export function ReportForm({ initialData, onSubmit, readOnly = false, departamen
     const { register, handleSubmit, reset } = useForm<Omit<ReportData, 'id'>>({
         defaultValues: initialData || {},
     });
+
+    useEffect(() => {
+        reset(initialData || {});
+    }, [initialData, reset]);
 
     const handleFormSubmit = (data: Omit<ReportData, 'id'>) => {
         if (onSubmit) {

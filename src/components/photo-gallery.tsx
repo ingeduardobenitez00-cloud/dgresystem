@@ -36,7 +36,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { logUserAction } from '@/lib/audit-log';
 
 
 type DepartmentWithDistricts = {
@@ -173,15 +172,6 @@ export default function PhotoGallery() {
             const docRef = await addDoc(imagesCollectionRef, fullImageData);
             uploadedImages.push({ id: docRef.id, ...fullImageData });
             
-            await logUserAction({
-              firestore,
-              user,
-              action: 'upload-images',
-              entity: 'image',
-              entityId: docRef.id,
-              details: { name: newImage.alt, location: `${deptName} - ${distName}` }
-            });
-
             uploadedCount++;
             setUploadProgress((uploadedCount / totalImages) * 100);
         } catch (error) {
@@ -225,15 +215,6 @@ export default function PhotoGallery() {
     try {
         await deleteDoc(doc(firestore, 'imagenes', imageToDelete.id));
         
-        await logUserAction({
-          firestore,
-          user,
-          action: 'delete-image',
-          entity: 'image',
-          entityId: imageToDelete.id,
-          details: { name: imageToDelete.alt, location: `${imageToDelete.departamento} - ${imageToDelete.distrito}` }
-        });
-
         const imagesKey = `${imageToDelete.departamento}-${imageToDelete.distrito}`;
         setImages(prev => ({
             ...prev,

@@ -238,11 +238,16 @@ const addPageHeader = (doc: jsPDF, title: string) => {
     doc.text(title, pageWidth / 2, 22, { align: 'center' });
 };
 
-const addPageFooter = (doc: jsPDF, pageNumber: number, totalPages: number) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
+const addPageFooter = (doc: jsPDF) => {
+    const pageCount = (doc.internal as any).getNumberOfPages();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();
     doc.setFontSize(10);
-    doc.text(`Página ${pageNumber} de ${totalPages}`, pageWidth - 15, pageHeight - 10, { align: 'right' });
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        const pageText = `Página ${i} de ${pageCount}`;
+        doc.text(pageText, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
 };
 
 const handleGeneratePdf = async () => {
@@ -275,7 +280,6 @@ const handleGeneratePdf = async () => {
             columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 'auto' } },
             didDrawPage: (data) => {
                 addPageHeader(doc, title);
-                addPageFooter(doc, data.pageNumber, (doc as any).internal.getNumberOfPages());
             },
             margin: { top: 35, bottom: 20 }
         });
@@ -315,11 +319,7 @@ const handleGeneratePdf = async () => {
             }
         });
         
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addPageFooter(doc, i, totalPages);
-        }
+        addPageFooter(doc);
         
         doc.save(`Informe-Resumen-Detallado.pdf`);
     } catch (error) {
@@ -405,11 +405,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
             }
         });
         
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            addPageFooter(doc, i, totalPages);
-        }
+        addPageFooter(doc);
 
         doc.save(`Informe-${cleanFileName(title)}.pdf`);
     } catch (error) {
@@ -738,6 +734,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     
 
     
+
 
 
 

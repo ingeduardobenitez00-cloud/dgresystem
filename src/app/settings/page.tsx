@@ -38,7 +38,6 @@ import { useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, doc, writeBatch, getDocs, deleteDoc, setDoc, addDoc, updateDoc, where, query } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { logUserAction } from '@/lib/audit-log';
 
 
 type PreviewData = {
@@ -244,15 +243,6 @@ export default function SettingsPage() {
         await delay(2000); // Pause for 2 seconds between batches
       }
 
-      await logUserAction({
-        firestore,
-        user: currentUser,
-        action: 'import-datos',
-        entity: 'import',
-        entityId: fileName || 'batch-upload',
-        details: { count: previewData.length }
-      });
-
       toast({
           title: 'Datos importados',
           description: 'Los nuevos departamentos y distritos se han añadido con éxito.',
@@ -285,12 +275,10 @@ export default function SettingsPage() {
           try {
             if (type === 'department') {
                 const newDato = { departamento: name, distrito: 'Nuevo Distrito (Editar)' };
-                const docRef = await addDoc(collection(firestore, 'datos'), newDato);
-                await logUserAction({ firestore, user: currentUser, action: 'create-dato', entity: 'dato', entityId: docRef.id, details: { type: 'department', name } });
+                await addDoc(collection(firestore, 'datos'), newDato);
             } else if (type === 'district' && deptId) {
                 const newDato = { departamento: deptId, distrito: name };
-                const docRef = await addDoc(collection(firestore, 'datos'), newDato);
-                await logUserAction({ firestore, user: currentUser, action: 'create-dato', entity: 'dato', entityId: docRef.id, details: { type: 'district', name, department: deptId } });
+                await addDoc(collection(firestore, 'datos'), newDato);
             }
           } catch(err) {
                  const contextualError = new FirestorePermissionError({operation: 'create', path: `datos`});
@@ -308,7 +296,7 @@ export default function SettingsPage() {
   const handleUpdateItem = async () => {
     if (!editingItem || !newItemName || !firestore || !currentUser) return;
     setIsUploading(true);
-    const { type, deptId, distId, name: oldName } = editingItem;
+    const { type, deptId, distId } = editingItem;
     
     try {
       if (type === 'department') {
@@ -321,12 +309,9 @@ export default function SettingsPage() {
         });
         await batch.commit();
 
-        await logUserAction({ firestore, user: currentUser, action: 'update-dato', entity: 'dato', entityId: deptId, details: { type: 'department', oldName, newName: newItemName }});
-
       } else if (type === 'district' && distId) {
         const distRef = doc(firestore, 'datos', distId);
         await updateDoc(distRef, { distrito: newItemName });
-        await logUserAction({ firestore, user: currentUser, action: 'update-dato', entity: 'dato', entityId: distId, details: { type: 'district', oldName, newName: newItemName }});
       }
       setEditModalOpen(false);
       setEditingItem(null);
@@ -356,10 +341,8 @@ export default function SettingsPage() {
                 batch.delete(docRef);
             });
             await batch.commit();
-            await logUserAction({ firestore, user: currentUser, action: 'delete-dato', entity: 'dato', entityId: deptId, details: { type: 'department' }});
         } else if (distId) {
             await deleteDoc(doc(firestore, 'datos', distId));
-            await logUserAction({ firestore, user: currentUser, action: 'delete-dato', entity: 'dato', entityId: distId, details: { type: 'district' }});
         }
         toast({ title: 'Elemento eliminado', variant: 'destructive' });
       } catch (error) {
@@ -392,15 +375,6 @@ export default function SettingsPage() {
             await batch.commit();
             await delay(2000); // Pause for 2 seconds between batches
         }
-
-        await logUserAction({
-            firestore,
-            user: currentUser,
-            action: 'import-reports',
-            entity: 'import',
-            entityId: fileName || 'batch-upload',
-            details: { count: reportPreviewData.length }
-        });
 
         toast({
             title: 'Datos del informe guardados',

@@ -185,43 +185,6 @@
         "departamento",
         "distrito"
       ]
-    },
-    "AuditLog": {
-      "title": "Audit Log",
-      "description": "Represents a single audit trail entry for a user action.",
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The ID of the user who performed the action."
-        },
-        "userEmail": {
-          "type": "string",
-          "description": "The email of the user who performed the action."
-        },
-        "action": {
-          "type": "string",
-          "description": "A description of the action performed (e.g., 'create-user', 'update-report')."
-        },
-        "entity": {
-          "type": "string",
-          "description": "The type of entity that was affected (e.g., 'user', 'report', 'image')."
-        },
-        "entityId": {
-          "type": "string",
-          "description": "The ID of the specific document/entity that was affected."
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The server timestamp of when the action occurred."
-        },
-        "details": {
-          "type": "object",
-          "description": "An object containing additional details about the action (e.g., changed fields)."
-        }
-      },
-      "required": ["userId", "userEmail", "action", "entity", "entityId", "timestamp"]
     }
   },
   "auth": {
@@ -265,12 +228,6 @@
         "$ref": "#/entities/Reporte"
       },
       "description": "Stores detailed report information."
-    },
-    "/audit-logs/{logId}": {
-        "schema": {
-            "$ref": "#/entities/AuditLog"
-        },
-        "description": "Stores a log of all user actions for auditing purposes."
     }
   }
 }

@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { logUserAction } from '@/lib/audit-log';
 
 type UserProfile = {
   id: string;
@@ -104,16 +103,6 @@ export default function UsersPage() {
 
       await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
       
-      await logUserAction({
-        firestore,
-        user: currentUser,
-        action: 'create-user',
-        entity: 'user',
-        entityId: user.uid,
-        details: { username, email, role }
-      });
-
-
       toast({
         title: 'Usuario Creado',
         description: 'El nuevo usuario ha sido guardado con éxito.',
@@ -166,15 +155,6 @@ export default function UsersPage() {
     try {
       await updateDoc(userDocRef, updatedFields);
       
-      await logUserAction({
-        firestore,
-        user: currentUser,
-        action: 'update-user',
-        entity: 'user',
-        entityId: editingUser.id,
-        details: { email: editingUser.email, updatedFields }
-      });
-
       toast({ title: 'Usuario Actualizado', description: 'Los datos del usuario se han guardado.' });
       setEditModalOpen(false);
       setEditingUser(null);
@@ -195,15 +175,6 @@ export default function UsersPage() {
     try {
         await deleteDoc(doc(firestore, 'users', userId));
         
-        await logUserAction({
-            firestore,
-            user: currentUser,
-            action: 'delete-user',
-            entity: 'user',
-            entityId: userId,
-            details: { email: userEmail }
-        });
-
         toast({ title: 'Usuario Eliminado', description: 'El registro del usuario ha sido eliminado de Firestore.' });
     } catch (error) {
         const contextualError = new FirestorePermissionError({
@@ -220,15 +191,6 @@ export default function UsersPage() {
     try {
       await sendPasswordResetEmail(auth, email);
       
-       await logUserAction({
-            firestore,
-            user: currentUser,
-            action: 'reset-password',
-            entity: 'user',
-            entityId: email,
-            details: { targetEmail: email }
-        });
-
       toast({
         title: 'Correo enviado',
         description: `Se ha enviado un correo para restablecer la contraseña a ${email}.`,

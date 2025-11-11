@@ -13,7 +13,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User, History } from "lucide-react";
+import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -60,11 +60,6 @@ export default function AppSidebar() {
       href: "/users",
       label: "Usuarios",
       icon: Users,
-    },
-    {
-      href: "/auditoria",
-      label: "Auditoría",
-      icon: History,
     },
     {
       href: "/settings",

@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BookMarked, ImageIcon, FileText, BarChart3, Users, Settings, History } from 'lucide-react';
+import { BookMarked, ImageIcon, FileText, BarChart3, Users, Settings } from 'lucide-react';
 import Header from '@/components/header';
 
 const menuItems = [
@@ -30,12 +30,6 @@ const menuItems = [
     label: 'Usuarios',
     icon: Users,
     description: 'Gestiona los usuarios y sus permisos en el sistema.',
-  },
-  {
-    href: '/auditoria',
-    label: 'Auditoría',
-    icon: History,
-    description: 'Revisa el registro de acciones de los usuarios.',
   },
   {
     href: '/settings',
