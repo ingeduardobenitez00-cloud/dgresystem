@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc, setDoc, addDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {
   Select,
@@ -16,29 +16,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, ImageIcon, Building, MapPin, Search, Download } from 'lucide-react';
+import { Loader2, FileText, ImageIcon, Search, Download, Edit } from 'lucide-react';
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { capitalizeWords, cleanFileName } from '@/lib/utils';
+import { cleanFileName } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ReportForm } from '@/components/report-form';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose
+} from '@/components/ui/dialog';
+
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
-}
-
-function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: string, value?: string, icon?: React.ElementType, fullWidth?: boolean }) {
-    if (!value) return null;
-    return (
-        <div className={fullWidth ? 'md:col-span-2' : ''}>
-            <div className="flex items-center space-x-2 text-sm font-semibold text-muted-foreground">
-              {Icon && <Icon className="h-4 w-4" />}
-              <span>{label}</span>
-            </div>
-            <p className="mt-1 text-base text-foreground bg-muted/50 p-2 rounded-md">{value}</p>
-        </div>
-    );
 }
 
 export default function FichaPage() {
@@ -57,12 +55,12 @@ export default function FichaPage() {
   
   const [shouldFetch, setShouldFetch] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
 
   const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cargar logos como base64 al montar el componente
     const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
         try {
             const response = await fetch(path);
@@ -99,13 +97,12 @@ export default function FichaPage() {
     );
   }, [firestore, shouldFetch, selectedDepartment, selectedDistrict]);
 
-  const { data: reportData, isLoading: isLoadingReport } = useCollection<ReportData>(reportQuery);
+  const { data: reportData, isLoading: isLoadingReport, error: reportError } = useCollection<ReportData>(reportQuery);
   const { data: imagesData, isLoading: isLoadingImages } = useCollection<ImageData>(imagesQuery);
   
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [isViewerOpen, setViewerOpen] = useState(false);
 
-  // Effect to populate departments and handle navigation from URL
   useEffect(() => {
     if (datosData) {
       const uniqueDepts = [...new Set(datosData.map(d => d.departamento))].sort();
@@ -114,15 +111,16 @@ export default function FichaPage() {
       const deptFromUrl = searchParams.get('dept');
       const distFromUrl = searchParams.get('dist');
 
-      if (deptFromUrl && distFromUrl && uniqueDepts.includes(decodeURIComponent(deptFromUrl))) {
+      if (deptFromUrl && uniqueDepts.includes(decodeURIComponent(deptFromUrl))) {
         const decodedDept = decodeURIComponent(deptFromUrl);
-        const decodedDist = decodeURIComponent(distFromUrl);
-
-        const districtsForDept = [...new Set(datosData.filter(d => d.departamento === decodedDept).map(d => d.distrito))].sort();
+        const decodedDist = decodeURIComponent(distFromUrl || "");
         
-        if (districtsForDept.includes(decodedDist)) {
-          setSelectedDepartment(decodedDept);
-          setDistricts(districtsForDept);
+        setSelectedDepartment(decodedDept);
+        
+        const districtsForDept = [...new Set(datosData.filter(d => d.departamento === decodedDept).map(d => d.distrito))].sort();
+        setDistricts(districtsForDept);
+
+        if(decodedDist && districtsForDept.includes(decodedDist)) {
           setSelectedDistrict(decodedDist);
           setShouldFetch(true);
         }
@@ -130,7 +128,6 @@ export default function FichaPage() {
     }
   }, [datosData, searchParams]);
 
-  // Effect to update districts when department changes
   useEffect(() => {
     if (selectedDepartment && datosData) {
       const uniqueDistricts = [...new Set(datosData.filter(d => d.departamento === selectedDepartment).map(d => d.distrito))].sort();
@@ -211,7 +208,6 @@ export default function FichaPage() {
             doc.text(`Página ${pageNumber} / ${totalPages}`, pageWidth - 15, pageHeight - 10, { align: 'right' });
         };
         
-        // --- Page 1: Report Data ---
         addPageHeader(doc, 'Informe Edilicio Registro Electoral');
         yPos = 40;
         
@@ -252,9 +248,8 @@ export default function FichaPage() {
             yPos = (doc as any).lastAutoTable.finalY + 10;
         }
 
-        // --- Subsequent Pages: Images ---
         if (imagesData && imagesData.length > 0) {
-            if (currentReport) { // If there was a report, images go on a new page
+            if (currentReport) {
                 doc.addPage();
             }
             addPageHeader(doc, 'Imagenes del Registro Electoral');
@@ -317,7 +312,6 @@ export default function FichaPage() {
             }
         }
         
-        // --- Final pass to add footers to all pages ---
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
           doc.setPage(i);
@@ -337,6 +331,27 @@ export default function FichaPage() {
         setIsGeneratingPdf(false);
     }
   };
+
+  const handleSaveReport = async (data: Omit<ReportData, 'id'>) => {
+    if (!firestore) return;
+    try {
+      if (currentReport) {
+        // Update existing report
+        const reportRef = doc(firestore, 'reports', currentReport.id);
+        await setDoc(reportRef, data, { merge: true });
+        toast({ title: "Informe actualizado", description: "Los cambios han sido guardados." });
+      } else {
+        // Create new report
+        await addDoc(collection(firestore, 'reports'), data);
+        toast({ title: "Informe creado", description: "El nuevo informe ha sido guardado." });
+      }
+      setEditModalOpen(false);
+    } catch(e) {
+      console.error(e);
+      toast({ title: "Error al guardar", description: "No se pudieron guardar los cambios.", variant: "destructive" });
+    }
+  };
+
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -387,10 +402,21 @@ export default function FichaPage() {
 
         {shouldFetch && !isLoading && (
             <>
-                {!currentReport && (!imagesData || imagesData.length === 0) ? (
+                {(reportError || (!currentReport && (!imagesData || imagesData.length === 0))) ? (
                     <Card className="w-full max-w-6xl mx-auto">
-                        <CardContent className="py-10 text-center text-muted-foreground">
-                            No se encontraron datos para la ubicación seleccionada.
+                         <CardHeader>
+                            <CardTitle className="flex items-center gap-3">
+                              <FileText className="h-6 w-6 text-primary" />
+                              <span>Informe del Distrito</span>
+                            </CardTitle>
+                            <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="py-10 text-center">
+                            <p className="text-muted-foreground mb-4">No se encontraron datos de informe para la ubicación seleccionada.</p>
+                             <Button onClick={() => setEditModalOpen(true)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Crear Informe
+                            </Button>
                         </CardContent>
                     </Card>
                 ) : (
@@ -405,26 +431,21 @@ export default function FichaPage() {
                             </CardTitle>
                             <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
                           </div>
-                           <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf || (!currentReport && (!imagesData || imagesData.length === 0))} size="sm">
-                              {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                              Generar PDF
-                           </Button>
+                          <div className="flex gap-2">
+                             <Button onClick={() => setEditModalOpen(true)} variant="outline" size="sm">
+                                <Edit className="mr-2 h-4 w-4" />
+                                Editar Informe
+                             </Button>
+                             <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf || (!currentReport && (!imagesData || imagesData.length === 0))} size="sm">
+                                {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                Generar PDF
+                             </Button>
+                          </div>
                         </div>
                       </CardHeader>
-                      {currentReport && (
-                        <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                              <InfoItem label="Estado Físico" value={currentReport['estado-fisico']} icon={Building} />
-                              <InfoItem label="Cantidad de Habitaciones" value={currentReport['cantidad-habitaciones']} />
-                              <InfoItem label="Habitación Segura" value={currentReport['habitacion-segura']} />
-                              <InfoItem label="Dimensiones Habitación" value={currentReport['dimensiones-habitacion']} />
-                              <InfoItem label="Cantidad de Máquinas" value={currentReport['cantidad-maquinas']} />
-                              <InfoItem label="Lugar de Resguardo" value={currentReport['lugar-resguardo']} icon={MapPin} />
-                              <InfoItem label="Descripción" value={currentReport['descripcion-situacion']} fullWidth />
-                              <InfoItem label="Características Habitación" value={currentReport['caracteristicas-habitacion']} fullWidth />
-                          </div>
-                        </CardContent>
-                      )}
+                      <CardContent>
+                         <ReportForm initialData={currentReport} readOnly={true} />
+                      </CardContent>
                     </Card>
                   
                   {imagesData && imagesData.length > 0 && (
@@ -452,6 +473,33 @@ export default function FichaPage() {
             </>
         )}
       </main>
+      <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>
+                    {currentReport ? 'Editar' : 'Crear'} Informe
+                </DialogTitle>
+                <DialogDescription>
+                    {currentReport ? 'Modifica los detalles del informe para' : 'Crea un nuevo informe para'} {selectedDepartment} - {selectedDistrict}.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+               <ReportForm
+                  initialData={currentReport}
+                  onSubmit={handleSaveReport}
+                  departamento={selectedDepartment!}
+                  distrito={selectedDistrict!}
+               >
+                 <DialogFooter className="mt-6">
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Cancelar</Button>
+                    </DialogClose>
+                    <Button type="submit">Guardar Cambios</Button>
+                </DialogFooter>
+               </ReportForm>
+            </div>
+        </DialogContent>
+      </Dialog>
        <ImageViewerDialog 
         isOpen={isViewerOpen} 
         onOpenChange={setViewerOpen} 
@@ -464,7 +512,3 @@ export default function FichaPage() {
     </div>
   );
 }
-
-    
-
-    

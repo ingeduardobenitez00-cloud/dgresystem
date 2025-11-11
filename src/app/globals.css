@@ -85,4 +85,7 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  textarea:disabled, input:disabled {
+    @apply !opacity-100 !cursor-default;
+  }
 }

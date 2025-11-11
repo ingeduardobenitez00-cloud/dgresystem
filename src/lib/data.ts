@@ -7,8 +7,8 @@ export interface ImageData {
   date?: string;
   category?: string;
   hint: string;
-  departamento?: string;
-  distrito?: string;
+  departamento: string;
+  distrito: string;
 }
 
 export interface District {
@@ -26,8 +26,8 @@ export interface Department {
 
 export type ReportData = {
   id: string;
-  departamento?: string;
-  distrito?: string;
+  departamento: string;
+  distrito: string;
   'estado-fisico'?: string;
   'descripcion-situacion'?: string;
   'cantidad-habitaciones'?: string;
