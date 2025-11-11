@@ -86,6 +86,11 @@ export default function ResumenPage() {
   const { firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
@@ -445,7 +450,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
 
   const isLoading = isLoadingDatos || isLoadingReports;
 
-  if (isLoading || !summaryData) {
+  if (isLoading || !summaryData || !isClient) {
     return (
         <div className="flex min-h-screen w-full flex-col">
             <Header title="Resumen Detallado por Ubicación" />
@@ -727,18 +732,5 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
-
-    
-
-    
-
-
-
-
-
-
-
-
-
 
     

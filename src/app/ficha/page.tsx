@@ -58,6 +58,11 @@ export default function FichaPage() {
   const { firestore, user: currentUser } = useFirebase();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
@@ -204,7 +209,6 @@ export default function FichaPage() {
     try {
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
 
         const addHeader = () => {
@@ -215,10 +219,10 @@ export default function FichaPage() {
             doc.text('Informe Edilicio Registro Electoral', pageWidth / 2, 30, { align: 'center' });
         };
         
-        const addFooter = (data: any) => {
-            const pageCount = doc.internal.pages.length;
-            doc.setFontSize(10);
-            doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        const addPageFooter = (data: any) => {
+          const pageCount = doc.internal.pages.length - 1;
+          doc.setFontSize(10);
+          doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         };
 
         let contentY = 40;
@@ -255,7 +259,7 @@ export default function FichaPage() {
                 columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 'auto' } },
                 didDrawPage: (data) => {
                    addHeader();
-                   addFooter(data);
+                   addPageFooter(data);
                 },
                 margin: { top: 40, bottom: 20 }
             });
@@ -286,7 +290,7 @@ export default function FichaPage() {
                     const imgHeight = (img.height * imgWidth) / img.width;
                     const titleHeight = 10;
 
-                    if (contentY + imgHeight + titleHeight > pageHeight - margin - 10) {
+                    if (contentY + imgHeight + titleHeight > doc.internal.pageSize.getHeight() - margin - 10) {
                         doc.addPage();
                         contentY = 40;
                         doc.setFontSize(12);
@@ -306,7 +310,7 @@ export default function FichaPage() {
 
                 } catch (error) {
                     console.error("Error loading image for PDF:", error);
-                    if (contentY + 10 > pageHeight - margin) {
+                    if (contentY + 10 > doc.internal.pageSize.getHeight() - margin) {
                         doc.addPage();
                         contentY = 40;
                     }
@@ -319,12 +323,11 @@ export default function FichaPage() {
             }
         }
         
-       const pageCount = (doc.internal as any).getNumberOfPages();
+        const pageCount = (doc.internal as any).getNumberOfPages();
         for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            addHeader();
-            doc.setFontSize(10);
-            doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+          doc.setPage(i);
+          const pageAlias = (doc.internal as any).pages[i].join(' ');
+          doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         }
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
@@ -442,6 +445,16 @@ export default function FichaPage() {
     }
   };
 
+  if (!isClient) {
+    return (
+      <div className="flex min-h-screen w-full flex-col">
+        <Header title="Vista de Ficha" />
+        <main className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -627,7 +640,7 @@ export default function FichaPage() {
                   departamento={selectedDepartment!}
                   distrito={selectedDistrict!}
                >
-                 <DialogFooter className="mt-6 sm:justify-end space-y-2 sm:space-y-0">
+                 <DialogFooter className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:space-x-2">
                     <DialogClose asChild>
                         <Button type="button" variant="secondary">Cancelar</Button>
                     </DialogClose>
@@ -654,7 +667,5 @@ export default function FichaPage() {
     </div>
   );
 }
-
-    
 
     
