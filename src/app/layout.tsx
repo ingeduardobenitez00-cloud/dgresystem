@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/app-sidebar';
-import { FirebaseClientProvider, useFirebase, useUser } from '@/firebase';
+import { FirebaseClientProvider, useFirebase } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -21,7 +21,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 // };
 
 function AuthLayout({ children }: { children: React.ReactNode }) {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = useFirebase(); // Use useFirebase for faster initial auth check
   const router = useRouter();
   const pathname = usePathname();
 
@@ -36,6 +36,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, isUserLoading, router, pathname]);
 
+  // Show a loader while authentication state is being determined, or when redirecting.
   if (isUserLoading || (!user && pathname !== '/login') || (user && pathname === '/login')) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
@@ -43,11 +44,13 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  if (pathname === '/login') {
-    return <>{children}</>;
+  
+  // If the user is not authenticated, only render the login page.
+  if (!user) {
+     return <>{children}</>;
   }
 
+  // If the user is authenticated, render the main app layout.
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
