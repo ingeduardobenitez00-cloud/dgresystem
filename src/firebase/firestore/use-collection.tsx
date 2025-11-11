@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -59,7 +60,7 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   const previousQueryRef = useRef<Query | null>(null);
@@ -67,10 +68,13 @@ export function useCollection<T = any>(
   const query = targetRefOrQuery;
 
   useEffect(() => {
+    // If the query is the same as the previous one, do nothing.
     if (query && previousQueryRef.current && queryEqual(query, previousQueryRef.current)) {
+        if(isLoading) setIsLoading(false); // Ensure loading is off if query is stable
         return;
     }
 
+    // If the query is null or undefined, reset state and stop.
     if (!query) {
       setData(null);
       setIsLoading(false);
@@ -79,6 +83,7 @@ export function useCollection<T = any>(
       return;
     }
 
+    // New query, set loading state and update ref.
     setIsLoading(true);
     setError(null);
     previousQueryRef.current = query;
@@ -114,7 +119,9 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [query]);
+  }, [query, isLoading]); // Added isLoading to dependency array to handle initial state correctly
 
   return { data, isLoading, error };
 }
+
+    

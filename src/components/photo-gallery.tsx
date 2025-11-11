@@ -15,7 +15,7 @@ import { Upload, ImageIcon, Loader2, Trash2, AlertCircle } from 'lucide-react';
 import { type Dato, type District, type ImageData } from '@/lib/data';
 import { UploadDialog } from '@/components/upload-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
-import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, getDocs, query, where, deleteDoc, addDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -43,8 +43,7 @@ type DepartmentWithDistricts = {
 };
 
 export default function PhotoGallery() {
-  const { firestore } = useFirebase();
-  const { user, isUserLoading } = useUser();
+  const { firestore, user, isUserLoading } = useFirebase();
   const { toast } = useToast();
 
   const datosQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'datos') : null), [firestore, user]);
@@ -429,3 +428,5 @@ export default function PhotoGallery() {
     </div>
   );
 }
+
+    

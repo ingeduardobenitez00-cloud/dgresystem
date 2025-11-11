@@ -28,6 +28,19 @@ interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
 }
 
+function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: string, value?: string, icon?: React.ElementType, fullWidth?: boolean }) {
+    if (!value) return null;
+    return (
+        <div className={fullWidth ? 'md:col-span-2' : ''}>
+            <div className="flex items-center space-x-2 text-sm font-semibold text-muted-foreground">
+              {Icon && <Icon className="h-4 w-4" />}
+              <span>{label}</span>
+            </div>
+            <p className="mt-1 text-base text-foreground bg-muted/50 p-2 rounded-md">{value}</p>
+        </div>
+    );
+}
+
 export default function FichaPage() {
   const { firestore } = useFirebase();
   const searchParams = useSearchParams();
@@ -454,28 +467,5 @@ export default function FichaPage() {
     </div>
   );
 }
-
-
-function InfoItem({ label, value, icon: Icon, fullWidth = false }: { label: string, value?: string, icon?: React.ElementType, fullWidth?: boolean }) {
-    if (!value) return null;
-    return (
-        <div className={fullWidth ? 'md:col-span-2' : ''}>
-            <div className="flex items-center space-x-2 text-sm font-semibold text-muted-foreground">
-              {Icon && <Icon className="h-4 w-4" />}
-              <span>{label}</span>
-            </div>
-            <p className="mt-1 text-base text-foreground bg-muted/50 p-2 rounded-md">{value}</p>
-        </div>
-    );
-}
-
-    
-    
-
-    
-
-    
-
-    
 
     

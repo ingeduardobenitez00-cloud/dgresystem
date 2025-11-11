@@ -1,7 +1,7 @@
 
 'use client';
 import { useMemo } from 'react';
-import { useFirebase, useDoc } from '@/firebase';
+import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 // Represents the shape of user profile data stored in Firestore
@@ -31,7 +31,7 @@ export const useUser = (): UserHookResult => {
   const { user: authUser, isUserLoading: isAuthLoading, userError: authError, firestore } = useFirebase();
 
   // Memoize the document reference to prevent re-fetching on every render
-  const userProfileDocRef = useMemo(() => {
+  const userProfileDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser?.uid) return null;
     return doc(firestore, 'users', authUser.uid);
   }, [firestore, authUser?.uid]);
@@ -54,5 +54,7 @@ export const useUser = (): UserHookResult => {
     userError: authError || profileError, // Return the first error encountered
   };
 };
+
+    
 
     

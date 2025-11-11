@@ -610,3 +610,5 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
 }
 
     
+
+    
