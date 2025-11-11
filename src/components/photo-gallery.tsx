@@ -315,9 +315,9 @@ export default function PhotoGallery() {
                     <Accordion type="multiple" className="w-full space-y-4 px-4">
                     {department.districts.map((district) => {
                         const imagesKey = `${department.name}-${district.name}`;
+                        const isLoaded = images[imagesKey] !== undefined;
                         const districtImages = images[imagesKey] || [];
                         const hasImages = districtImages.length > 0;
-                        const isLoaded = images[imagesKey] !== undefined;
 
                         return (
                         <AccordionItem value={district.id} key={district.id}>
@@ -429,5 +429,3 @@ export default function PhotoGallery() {
     </div>
   );
 }
-
-    
