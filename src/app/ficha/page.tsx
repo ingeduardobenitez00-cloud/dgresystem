@@ -204,45 +204,36 @@ export default function FichaPage() {
     try {
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
-        let yPos = 0;
 
-        const addPageHeader = (doc: jsPDF, title: string) => {
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const margin = 15;
+        const addHeader = (data: any) => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-            
             doc.setFontSize(18);
             doc.setFont('helvetica', 'bold');
-            doc.text(title, pageWidth / 2, 30, { align: 'center' });
+            doc.text('Informe Edilicio Registro Electoral', pageWidth / 2, 30, { align: 'center' });
         };
         
-        const addPageFooter = (doc: jsPDF) => {
-          const pageCount = (doc.internal as any).getNumberOfPages();
-          const pageHeight = doc.internal.pageSize.getHeight();
-          const pageWidth = doc.internal.pageSize.getWidth();
-          doc.setFontSize(10);
-          for (let i = 1; i <= pageCount; i++) {
-              doc.setPage(i);
-              const text = `Página ${i} de ${pageCount}`;
-              doc.text(text, pageWidth - margin, pageHeight - 10, { align: 'right' });
-          }
-      };
-        
-        addPageHeader(doc, 'Informe Edilicio Registro Electoral');
-        yPos = 40;
-        
+        const addFooter = (data: any) => {
+            const pageCount = doc.internal.pages.length;
+            doc.setFontSize(10);
+            const pageNum = data.pageNumber || doc.internal.getNumberOfPages();
+            const totalPages = (doc.internal as any).getNumberOfPages();
+            doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        };
+
+        let contentY = 40;
+
         if (currentReport) {
+            addHeader({});
             doc.setFontSize(14);
             doc.setFont('helvetica', 'normal');
-            doc.text(`${selectedDepartment.toUpperCase()} - ${selectedDistrict.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-            yPos += 8;
+            doc.text(`${selectedDepartment.toUpperCase()} - ${selectedDistrict.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
+            contentY += 8;
 
             doc.setLineWidth(0.5);
-            doc.line(margin, yPos, pageWidth - margin, yPos);
-            yPos += 10;
+            doc.line(margin, contentY, pageWidth - margin, contentY);
+            contentY += 10;
         
             const reportBody = [
                 ['Estado Físico', currentReport['estado-fisico']],
@@ -256,7 +247,7 @@ export default function FichaPage() {
             ].filter(row => row[1]);
 
             autoTable(doc, {
-                startY: yPos,
+                startY: contentY,
                 head: [['Concepto', 'Descripción']],
                 body: reportBody,
                 theme: 'striped',
@@ -264,25 +255,29 @@ export default function FichaPage() {
                 styles: { cellPadding: 3, fontSize: 10 },
                 columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 'auto' } },
                 didDrawPage: (data) => {
-                    addPageHeader(doc, "Informe Edilicio Registro Electoral");
+                   addHeader(data);
+                   addFooter(data);
                 },
-                margin: { top: 50 }
+                margin: { top: 40, bottom: 20 }
             });
-            yPos = (doc as any).lastAutoTable.finalY + 10;
+            contentY = (doc as any).lastAutoTable.finalY + 10;
         }
 
         if (imagesData && imagesData.length > 0) {
             if (currentReport) {
                 doc.addPage();
             }
-            addPageHeader(doc, 'Imagenes del Registro Electoral');
-            yPos = 40;
+            addHeader({});
+            addFooter({ pageNumber: (doc.internal as any).getNumberOfPages() });
+            contentY = 40;
 
             doc.setFontSize(12);
             doc.setFont('helvetica', 'normal');
-            doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-            yPos += 12;
-
+            doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
+            contentY += 12;
+            
+            const pageHeight = doc.internal.pageSize.getHeight();
+            
             for (const image of imagesData) {
                 try {
                     const img = new window.Image();
@@ -296,46 +291,49 @@ export default function FichaPage() {
                     const imgHeight = (img.height * imgWidth) / img.width;
                     const titleHeight = 10;
 
-                    if (yPos + imgHeight + titleHeight > pageHeight - margin) {
+                    if (contentY + imgHeight + titleHeight > pageHeight - margin - 10) {
                         doc.addPage();
-                        addPageHeader(doc, 'Imagenes del Registro Electoral');
-                        yPos = 40;
+                        addHeader({});
+                        addFooter({ pageNumber: (doc.internal as any).getNumberOfPages() });
+                        contentY = 40;
                         doc.setFontSize(12);
                         doc.setFont('helvetica', 'normal');
-                        doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-                        yPos += 12;
+                        doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
+                        contentY += 12;
                     }
                     
                     doc.setFontSize(10);
                     doc.setFont('helvetica', 'bold');
                     const imageTitle = cleanFileName(image.alt).toUpperCase();
-                    doc.text(imageTitle, pageWidth / 2, yPos, { align: 'center' });
-                    yPos += 5;
+                    doc.text(imageTitle, pageWidth / 2, contentY, { align: 'center' });
+                    contentY += 5;
 
-                    doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, yPos, imgWidth, imgHeight);
-                    yPos += imgHeight + 15;
+                    doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, contentY, imgWidth, imgHeight);
+                    contentY += imgHeight + 15;
 
                 } catch (error) {
                     console.error("Error loading image for PDF:", error);
-                    if (yPos + 10 > pageHeight - margin) {
+                    if (contentY + 10 > pageHeight - margin) {
                         doc.addPage();
-                        addPageHeader(doc, 'Imagenes del Registro Electoral');
-                        yPos = 40;
-                        doc.setFontSize(12);
-                        doc.setFont('helvetica', 'normal');
-                        doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
-                        yPos += 12;
+                        addHeader({});
+                        addFooter({ pageNumber: (doc.internal as any).getNumberOfPages() });
+                        contentY = 40;
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
-                    doc.text('Error al cargar imagen', pageWidth / 2, yPos, { align: 'center' });
+                    doc.text('Error al cargar imagen', pageWidth / 2, contentY, { align: 'center' });
                     doc.setTextColor(0, 0, 0);
-                    yPos += 10;
+                    contentY += 10;
                 }
             }
         }
         
-        addPageFooter(doc);
+        const totalPages = (doc.internal as any).getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(10);
+            doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        }
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
 
