@@ -37,14 +37,17 @@ service cloud.firestore {
     // -------------------------
     match /users/{userId} {
 
-      // 🔹 Lectura
-      allow get: if isSignedIn();
+      // 🔹 Permisos de lectura
+      // Cada usuario puede leer su propio documento
+      allow get: if request.auth != null && request.auth.uid == userId;
+
+      // Admin puede listar todos
       allow list: if isAdmin();
 
       // 🔹 Escritura
       allow create: if isOwner(userId) || isAdmin();
-      allow update: if canUpdateUser(userId);
-      allow delete: if isAdmin() || isExistingOwner(userId);
+      allow update: if isAdmin() || (isEditor() && isOwner(userId));
+      allow delete: if isAdmin();
     }
   }
 
@@ -60,18 +63,10 @@ service cloud.firestore {
     return request.auth.uid == userId;
   }
 
-  function isExistingOwner(userId) {
-    return isOwner(userId) && resource != null;
-  }
-
-  // 🔹 Permitir obtener el rol del usuario actual sin bloquear la evaluación
   function userRole() {
-    return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-      ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-      : null;
+    return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
   }
 
-  // 🔹 Roles
   function isAdmin() {
     return isSignedIn() && userRole() == 'admin';
   }
@@ -82,22 +77,5 @@ service cloud.firestore {
 
   function isViewer() {
     return isSignedIn() && userRole() == 'visualizador';
-  }
-
-  // -------------------------
-  // PERMISOS SEGÚN ROL
-  // -------------------------
-
-  // Lectura
-  function canReadUser(userId) {
-    // ⚠️ Importante: permitir al usuario leer su propio documento
-    return isSignedIn() && (isAdmin() || isEditor() || isViewer() || isOwner(userId));
-  }
-
-  // Actualización
-  function canUpdateUser(userId) {
-    // Admin puede actualizar todos
-    // Editor solo el suyo
-    return isAdmin() || (isEditor() && isOwner(userId));
   }
 }
