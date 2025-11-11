@@ -276,7 +276,7 @@ export default function PhotoGallery() {
       return count;
     }, 0);
 
-    return Math.round((districtsWithImages / totalDistricts) * 100);
+    return Math.floor((districtsWithImages / totalDistricts) * 100);
   };
 
 
