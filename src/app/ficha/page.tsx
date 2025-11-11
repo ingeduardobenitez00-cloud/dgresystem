@@ -220,15 +220,16 @@ export default function FichaPage() {
         };
         
         const addPageFooter = (doc: jsPDF) => {
-            const pageCount = (doc.internal as any).getNumberOfPages();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            const pageWidth = doc.internal.pageSize.getWidth();
-            doc.setFontSize(10);
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.text(`Página ${i} de ${pageCount}`, pageWidth - 15, pageHeight - 10, { align: 'right' });
-            }
-        };
+          const pageCount = (doc.internal as any).getNumberOfPages();
+          const pageHeight = doc.internal.pageSize.getHeight();
+          const pageWidth = doc.internal.pageSize.getWidth();
+          doc.setFontSize(10);
+          for (let i = 1; i <= pageCount; i++) {
+              doc.setPage(i);
+              const text = `Página ${i} de ${pageCount}`;
+              doc.text(text, pageWidth - margin, pageHeight - 10, { align: 'right' });
+          }
+      };
         
         addPageHeader(doc, 'Informe Edilicio Registro Electoral');
         yPos = 40;

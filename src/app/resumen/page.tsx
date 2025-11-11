@@ -245,8 +245,8 @@ const addPageFooter = (doc: jsPDF) => {
     doc.setFontSize(10);
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        const pageText = `Página ${i} de ${pageCount}`;
-        doc.text(pageText, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        const text = `Página ${i} de ${pageCount}`;
+        doc.text(text, pageWidth / 2, pageHeight - 10, { align: 'center' });
     }
 };
 
@@ -734,6 +734,7 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     
 
     
+
 
 
 
