@@ -1,115 +1,103 @@
-
-/**
- * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model with user-specific data isolation.
- *
- * Data Structure:
- * - /datos/{datoId}: Public data of department and district pairs.
- * - /departamentos/{departamentoId}: Public data about departments.
- * - /departamentos/{departamentoId}/distritos/{distritoId}: Public data about districts within a department.
- * - /imagenes/{imagenId}: Publicly accessible images.
- * - /users/{userId}: Private user profile data, accessible only to the user themselves or an admin.
- * - /reports/{reportId}: Publicly accessible report data.
- *
- * Key Security Decisions:
- * - User profiles (/users/{userId}) are private, readable only by the user themselves, but listable by any authenticated user. Admins can update any profile.
- * - Other collections (/datos, /departamentos, /imagenes, /reports) are publicly readable.
- * - Write access (create, update, delete) to most public collections is open to any authenticated user.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Allows anyone to read and write department and district data.
-     * @path /datos/{datoId}
-     */
+    // -------------------------
+    // PUBLIC COLLECTIONS
+    // -------------------------
+
     match /datos/{datoId} {
       allow read: if true;
       allow write: if isSignedIn();
     }
 
-    /**
-     * @description Allows anyone to read and write department information.
-     * @path /departamentos/{departamentoId}
-     */
     match /departamentos/{departamentoId} {
       allow read: if true;
       allow write: if isSignedIn();
 
-        /**
-         * @description Allows anyone to read and write district information within a department.
-         * @path /departamentos/{departamentoId}/distritos/{distritoId}
-         */
-        match /distritos/{distritoId} {
-          allow read: if true;
-          allow write: if isSignedIn();
-        }
+      match /distritos/{distritoId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
     }
 
-    /**
-     * @description Allows anyone to read and write image information.
-     * @path /imagenes/{imagenId}
-     */
     match /imagenes/{imagenId} {
       allow read: if true;
-      allow create: if request.auth != null;
+      allow create: if isSignedIn();
       allow update, delete: if isSignedIn();
     }
 
-    /**
-     * @description Allows a user to manage their own profile. Admins can update any profile.
-     * @path /users/{userId}
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if isSignedIn();
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId) || isAdmin();
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Allows anyone to read and write report information.
-     * @path /reports/{reportId}
-     */
     match /reports/{reportId} {
       allow read: if true;
       allow write: if isSignedIn();
     }
+
+    // -------------------------
+    // USERS COLLECTION (ROLE-BASED ACCESS)
+    // -------------------------
+    match /users/{userId} {
+
+      // 🔹 Lectura
+      allow get: if canReadUser(userId);
+      allow list: if isSignedIn();
+
+      // 🔹 Escritura
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if canUpdateUser(userId);
+      allow delete: if isAdmin() || isExistingOwner(userId);
+    }
   }
 
-  /**
-   * @description Checks if the user is signed in.
-   * @return {bool} True if the user is signed in, false otherwise.
-   */
+  // -------------------------
+  // HELPER FUNCTIONS
+  // -------------------------
+
   function isSignedIn() {
     return request.auth != null;
   }
 
-  /**
-   * @description Checks if the user is the owner of the document.
-   * @param {string} userId The user ID to compare against the request's authentication UID.
-   * @return {bool} True if the user is the owner, false otherwise.
-   */
   function isOwner(userId) {
     return request.auth.uid == userId;
   }
 
-  /**
-   * @description Checks if the user is the owner of an existing document.
-   * @param {string} userId The user ID to compare against the's authentication UID.
-   * @return {bool} True if the user is the owner and the document exists, false otherwise.
-   */
   function isExistingOwner(userId) {
     return isOwner(userId) && resource != null;
   }
-   /**
-   * @description Checks if the user has the 'admin' role.
-   * It reads the user's profile from the /users/ collection.
-   * @return {bool} True if the user is an admin, false otherwise.
-   */
+
+  // 🔹 Permitir obtener el rol del usuario actual sin bloquear la evaluación
+  function userRole() {
+    return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+      : null;
+  }
+
+  // 🔹 Roles
   function isAdmin() {
-    return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    return isSignedIn() && userRole() == 'admin';
+  }
+
+  function isEditor() {
+    return isSignedIn() && userRole() == 'editor';
+  }
+
+  function isViewer() {
+    return isSignedIn() && userRole() == 'visualizador';
+  }
+
+  // -------------------------
+  // PERMISOS SEGÚN ROL
+  // -------------------------
+
+  // Lectura
+  function canReadUser(userId) {
+    // ⚠️ Importante: permitir al usuario leer su propio documento
+    return isSignedIn() && (isAdmin() || isEditor() || isViewer() || isOwner(userId));
+  }
+
+  // Actualización
+  function canUpdateUser(userId) {
+    // Admin puede actualizar todos
+    // Editor solo el suyo
+    return isAdmin() || (isEditor() && isOwner(userId));
   }
 }
