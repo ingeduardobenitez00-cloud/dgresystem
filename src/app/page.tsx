@@ -3,16 +3,10 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BookMarked, ImageIcon, FileText, BarChart3, Users, Settings } from 'lucide-react';
+import { BookMarked, FileText, BarChart3, Users, Settings } from 'lucide-react';
 import Header from '@/components/header';
 
 const menuItems = [
-  {
-    href: '/fotos',
-    label: 'Imágenes de los Registros Electorales',
-    icon: ImageIcon,
-    description: 'Visualiza y gestiona las imágenes por ubicación.',
-  },
   {
     href: '/ficha',
     label: 'Vista de Ficha',

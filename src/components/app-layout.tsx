@@ -1,7 +1,6 @@
 
 'use client';
 
-import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useFirebase } from '@/firebase';
@@ -10,21 +9,9 @@ import AppSidebar from '@/components/app-sidebar';
 
 function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useFirebase();
-  const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    if (isUserLoading) {
-      return; // Do nothing while loading
-    }
-    if (user && pathname === '/login') {
-      router.replace('/');
-    } else if (!user && pathname !== '/login') {
-      router.replace('/login');
-    }
-  }, [user, isUserLoading, router, pathname]);
-
-  if (isUserLoading || (!user && pathname !== '/login') || (user && pathname === '/login')) {
+  if (isUserLoading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -32,6 +19,30 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (!user && pathname !== '/login') {
+    // If not logged in and not on the login page, render the login page content.
+    // The actual routing to /login will be handled by the router if you have middleware,
+    // or you could trigger a redirect here, but showing the content avoids a hard redirect flash.
+    // For simplicity, we assume the login page is what should be shown.
+    const router = useRouter();
+    router.replace('/login');
+    return (
+         <div className="flex min-h-screen w-full items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+         </div>
+    );
+  }
+  
+  if (user && pathname === '/login') {
+      const router = useRouter();
+      router.replace('/');
+       return (
+         <div className="flex min-h-screen w-full items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+         </div>
+    );
+  }
+  
   if (pathname === '/login') {
     return <main key={pathname}>{children}</main>;
   }
@@ -51,5 +62,3 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return <AuthLayout>{children}</AuthLayout>;
 }
-
-    
