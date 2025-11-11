@@ -10,6 +10,7 @@ import AppSidebar from '@/components/app-sidebar';
 function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useFirebase();
   const pathname = usePathname();
+  const router = useRouter(); // Moved hook to the top
 
   if (isUserLoading) {
     return (
@@ -20,11 +21,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (!user && pathname !== '/login') {
-    // If not logged in and not on the login page, render the login page content.
-    // The actual routing to /login will be handled by the router if you have middleware,
-    // or you could trigger a redirect here, but showing the content avoids a hard redirect flash.
-    // For simplicity, we assume the login page is what should be shown.
-    const router = useRouter();
+    // If not logged in and not on the login page, redirect to login.
     router.replace('/login');
     return (
          <div className="flex min-h-screen w-full items-center justify-center">
@@ -34,7 +31,6 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   }
   
   if (user && pathname === '/login') {
-      const router = useRouter();
       router.replace('/');
        return (
          <div className="flex min-h-screen w-full items-center justify-center">
