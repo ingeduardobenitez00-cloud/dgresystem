@@ -113,13 +113,13 @@ export default function FichaPage() {
 
       if (deptFromUrl && uniqueDepts.includes(decodeURIComponent(deptFromUrl))) {
         const decodedDept = decodeURIComponent(deptFromUrl);
-        const decodedDist = decodeURIComponent(distFromUrl || "");
         
         setSelectedDepartment(decodedDept);
         
         const districtsForDept = [...new Set(datosData.filter(d => d.departamento === decodedDept).map(d => d.distrito))].sort();
         setDistricts(districtsForDept);
 
+        const decodedDist = decodeURIComponent(distFromUrl || "");
         if(decodedDist && districtsForDept.includes(decodedDist)) {
           setSelectedDistrict(decodedDist);
           setShouldFetch(true);
@@ -346,6 +346,9 @@ export default function FichaPage() {
         toast({ title: "Informe creado", description: "El nuevo informe ha sido guardado." });
       }
       setEditModalOpen(false);
+      // Manually trigger a re-fetch if needed
+      setShouldFetch(false); 
+      setTimeout(() => setShouldFetch(true), 50);
     } catch(e) {
       console.error(e);
       toast({ title: "Error al guardar", description: "No se pudieron guardar los cambios.", variant: "destructive" });
@@ -444,7 +447,7 @@ export default function FichaPage() {
                         </div>
                       </CardHeader>
                       <CardContent>
-                         <ReportForm initialData={currentReport} readOnly={true} />
+                         <ReportForm key={currentReport?.id || 'new'} initialData={currentReport} readOnly={true} />
                       </CardContent>
                     </Card>
                   
@@ -485,6 +488,7 @@ export default function FichaPage() {
             </DialogHeader>
             <div className="py-4">
                <ReportForm
+                  key={currentReport?.id || 'new-edit'}
                   initialData={currentReport}
                   onSubmit={handleSaveReport}
                   departamento={selectedDepartment!}

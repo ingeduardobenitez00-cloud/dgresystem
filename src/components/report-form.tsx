@@ -1,7 +1,6 @@
 
 "use client";
 
-import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { type ReportData } from '@/lib/data';
 import { Label } from '@/components/ui/label';
@@ -22,10 +21,6 @@ export function ReportForm({ initialData, onSubmit, readOnly = false, departamen
     const { register, handleSubmit, reset } = useForm<Omit<ReportData, 'id'>>({
         defaultValues: initialData || {},
     });
-
-    useEffect(() => {
-        reset(initialData || {});
-    }, [initialData, reset]);
 
     const handleFormSubmit = (data: Omit<ReportData, 'id'>) => {
         if (onSubmit) {
@@ -84,4 +79,3 @@ export function ReportForm({ initialData, onSubmit, readOnly = false, departamen
         </form>
     );
 }
-
