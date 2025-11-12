@@ -209,8 +209,8 @@ export default function FichaPage() {
     try {
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 15;
-        let pageNumber = 1;
 
         const addHeader = () => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
@@ -223,11 +223,10 @@ export default function FichaPage() {
             doc.text('Dirección General del Registro Electoral', pageWidth / 2, 22, { align: 'center' });
         };
         
-        const addPageFooter = () => {
+        const addPageFooter = (data: any) => {
+            const pageCount = data.doc.internal.getNumberOfPages();
             doc.setFontSize(10);
-            const pageText = `Página ${pageNumber}`;
-            doc.text(pageText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-            pageNumber++;
+            doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
         };
 
         let contentY = 40;
@@ -264,7 +263,7 @@ export default function FichaPage() {
                 columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 'auto' } },
                 didDrawPage: (data) => {
                    addHeader();
-                   addPageFooter();
+                   addPageFooter(data);
                 },
                 margin: { top: 40, bottom: 20 }
             });
@@ -276,15 +275,48 @@ export default function FichaPage() {
                 doc.addPage();
                 contentY = 40;
                 addHeader(); 
-                addPageFooter();
+            } else {
+                addHeader();
             }
             
             doc.setFontSize(12);
             doc.setFont('helvetica', 'normal');
             doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
             contentY += 12;
+
+            const desiredOrder = [
+              "FOTOGRAFIA #1 DEL FRENTE DEL REGISTRO",
+              "FOTOGRAFIA #2 COSTADO DERECHO DEL REGISTRO",
+              "FOTOGRAFIA #3 COSTADOS IZQUIERDO DEL REGISTRO",
+              "FOTOGRAFIA #4 DEL FONDO DEL REGISTRO",
+              "FOTOGRAFIA #5 HABITACION SEGURA INTERIOR",
+              "FOTOGRAFIA #6 HABITACION SEGURA TECHO",
+              "FOTOGRAFIA #7 TODAS LAS HABITACIONES DEL REGISTRO ELECTORAL", // Base for multiple images
+              "FOTOGRAFIA #8 DEL FORMULARIO FIRMADO Y SELLADO"
+            ];
             
-            for (const image of imagesData) {
+            const sortedImages = [...imagesData].sort((a, b) => {
+              const cleanedA = cleanFileName(a.alt).toUpperCase();
+              const cleanedB = cleanFileName(b.alt).toUpperCase();
+            
+              const getOrderIndex = (name: string) => {
+                  if (name.startsWith(desiredOrder[7])) return 7;
+                  if (name.startsWith(desiredOrder[6])) return 6;
+                  const index = desiredOrder.findIndex(orderKey => name.startsWith(orderKey));
+                  return index === -1 ? Infinity : index;
+              };
+          
+              const indexA = getOrderIndex(cleanedA);
+              const indexB = getOrderIndex(cleanedB);
+          
+              if (indexA !== indexB) {
+                  return indexA - indexB;
+              }
+              // If they are in the same category (e.g., FOTOGRAFIA #7), sort them alphabetically
+              return cleanedA.localeCompare(cleanedB);
+            });
+            
+            for (const image of sortedImages) {
                 try {
                     const img = new window.Image();
                     img.src = image.src;
@@ -297,11 +329,11 @@ export default function FichaPage() {
                     const imgHeight = (img.height * imgWidth) / img.width;
                     const titleHeight = 10;
 
-                    if (contentY + imgHeight + titleHeight > doc.internal.pageSize.getHeight() - margin - 10) {
+                    if (contentY + imgHeight + titleHeight > pageHeight - margin - 20) {
+                        addPageFooter({doc: doc, pageNumber: doc.internal.pages.length, settings: {}});
                         doc.addPage();
                         contentY = 40;
                         addHeader();
-                        addPageFooter();
                         doc.setFontSize(12);
                         doc.setFont('helvetica', 'normal');
                         doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
@@ -319,11 +351,11 @@ export default function FichaPage() {
 
                 } catch (error) {
                     console.error("Error loading image for PDF:", error);
-                    if (contentY + 10 > doc.internal.pageSize.getHeight() - margin) {
+                    if (contentY + 10 > pageHeight - margin - 20) {
+                        addPageFooter({doc: doc, pageNumber: doc.internal.pages.length, settings: {}});
                         doc.addPage();
                         contentY = 40;
                         addHeader();
-                        addPageFooter();
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
@@ -332,12 +364,7 @@ export default function FichaPage() {
                     contentY += 10;
                 }
             }
-        }
-        
-        const totalPages = (doc.internal as any).getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-          doc.setPage(i);
-          doc.text(`de ${totalPages}`, (pageWidth / 2) + 15, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+             addPageFooter({doc: doc, pageNumber: doc.internal.pages.length, settings: {}});
         }
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
@@ -677,3 +704,5 @@ export default function FichaPage() {
     </div>
   );
 }
+
+    
