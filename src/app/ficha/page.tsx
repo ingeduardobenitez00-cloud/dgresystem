@@ -214,15 +214,18 @@ export default function FichaPage() {
         const addHeader = () => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
             if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-            doc.setFontSize(18);
+            doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
-            doc.text('Informe Edilicio Registro Electoral', pageWidth / 2, 30, { align: 'center' });
+            doc.text('Tribunal Superior de Justicia Electoral', pageWidth / 2, 15, { align: 'center' });
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Dirección General del Registro Electoral', pageWidth / 2, 22, { align: 'center' });
         };
         
         const addPageFooter = (data: any) => {
-          const pageCount = doc.internal.pages.length - 1;
-          doc.setFontSize(10);
-          doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            const pageCount = data.doc.internal.getNumberOfPages();
+            doc.setFontSize(10);
+            doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
         };
 
         let contentY = 40;
@@ -270,6 +273,9 @@ export default function FichaPage() {
             if (currentReport) {
                 doc.addPage();
                 contentY = 40;
+                // Add header and footer to the new page for images
+                addHeader(); 
+                addPageFooter({ pageNumber: doc.internal.pages.length -1, doc: doc });
             }
             
             doc.setFontSize(12);
@@ -293,6 +299,8 @@ export default function FichaPage() {
                     if (contentY + imgHeight + titleHeight > doc.internal.pageSize.getHeight() - margin - 10) {
                         doc.addPage();
                         contentY = 40;
+                        addHeader();
+                        addPageFooter({ pageNumber: doc.internal.pages.length - 1, doc: doc });
                         doc.setFontSize(12);
                         doc.setFont('helvetica', 'normal');
                         doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
@@ -313,6 +321,8 @@ export default function FichaPage() {
                     if (contentY + 10 > doc.internal.pageSize.getHeight() - margin) {
                         doc.addPage();
                         contentY = 40;
+                        addHeader();
+                        addPageFooter({ pageNumber: doc.internal.pages.length - 1, doc: doc });
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
@@ -326,8 +336,8 @@ export default function FichaPage() {
         const pageCount = (doc.internal as any).getNumberOfPages();
         for (let i = 1; i <= pageCount; i++) {
           doc.setPage(i);
-          const pageAlias = (doc.internal as any).pages[i].join(' ');
-          doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+          doc.setFontSize(10);
+          doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
         }
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
@@ -668,4 +678,5 @@ export default function FichaPage() {
   );
 }
 
+    
     
