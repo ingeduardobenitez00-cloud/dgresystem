@@ -210,6 +210,7 @@ export default function FichaPage() {
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
         const margin = 15;
+        let pageNumber = 1;
 
         const addHeader = () => {
             if (logo1Base64) doc.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
@@ -222,10 +223,11 @@ export default function FichaPage() {
             doc.text('Dirección General del Registro Electoral', pageWidth / 2, 22, { align: 'center' });
         };
         
-        const addPageFooter = (data: any) => {
-            const pageCount = data.doc.internal.getNumberOfPages();
+        const addPageFooter = () => {
             doc.setFontSize(10);
-            doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+            const pageText = `Página ${pageNumber}`;
+            doc.text(pageText, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+            pageNumber++;
         };
 
         let contentY = 40;
@@ -262,7 +264,7 @@ export default function FichaPage() {
                 columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 'auto' } },
                 didDrawPage: (data) => {
                    addHeader();
-                   addPageFooter(data);
+                   addPageFooter();
                 },
                 margin: { top: 40, bottom: 20 }
             });
@@ -273,9 +275,8 @@ export default function FichaPage() {
             if (currentReport) {
                 doc.addPage();
                 contentY = 40;
-                // Add header and footer to the new page for images
                 addHeader(); 
-                addPageFooter({ pageNumber: doc.internal.pages.length -1, doc: doc });
+                addPageFooter();
             }
             
             doc.setFontSize(12);
@@ -300,7 +301,7 @@ export default function FichaPage() {
                         doc.addPage();
                         contentY = 40;
                         addHeader();
-                        addPageFooter({ pageNumber: doc.internal.pages.length - 1, doc: doc });
+                        addPageFooter();
                         doc.setFontSize(12);
                         doc.setFont('helvetica', 'normal');
                         doc.text(`${selectedDepartment!.toUpperCase()} - ${selectedDistrict!.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
@@ -322,7 +323,7 @@ export default function FichaPage() {
                         doc.addPage();
                         contentY = 40;
                         addHeader();
-                        addPageFooter({ pageNumber: doc.internal.pages.length - 1, doc: doc });
+                        addPageFooter();
                     }
                     doc.setFontSize(10);
                     doc.setTextColor(255, 0, 0);
@@ -333,11 +334,10 @@ export default function FichaPage() {
             }
         }
         
-        const pageCount = (doc.internal as any).getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
+        const totalPages = (doc.internal as any).getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
           doc.setPage(i);
-          doc.setFontSize(10);
-          doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+          doc.text(`de ${totalPages}`, (pageWidth / 2) + 15, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
         }
         
         doc.save(`Informe-${cleanFileName(selectedDepartment)}-${cleanFileName(selectedDistrict)}.pdf`);
@@ -565,7 +565,7 @@ export default function FichaPage() {
                         </div>
                       </CardHeader>
                       <CardContent>
-                         <ReportForm key={currentReport?.id || 'new'} initialData={currentReport} readOnly={true} />
+                         <ReportForm key={currentReport?.id} initialData={currentReport} readOnly={true} />
                       </CardContent>
                     </Card>
                   
@@ -677,6 +677,3 @@ export default function FichaPage() {
     </div>
   );
 }
-
-    
-    

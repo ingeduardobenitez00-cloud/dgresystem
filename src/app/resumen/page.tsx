@@ -254,10 +254,8 @@ const handleGeneratePdf = async () => {
         };
         
         const addFooter = (data: any) => {
-            const pageNum = data.pageNumber;
-            const totalPages = data.doc.internal.getNumberOfPages();
             doc.setFontSize(10);
-            doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            doc.text(`Página ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
         };
         
         let finalBody: any[] = [];
@@ -352,10 +350,8 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
         };
 
         const addFooter = (data: any) => {
-            const pageNum = data.pageNumber;
-            const totalPages = data.doc.internal.getNumberOfPages();
             doc.setFontSize(10);
-            doc.text(`Página ${pageNum} de ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            doc.text(`Página ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
         };
         
         const groupedByDept: Record<string, ReportData[]> = categoryReports
@@ -732,5 +728,3 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
-
-    
