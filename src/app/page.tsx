@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BookMarked, FileText, BarChart3, Users, Settings } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings } from 'lucide-react';
 import Header from '@/components/header';
 
 const menuItems = [
