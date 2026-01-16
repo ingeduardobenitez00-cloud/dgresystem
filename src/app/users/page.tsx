@@ -147,20 +147,6 @@ export default function UsersPage() {
 
       await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
       
-      if (setUsers) {
-        const newUserForList: UserProfile = {
-            id: user.uid,
-            username,
-            email,
-            role,
-            modules,
-            permissions,
-            departamento: role === 'admin' ? '' : departamento,
-            distrito: role === 'admin' ? '' : distrito,
-        };
-        setUsers((prevUsers) => [...(prevUsers || []), newUserForList]);
-      }
-
       await signOut(tempAuth);
 
       toast({
