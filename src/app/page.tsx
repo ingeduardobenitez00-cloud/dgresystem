@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileText, BarChart3, Users, Settings, FileArchive } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud } from 'lucide-react';
 import Header from '@/components/header';
 
 const menuItems = [
@@ -11,6 +11,12 @@ const menuItems = [
     label: 'Vista de Ficha',
     icon: FileText,
     description: 'Consulta informes detallados e imágenes por distrito.',
+  },
+  {
+    href: '/cargar-ficha',
+    label: 'Cargar Ficha',
+    icon: UploadCloud,
+    description: 'Accede a tu distrito asignado para cargar datos.',
   },
   {
     href: '/resumen',

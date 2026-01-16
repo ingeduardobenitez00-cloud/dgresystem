@@ -123,6 +123,7 @@
           "enum": [
             "admin",
             "editor",
+            "uploader",
             "viewer"
           ]
         },
@@ -137,6 +138,14 @@
           "items": {
             "type": "string"
           }
+        },
+        "departamento": {
+          "type": "string",
+          "description": "The department assigned to the user."
+        },
+        "distrito": {
+          "type": "string",
+          "description": "The district assigned to the user."
         }
       },
       "required": [

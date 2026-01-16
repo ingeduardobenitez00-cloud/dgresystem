@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -31,14 +31,17 @@ import {
 } from '@/components/ui/alert-dialog';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { type Dato } from '@/lib/data';
 
 type UserProfile = {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: 'admin' | 'editor' | 'uploader' | 'viewer';
   modules: string[];
   permissions: string[];
+  departamento?: string;
+  distrito?: string;
 };
 
 const ALL_MODULES = ['imagenes', 'ficha', 'resumen', 'settings', 'users'];
@@ -64,10 +67,32 @@ export default function UsersPage() {
 
   const usersQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'users') : null), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+  const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
+  const { data: datosData } = useCollection<Dato>(datosQuery);
+
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (datosData) {
+      const uniqueDepts = [...new Set(datosData.map(d => d.departamento))].sort();
+      setDepartments(uniqueDepts);
+    }
+  }, [datosData]);
+  
+  useEffect(() => {
+    if (selectedDepartment && datosData) {
+      const uniqueDistricts = [...new Set(datosData.filter(d => d.departamento === selectedDepartment).map(d => d.distrito))].sort();
+      setDistricts(uniqueDistricts);
+    } else {
+      setDistricts([]);
+    }
+  }, [selectedDepartment, datosData]);
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!passwordVisible);
@@ -90,12 +115,14 @@ export default function UsersPage() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
-    const role = formData.get('role') as 'admin' | 'editor' | 'viewer';
+    const role = formData.get('role') as UserProfile['role'];
+    const departamento = formData.get('departamento') as string;
+    const distrito = formData.get('distrito') as string;
     
     const modules = ALL_MODULES.filter(module => formData.get(`access-${module}`));
     const permissions = ALL_PERMISSIONS.filter(permission => formData.get(`perm-${permission}`));
     
-    const newUserProfile = { username, email, role, modules, permissions };
+    const newUserProfile: Omit<UserProfile, 'id'> = { username, email, role, modules, permissions, departamento, distrito };
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -108,6 +135,7 @@ export default function UsersPage() {
         description: 'El nuevo usuario ha sido guardado con éxito.',
       });
       form.reset();
+      setSelectedDepartment('');
     } catch (error: any) {
       console.error("Error creating user:", error);
       if (error.code === 'auth/email-already-in-use') {
@@ -135,6 +163,11 @@ export default function UsersPage() {
   
   const handleOpenEditModal = (user: UserProfile) => {
     setEditingUser(user);
+    if(user.departamento) {
+        setSelectedDepartment(user.departamento);
+    } else {
+        setSelectedDepartment('');
+    }
     setEditModalOpen(true);
   };
 
@@ -144,11 +177,13 @@ export default function UsersPage() {
 
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
-    const role = formData.get('role') as 'admin' | 'editor' | 'viewer';
+    const role = formData.get('role') as UserProfile['role'];
+    const departamento = formData.get('departamento') as string;
+    const distrito = formData.get('distrito') as string;
     const modules = ALL_MODULES.filter(module => formData.get(`access-${module}`));
     const permissions = ALL_PERMISSIONS.filter(permission => formData.get(`perm-${permission}`));
     
-    const updatedFields = { role, modules, permissions };
+    const updatedFields = { role, modules, permissions, departamento, distrito };
 
     const userDocRef = doc(firestore, 'users', editingUser.id);
 
@@ -162,6 +197,7 @@ export default function UsersPage() {
        const contextualError = new FirestorePermissionError({
             operation: 'update',
             path: `users/${editingUser.id}`,
+            requestResourceData: updatedFields,
        });
        errorEmitter.emit('permission-error', contextualError);
        toast({ title: 'Error al actualizar', variant: 'destructive', description: 'No se pudo actualizar el usuario.' });
@@ -208,7 +244,7 @@ export default function UsersPage() {
     <div className="flex min-h-screen w-full flex-col">
       <Header title="Gestión de Usuarios" />
       <main className="flex flex-1 flex-col items-center p-4 gap-8">
-        <Card className="w-full max-w-2xl">
+        <Card className="w-full max-w-4xl">
           <form onSubmit={handleSubmit}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -256,10 +292,41 @@ export default function UsersPage() {
                         <SelectContent>
                             <SelectItem value="admin">Administrador</SelectItem>
                             <SelectItem value="editor">Editor</SelectItem>
+                            <SelectItem value="uploader">Uploader (solo fotos)</SelectItem>
                             <SelectItem value="viewer">Visualizador</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
+              </div>
+              
+              <Separator />
+
+              <div className="space-y-4">
+                  <Label>Asignación de Ubicación (Opcional)</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                          <Label htmlFor="departamento">Departamento</Label>
+                          <Select name="departamento" onValueChange={setSelectedDepartment}>
+                              <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar departamento"/>
+                              </SelectTrigger>
+                              <SelectContent>
+                                  {departments.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
+                              </SelectContent>
+                          </Select>
+                      </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="distrito">Distrito</Label>
+                          <Select name="distrito" disabled={!selectedDepartment}>
+                              <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar distrito"/>
+                              </SelectTrigger>
+                              <SelectContent>
+                                  {districts.map(dist => <SelectItem key={dist} value={dist}>{dist}</SelectItem>)}
+                              </SelectContent>
+                          </Select>
+                      </div>
+                  </div>
               </div>
               
               <Separator />
@@ -304,7 +371,7 @@ export default function UsersPage() {
           </form>
         </Card>
 
-        <Card className="w-full max-w-6xl">
+        <Card className="w-full max-w-7xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -325,10 +392,11 @@ export default function UsersPage() {
                         <TableHeader>
                         <TableRow>
                             <TableHead>Usuario</TableHead>
-                            <TableHead>Correo Electrónico</TableHead>
+                            <TableHead>Correo</TableHead>
                             <TableHead>Rol</TableHead>
+                            <TableHead>Departamento</TableHead>
+                            <TableHead>Distrito</TableHead>
                             <TableHead>Módulos</TableHead>
-                            <TableHead>Permisos</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                         </TableHeader>
@@ -341,14 +409,11 @@ export default function UsersPage() {
                                 <TableCell>
                                     <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="capitalize">{user.role}</Badge>
                                 </TableCell>
+                                <TableCell>{user.departamento || '-'}</TableCell>
+                                <TableCell>{user.distrito || '-'}</TableCell>
                                 <TableCell>
-                                    <div className="flex flex-wrap gap-1">
+                                    <div className="flex flex-wrap gap-1 max-w-xs">
                                         {user.modules.map(module => <Badge key={module} variant="outline" className="capitalize">{MODULE_LABELS[module] || module}</Badge>)}
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-wrap gap-1">
-                                        {user.permissions.map(permission => <Badge key={permission} variant="secondary" className="capitalize">{PERMISSION_LABELS[permission] || permission}</Badge>)}
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
@@ -398,7 +463,7 @@ export default function UsersPage() {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
+                                <TableCell colSpan={7} className="h-24 text-center">
                                     No hay usuarios registrados.
                                 </TableCell>
                             </TableRow>
@@ -414,7 +479,7 @@ export default function UsersPage() {
       
       {editingUser && (
         <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Editar Usuario: {editingUser.username}</DialogTitle>
                     <DialogDescription>
@@ -432,9 +497,38 @@ export default function UsersPage() {
                                 <SelectContent>
                                     <SelectItem value="admin">Administrador</SelectItem>
                                     <SelectItem value="editor">Editor</SelectItem>
+                                    <SelectItem value="uploader">Uploader (solo fotos)</SelectItem>
                                     <SelectItem value="viewer">Visualizador</SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+                        <Separator />
+                        <div className="space-y-4">
+                            <Label>Asignación de Ubicación (Opcional)</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="departamento-edit">Departamento</Label>
+                                    <Select name="departamento" defaultValue={editingUser.departamento} onValueChange={setSelectedDepartment}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Seleccionar departamento"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {departments.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="distrito-edit">Distrito</Label>
+                                    <Select name="distrito" defaultValue={editingUser.distrito} disabled={!selectedDepartment}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Seleccionar distrito"/>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {districts.map(dist => <SelectItem key={dist} value={dist}>{dist}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </div>
                         <Separator />
                         <div className="space-y-4">

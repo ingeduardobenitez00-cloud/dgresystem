@@ -8,8 +8,11 @@ import { type User } from 'firebase/auth';
 // Represents the shape of user profile data stored in Firestore
 export interface UserProfile {
   username?: string;
-  role?: 'admin' | 'editor' | 'viewer';
-  // Add other profile fields as needed
+  role?: 'admin' | 'editor' | 'uploader' | 'viewer';
+  departamento?: string;
+  distrito?: string;
+  modules?: string[];
+  permissions?: string[];
 }
 
 // Combines Firebase Auth user with Firestore profile data
@@ -55,5 +58,3 @@ export const useUser = (): UserHookResult => {
     userError: authError || profileError, // Return the first error encountered
   };
 };
-
-    

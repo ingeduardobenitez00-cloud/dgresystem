@@ -12,7 +12,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User, FileArchive } from "lucide-react";
+import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User, FileArchive, UploadCloud } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -49,6 +49,11 @@ export default function AppSidebar() {
       href: "/ficha",
       label: "Vista de Ficha",
       icon: FileText,
+    },
+    {
+      href: "/cargar-ficha",
+      label: "Cargar Ficha",
+      icon: UploadCloud,
     },
     {
       href: "/resumen",
