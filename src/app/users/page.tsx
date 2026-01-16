@@ -73,7 +73,7 @@ export default function UsersPage() {
   const { user: currentUser, isUserLoading } = useUser();
 
   const usersQuery = useMemoFirebase(() => (firestore && currentUser?.profile?.role === 'admin' ? collection(firestore, 'users') : null), [firestore, currentUser]);
-  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+  const { data: users, isLoading: isLoadingUsers, setData: setUsers } = useCollection<UserProfile>(usersQuery);
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
@@ -147,6 +147,20 @@ export default function UsersPage() {
 
       await setDoc(doc(firestore, 'users', user.uid), newUserProfile);
       
+      if (setUsers) {
+        const newUserForList: UserProfile = {
+            id: user.uid,
+            username,
+            email,
+            role,
+            modules,
+            permissions,
+            departamento: role === 'admin' ? '' : departamento,
+            distrito: role === 'admin' ? '' : distrito,
+        };
+        setUsers((prevUsers) => [...(prevUsers || []), newUserForList]);
+      }
+
       await signOut(tempAuth);
 
       toast({
