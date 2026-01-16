@@ -8,7 +8,7 @@ import { type User } from 'firebase/auth';
 // Represents the shape of user profile data stored in Firestore
 export interface UserProfile {
   username?: string;
-  role?: 'admin' | 'editor' | 'uploader' | 'viewer';
+  role?: 'admin' | 'funcionario' | 'viewer';
   departamento?: string;
   distrito?: string;
   modules?: string[];

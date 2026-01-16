@@ -122,8 +122,7 @@
           "type": "string",
           "enum": [
             "admin",
-            "editor",
-            "uploader",
+            "funcionario",
             "viewer"
           ]
         },

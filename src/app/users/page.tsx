@@ -38,7 +38,7 @@ type UserProfile = {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'editor' | 'uploader' | 'viewer';
+  role: 'admin' | 'funcionario' | 'viewer';
   modules: string[];
   permissions: string[];
   departamento?: string;
@@ -327,8 +327,7 @@ export default function UsersPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="admin">Administrador</SelectItem>
-                            <SelectItem value="editor">Editor</SelectItem>
-                            <SelectItem value="uploader">Uploader (solo fotos)</SelectItem>
+                            <SelectItem value="funcionario">Funcionario</SelectItem>
                             <SelectItem value="viewer">Visualizador</SelectItem>
                         </SelectContent>
                     </Select>
@@ -532,8 +531,7 @@ export default function UsersPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="admin">Administrador</SelectItem>
-                                    <SelectItem value="editor">Editor</SelectItem>
-                                    <SelectItem value="uploader">Uploader (solo fotos)</SelectItem>
+                                    <SelectItem value="funcionario">Funcionario</SelectItem>
                                     <SelectItem value="viewer">Visualizador</SelectItem>
                                 </SelectContent>
                             </Select>

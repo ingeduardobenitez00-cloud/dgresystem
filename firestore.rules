@@ -19,6 +19,10 @@ service cloud.firestore {
     function isRole(role) {
       return isSignedIn() && getUserData().role == role;
     }
+    
+    function hasPermission(permission) {
+      return 'permissions' in getUserData() && permission in getUserData().permissions;
+    }
 
     function isAssignedTo(departamento, distrito) {
       let userData = getUserData();
@@ -32,7 +36,7 @@ service cloud.firestore {
     /** Publicly readable data **/
     match /datos/{datoId} {
       allow read: if true;
-      allow write: if isAdmin(); // Only admins can manage the base data now
+      allow write: if isAdmin();
     }
 
     match /departamentos/{departamentoId} {
@@ -47,27 +51,28 @@ service cloud.firestore {
     /** Main Data Collections **/
     match /imagenes/{imagenId} {
       allow read: if true;
+      // A 'funcionario' with the 'add' permission can manage images for their assigned location.
       allow create: if isSignedIn() && (
         isAdmin() ||
-        ( (isRole('editor') || isRole('uploader')) && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito) )
+        (isRole('funcionario') && hasPermission('add') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
       allow update, delete: if isSignedIn() && (
         isAdmin() ||
-        ( (isRole('editor') || isRole('uploader')) && isAssignedTo(resource.data.departamento, resource.data.distrito) )
+        (isRole('funcionario') && hasPermission('add') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
     }
 
     match /reports/{reportId} {
       allow read: if true;
-      // Admin or an assigned editor can create/update.
+      // A 'funcionario' with the 'edit' permission can create/update reports.
       allow create, update: if isSignedIn() && (
         isAdmin() ||
-        (isRole('editor') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
+        (isRole('funcionario') && hasPermission('edit') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
-      // Only Admin or assigned editor can delete.
+      // A 'funcionario' with the 'delete' permission can delete reports.
       allow delete: if isSignedIn() && (
         isAdmin() ||
-        (isRole('editor') && isAssignedTo(resource.data.departamento, resource.data.distrito))
+        (isRole('funcionario') && hasPermission('delete') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
     }
 
