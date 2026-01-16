@@ -118,11 +118,10 @@ export default function InformeGeneralPage() {
             docInstance.text('Dirección General del Registro Electoral', pageWidth / 2, 22, { align: 'center' });
         };
 
-        // --- Phase 2: Generate Content and build Index Data ---
+        // --- Phase 2: Generate Content & Collect Index Info ---
         for (const departmentName of sortedDepartments) {
             doc.addPage();
-            const deptPage = doc.internal.getNumberOfPages();
-            indexData.push({ title: `DEPARTAMENTO: ${departmentName.toUpperCase()}`, page: deptPage, type: 'department' });
+            indexData.push({ title: `DEPARTAMENTO: ${departmentName.toUpperCase()}`, page: doc.internal.getNumberOfPages(), type: 'department' });
             doc.setFontSize(32);
             doc.setFont('helvetica', 'bold');
             doc.text('DEPARTAMENTO', pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
@@ -132,9 +131,11 @@ export default function InformeGeneralPage() {
 
             const districts = departmentsMap.get(departmentName)!.sort();
             for (const districtName of districts) {
+                const currentReport = allReportsData.find(r => r.departamento === departmentName && r.distrito === districtName);
+                const currentImages = allImagesData.filter(i => i.departamento === departmentName && i.distrito === districtName);
+
                 doc.addPage();
-                const distPage = doc.internal.getNumberOfPages();
-                indexData.push({ title: `   Distrito: ${districtName}`, page: distPage, type: 'district' });
+                indexData.push({ title: `   Distrito: ${districtName}`, page: doc.internal.getNumberOfPages(), type: 'district' });
                 doc.setFontSize(32);
                 doc.setFont('helvetica', 'bold');
                 doc.text('DISTRITO', pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
@@ -142,13 +143,11 @@ export default function InformeGeneralPage() {
                 doc.setFont('helvetica', 'normal');
                 doc.text(districtName.toUpperCase(), pageWidth / 2, pageHeight / 2, { align: 'center' });
 
-                const currentReport = allReportsData.find(r => r.departamento === departmentName && r.distrito === districtName);
-                const currentImages = allImagesData.filter(i => i.departamento === departmentName && i.distrito === districtName);
-
                 if (currentReport || (currentImages && currentImages.length > 0)) {
                     doc.addPage();
                     addHeader(doc);
                     let contentY = 40;
+                    
                     doc.setFontSize(16);
                     doc.setFont('helvetica', 'bold');
                     doc.text(`${departmentName.toUpperCase()} - ${districtName.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
@@ -181,13 +180,9 @@ export default function InformeGeneralPage() {
                     }
 
                     if (currentImages && currentImages.length > 0) {
-                        if ((doc as any).lastAutoTable.finalY > pageHeight - 100) {
-                           contentY = 30; // Reset Y for new page
-                        }
-
                         const desiredOrder = [ "FOTOGRAFIA 1", "FOTOGRAFIA 2", "FOTOGRAFIA 3", "FOTOGRAFIA 4", "FOTOGRAFIA 5", "FOTOGRAFIA 6", "FOTOGRAFIA 7", "FOTOGRAFIA 8" ];
                         const sortedImages = [...currentImages].sort((a, b) => {
-                            const getOrderIndex = (name: string) => {
+                             const getOrderIndex = (name: string) => {
                                 const cleanedName = cleanFileName(name).toUpperCase();
                                 for (let i = 0; i < desiredOrder.length; i++) {
                                     if (cleanedName.startsWith(desiredOrder[i])) return i;
@@ -201,7 +196,7 @@ export default function InformeGeneralPage() {
                             try {
                                 const img = new window.Image();
                                 img.src = image.src;
-                                await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(); });
+                                await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = (e) => reject(e); });
 
                                 const imgWidth = 170;
                                 const imgHeight = (img.height * imgWidth) / img.width;
@@ -223,34 +218,20 @@ export default function InformeGeneralPage() {
                             } catch (error) { console.error(`Error al cargar imagen ${image.alt} para el PDF:`, error); }
                         }
                     }
+                } else {
+                    doc.setFontSize(12);
+                    doc.text('Este distrito no tiene informes ni imágenes.', pageWidth / 2, pageHeight / 2 + 30, { align: 'center' });
                 }
             }
         }
-
-        // --- Phase 3: Calculate Index and Insert Pages ---
-        const tempDoc = new jsPDF();
-        autoTable(tempDoc, { head: [['', '']], body: indexData.map(item => [item.title, '0000']) });
-        const indexPageCount = tempDoc.internal.getNumberOfPages();
-
-        indexData.forEach(item => item.page += indexPageCount);
-
-        for (let i = 0; i < indexPageCount; i++) {
-            doc.addPage();
-            const newPage = doc.internal.pages.pop();
-            if (newPage) doc.internal.pages.splice(1, 0, newPage);
-        }
-
-        // --- Phase 4: Draw the Index ---
-        for (let i = 0; i < indexPageCount; i++) {
-            doc.setPage(i + 2);
-            addHeader(doc);
-            if (i === 0) {
-                doc.setFontSize(18);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Índice', pageWidth / 2, 40, { align: 'center' });
-            }
-        }
         
+        // --- Phase 3: Add Index at the end ---
+        doc.addPage();
+        addHeader(doc);
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Índice', pageWidth / 2, 40, { align: 'center' });
+
         autoTable(doc, {
             startY: 50,
             head: [['Contenido', 'Página']],
@@ -258,13 +239,11 @@ export default function InformeGeneralPage() {
             theme: 'striped',
             headStyles: { fillColor: [44, 62, 80], textColor: 255, fontStyle: 'bold' },
             styles: { fontSize: 10, cellPadding: 3 },
-            didDrawPage: (data) => {
-              if (data.pageNumber > 2) addHeader(data.doc);
-            },
+            didDrawPage: (data) => addHeader(data.doc),
             margin: { top: 40 }
         });
 
-        // --- Phase 5: Final Pagination ---
+        // --- Phase 4: Final Pagination ---
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
@@ -274,7 +253,7 @@ export default function InformeGeneralPage() {
             }
         }
 
-        // --- Phase 6: Save ---
+        // --- Phase 5: Save ---
         doc.save('Informe-General-Completo.pdf');
 
     } catch (error) {
