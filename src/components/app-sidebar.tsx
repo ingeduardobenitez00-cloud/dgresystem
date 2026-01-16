@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -13,7 +12,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User } from "lucide-react";
+import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User, FileArchive } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -55,6 +54,11 @@ export default function AppSidebar() {
       href: "/resumen",
       label: "Resumen",
       icon: BarChart3,
+    },
+    {
+      href: "/informe-general",
+      label: "Informe General",
+      icon: FileArchive,
     },
     {
       href: "/users",

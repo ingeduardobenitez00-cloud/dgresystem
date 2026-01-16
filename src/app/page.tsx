@@ -1,9 +1,8 @@
-
 'use client';
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileText, BarChart3, Users, Settings } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive } from 'lucide-react';
 import Header from '@/components/header';
 
 const menuItems = [
@@ -18,6 +17,12 @@ const menuItems = [
     label: 'Resumen',
     icon: BarChart3,
     description: 'Explora un resumen detallado de los informes.',
+  },
+  {
+    href: '/informe-general',
+    label: 'Informe General',
+    icon: FileArchive,
+    description: 'Genera un PDF consolidado de todos los distritos.',
   },
   {
     href: '/users',
