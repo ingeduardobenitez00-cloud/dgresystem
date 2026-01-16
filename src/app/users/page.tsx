@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -63,9 +64,10 @@ const PERMISSION_LABELS: { [key: string]: string } = {
 export default function UsersPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const { toast } = useToast();
-  const { auth, firestore, user: currentUser } = useFirebase();
+  const { auth, firestore } = useFirebase();
+  const { user: currentUser, isUserLoading } = useUser();
 
-  const usersQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'users') : null), [firestore]);
+  const usersQuery = useMemoFirebase(() => (firestore && currentUser?.profile?.role === 'admin' ? collection(firestore, 'users') : null), [firestore, currentUser]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
@@ -239,6 +241,38 @@ export default function UsersPage() {
       });
     }
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="flex min-h-screen w-full flex-col">
+        <Header title="Gestión de Usuarios" />
+        <main className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </main>
+      </div>
+    );
+  }
+
+  if (currentUser?.profile?.role !== 'admin') {
+    return (
+      <div className="flex min-h-screen w-full flex-col">
+        <Header title="Acceso Denegado" />
+        <main className="flex flex-1 items-center justify-center p-4">
+          <Card className="w-full max-w-md text-center">
+            <CardHeader>
+              <CardTitle>Acceso Denegado</CardTitle>
+              <CardDescription>
+                No tienes permisos para acceder a esta sección.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p>Por favor, contacta a un administrador si crees que esto es un error.</p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col">

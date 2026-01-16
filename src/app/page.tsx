@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, Loader2 } from 'lucide-react';
 import Header from '@/components/header';
+import { useUser } from '@/firebase/auth/use-user';
 
 const menuItems = [
   {
@@ -45,6 +46,26 @@ const menuItems = [
 ];
 
 export default function Home() {
+  const { user, isUserLoading } = useUser();
+
+  if (isUserLoading) {
+    return (
+      <div className="flex min-h-screen w-full flex-col">
+        <Header title="Panel Principal" />
+        <main className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </main>
+      </div>
+    );
+  }
+
+  const accessibleMenuItems = menuItems.filter(item => {
+    if (item.href === '/users' || item.href === '/settings') {
+      return user?.profile?.role === 'admin';
+    }
+    return true;
+  });
+
   return (
     <div className="flex min-h-screen w-full flex-col">
       <Header title="Panel Principal" />
@@ -58,7 +79,7 @@ export default function Home() {
             </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {menuItems.map((item) => (
+          {accessibleMenuItems.map((item) => (
             <Link href={item.href} key={item.href} className="group">
               <Card className="h-full transition-all duration-200 ease-in-out group-hover:shadow-lg group-hover:border-primary/50 group-hover:-translate-y-1">
                 <CardHeader className="flex flex-row items-center gap-4">

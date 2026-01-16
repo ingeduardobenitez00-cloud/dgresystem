@@ -14,12 +14,14 @@ import {
 } from "@/components/ui/sidebar";
 import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User, FileArchive, UploadCloud } from "lucide-react";
 import { useFirebase } from "@/firebase";
+import { useUser } from "@/firebase/auth/use-user";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const { auth, user } = useFirebase();
+  const { auth } = useFirebase();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -77,6 +79,13 @@ export default function AppSidebar() {
     },
   ];
 
+  const accessibleMenuItems = menuItems.filter(item => {
+    if (item.href === '/users' || item.href === '/settings') {
+      return user?.profile?.role === 'admin';
+    }
+    return true;
+  });
+
   return (
     <>
       <SidebarHeader>
@@ -89,7 +98,7 @@ export default function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {menuItems.map((item) => (
+          {accessibleMenuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild
@@ -118,7 +127,7 @@ export default function AppSidebar() {
                        </AvatarFallback>
                    </Avatar>
                    <div className="flex flex-col truncate">
-                       <span className="text-sm font-semibold text-sidebar-foreground truncate">{user.displayName || 'Usuario'}</span>
+                       <span className="text-sm font-semibold text-sidebar-foreground truncate">{user.displayName || user.profile?.username || 'Usuario'}</span>
                        <span className="text-xs text-sidebar-foreground/70 truncate">{user.email}</span>
                    </div>
                 </div>
