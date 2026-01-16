@@ -316,7 +316,7 @@ export default function PhotoGallery() {
     await Promise.all(departments.map(dept => getImagesForDepartment(dept)));
 
     const districtsWithoutImages: { department: string, district: string }[] = [];
-
+    
     departments.forEach(department => {
         department.districts.forEach(district => {
             const imagesKey = `${department.name}-${district.name}`;
@@ -325,6 +325,7 @@ export default function PhotoGallery() {
             }
         });
     });
+
 
     if (districtsWithoutImages.length === 0) {
         toast({ title: "¡Todo completo!", description: "No se encontraron distritos sin imágenes." });
@@ -380,6 +381,7 @@ export default function PhotoGallery() {
               addHeader();
               addFooter(data);
           },
+          margin: { top: 35, bottom: 20 }
       });
 
       doc.save('Reporte-Distritos-Sin-Imagenes.pdf');
