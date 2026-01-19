@@ -54,7 +54,7 @@ export default function PhotoGallery() {
   const { firestore, user, isUserLoading } = useFirebase();
   const { toast } = useToast();
 
-  const datosQuery = useMemoFirebase(() => (firestore && user?.profile?.role === 'admin' ? collection(firestore, 'datos') : null), [firestore, user]);
+  const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   const [departments, setDepartments] = useState<DepartmentWithDistricts[]>([]);
