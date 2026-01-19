@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Upload, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Trash2, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import type { ImageData } from '@/lib/data';
@@ -251,15 +251,25 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
                               </Card>
                            ))}
                            {((filesByCategory[category.id]?.length || 0) < category.max) && (
-                                <label htmlFor={`upload-${category.id}`} className="flex flex-col items-center justify-center w-full aspect-video border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted transition-colors">
-                                  <div className="flex flex-col items-center justify-center text-center p-2">
-                                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                                    <p className="text-xs text-muted-foreground">
-                                      <span className="font-semibold">Subir...</span>
-                                    </p>
+                               <div className="flex flex-col items-center justify-center w-full aspect-video border-2 border-dashed rounded-lg hover:bg-muted transition-colors p-2">
+                                  <div className="flex items-center justify-center gap-4">
+                                      <label htmlFor={`upload-${category.id}`} className="flex flex-col items-center justify-center text-center p-2 cursor-pointer rounded-md hover:bg-muted-foreground/10">
+                                          <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                                          <p className="text-xs text-muted-foreground">
+                                              <span className="font-semibold">Subir</span>
+                                          </p>
+                                          <Input id={`upload-${category.id}`} type="file" onChange={(e) => handleFileChange(e, category.id, category.max)} accept="image/*,.heic,.heif" multiple={category.multiple} className="hidden" disabled={isProcessing} />
+                                      </label>
+                                      <div className="w-px h-16 bg-border"></div>
+                                      <label htmlFor={`camera-${category.id}`} className="flex flex-col items-center justify-center text-center p-2 cursor-pointer rounded-md hover:bg-muted-foreground/10">
+                                          <Camera className="w-8 h-8 mb-2 text-muted-foreground" />
+                                          <p className="text-xs text-muted-foreground">
+                                              <span className="font-semibold">Cámara</span>
+                                          </p>
+                                          <Input id={`camera-${category.id}`} type="file" onChange={(e) => handleFileChange(e, category.id, category.max)} accept="image/*" capture="environment" multiple={category.multiple} className="hidden" disabled={isProcessing} />
+                                      </label>
                                   </div>
-                                  <Input id={`upload-${category.id}`} type="file" onChange={(e) => handleFileChange(e, category.id, category.max)} accept="image/*,.heic,.heif" multiple={category.multiple} className="hidden" disabled={isProcessing} />
-                                </label>
+                               </div>
                            )}
                        </div>
                    </div>
