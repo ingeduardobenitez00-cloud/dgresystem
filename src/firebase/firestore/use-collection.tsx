@@ -70,7 +70,7 @@ export function useCollection<T = any>(
     // If the query is null or undefined, reset state and stop.
     if (!query) {
       setData(null);
-      setIsLoading(true);
+      setIsLoading(false);
       setError(null);
       return;
     }
