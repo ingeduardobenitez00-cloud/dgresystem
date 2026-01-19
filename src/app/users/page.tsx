@@ -58,11 +58,13 @@ const MODULE_LABELS: { [key: string]: string } = {
   'cargar-ficha': 'Cargar Ficha',
   'informe-general': 'Informe General',
 };
-const ALL_PERMISSIONS = ['add', 'edit', 'delete'];
+const ALL_PERMISSIONS = ['add', 'edit', 'delete', 'view_report', 'view_images'];
 const PERMISSION_LABELS: { [key: string]: string } = {
     add: 'Agregar',
     edit: 'Editar',
     delete: 'Borrar',
+    view_report: 'Ver Informe',
+    view_images: 'Ver Imágenes',
 };
 
 
@@ -410,7 +412,7 @@ export default function UsersPage() {
 
               <div className="space-y-4">
                 <Label>Permisos</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {ALL_PERMISSIONS.map(permission => (
                         <div key={permission} className="flex items-center space-x-2">
                             <Checkbox id={`perm-${permission}`} name={`perm-${permission}`} />
@@ -618,7 +620,7 @@ export default function UsersPage() {
                         <Separator />
                         <div className="space-y-4">
                             <Label>Permisos</Label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {ALL_PERMISSIONS.map(permission => (
                                     <div key={`edit-perm-${permission}`} className="flex items-center space-x-2">
                                         <Checkbox id={`edit-perm-${permission}`} name={`perm-${permission}`} defaultChecked={editingUser.permissions.includes(permission)} />

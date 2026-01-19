@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 import { collection, query, where, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {
@@ -15,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Loader2, FileText, ImageIcon, Search, Download, Edit, Upload, Trash2 } from 'lucide-react';
+import { Loader2, FileText, ImageIcon, Search, Download, Edit, Upload, Trash2, ShieldAlert } from 'lucide-react';
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -54,7 +55,8 @@ interface jsPDFWithAutoTable extends jsPDF {
 }
 
 export default function FichaPage() {
-  const { firestore, user: currentUser } = useFirebase();
+  const { firestore } = useFirebase();
+  const { user: currentUser } = useUser();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
@@ -81,6 +83,14 @@ export default function FichaPage() {
   
   const [isUploadOpen, setUploadOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  
+  const isAdmin = currentUser?.profile?.role === 'admin';
+  const canViewReport = isAdmin || currentUser?.profile?.permissions?.includes('view_report');
+  const canViewImages = isAdmin || currentUser?.profile?.permissions?.includes('view_images');
+  const canEditReport = isAdmin || currentUser?.profile?.permissions?.includes('edit');
+  const canAddImages = isAdmin || currentUser?.profile?.permissions?.includes('add');
+  const canDeleteImages = isAdmin || (currentUser?.profile?.permissions?.includes('add') || currentUser?.profile?.permissions?.includes('delete'));
+
 
   useEffect(() => {
     const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
@@ -102,22 +112,22 @@ export default function FichaPage() {
   }, []);
 
   const reportQuery = useMemoFirebase(() => {
-    if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict) return null;
+    if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict || !canViewReport) return null;
     return query(
       collection(firestore, 'reports'),
       where('departamento', '==', selectedDepartment),
       where('distrito', '==', selectedDistrict)
     );
-  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict]);
+  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict, canViewReport]);
 
   const imagesQuery = useMemoFirebase(() => {
-    if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict) return null;
+    if (!firestore || !shouldFetch || !selectedDepartment || !selectedDistrict || !canViewImages) return null;
     return query(
       collection(firestore, 'imagenes'),
       where('departamento', '==', selectedDepartment),
       where('distrito', '==', selectedDistrict)
     );
-  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict]);
+  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict, canViewImages]);
 
   const { data: reportData, isLoading: isLoadingReport, error: reportError, setData: setReportData } = useCollection<ReportData>(reportQuery);
   const { data: imagesData, isLoading: isLoadingImages, setData: setImagesData } = useCollection<ImageData>(imagesQuery);
@@ -550,26 +560,43 @@ export default function FichaPage() {
         )}
 
         {shouldFetch && !isLoading && (
-            <>
-                {(reportError || (!currentReport && (!imagesData || imagesData.length === 0))) ? (
-                    <Card className="w-full max-w-6xl mx-auto">
-                         <CardHeader>
-                            <CardTitle className="flex items-center gap-3">
-                              <FileText className="h-6 w-6 text-primary" />
-                              <span>Informe del Distrito</span>
-                            </CardTitle>
-                            <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="py-10 text-center">
-                            <p className="text-muted-foreground mb-4">No se encontraron datos de informe para la ubicación seleccionada.</p>
-                             <Button onClick={() => setEditModalOpen(true)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Crear Informe
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ) : (
-                <div className="w-full max-w-6xl mx-auto space-y-8">
+          <>
+            {(!canViewImages && !canViewReport) ? (
+              <Card className="w-full max-w-6xl mx-auto text-center">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-center gap-3">
+                    <ShieldAlert className="h-6 w-6 text-destructive" />
+                    <span>Acceso Restringido</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-10">
+                  <p className="text-muted-foreground">No tienes permisos para ver el informe o las imágenes de esta ficha.</p>
+                  <p className="text-sm text-muted-foreground mt-2">Por favor, contacta a un administrador para solicitar acceso.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              (reportError || (!currentReport && !canViewReport) && (!imagesData || imagesData.length === 0)) ? (
+                <Card className="w-full max-w-6xl mx-auto">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-3">
+                        <FileText className="h-6 w-6 text-primary" />
+                        <span>Informe del Distrito</span>
+                      </CardTitle>
+                      <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="py-10 text-center">
+                      <p className="text-muted-foreground mb-4">No se encontraron datos para la ubicación seleccionada.</p>
+                      {canEditReport && (
+                        <Button onClick={() => setEditModalOpen(true)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Crear Informe
+                        </Button>
+                      )}
+                  </CardContent>
+                </Card>
+              ) : (
+              <div className="w-full max-w-6xl mx-auto space-y-8">
+                  {canViewReport && (
                     <Card>
                       <CardHeader>
                         <div className="flex justify-between items-start">
@@ -581,10 +608,12 @@ export default function FichaPage() {
                             <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
                           </div>
                           <div className="flex gap-2">
-                             <Button onClick={() => setEditModalOpen(true)} variant="outline" size="sm">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar Informe
-                             </Button>
+                             {canEditReport && (
+                               <Button onClick={() => setEditModalOpen(true)} variant="outline" size="sm">
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar Informe
+                               </Button>
+                             )}
                              <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf || (!currentReport && (!imagesData || imagesData.length === 0))} size="sm">
                                 {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                                 Generar PDF
@@ -596,29 +625,33 @@ export default function FichaPage() {
                          <ReportForm key={currentReport?.id} initialData={currentReport} readOnly={true} />
                       </CardContent>
                     </Card>
+                  )}
                   
-                  {imagesData && (
-                     <Card>
-                       <CardHeader>
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="flex items-center gap-3">
-                                <ImageIcon className="h-6 w-6 text-primary" />
-                                <span>Imágenes</span>
-                                </CardTitle>
-                                <CardDescription>Imágenes asociadas a {selectedDistrict}</CardDescription>
-                            </div>
+                  {canViewImages && imagesData && (
+                    <Card>
+                      <CardHeader>
+                      <div className="flex justify-between items-start">
+                          <div>
+                              <CardTitle className="flex items-center gap-3">
+                              <ImageIcon className="h-6 w-6 text-primary" />
+                              <span>Imágenes</span>
+                              </CardTitle>
+                              <CardDescription>Imágenes asociadas a {selectedDistrict}</CardDescription>
+                          </div>
+                          {canAddImages && (
                             <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
                                 <Upload className="mr-2 h-4 w-4" />
                                 Subir Fotos
                             </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {imagesData.map(image => (
-                          <Card key={image.id} className="overflow-hidden group/image-card">
-                            <div className="relative aspect-video">
-                              <Image src={image.src} alt={image.alt} fill className="object-cover transition-transform group-hover/image-card:scale-105" data-ai-hint={image.hint} onClick={() => handleOpenImageViewer(image)} />
+                          )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {imagesData.map(image => (
+                        <Card key={image.id} className="overflow-hidden group/image-card">
+                          <div className="relative aspect-video">
+                            <Image src={image.src} alt={image.alt} fill className="object-cover transition-transform group-hover/image-card:scale-105" data-ai-hint={image.hint} onClick={() => handleOpenImageViewer(image)} />
+                              {canDeleteImages && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button
@@ -644,20 +677,22 @@ export default function FichaPage() {
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
+                              )}
+                          </div>
+                        </Card>
+                      ))}
+                        {imagesData.length === 0 && (
+                            <div className="col-span-full text-center py-12 border-2 border-dashed rounded-lg">
+                              <p className="text-muted-foreground">No hay imágenes para este distrito.</p>
                             </div>
-                          </Card>
-                        ))}
-                         {imagesData.length === 0 && (
-                             <div className="col-span-full text-center py-12 border-2 border-dashed rounded-lg">
-                                <p className="text-muted-foreground">No hay imágenes para este distrito.</p>
-                             </div>
-                         )}
-                      </CardContent>
-                     </Card>
+                        )}
+                    </CardContent>
+                    </Card>
                   )}
-                </div>
-                )}
-            </>
+              </div>
+              )
+            )}
+          </>
         )}
       </main>
       <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
