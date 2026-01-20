@@ -2,7 +2,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -25,46 +25,39 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     });
   }, [user]);
 
-  if (isUserLoading) {
-    return (
-      <div className="flex min-h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // Handle all redirection logic in a useEffect to prevent side-effects during render
+  useEffect(() => {
+    if (isUserLoading) {
+      return; // Wait until user loading is complete
+    }
 
-  if (!user && pathname !== '/login') {
-    router.replace('/login');
-    return (
-         <div className="flex min-h-screen w-full items-center justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-         </div>
-    );
-  }
-  
-  if (user && pathname === '/login') {
+    if (!user && pathname !== '/login') {
+      router.replace('/login');
+    } else if (user && pathname === '/login') {
       router.replace('/');
-       return (
-         <div className="flex min-h-screen w-full items-center justify-center">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-         </div>
-    );
-  }
-
-  if (user && pathname === '/' && user.profile?.role !== 'admin' && accessibleMenuItems.length === 1) {
-    const targetPath = accessibleMenuItems[0].href;
-    router.replace(targetPath);
+    } else if (user && pathname === '/' && user.profile?.role !== 'admin' && accessibleMenuItems.length === 1) {
+      const targetPath = accessibleMenuItems[0]?.href;
+      if (targetPath) {
+        router.replace(targetPath);
+      }
+    }
+  }, [isUserLoading, user, pathname, router, accessibleMenuItems]);
+  
+  // Display a loader while auth state is being determined or a redirect is imminent
+  if (isUserLoading || (!user && pathname !== '/login') || (user && pathname === '/login') || (user && pathname === '/' && user.profile?.role !== 'admin' && accessibleMenuItems.length === 1)) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
-  
+
+  // If on login page (and user is not logged in), just render children
   if (pathname === '/login') {
     return <main key={pathname}>{children}</main>;
   }
 
+  // For all other authenticated routes, render the layout
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
