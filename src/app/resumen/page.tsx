@@ -231,6 +231,9 @@ export default function ResumenPage() {
             }
         });
 
+        const habitacionSeguraDistricts: Record<string, DistrictInfoForBreakdown> = {};
+        const comisariaDistricts: Record<string, DistrictInfoForBreakdown> = {};
+
         reportsData.forEach(report => {
             const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
             const deptName = report.departamento;
@@ -240,27 +243,45 @@ export default function ResumenPage() {
                 return;
             }
 
-            const datoInfo = datosMap.get(`${deptName}-${distName}`);
-
-            const districtInfo: DistrictInfoForBreakdown = {
-                name: distName,
-                code: datoInfo?.distCode,
-                deptCode: datoInfo?.deptCode,
-                deptName: deptName
-            };
-
-            if (lugar.includes('comisaria')) {
-                if (!comisariaSummary[deptName]) {
-                    comisariaSummary[deptName] = [];
+            const districtKey = `${deptName}-${distName}`;
+            
+            if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) {
+                if (!habitacionSeguraDistricts[districtKey]) {
+                    const datoInfo = datosMap.get(districtKey);
+                    habitacionSeguraDistricts[districtKey] = {
+                        name: distName,
+                        code: datoInfo?.distCode,
+                        deptCode: datoInfo?.deptCode,
+                        deptName: deptName
+                    };
                 }
-                comisariaSummary[deptName].push(districtInfo);
-            } else if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) {
-                 if (!habitacionSeguraSummary[deptName]) {
-                    habitacionSeguraSummary[deptName] = [];
+            } else if (lugar.includes('comisaria')) {
+                if (!comisariaDistricts[districtKey]) {
+                    const datoInfo = datosMap.get(districtKey);
+                    comisariaDistricts[districtKey] = {
+                        name: distName,
+                        code: datoInfo?.distCode,
+                        deptCode: datoInfo?.deptCode,
+                        deptName: deptName
+                    };
                 }
-                habitacionSeguraSummary[deptName].push(districtInfo);
             }
         });
+
+        Object.values(habitacionSeguraDistricts).forEach(dist => {
+            if (!habitacionSeguraSummary[dist.deptName]) {
+                habitacionSeguraSummary[dist.deptName] = [];
+            }
+            habitacionSeguraSummary[dist.deptName].push(dist);
+        });
+
+        Object.values(comisariaDistricts).forEach(dist => {
+            if (!comisariaSummary[dist.deptName]) {
+                comisariaSummary[dist.deptName] = [];
+            }
+            comisariaSummary[dist.deptName].push(dist);
+        });
+
         setComisariaData(comisariaSummary);
         setHabitacionSeguraData(habitacionSeguraSummary);
     }
@@ -794,3 +815,4 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
+
