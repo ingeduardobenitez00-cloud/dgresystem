@@ -85,6 +85,7 @@ export default function FichaPage() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   
   const isAdmin = currentUser?.profile?.role === 'admin';
+  const isFuncionario = currentUser?.profile?.role === 'funcionario';
   const canViewReport = isAdmin || currentUser?.profile?.permissions?.includes('view_report');
   const canViewImages = isAdmin || currentUser?.profile?.permissions?.includes('view_images');
   const canEditReport = isAdmin || currentUser?.profile?.permissions?.includes('edit');
@@ -520,13 +521,13 @@ export default function FichaPage() {
         <Card className="w-full max-w-6xl mx-auto">
           <CardHeader>
             <CardTitle>Filtro de Búsqueda</CardTitle>
-            <CardDescription>Selecciona un departamento y distrito para ver los detalles.</CardDescription>
+            <CardDescription>{isFuncionario ? 'Estás viendo la ficha de tu distrito asignado.' : 'Selecciona un departamento y distrito para ver los detalles.'}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
-                <Select onValueChange={handleDepartmentChange} value={selectedDepartment || ''} disabled={isLoadingDatos}>
+                <Select onValueChange={handleDepartmentChange} value={selectedDepartment || ''} disabled={isLoadingDatos || isFuncionario}>
                   <SelectTrigger>
                     <SelectValue placeholder={isLoadingDatos ? 'Cargando...' : 'Selecciona un departamento'} />
                   </SelectTrigger>
@@ -537,7 +538,7 @@ export default function FichaPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Distrito</label>
-                <Select onValueChange={handleDistrictChange} value={selectedDistrict || ''} disabled={!selectedDepartment}>
+                <Select onValueChange={handleDistrictChange} value={selectedDistrict || ''} disabled={!selectedDepartment || isFuncionario}>
                   <SelectTrigger>
                     <SelectValue placeholder={!selectedDepartment ? 'Primero selecciona un dpto.' : 'Selecciona un distrito'} />
                   </SelectTrigger>
@@ -546,7 +547,7 @@ export default function FichaPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleSearch} disabled={!selectedDepartment || !selectedDistrict || isLoading} className="w-full md:w-auto">
+              <Button onClick={handleSearch} disabled={!selectedDepartment || !selectedDistrict || isLoading || isFuncionario} className="w-full md:w-auto">
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                 Buscar
               </Button>
@@ -745,3 +746,4 @@ export default function FichaPage() {
 }
 
     
+
