@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -63,8 +64,15 @@ type SummaryData = {
     otrosNoEspecificado: CategoryData;
 };
 
+type DistrictInfoForBreakdown = {
+    name: string;
+    code?: string;
+    deptCode?: string;
+    deptName: string;
+}
+
 type BreakdownData = {
-    [department: string]: string[];
+    [department: string]: DistrictInfoForBreakdown[];
 }
 
 
@@ -175,7 +183,7 @@ export default function ResumenPage() {
             distrito: report.distrito!,
         };
         
-        if (lugar.includes('habitacion segura') || lugar.includes('registro')) {
+        if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) {
             summary.habitacionSegura.count++;
             summary.habitacionSegura.districts.push(districtInfo);
             summary.habitacionSegura.reports.push(report);
@@ -210,31 +218,47 @@ export default function ResumenPage() {
   }, [datosData, reportsData]);
 
   useEffect(() => {
-    if (reportsData) {
+    if (reportsData && datosData) {
         const comisariaSummary: BreakdownData = {};
         const habitacionSeguraSummary: BreakdownData = {};
+
+        const datosMap = new Map<string, { deptCode?: string, distCode?: string }>();
+        datosData.forEach(dato => {
+            const key = `${dato.departamento}-${dato.distrito}`;
+            if (!datosMap.has(key)) {
+                datosMap.set(key, { deptCode: dato.departamento_codigo, distCode: dato.distrito_codigo });
+            }
+        });
 
         reportsData.forEach(report => {
             const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
             const deptName = report.departamento!;
             const distName = report.distrito!;
+            const datoInfo = datosMap.get(`${deptName}-${distName}`);
+
+            const districtInfo: DistrictInfoForBreakdown = {
+                name: distName,
+                code: datoInfo?.distCode,
+                deptCode: datoInfo?.deptCode,
+                deptName: deptName
+            };
 
             if (lugar.includes('comisaria')) {
                 if (!comisariaSummary[deptName]) {
                     comisariaSummary[deptName] = [];
                 }
-                comisariaSummary[deptName].push(distName);
-            } else if (lugar.includes('habitacion segura') || lugar.includes('registro')) {
+                comisariaSummary[deptName].push(districtInfo);
+            } else if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) {
                  if (!habitacionSeguraSummary[deptName]) {
                     habitacionSeguraSummary[deptName] = [];
                 }
-                habitacionSeguraSummary[deptName].push(distName);
+                habitacionSeguraSummary[deptName].push(districtInfo);
             }
         });
         setComisariaData(comisariaSummary);
         setHabitacionSeguraData(habitacionSeguraSummary);
     }
-}, [reportsData]);
+}, [reportsData, datosData]);
 
 const handleGeneratePdf = async () => {
     if (!structuredData || !summaryData || !logo1Base64 || !logoBase64) return;
@@ -546,18 +570,29 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                                 </AccordionTrigger>
                                 <AccordionContent className="pt-2 space-y-1">
                                     <Accordion type="multiple" className="w-full">
-                                    {Object.entries(habitacionSeguraData).sort(([deptA], [deptB]) => deptA.localeCompare(deptB)).map(([dept, districts]) => (
-                                        <AccordionItem value={dept} key={dept}>
-                                            <AccordionTrigger className="p-0 hover:no-underline text-xs">
-                                               {dept} ({districts.length})
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 pl-4 space-y-1">
-                                                {districts.map(dist => (
-                                                    <div key={dist} className="text-xs cursor-pointer hover:font-semibold" onClick={(e) => { e.stopPropagation(); handleDistrictClick(dept, dist); }}>{dist}</div>
-                                                ))}
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    ))}
+                                    {Object.entries(habitacionSeguraData)
+                                      .sort(([deptA], [deptB]) => deptA.localeCompare(deptB))
+                                      .map(([dept, districts]) => {
+                                        const firstDistrict = districts[0];
+                                        const deptCode = firstDistrict?.deptCode;
+                                        const deptDisplayName = deptCode ? `${deptCode} - ${dept.toUpperCase()}` : dept.toUpperCase();
+                                        return (
+                                          <AccordionItem value={dept} key={dept}>
+                                              <AccordionTrigger className="p-0 hover:no-underline text-xs">
+                                                 {deptDisplayName} ({districts.length})
+                                              </AccordionTrigger>
+                                              <AccordionContent className="pt-2 pl-4 space-y-1">
+                                                  {districts
+                                                      .sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }))
+                                                      .map(dist => (
+                                                      <div key={dist.name} className="text-xs cursor-pointer hover:font-semibold" onClick={(e) => { e.stopPropagation(); handleDistrictClick(dist.deptName, dist.name); }}>
+                                                         {dist.deptCode && dist.code ? `${dist.deptCode} - ${dist.code} - ${dist.name}` : dist.name}
+                                                      </div>
+                                                  ))}
+                                              </AccordionContent>
+                                          </AccordionItem>
+                                      )
+                                    })}
                                     </Accordion>
                                 </AccordionContent>
                               </AccordionItem>
@@ -592,18 +627,29 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
                                 </AccordionTrigger>
                                 <AccordionContent className="pt-2 space-y-1">
                                     <Accordion type="multiple" className="w-full">
-                                    {Object.entries(comisariaData).sort(([deptA], [deptB]) => deptA.localeCompare(deptB)).map(([dept, districts]) => (
-                                        <AccordionItem value={dept} key={dept}>
+                                    {Object.entries(comisariaData)
+                                      .sort(([deptA], [deptB]) => deptA.localeCompare(deptB))
+                                      .map(([dept, districts]) => {
+                                        const firstDistrict = districts[0];
+                                        const deptCode = firstDistrict?.deptCode;
+                                        const deptDisplayName = deptCode ? `${deptCode} - ${dept.toUpperCase()}` : dept.toUpperCase();
+                                        return (
+                                          <AccordionItem value={dept} key={dept}>
                                             <AccordionTrigger className="p-0 hover-no-underline text-xs">
-                                               {dept} ({districts.length})
+                                               {deptDisplayName} ({districts.length})
                                             </AccordionTrigger>
                                             <AccordionContent className="pt-2 pl-4 space-y-1">
-                                                {districts.map(dist => (
-                                                    <div key={dist} className="text-xs cursor-pointer hover:font-semibold" onClick={(e) => { e.stopPropagation(); handleDistrictClick(dept, dist); }}>{dist}</div>
+                                                {districts
+                                                    .sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true }))
+                                                    .map(dist => (
+                                                      <div key={dist.name} className="text-xs cursor-pointer hover:font-semibold" onClick={(e) => { e.stopPropagation(); handleDistrictClick(dist.deptName, dist.name); }}>
+                                                         {dist.deptCode && dist.code ? `${dist.deptCode} - ${dist.code} - ${dist.name}` : dist.name}
+                                                      </div>
                                                 ))}
                                             </AccordionContent>
-                                        </AccordionItem>
-                                    ))}
+                                          </AccordionItem>
+                                        )
+                                    })}
                                     </Accordion>
                                 </AccordionContent>
                               </AccordionItem>
@@ -742,3 +788,6 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
+
+
+    
