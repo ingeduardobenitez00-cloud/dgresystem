@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -72,8 +71,8 @@ type BreakdownData = {
 const ResguardoIcon = ({ lugar }: { lugar: string | undefined }) => {
   const normalizedLugar = lugar ? lugar.toLowerCase() : '';
 
-  if (normalizedLugar.includes('habitacion segura') || normalizedLugar.includes('registro electoral')) {
-    return <CheckCircle className="h-5 w-5 text-green-600" title="Habitación Segura / Registro Electoral" />;
+  if (normalizedLugar.includes('habitacion segura') || normalizedLugar.includes('registro')) {
+    return <CheckCircle className="h-5 w-5 text-green-600" title="Habitación Segura / Registro" />;
   }
   if (normalizedLugar.includes('comisaria')) {
     return <Shield className="h-5 w-5 text-blue-600" title="Comisaría" />;
@@ -176,7 +175,7 @@ export default function ResumenPage() {
             distrito: report.distrito!,
         };
         
-        if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
+        if (lugar.includes('habitacion segura') || lugar.includes('registro')) {
             summary.habitacionSegura.count++;
             summary.habitacionSegura.districts.push(districtInfo);
             summary.habitacionSegura.reports.push(report);
@@ -225,7 +224,7 @@ export default function ResumenPage() {
                     comisariaSummary[deptName] = [];
                 }
                 comisariaSummary[deptName].push(distName);
-            } else if (lugar.includes('habitacion segura') || lugar.includes('registro electoral')) {
+            } else if (lugar.includes('habitacion segura') || lugar.includes('registro')) {
                  if (!habitacionSeguraSummary[deptName]) {
                     habitacionSeguraSummary[deptName] = [];
                 }
@@ -743,5 +742,3 @@ const handleGenerateCategoryPdf = async (categoryKey: keyof SummaryData | 'otros
     </div>
   );
 }
-
-    
