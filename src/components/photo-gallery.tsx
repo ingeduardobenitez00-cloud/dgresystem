@@ -15,8 +15,7 @@ import { Upload, ImageIcon, Loader2, Trash2, AlertCircle, Download } from 'lucid
 import { type Dato, type District, type ImageData } from '@/lib/data';
 import { UploadDialog } from '@/components/upload-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
-import { useFirestore, useMemoFirebase } from '@/firebase';
-import { useUser } from '@/firebase/auth/use-user';
+import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, getDocs, query, where, deleteDoc, addDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';

@@ -13,8 +13,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Settings, ImageIcon, Users, FileText, LogOut, BarChart3, LayoutDashboard, User, FileArchive, UploadCloud } from "lucide-react";
-import { useFirebase } from "@/firebase";
-import { useUser } from "@/firebase/auth/use-user";
+import { useFirebase, useUser } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 

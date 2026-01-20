@@ -1,57 +1,14 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, Loader2, ImageIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import Header from '@/components/header';
-import { useUser } from '@/firebase/auth/use-user';
+import { useUser } from '@/firebase';
+import { dashboardMenuItems } from '@/lib/menu-config';
 
-const menuItems = [
-  {
-    href: '/ficha',
-    label: 'Vista de Ficha',
-    icon: FileText,
-    description: 'Consulta informes detallados e imágenes por distrito.',
-  },
-  {
-    href: '/fotos',
-    label: 'Imágenes',
-    icon: ImageIcon,
-    description: 'Explora y gestiona las imágenes de los registros.',
-  },
-  {
-    href: '/cargar-ficha',
-    label: 'Cargar Ficha',
-    icon: UploadCloud,
-    description: 'Accede a tu distrito asignado para cargar datos.',
-  },
-  {
-    href: '/resumen',
-    label: 'Resumen',
-    icon: BarChart3,
-    description: 'Explora un resumen detallado de los informes.',
-  },
-  {
-    href: '/informe-general',
-    label: 'Informe General',
-    icon: FileArchive,
-    description: 'Genera un PDF consolidado de todos los distritos.',
-  },
-  {
-    href: '/users',
-    label: 'Usuarios',
-    icon: Users,
-    description: 'Gestiona los usuarios y sus permisos en el sistema.',
-  },
-  {
-    href: '/settings',
-    label: 'Configuración',
-    icon: Settings,
-    description: 'Importa datos y configura la aplicación.',
-  },
-];
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -59,7 +16,7 @@ export default function Home() {
 
   const accessibleMenuItems = useMemo(() => {
     if (!user) return [];
-    return menuItems.filter(item => {
+    return dashboardMenuItems.filter(item => {
       if (user.profile?.role === 'admin') {
         return true;
       }
@@ -68,16 +25,8 @@ export default function Home() {
     });
   }, [user]);
 
-  useEffect(() => {
-    if (!isUserLoading && user?.profile?.role !== 'admin') {
-      if (accessibleMenuItems.length === 1) {
-        router.replace(accessibleMenuItems[0].href);
-      }
-    }
-  }, [isUserLoading, user, accessibleMenuItems, router]);
-
-  // Show a loading screen while user data is loading or during redirection
-  if (isUserLoading || (user?.profile?.role !== 'admin' && accessibleMenuItems.length === 1)) {
+  // The main loading and redirection is handled by AuthLayout
+  if (isUserLoading) {
     return (
       <div className="flex min-h-screen w-full flex-col">
         <Header title="Panel Principal" />

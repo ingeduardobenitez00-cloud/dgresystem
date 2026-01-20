@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { useUser } from '@/firebase/auth/use-user';
+import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {
@@ -607,7 +606,7 @@ export default function FichaPage() {
                             </CardTitle>
                             <CardDescription>{selectedDepartment} - {selectedDistrict}</CardDescription>
                           </div>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-2 items-end">
                              {canEditReport && (
                                <Button onClick={() => setEditModalOpen(true)} variant="outline" size="sm">
                                   <Edit className="mr-2 h-4 w-4" />

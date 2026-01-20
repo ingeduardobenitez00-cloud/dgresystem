@@ -12,8 +12,7 @@ import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, KeyRound } from 'l
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { useUser } from '@/firebase/auth/use-user';
+import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail, getAuth, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
