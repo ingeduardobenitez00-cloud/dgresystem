@@ -240,55 +240,161 @@ export default function LocalesVotacionPage() {
         )}
         
         {shouldFetch && !isSearching && (
-          <Card className="w-full max-w-7xl mx-auto">
-            <CardHeader>
-                <CardTitle>Resultados de la Búsqueda</CardTitle>
-                <CardDescription>
-                  {localesData ? `Se encontraron ${localesData.length} locales de votación.` : 'No se encontraron locales para la selección actual.'}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {localesData && localesData.length > 0 ? (
-                <div className="overflow-auto border rounded-md">
-                   <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Código</TableHead>
-                          <TableHead>Departamento</TableHead>
-                          <TableHead>Distrito</TableHead>
-                          <TableHead>Zona</TableHead>
-                          <TableHead>Local</TableHead>
-                          <TableHead>Dirección</TableHead>
-                          <TableHead>GPS</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {localesData.map((local) => (
-                          <TableRow key={local.id}>
-                            <TableCell>{local.codigo_local}</TableCell>
-                            <TableCell>{local.departamento}</TableCell>
-                            <TableCell>{local.distrito}</TableCell>
-                            <TableCell>{local.zona || '-'}</TableCell>
-                            <TableCell 
-                              className="font-medium cursor-pointer hover:underline"
-                              onClick={() => handleViewFicha(local)}
-                            >
-                              {local.local}
-                            </TableCell>
-                            <TableCell>{local.direccion}</TableCell>
-                            <TableCell>{local.gps}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No se encontraron locales de votación para la selección actual.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <>
+            {(() => {
+                if (!localesData) {
+                    return (
+                        <Card className="w-full max-w-7xl mx-auto">
+                            <CardHeader>
+                                <CardTitle>Resultados de la Búsqueda</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-center py-12">
+                                    <p className="text-muted-foreground">No se encontraron locales para la selección actual.</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                }
+
+                if (localesData.length === 1) {
+                    const local = localesData[0];
+                    const fichaPhotos = fotoKeys.map(key => ({ key, src: local[key] as string })).filter(p => p.src);
+                    return (
+                        <Card className="w-full max-w-4xl mx-auto">
+                            <CardHeader>
+                                <CardTitle>{local.local}</CardTitle>
+                                <CardDescription>{local.departamento} - {local.distrito}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <p><span className="font-semibold">Código:</span> {local.codigo_local || 'N/A'}</p>
+                                    <p><span className="font-semibold">Zona:</span> {local.zona || 'N/A'}</p>
+                                    <p className="md:col-span-2"><span className="font-semibold">Dirección:</span> {local.direccion || 'N/A'}</p>
+                                    <div className="md:col-span-2">
+                                        <span className="font-semibold">GPS:</span>{' '}
+                                        {local.gps ? (
+                                            <a
+                                                href={`https://www.google.com/maps/search/?api=1&query=${local.gps}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-primary hover:underline"
+                                            >
+                                                <span>{local.gps}</span>
+                                                <MapPin className="h-4 w-4" />
+                                            </a>
+                                        ) : (
+                                            'N/A'
+                                        )}
+                                    </div>
+                                </div>
+
+                                {local.gps && <Separator />}
+
+                                {local.gps && (
+                                    <div>
+                                        <h3 className="font-semibold mb-4 text-lg">Ubicación en el Mapa</h3>
+                                        <div className="aspect-video w-full rounded-md overflow-hidden border">
+                                            <iframe
+                                                width="100%"
+                                                height="100%"
+                                                loading="lazy"
+                                                allowFullScreen
+                                                referrerPolicy="no-referrer-when-downgrade"
+                                                src={`https://maps.google.com/maps?q=${encodeURIComponent(local.gps)}&z=16&output=embed`}
+                                            >
+                                            </iframe>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(local.gps && fichaPhotos.length > 0) && <Separator />}
+
+                                <div>
+                                    <h3 className="font-semibold mb-4 text-lg">Fotos</h3>
+                                    {fichaPhotos.length > 0 ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                            {fichaPhotos.map(({ key, src }) => (
+                                                <Card key={key} className="overflow-hidden">
+                                                    <div className="relative aspect-video">
+                                                        <Image src={`/${src}`} alt={`Foto ${key}`} fill className="object-cover" />
+                                                    </div>
+                                                    <CardFooter className="p-2 text-xs text-muted-foreground capitalize">
+                                                        {key.replace(/_/g, ' ')}
+                                                    </CardFooter>
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-8">No hay fotos para este local.</p>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                }
+
+                if (localesData.length > 1) {
+                    return (
+                        <Card className="w-full max-w-7xl mx-auto">
+                            <CardHeader>
+                                <CardTitle>Resultados de la Búsqueda</CardTitle>
+                                <CardDescription>Se encontraron {localesData.length} locales de votación.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-auto border rounded-md">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Código</TableHead>
+                                                <TableHead>Departamento</TableHead>
+                                                <TableHead>Distrito</TableHead>
+                                                <TableHead>Zona</TableHead>
+                                                <TableHead>Local</TableHead>
+                                                <TableHead>Dirección</TableHead>
+                                                <TableHead>GPS</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {localesData.map((local) => (
+                                                <TableRow key={local.id}>
+                                                    <TableCell>{local.codigo_local}</TableCell>
+                                                    <TableCell>{local.departamento}</TableCell>
+                                                    <TableCell>{local.distrito}</TableCell>
+                                                    <TableCell>{local.zona || '-'}</TableCell>
+                                                    <TableCell 
+                                                        className="font-medium cursor-pointer hover:underline"
+                                                        onClick={() => handleViewFicha(local)}
+                                                    >
+                                                        {local.local}
+                                                    </TableCell>
+                                                    <TableCell>{local.direccion}</TableCell>
+                                                    <TableCell>{local.gps}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                }
+
+                // This case handles localesData.length === 0
+                return (
+                    <Card className="w-full max-w-7xl mx-auto">
+                        <CardHeader>
+                            <CardTitle>Resultados de la Búsqueda</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-center py-12">
+                                <p className="text-muted-foreground">No se encontraron locales de votación para la selección actual.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })()}
+            </>
         )}
       </main>
       
