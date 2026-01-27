@@ -70,18 +70,36 @@ export default function ImportarLocalesPage() {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+        if (json.length === 0) {
+          throw new Error("El archivo Excel está vacío o no tiene el formato correcto.");
+        }
+
+        const headers = Object.keys(json[0]);
+        const findHeader = (possibleNames: string[]) => {
+          for (const name of possibleNames) {
+            const foundHeader = headers.find(h => h.toLowerCase().trim() === name.toLowerCase());
+            if (foundHeader) return foundHeader;
+          }
+          return null;
+        };
+
+        const depHeader = findHeader(['departamento']);
+        const distHeader = findHeader(['distrito']);
+        const localHeader = findHeader(['local']);
+        const dirHeader = findHeader(['direccion', 'dirección']);
+
+        if (!depHeader || !distHeader || !localHeader) {
+          throw new Error('Columnas requeridas no encontradas. Asegúrate de que tu archivo contenga "departamento", "distrito" y "local".');
+        }
 
         const parsedData: Omit<LocalVotacion, 'id'>[] = json.map((row) => ({
-          departamento: row.DEPARTAMENTO || '',
-          distrito: row.DISTRITO || '',
-          local: row.LOCAL || '',
-          direccion: row.DIRECCION || '',
+          departamento: String(row[depHeader] || ''),
+          distrito: String(row[distHeader] || ''),
+          local: String(row[localHeader] || ''),
+          direccion: dirHeader ? String(row[dirHeader] || '') : '',
         }));
-
-        if (parsedData.length > 0 && (!parsedData[0].departamento || !parsedData[0].distrito || !parsedData[0].local)) {
-            throw new Error('Las columnas DEPARTAMENTO, DISTRITO, y LOCAL son requeridas.');
-        }
 
         setPreviewData(parsedData);
         toast({
@@ -95,6 +113,7 @@ export default function ImportarLocalesPage() {
           title: 'Error al procesar el archivo',
           description: error.message || 'El archivo no tiene el formato esperado. Revise las columnas.',
         });
+        setFileName(null);
       } finally {
         setIsParsing(false);
       }
@@ -165,7 +184,7 @@ export default function ImportarLocalesPage() {
               Importar Locales de Votación
             </CardTitle>
             <CardDescription>
-              Sube un archivo .xlsx o .csv con las columnas DEPARTAMENTO, DISTRITO, LOCAL y DIRECCION.
+              Sube un archivo .xlsx o .csv con las columnas "departamento", "distrito", "local" y "direccion". El sistema es flexible con mayúsculas/minúsculas.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
