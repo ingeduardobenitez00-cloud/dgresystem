@@ -21,7 +21,8 @@ type FilePreview = {
   status: 'pending' | 'processing' | 'matched' | 'unmatched' | 'error';
 };
 
-const BATCH_SIZE = 50; // Firestore batch limit is 500 writes, but let's be safe with smaller batches of files.
+const BATCH_SIZE = 450; // Firestore batch limit is 500 writes
+const PREVIEW_LIMIT = 200;
 
 export default function CargarFotosLocalesPage() {
   const { firestore } = useFirebase();
@@ -184,7 +185,7 @@ export default function CargarFotosLocalesPage() {
                 </p>
                 <p className="text-sm text-muted-foreground">Sube todas las fotos de los locales a la vez</p>
               </div>
-              <Input id="photo-upload" type="file" className="hidden" onChange={handleFileChange} multiple accept="image/*" disabled={isProcessing || isLoadingLocales} />
+              <Input id="photo-upload" type="file" className="hidden" onChange={handleFileChange} multiple accept="image/jpeg,image/jpg" disabled={isProcessing || isLoadingLocales} />
             </label>
             {isLoadingLocales && (
                 <div className="flex items-center justify-center text-muted-foreground">
@@ -201,12 +202,17 @@ export default function CargarFotosLocalesPage() {
               <CardTitle>Fotos para Subir ({filesToUpload.length})</CardTitle>
                <CardDescription>
                 Revisa las imágenes seleccionadas. Las que tengan un nombre de archivo que coincida con la referencia del Excel se guardarán.
+                {filesToUpload.length > PREVIEW_LIMIT && (
+                  <span className="block mt-2 font-semibold text-primary">
+                    Mostrando una previsualización de {PREVIEW_LIMIT} de {filesToUpload.length} imágenes para mantener la aplicación fluida.
+                  </span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-80 w-full pr-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {filesToUpload.map(f => (
+                        {filesToUpload.slice(0, PREVIEW_LIMIT).map(f => (
                             <div key={f.id} className="relative group">
                                 <Image src={f.previewUrl} alt={f.file.name} width={200} height={150} className="object-cover rounded-md aspect-video" />
                                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
@@ -239,7 +245,7 @@ export default function CargarFotosLocalesPage() {
               )}
               <Button onClick={handleSaveData} className="w-full mt-6" size="lg" disabled={isProcessing || isLoadingLocales}>
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                {isProcessing ? 'Procesando...' : `Guardar ${filesToUpload.length} Fotos`}
+                {isProcessing ? 'Procesando...' : `Guardar ${filesToUpload.length} Foto${filesToUpload.length !== 1 ? 's' : ''}`}
               </Button>
             </CardContent>
           </Card>
