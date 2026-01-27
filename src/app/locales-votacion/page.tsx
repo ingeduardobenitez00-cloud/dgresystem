@@ -32,10 +32,12 @@ export default function LocalesVotacionPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
   const [zonas, setZonas] = useState<string[]>([]);
+  const [locales, setLocales] = useState<string[]>([]);
 
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  const [selectedLocalFilter, setSelectedLocalFilter] = useState<string | null>(null);
   const [shouldFetch, setShouldFetch] = useState(false);
 
   // Data for locales
@@ -52,13 +54,17 @@ export default function LocalesVotacionPage() {
     if (selectedZone) {
       conditions.push(where('zona', '==', selectedZone));
     }
+    if (selectedLocalFilter) {
+      conditions.push(where('local', '==', selectedLocalFilter));
+    }
 
     if (conditions.length > 0) {
       return query(collection(firestore, 'locales-votacion'), ...conditions);
     }
     
-    return collection(firestore, 'locales-votacion');
-  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict, selectedZone]);
+    // The search is only triggered via button, so we don't need a case for no conditions
+    return null;
+  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict, selectedZone, selectedLocalFilter]);
 
   const { data: localesData, isLoading: isLoadingLocales } = useCollection<LocalVotacion>(localesQuery);
   
@@ -80,6 +86,8 @@ export default function LocalesVotacionPage() {
     } else {
       setDistricts([]);
     }
+    setZonas([]);
+    setLocales([]);
   }, [selectedDepartment, datosData]);
 
   useEffect(() => {
@@ -89,11 +97,28 @@ export default function LocalesVotacionPage() {
         .map(l => l.zona!)
       )].sort();
       setZonas(uniqueZonas);
-      setSelectedZone(null); 
     } else {
       setZonas([]);
     }
+    setLocales([]);
+    setSelectedZone(null); 
   }, [selectedDistrict, selectedDepartment, allLocalesForFilters]);
+
+  useEffect(() => {
+    if (selectedDistrict && allLocalesForFilters) {
+        let filteredLocales = allLocalesForFilters.filter(l => l.departamento === selectedDepartment && l.distrito === selectedDistrict);
+
+        if (selectedZone) {
+            filteredLocales = filteredLocales.filter(l => l.zona === selectedZone);
+        }
+
+        const uniqueLocales = [...new Set(filteredLocales.map(l => l.local))].sort();
+        setLocales(uniqueLocales);
+    } else {
+        setLocales([]);
+    }
+    setSelectedLocalFilter(null);
+  }, [selectedZone, selectedDistrict, selectedDepartment, allLocalesForFilters]);
   
   const handleViewFicha = (local: LocalVotacion) => {
     setSelectedLocal(local);
@@ -104,22 +129,32 @@ export default function LocalesVotacionPage() {
     setSelectedDepartment(value);
     setSelectedDistrict(null);
     setSelectedZone(null);
+    setSelectedLocalFilter(null);
     setShouldFetch(false);
   };
   
   const handleDistrictChange = (value: string) => {
     setSelectedDistrict(value === 'all' ? null : value);
     setSelectedZone(null);
+    setSelectedLocalFilter(null);
     setShouldFetch(false);
   };
 
   const handleZoneChange = (value: string) => {
     setSelectedZone(value === 'all' ? null : value);
+    setSelectedLocalFilter(null);
+    setShouldFetch(false);
+  };
+
+  const handleLocalChange = (value: string) => {
+    setSelectedLocalFilter(value === 'all' ? null : value);
     setShouldFetch(false);
   };
 
   const handleSearch = () => {
-    setShouldFetch(true);
+    if (selectedDepartment) {
+      setShouldFetch(true);
+    }
   };
 
   const isSearching = shouldFetch && isLoadingLocales;
@@ -131,18 +166,18 @@ export default function LocalesVotacionPage() {
     <div className="flex min-h-screen w-full flex-col">
       <Header title="Locales de Votación" />
       <main className="flex-1 p-4 md:p-6 lg:p-8 gap-8">
-        <Card className="w-full max-w-6xl mx-auto">
+        <Card className="w-full max-w-7xl mx-auto">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Vote className="h-6 w-6" />
               Búsqueda de Locales de Votación
             </CardTitle>
             <CardDescription>
-              Filtra los locales de votación por departamento, distrito y zona.
+              Filtra los locales de votación por departamento, distrito, zona y local.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
                 <Select onValueChange={handleDepartmentChange} value={selectedDepartment || ''} disabled={isLoadingFilters}>
@@ -178,7 +213,19 @@ export default function LocalesVotacionPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleSearch} disabled={!selectedDepartment || isSearching} className="w-full md:w-auto">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Local</label>
+                <Select onValueChange={handleLocalChange} value={selectedLocalFilter || 'all'} disabled={!selectedDistrict}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {locales.map(local => <SelectItem key={local} value={local}>{local}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleSearch} disabled={!selectedDepartment || isSearching} className="w-full">
                 {isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                 Buscar
               </Button>
