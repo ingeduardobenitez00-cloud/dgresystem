@@ -1,4 +1,4 @@
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -32,6 +32,12 @@ export const dashboardMenuItems = [
     description: 'Genera un PDF consolidado de todos los distritos.',
   },
   {
+    href: '/importar-reportes',
+    label: 'Importar Reportes',
+    icon: FileUp,
+    description: 'Importa datos de informes desde un archivo Excel.',
+  },
+  {
     href: '/users',
     label: 'Usuarios',
     icon: Users,
@@ -41,6 +47,6 @@ export const dashboardMenuItems = [
     href: '/settings',
     label: 'Configuración',
     icon: Settings,
-    description: 'Importa datos y configura la aplicación.',
+    description: 'Importa datos geográficos y configura la aplicación.',
   },
 ];

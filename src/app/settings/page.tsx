@@ -10,7 +10,7 @@ import { FileUp, Loader2, CheckCircle2, TableIcon, Database, PlusCircle, Trash2,
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { type Dato, type Department, type District, type ReportData } from '@/lib/data';
+import { type Dato, type Department, type District } from '@/lib/data';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Dialog,
@@ -52,7 +52,6 @@ export default function SettingsPage() {
   const [isParsing, setIsParsing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previewData, setPreviewData] = useState<Dato[]>([]);
-  const [reportPreviewData, setReportPreviewData] = useState<ReportData[]>([]);
   const { toast } = useToast();
   
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -163,62 +162,6 @@ export default function SettingsPage() {
     reader.readAsBinaryString(file);
   };
   
-  const handleReportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.type === 'text/csv') {
-        setFileName(file.name);
-        parseReportFile(file);
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Archivo no válido',
-          description: 'Por favor, selecciona un archivo .xlsx o .csv',
-        });
-        e.target.value = '';
-      }
-    }
-  };
-
-  const parseReportFile = (file: File) => {
-    setIsParsing(true);
-    setReportPreviewData([]);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: ReportData[] = XLSX.utils.sheet_to_json(worksheet);
-        
-        setReportPreviewData(json);
-        toast({
-          title: 'Vista previa de informe generada',
-          description: `Se han encontrado ${json.length} registros en el archivo.`,
-        });
-      } catch (error) {
-        console.error("Error parsing report file:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Error al procesar el archivo',
-          description: 'El archivo no tiene el formato esperado.',
-        });
-      } finally {
-        setIsParsing(false);
-      }
-    };
-    reader.onerror = () => {
-      toast({
-          variant: 'destructive',
-          title: 'Error al leer el archivo',
-          description: 'No se pudo leer el archivo seleccionado.',
-      });
-      setIsParsing(false);
-    }
-    reader.readAsBinaryString(file);
-  };
-
 
   const handleSaveData = async () => {
     if (!firestore || previewData.length === 0 || !currentUser) return;
@@ -355,48 +298,6 @@ export default function SettingsPage() {
       }
   };
 
-  const handleSaveReportData = async () => {
-    if (!firestore || !currentUser) return;
-    setIsUploading(true);
-
-    const BATCH_SIZE = 100;
-    const reportsCollection = collection(firestore, 'reports');
-
-    try {
-        for (let i = 0; i < reportPreviewData.length; i += BATCH_SIZE) {
-            const batch = writeBatch(firestore);
-            const chunk = reportPreviewData.slice(i, i + BATCH_SIZE);
-            chunk.forEach(report => {
-                const newReportRef = doc(reportsCollection);
-                batch.set(newReportRef, report);
-            });
-            await batch.commit();
-            await delay(2000); // Pause for 2 seconds between batches
-        }
-
-        toast({
-            title: 'Datos del informe guardados',
-            description: 'Los nuevos datos del informe se han añadido con éxito a Firestore.',
-            action: <CheckCircle2 className="text-green-500" />,
-        });
-        setReportPreviewData([]);
-        setFileName(null);
-    } catch(error) {
-        console.error(error);
-        const contextualError = new FirestorePermissionError({
-            operation: 'write',
-            path: 'reports (batch)',
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        toast({
-            title: 'Error al guardar informe',
-            description: 'No se pudieron guardar los datos del informe.',
-            variant: 'destructive',
-        });
-    } finally {
-        setIsUploading(false);
-    }
-  };
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -427,7 +328,7 @@ export default function SettingsPage() {
                 </div>
                 <Input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept=".xlsx,.csv" disabled={isParsing || isUploading} />
               </label>
-              {fileName && (previewData.length > 0 || reportPreviewData.length > 0) && (
+              {fileName && previewData.length > 0 && (
                 <p className="text-sm text-center text-muted-foreground">Archivo seleccionado: {fileName}</p>
               )}
             </div>
@@ -483,72 +384,6 @@ export default function SettingsPage() {
           </Card>
         )}
         
-        <Card className="w-full max-w-4xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileUp className="h-5 w-5" />
-              Importar Información de Reporte
-            </CardTitle>
-            <CardDescription>
-              Sube un archivo .xlsx o .csv con los detalles del informe.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <label
-                htmlFor="report-file-upload"
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted"
-              >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <FileUp className="w-8 h-8 mb-3 text-muted-foreground" />
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
-                  </p>
-                  <p className="text-xs text-muted-foreground">XLSX o CSV para informes</p>
-                </div>
-                <Input id="report-file-upload" type="file" className="hidden" onChange={handleReportFileChange} accept=".xlsx,.csv" disabled={isParsing || isUploading} />
-              </label>
-            </div>
-          </CardContent>
-        </Card>
-
-        {reportPreviewData.length > 0 && (
-          <Card className="w-full max-w-6xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TableIcon className="h-5 w-5" />
-                Vista Previa del Informe
-              </CardTitle>
-              <CardDescription>
-                Revisa los datos del informe que se importarán.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="max-h-96 overflow-auto border rounded-md">
-                    <Table>
-                        <TableHeader className="sticky top-0 bg-muted">
-                            <TableRow>
-                                {Object.keys(reportPreviewData[0] || {}).map(key => <TableHead key={key}>{key}</TableHead>)}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reportPreviewData.map((row, index) => (
-                                <TableRow key={index}>
-                                    {Object.values(row).map((value, i) => <TableCell key={i}>{String(value)}</TableCell>)}
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                 <Button onClick={handleSaveReportData} className="w-full mt-6" size="lg" disabled={isUploading}>
-                    {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Guardar Datos del Informe
-                </Button>
-            </CardContent>
-          </Card>
-        )}
-
-
         {departmentsWithDistricts.length > 0 && previewData.length === 0 && (
           <Card className="w-full max-w-4xl">
             <CardHeader>
