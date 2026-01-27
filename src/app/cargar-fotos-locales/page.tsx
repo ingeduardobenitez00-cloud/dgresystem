@@ -84,15 +84,16 @@ export default function CargarFotosLocalesPage() {
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/jpeg', 0.8));
+                const dataUri = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.7);
+                resolve(dataUri);
             } else {
-                reject(new Error('Canvas context not available.'));
+                reject(new Error(`No se pudo procesar: ${file.name}.`));
             }
         };
-        img.onerror = reject;
+        img.onerror = () => reject(new Error(`Error al cargar: ${file.name}.`));
         img.src = e.target?.result as string;
       };
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error('Error al leer el archivo.'));
       reader.readAsDataURL(file);
     });
   };
