@@ -1,12 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -41,16 +35,12 @@ export default function LocalesVotacionPage() {
 
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  const [selectedZone, setSelectedZone] = useState<string | null>('');
   const [shouldFetch, setShouldFetch] = useState(false);
 
   // Data for locales
   const localesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-
-    if (!shouldFetch) {
-      return collection(firestore, 'locales-votacion');
-    }
+    if (!firestore || !shouldFetch) return null;
 
     const conditions = [];
     if (selectedDepartment) {
@@ -74,19 +64,6 @@ export default function LocalesVotacionPage() {
   
   const [selectedLocal, setSelectedLocal] = useState<LocalVotacion | null>(null);
   const [isFichaOpen, setIsFichaOpen] = useState(false);
-
-  // Group data by department
-  const localesByDepartment = useMemo(() => {
-    if (!localesData) return {};
-    return localesData.reduce((acc, local) => {
-      const { departamento } = local;
-      if (!acc[departamento]) {
-        acc[departamento] = [];
-      }
-      acc[departamento].push(local);
-      return acc;
-    }, {} as Record<string, LocalVotacion[]>);
-  }, [localesData]);
 
   // Populate filters
   useEffect(() => {
@@ -112,7 +89,7 @@ export default function LocalesVotacionPage() {
         .map(l => l.zona!)
       )].sort();
       setZonas(uniqueZonas);
-      setSelectedZone(null); 
+      setSelectedZone(''); 
     } else {
       setZonas([]);
     }
@@ -126,13 +103,13 @@ export default function LocalesVotacionPage() {
   const handleDepartmentChange = (value: string) => {
     setSelectedDepartment(value);
     setSelectedDistrict(null);
-    setSelectedZone(null);
+    setSelectedZone('');
     setShouldFetch(false);
   };
   
   const handleDistrictChange = (value: string) => {
     setSelectedDistrict(value);
-    setSelectedZone(null);
+    setSelectedZone('');
     setShouldFetch(false);
   };
 
@@ -145,7 +122,8 @@ export default function LocalesVotacionPage() {
     setShouldFetch(true);
   };
 
-  const isLoading = isLoadingDatos || isLoadingAllLocales || (shouldFetch && isLoadingLocales);
+  const isSearching = shouldFetch && isLoadingLocales;
+  const isLoadingFilters = isLoadingDatos || isLoadingAllLocales;
 
   const photos = selectedLocal ? fotoKeys.map(key => ({ key, src: selectedLocal[key] as string })).filter(p => p.src) : [];
 
@@ -157,19 +135,19 @@ export default function LocalesVotacionPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Vote className="h-6 w-6" />
-              Listado de Locales de Votación
+              Búsqueda de Locales de Votación
             </CardTitle>
             <CardDescription>
-              Consulta los locales de votación importados. Puedes filtrar por departamento y distrito.
+              Filtra los locales de votación por departamento, distrito y zona.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
-                <Select onValueChange={handleDepartmentChange} value={selectedDepartment || ''} disabled={isLoadingDatos}>
+                <Select onValueChange={handleDepartmentChange} value={selectedDepartment || ''} disabled={isLoadingFilters}>
                   <SelectTrigger>
-                    <SelectValue placeholder={isLoadingDatos ? 'Cargando...' : 'Selecciona un departamento'} />
+                    <SelectValue placeholder={isLoadingFilters ? 'Cargando...' : 'Selecciona un departamento'} />
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map(dept => <SelectItem key={dept} value={dept}>{dept}</SelectItem>)}
@@ -180,9 +158,10 @@ export default function LocalesVotacionPage() {
                 <label className="text-sm font-medium">Distrito</label>
                 <Select onValueChange={handleDistrictChange} value={selectedDistrict || ''} disabled={!selectedDepartment}>
                   <SelectTrigger>
-                    <SelectValue placeholder={!selectedDepartment ? 'Primero selecciona un dpto.' : 'Selecciona un distrito'} />
+                    <SelectValue placeholder={!selectedDepartment ? 'Primero selecciona un dpto.' : 'Todos'} />
                   </SelectTrigger>
                   <SelectContent>
+                     <SelectItem value="">Todos</SelectItem>
                     {districts.map(dist => <SelectItem key={dist} value={dist}>{dist}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -191,73 +170,71 @@ export default function LocalesVotacionPage() {
                 <label className="text-sm font-medium">Zona</label>
                 <Select onValueChange={handleZoneChange} value={selectedZone || ''} disabled={!selectedDistrict}>
                   <SelectTrigger>
-                    <SelectValue placeholder={!selectedDistrict ? 'Primero selecciona un dist.' : 'Selecciona una zona'} />
+                    <SelectValue placeholder={!selectedDistrict ? 'Primero selecciona un dist.' : 'Todas'} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Todas</SelectItem>
                     {zonas.map(zona => <SelectItem key={zona} value={zona}>{zona}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleSearch} disabled={!selectedDepartment || isLoading} className="w-full md:w-auto">
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              <Button onClick={handleSearch} disabled={!selectedDepartment || isSearching} className="w-full md:w-auto">
+                {isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                 Buscar
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {isLoading && (
+        {isSearching && (
           <div className="flex justify-center items-center py-10">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
           </div>
         )}
         
-        {!isLoading && localesData && (
+        {shouldFetch && !isSearching && (
           <Card className="w-full max-w-7xl mx-auto">
-            <CardContent className="pt-6">
-              {Object.keys(localesByDepartment).length > 0 ? (
-                <Accordion type="single" collapsible className="w-full" defaultValue={Object.keys(localesByDepartment)[0]}>
-                  {Object.keys(localesByDepartment).sort().map((department) => (
-                    <AccordionItem value={department} key={department}>
-                      <AccordionTrigger className="text-lg font-semibold hover:no-underline data-[state=open]:text-primary">
-                        {department}
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="overflow-auto border rounded-md">
-                           <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Código</TableHead>
-                                  <TableHead>Distrito</TableHead>
-                                  <TableHead>Zona</TableHead>
-                                  <TableHead>Local</TableHead>
-                                  <TableHead>Dirección</TableHead>
-                                  <TableHead>GPS</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {localesByDepartment[department].map((local) => (
-                                  <TableRow key={local.id}>
-                                    <TableCell>{local.codigo_local}</TableCell>
-                                    <TableCell>{local.distrito}</TableCell>
-                                    <TableCell>{local.zona}</TableCell>
-                                    <TableCell 
-                                      className="font-medium cursor-pointer hover:underline"
-                                      onClick={() => handleViewFicha(local)}
-                                    >
-                                      {local.local}
-                                    </TableCell>
-                                    <TableCell>{local.direccion}</TableCell>
-                                    <TableCell>{local.gps}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
+            <CardHeader>
+                <CardTitle>Resultados de la Búsqueda</CardTitle>
+                <CardDescription>
+                  {localesData ? `Se encontraron ${localesData.length} locales de votación.` : 'No se encontraron locales para la selección actual.'}
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {localesData && localesData.length > 0 ? (
+                <div className="overflow-auto border rounded-md">
+                   <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Departamento</TableHead>
+                          <TableHead>Distrito</TableHead>
+                          <TableHead>Zona</TableHead>
+                          <TableHead>Local</TableHead>
+                          <TableHead>Dirección</TableHead>
+                          <TableHead>GPS</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {localesData.map((local) => (
+                          <TableRow key={local.id}>
+                            <TableCell>{local.codigo_local}</TableCell>
+                            <TableCell>{local.departamento}</TableCell>
+                            <TableCell>{local.distrito}</TableCell>
+                            <TableCell>{local.zona || '-'}</TableCell>
+                            <TableCell 
+                              className="font-medium cursor-pointer hover:underline"
+                              onClick={() => handleViewFicha(local)}
+                            >
+                              {local.local}
+                            </TableCell>
+                            <TableCell>{local.direccion}</TableCell>
+                            <TableCell>{local.gps}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground">No se encontraron locales de votación para la selección actual.</p>
