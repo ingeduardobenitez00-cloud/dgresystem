@@ -45,9 +45,10 @@ export default function CargarFotosLocalesPage() {
       fotoKeys.forEach(key => {
         const path = local[key] as string;
         if (path && typeof path === 'string' && !path.startsWith('data:image')) {
-          const filename = path.substring(path.lastIndexOf('/') + 1);
+          const normalizedPath = path.replace(/\\/g, '/');
+          const filename = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
           if (filename) {
-            map.set(filename, { docId: local.id, field: key });
+            map.set(filename.trim().toLowerCase(), { docId: local.id, field: key });
           }
         }
       });
@@ -124,7 +125,7 @@ export default function CargarFotosLocalesPage() {
 
         for (const filePreview of chunk) {
             setFilesToUpload(prev => prev.map(f => f.id === filePreview.id ? { ...f, status: 'processing' } : f));
-            const match = filenameMap.get(filePreview.file.name);
+            const match = filenameMap.get(filePreview.file.name.trim().toLowerCase());
 
             if (match) {
                 try {
@@ -145,7 +146,17 @@ export default function CargarFotosLocalesPage() {
         }
 
         if (writesInBatch > 0) {
-            await batch.commit();
+            try {
+                await batch.commit();
+            } catch(e) {
+                 errorCount += writesInBatch; // Assume all writes in this batch failed
+                 console.error("Error committing batch: ", e);
+                 toast({
+                    variant: 'destructive',
+                    title: 'Error de Red',
+                    description: 'No se pudo guardar un lote de imágenes. Revisa tu conexión y los permisos.',
+                 });
+            }
         }
         setProgress(Math.round(((i + chunk.length) / totalFiles) * 100));
     }
