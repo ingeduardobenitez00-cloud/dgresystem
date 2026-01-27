@@ -84,6 +84,10 @@ export default function ImportarLocalesPage() {
           }
           return null;
         };
+        
+        const cleanAndNormalizePath = (value: any) => {
+            return String(value || '').replace(/\\/g, '/').trim();
+        }
 
         const codigoLocalHeader = findHeader(['codigo_local']);
         const depHeader = findHeader(['departamento']);
@@ -116,16 +120,16 @@ export default function ImportarLocalesPage() {
           local: String(row[localHeader] || '').trim(),
           direccion: dirHeader ? String(row[dirHeader] || '').trim() : '',
           gps: gpsHeader ? String(row[gpsHeader] || '').trim() : '',
-          foto_frente: fotoFrenteHeader ? String(row[fotoFrenteHeader] || '').trim() : '',
-          foto2: foto2Header ? String(row[foto2Header] || '').trim() : '',
-          foto3: foto3Header ? String(row[foto3Header] || '').trim() : '',
-          foto4: foto4Header ? String(row[foto4Header] || '').trim() : '',
-          foto5: foto5Header ? String(row[foto5Header] || '').trim() : '',
-          foto6: foto6Header ? String(row[foto6Header] || '').trim() : '',
-          foto7: foto7Header ? String(row[foto7Header] || '').trim() : '',
-          foto8: foto8Header ? String(row[foto8Header] || '').trim() : '',
-          foto9: foto9Header ? String(row[foto9Header] || '').trim() : '',
-          foto10: foto10Header ? String(row[foto10Header] || '').trim() : '',
+          foto_frente: fotoFrenteHeader ? cleanAndNormalizePath(row[fotoFrenteHeader]) : '',
+          foto2: foto2Header ? cleanAndNormalizePath(row[foto2Header]) : '',
+          foto3: foto3Header ? cleanAndNormalizePath(row[foto3Header]) : '',
+          foto4: foto4Header ? cleanAndNormalizePath(row[foto4Header]) : '',
+          foto5: foto5Header ? cleanAndNormalizePath(row[foto5Header]) : '',
+          foto6: foto6Header ? cleanAndNormalizePath(row[foto6Header]) : '',
+          foto7: foto7Header ? cleanAndNormalizePath(row[foto7Header]) : '',
+          foto8: foto8Header ? cleanAndNormalizePath(row[foto8Header]) : '',
+          foto9: foto9Header ? cleanAndNormalizePath(row[foto9Header]) : '',
+          foto10: foto10Header ? cleanAndNormalizePath(row[foto10Header]) : '',
         }));
 
         setPreviewData(parsedData);
