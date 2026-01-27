@@ -168,6 +168,11 @@ export default function CargarFotosLocalesPage() {
         title: 'Proceso completado',
         description: `${matchedCount} fotos guardadas, ${unmatchedCount} no coincidieron, ${errorCount} errores.`,
     });
+
+    setTimeout(() => {
+        setFilesToUpload([]);
+        setResults(null);
+    }, 4000);
   };
 
   return (
