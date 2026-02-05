@@ -1,8 +1,7 @@
-
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -13,6 +12,11 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const pathname = usePathname();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const accessibleMenuItems = useMemo(() => {
     if (!user?.profile) return [];
@@ -25,11 +29,8 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     });
   }, [user]);
 
-  // Handle all redirection logic in a useEffect to prevent side-effects during render
   useEffect(() => {
-    if (isUserLoading) {
-      return; // Wait until user loading is complete
-    }
+    if (isUserLoading || !mounted) return;
 
     if (!user && pathname !== '/login') {
       router.replace('/login');
@@ -41,30 +42,41 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
         router.replace(targetPath);
       }
     }
-  }, [isUserLoading, user, pathname, router, accessibleMenuItems]);
+  }, [isUserLoading, user, pathname, router, accessibleMenuItems, mounted]);
   
-  // Display a loader while auth state is being determined or a redirect is imminent
-  if (isUserLoading || (!user && pathname !== '/login') || (user && pathname === '/login') || (user && pathname === '/' && user.profile?.role !== 'admin' && accessibleMenuItems.length === 1)) {
+  // Show loader during initial auth check or if redirection is imminent
+  const isRedirecting = useMemo(() => {
+    if (isUserLoading || !mounted) return true;
+    if (!user && pathname !== '/login') return true;
+    if (user && pathname === '/login') return true;
+    if (user && pathname === '/' && user.profile?.role !== 'admin' && accessibleMenuItems.length === 1) return true;
+    return false;
+  }, [isUserLoading, user, pathname, accessibleMenuItems, mounted]);
+
+  if (isRedirecting) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="flex min-h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground animate-pulse">Cargando sistema...</p>
+        </div>
       </div>
     );
   }
 
-  // If on login page (and user is not logged in), just render children
   if (pathname === '/login') {
-    return <main key={pathname}>{children}</main>;
+    return <div key="login-root">{children}</div>;
   }
 
-  // For all other authenticated routes, render the layout
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <AppSidebar />
       </Sidebar>
       <SidebarInset>
-        <main key={pathname}>{children}</main>
+        <div key={pathname} className="flex flex-1 flex-col">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
