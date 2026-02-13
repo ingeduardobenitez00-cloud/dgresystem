@@ -240,8 +240,8 @@ export default function SolicitudCapacitacionPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="solicitante">Solicitante (Entidad/Referente)</Label>
-                <Input id="solicitante" name="solicitante" value={formData.solicitante} onChange={handleInputChange} placeholder="Ej: Municipalidad de..." />
+                <Label htmlFor="solicitante">Solicitante (PARTIDO POLITICO/MOVIMIENTO POLITICO)</Label>
+                <Input id="solicitante" name="solicitante" value={formData.solicitante} onChange={handleInputChange} placeholder="Ej: ANR, PLRA, etc." />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cedula">N° de Cédula</Label>
