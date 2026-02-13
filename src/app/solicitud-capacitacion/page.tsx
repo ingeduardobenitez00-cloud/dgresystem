@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -16,9 +15,6 @@ import { type SolicitudCapacitacion } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-
-// Leaflet imports (Dynamic)
-import L from 'leaflet';
 
 export default function SolicitudCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -41,61 +37,75 @@ export default function SolicitudCapacitacionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMap = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
+  const leafletMap = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && mapRef.current && !leafletMap.current) {
-      // Default position: Asunción, Paraguay
-      const defaultPos: [number, number] = [-25.3006, -57.6359];
-      
-      const map = L.map(mapRef.current).setView(defaultPos, 13);
-      
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+    let isMounted = true;
 
-      // Custom icon to avoid webpack path issues
-      const customIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      });
-
-      map.on('dblclick', (e: L.LeafletMouseEvent) => {
-        const { lat, lng } = e.latlng;
-        const latStr = lat.toFixed(6);
-        const lngStr = lng.toFixed(6);
+    const initMap = async () => {
+      if (typeof window !== 'undefined' && mapRef.current && !leafletMap.current) {
+        // Dynamically import Leaflet only on the client
+        const L = (await import('leaflet')).default;
         
-        setCoords({ lat: latStr, lng: lngStr });
-        setFormData(prev => ({ ...prev, gps: `${latStr}, ${lngStr}` }));
+        if (!isMounted) return;
 
-        if (markerRef.current) {
-          markerRef.current.setLatLng(e.latlng);
-        } else {
-          markerRef.current = L.marker(e.latlng, { icon: customIcon }).addTo(map);
-        }
-      });
+        // Default position: Asunción, Paraguay
+        const defaultPos: [number, number] = [-25.3006, -57.6359];
+        
+        const map = L.map(mapRef.current).setView(defaultPos, 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
-      // Disable default double click zoom to allow our custom interaction
-      map.doubleClickZoom.disable();
-
-      // Try to get user location
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition((position) => {
-          const userPos: [number, number] = [position.coords.latitude, position.coords.longitude];
-          map.setView(userPos, 16);
+        // Custom icon to avoid webpack path issues
+        const customIcon = L.icon({
+          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41]
         });
-      }
 
-      leafletMap.current = map;
-    }
+        map.on('dblclick', (e: any) => {
+          const { lat, lng } = e.latlng;
+          const latStr = lat.toFixed(6);
+          const lngStr = lng.toFixed(6);
+          
+          setCoords({ lat: latStr, lng: lngStr });
+          setFormData(prev => ({ ...prev, gps: `${latStr}, ${lngStr}` }));
+
+          if (markerRef.current) {
+            markerRef.current.setLatLng(e.latlng);
+          } else {
+            markerRef.current = L.marker(e.latlng, { icon: customIcon }).addTo(map);
+          }
+        });
+
+        // Disable default double click zoom to allow our custom interaction
+        map.doubleClickZoom.disable();
+
+        // Try to get user location
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition((position) => {
+            if (isMounted) {
+              const userPos: [number, number] = [position.coords.latitude, position.coords.longitude];
+              map.setView(userPos, 16);
+            }
+          });
+        }
+
+        leafletMap.current = map;
+      }
+    };
+
+    initMap();
 
     return () => {
+      isMounted = false;
       if (leafletMap.current) {
         leafletMap.current.remove();
         leafletMap.current = null;

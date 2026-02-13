@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import 'leaflet/dist/leaflet.css';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
@@ -9,7 +10,7 @@ import AppLayout from '@/components/app-layout';
 const inter = Inter({ 
   subsets: ['latin'], 
   variable: '--font-sans',
-  display: 'swap', // Mejora la fiabilidad de carga
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
