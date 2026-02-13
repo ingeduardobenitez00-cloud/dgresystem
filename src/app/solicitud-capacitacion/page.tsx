@@ -12,6 +12,7 @@ import { Loader2, MapPin, FileText, Camera, CheckCircle2, RefreshCw, MousePointe
 import { useUser, useFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
@@ -36,6 +37,7 @@ export default function SolicitudCapacitacionPage() {
   const [pdfGenerated, setPdfGenerated] = useState(false);
   const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
@@ -53,16 +55,18 @@ export default function SolicitudCapacitacionPage() {
           
           if (!isMounted || !mapRef.current) return;
 
+          // Punto de inicio: TSJE, Asunción, Paraguay
           const defaultPos: [number, number] = [-25.3006, -57.6359];
           
           const map = L.map(mapRef.current, {
             center: defaultPos,
             zoom: 15,
-            doubleClickZoom: false
+            doubleClickZoom: false,
+            attributionControl: false
           });
           
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '&copy; OpenStreetMap'
           }).addTo(map);
 
           const customIcon = L.icon({
@@ -92,7 +96,7 @@ export default function SolicitudCapacitacionPage() {
 
           setTimeout(() => {
             map.invalidateSize();
-          }, 200);
+          }, 500);
 
           leafletMap.current = map;
         } catch (error) {
@@ -117,47 +121,82 @@ export default function SolicitudCapacitacionPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const generatePdf = () => {
+  const generatePdf = async () => {
     if (!formData.solicitante || !formData.cedula || !formData.nombre_apellido || !formData.fecha || !formData.hora || !formData.lugar) {
       toast({ variant: "destructive", title: "Faltan datos", description: "Por favor completa todos los campos del formulario antes de generar el PDF." });
       return;
     }
 
-    const doc = new jsPDF();
-    const margin = 20;
-    let y = 30;
+    if (!formData.gps) {
+      toast({ variant: "destructive", title: "Ubicación requerida", description: "Debes marcar la ubicación en el mapa (doble clic) antes de generar el PDF." });
+      return;
+    }
 
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text("SOLICITUD DE CAPACITACIÓN", 105, y, { align: "center" });
-    y += 20;
+    setIsGeneratingPdf(true);
+    try {
+      const doc = new jsPDF();
+      const margin = 20;
+      let y = 30;
 
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Solicitante (PARTIDO/MOVIMIENTO): ${formData.solicitante}`, margin, y); y += 10;
-    doc.text(`N° de Cédula: ${formData.cedula}`, margin, y); y += 10;
-    doc.text(`Nombre y Apellido: ${formData.nombre_apellido}`, margin, y); y += 15;
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text("DATOS DE ASIGNACIÓN:", margin, y); y += 8;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Departamento: ${user?.profile?.departamento || 'No asignado'}`, margin, y); y += 8;
-    doc.text(`Distrito: ${user?.profile?.distrito || 'No asignado'}`, margin, y); y += 15;
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text("DETALLES DE LA CAPACITACIÓN:", margin, y); y += 8;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Fecha Solicitada: ${formData.fecha}`, margin, y); y += 8;
-    doc.text(`Hora: ${formData.hora}`, margin, y); y += 8;
-    doc.text(`Lugar: ${formData.lugar}`, margin, y); y += 8;
-    doc.text(`Coordenadas GPS: ${formData.gps || 'No especificadas'}`, margin, y); y += 30;
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text("SOLICITUD DE CAPACITACIÓN", 105, y, { align: "center" });
+      y += 20;
 
-    doc.text("__________________________", 105, y + 40, { align: "center" });
-    doc.text("Firma del Solicitante", 105, y + 50, { align: "center" });
+      // Personal Data
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Solicitante (PARTIDO/MOVIMIENTO): ${formData.solicitante}`, margin, y); y += 10;
+      doc.text(`N° de Cédula: ${formData.cedula}`, margin, y); y += 10;
+      doc.text(`Nombre y Apellido: ${formData.nombre_apellido}`, margin, y); y += 15;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text("DATOS DE ASIGNACIÓN:", margin, y); y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Departamento: ${user?.profile?.departamento || 'No asignado'}`, margin, y); y += 8;
+      doc.text(`Distrito: ${user?.profile?.distrito || 'No asignado'}`, margin, y); y += 15;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text("DETALLES DE LA CAPACITACIÓN:", margin, y); y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Fecha Solicitada: ${formData.fecha}`, margin, y); y += 8;
+      doc.text(`Hora: ${formData.hora}`, margin, y); y += 8;
+      doc.text(`Lugar: ${formData.lugar}`, margin, y); y += 8;
+      doc.text(`Coordenadas GPS: ${formData.gps}`, margin, y); y += 15;
 
-    doc.save(`Solicitud-Capacitacion-${formData.cedula}.pdf`);
-    setPdfGenerated(true);
-    toast({ title: "PDF Generado con éxito", description: "Imprime el documento, solicita la firma y luego captura la foto." });
+      // Capture Map
+      if (mapRef.current) {
+        const canvas = await html2canvas(mapRef.current, { 
+          useCORS: true,
+          logging: false,
+          scale: 2
+        });
+        const mapImgData = canvas.toDataURL('image/png');
+        doc.setFont('helvetica', 'bold');
+        doc.text("CAPTURA DE UBICACIÓN:", margin, y); y += 5;
+        doc.addImage(mapImgData, 'PNG', margin, y, 170, 80);
+        y += 90;
+      }
+
+      // Signature area
+      if (y > 240) {
+        doc.addPage();
+        y = 30;
+      }
+      
+      doc.text("__________________________", 105, y + 40, { align: "center" });
+      doc.text("Firma del Solicitante", 105, y + 50, { align: "center" });
+
+      doc.save(`Solicitud-Capacitacion-${formData.cedula}.pdf`);
+      setPdfGenerated(true);
+      toast({ title: "PDF Generado con éxito", description: "Imprime el documento, solicita la firma y luego captura la foto." });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF con la captura del mapa." });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,7 +231,7 @@ export default function SolicitudCapacitacionPage() {
 
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), solicitudData);
       
-      toast({ title: "¡Capacitación Agendada!", description: "La solicitud se ha guardado correctamente en el sistema." });
+      toast({ title: "¡Capacitación Agendada!", description: "La solicitud se ha guardado correctamente en la base de datos." });
       
       setFormData({
         solicitante: '',
@@ -230,7 +269,7 @@ export default function SolicitudCapacitacionPage() {
               <FileText className="h-6 w-6 text-primary" />
               Formulario de Solicitud
             </CardTitle>
-            <CardDescription>Completa todos los campos para generar la solicitud oficial.</CardDescription>
+            <CardDescription>Completa todos los campos. Los datos se guardarán automáticamente en la base de datos al finalizar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -315,16 +354,20 @@ export default function SolicitudCapacitacionPage() {
                 onClick={generatePdf} 
                 className="w-full sm:w-auto px-8 h-12 text-md font-bold transition-all hover:scale-105" 
                 variant="outline"
+                disabled={isGeneratingPdf}
               >
-                <FileText className="mr-2 h-5 w-5" />
-                GENERAR SOLICITUD EN PDF PARA FIRMA
+                {isGeneratingPdf ? (
+                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> CAPTURANDO MAPA Y GENERANDO PDF...</>
+                ) : (
+                  <><FileText className="mr-2 h-5 w-5" /> GENERAR SOLICITUD EN PDF CON MAPA</>
+                )}
               </Button>
               
               {pdfGenerated && (
                 <div className="w-full space-y-6 animate-in fade-in slide-in-from-top-4 duration-700">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-center gap-2 text-green-700 text-sm font-medium">
                     <CheckCircle2 className="h-5 w-5" />
-                    <span>PDF generado. Favor imprimir, firmar y capturar la imagen debajo.</span>
+                    <span>PDF generado con la ubicación. Favor imprimir, firmar y capturar la imagen debajo.</span>
                   </div>
 
                   <div className="rounded-2xl border-4 border-dashed border-primary/20 p-8 bg-primary/5 relative flex flex-col items-center text-center">
@@ -371,7 +414,7 @@ export default function SolicitudCapacitacionPage() {
               {isSubmitting ? (
                 <><Loader2 className="animate-spin mr-3 h-7 w-7" /> PROCESANDO...</>
               ) : (
-                <><CheckCircle2 className="mr-3 h-7 w-7" /> FINALIZAR Y AGENDAR SOLICITUD</>
+                <><CheckCircle2 className="mr-3 h-7 w-7" /> FINALIZAR Y GUARDAR EN BASE DE DATOS</>
               )}
             </Button>
           </CardFooter>
