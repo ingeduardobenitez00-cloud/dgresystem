@@ -220,6 +220,16 @@ export default function SolicitudCapacitacionPage() {
           <CardHeader>
             <CardTitle>Formulario de Solicitud</CardTitle>
             <CardDescription>Completa los datos. Usa el mapa para fijar la ubicación (Doble Clic).</CardDescription>
+            {user?.profile?.departamento && user?.profile?.distrito && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary px-3 py-1">
+                  <span className="font-bold mr-1">DPTO:</span> {user.profile.departamento}
+                </Badge>
+                <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary px-3 py-1">
+                  <span className="font-bold mr-1">DIST:</span> {user.profile.distrito}
+                </Badge>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
