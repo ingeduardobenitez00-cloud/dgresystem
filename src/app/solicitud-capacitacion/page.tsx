@@ -8,12 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MapPin, FileText, Camera, CheckCircle2, RefreshCw, MousePointer2, FileImage } from 'lucide-react';
+import { Loader2, MapPin, FileText, Camera, CheckCircle2, RefreshCw, MousePointer2 } from 'lucide-react';
 import { useUser, useFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { type SolicitudCapacitacion } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
@@ -43,10 +42,12 @@ export default function SolicitudCapacitacionPage() {
   const leafletMap = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
+  // Inicialización del mapa Leaflet
   useEffect(() => {
     let isMounted = true;
 
     const initMap = async () => {
+      // Pequeño retraso para asegurar que el contenedor esté listo en el DOM
       await new Promise(resolve => setTimeout(resolve, 100));
 
       if (typeof window !== 'undefined' && mapRef.current && !leafletMap.current) {
@@ -55,7 +56,7 @@ export default function SolicitudCapacitacionPage() {
           
           if (!isMounted || !mapRef.current) return;
 
-          // Punto de inicio: TSJE, Asunción, Paraguay
+          // Punto de inicio: Asunción, Paraguay (Cerca del TSJE)
           const defaultPos: [number, number] = [-25.3006, -57.6359];
           
           const map = L.map(mapRef.current, {
@@ -79,6 +80,7 @@ export default function SolicitudCapacitacionPage() {
             shadowSize: [41, 41]
           });
 
+          // Evento de doble clic para fijar ubicación
           map.on('dblclick', (e: any) => {
             const { lat, lng } = e.latlng;
             const latStr = lat.toFixed(6);
@@ -94,13 +96,14 @@ export default function SolicitudCapacitacionPage() {
             }
           });
 
+          // Forzar redibujado para evitar áreas grises
           setTimeout(() => {
             map.invalidateSize();
           }, 500);
 
           leafletMap.current = map;
         } catch (error) {
-          console.error("Error initializing Leaflet map:", error);
+          console.error("Error al inicializar el mapa Leaflet:", error);
         }
       }
     };
@@ -116,19 +119,19 @@ export default function SolicitudCapacitacionPage() {
     };
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const generatePdf = async () => {
     if (!formData.solicitante || !formData.cedula || !formData.nombre_apellido || !formData.fecha || !formData.hora || !formData.lugar) {
-      toast({ variant: "destructive", title: "Faltan datos", description: "Por favor completa todos los campos del formulario antes de generar el PDF." });
+      toast({ variant: "destructive", title: "Faltan datos", description: "Completa el formulario antes de generar el PDF." });
       return;
     }
 
     if (!formData.gps) {
-      toast({ variant: "destructive", title: "Ubicación requerida", description: "Debes marcar la ubicación en el mapa (doble clic) antes de generar el PDF." });
+      toast({ variant: "destructive", title: "Ubicación requerida", description: "Haz doble clic en el mapa para marcar la ubicación." });
       return;
     }
 
@@ -138,18 +141,18 @@ export default function SolicitudCapacitacionPage() {
       const margin = 20;
       let y = 30;
 
-      // Header
+      // Título
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text("SOLICITUD DE CAPACITACIÓN", 105, y, { align: "center" });
       y += 20;
 
-      // Personal Data
+      // Datos Personales
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       doc.text(`Solicitante (PARTIDO/MOVIMIENTO): ${formData.solicitante}`, margin, y); y += 10;
       doc.text(`N° de Cédula: ${formData.cedula}`, margin, y); y += 10;
-      doc.text(`Nombre y Apellido: ${formData.nombre_apellido}`, margin, y); y += 15;
+      doc.text(`Nombre y Apellido del Responsable: ${formData.nombre_apellido}`, margin, y); y += 15;
       
       doc.setFont('helvetica', 'bold');
       doc.text("DATOS DE ASIGNACIÓN:", margin, y); y += 8;
@@ -165,7 +168,7 @@ export default function SolicitudCapacitacionPage() {
       doc.text(`Lugar: ${formData.lugar}`, margin, y); y += 8;
       doc.text(`Coordenadas GPS: ${formData.gps}`, margin, y); y += 15;
 
-      // Capture Map
+      // Captura del mapa usando html2canvas
       if (mapRef.current) {
         const canvas = await html2canvas(mapRef.current, { 
           useCORS: true,
@@ -174,26 +177,25 @@ export default function SolicitudCapacitacionPage() {
         });
         const mapImgData = canvas.toDataURL('image/png');
         doc.setFont('helvetica', 'bold');
-        doc.text("CAPTURA DE UBICACIÓN:", margin, y); y += 5;
+        doc.text("UBICACIÓN GEOGRÁFICA:", margin, y); y += 5;
         doc.addImage(mapImgData, 'PNG', margin, y, 170, 80);
         y += 90;
       }
 
-      // Signature area
+      // Espacio para firma
       if (y > 240) {
         doc.addPage();
         y = 30;
       }
-      
       doc.text("__________________________", 105, y + 40, { align: "center" });
       doc.text("Firma del Solicitante", 105, y + 50, { align: "center" });
 
       doc.save(`Solicitud-Capacitacion-${formData.cedula}.pdf`);
       setPdfGenerated(true);
-      toast({ title: "PDF Generado con éxito", description: "Imprime el documento, solicita la firma y luego captura la foto." });
+      toast({ title: "PDF Generado", description: "Documento listo para imprimir y firmar." });
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF con la captura del mapa." });
+      console.error("Error al generar PDF:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo realizar la captura del mapa." });
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -213,7 +215,7 @@ export default function SolicitudCapacitacionPage() {
   const handleSubmit = async () => {
     if (!firestore || !user || !user.profile) return;
     if (!photoDataUri) {
-      toast({ variant: "destructive", title: "Foto requerida", description: "Es obligatorio adjuntar la foto de la solicitud firmada." });
+      toast({ variant: "destructive", title: "Foto requerida", description: "Debes adjuntar la foto de la solicitud firmada." });
       return;
     }
 
@@ -229,19 +231,13 @@ export default function SolicitudCapacitacionPage() {
         server_timestamp: serverTimestamp(),
       };
 
+      // Guardado en la colección de Firestore
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), solicitudData);
       
-      toast({ title: "¡Capacitación Agendada!", description: "La solicitud se ha guardado correctamente en la base de datos." });
+      toast({ title: "¡Solicitud Guardada!", description: "La capacitación ha sido agendada correctamente." });
       
-      setFormData({
-        solicitante: '',
-        cedula: '',
-        nombre_apellido: '',
-        fecha: '',
-        hora: '',
-        lugar: '',
-        gps: '',
-      });
+      // Resetear formulario
+      setFormData({ solicitante: '', cedula: '', nombre_apellido: '', fecha: '', hora: '', lugar: '', gps: '' });
       setCoords({ lat: '', lng: '' });
       setPhotoDataUri(null);
       setPdfGenerated(false);
@@ -250,8 +246,8 @@ export default function SolicitudCapacitacionPage() {
         markerRef.current = null;
       }
     } catch (error) {
-      console.error("Error saving request:", error);
-      toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo procesar la solicitud. Inténtalo de nuevo." });
+      console.error("Error al guardar:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la solicitud." });
     } finally {
       setIsSubmitting(false);
     }
@@ -269,17 +265,17 @@ export default function SolicitudCapacitacionPage() {
               <FileText className="h-6 w-6 text-primary" />
               Formulario de Solicitud
             </CardTitle>
-            <CardDescription>Completa todos los campos. Los datos se guardarán automáticamente en la base de datos al finalizar.</CardDescription>
+            <CardDescription>Los datos se guardarán automáticamente en la base de datos al finalizar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="departamento-view" className="text-primary font-bold">Departamento Asignado</Label>
-                <Input id="departamento-view" value={user?.profile?.departamento || 'Sin asignar'} disabled className="bg-muted font-bold border-primary/20" />
+                <Label className="text-primary font-bold">Departamento Asignado</Label>
+                <Input value={user?.profile?.departamento || 'Sin asignar'} disabled className="bg-muted font-bold" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="distrito-view" className="text-primary font-bold">Distrito Asignado</Label>
-                <Input id="distrito-view" value={user?.profile?.distrito || 'Sin asignar'} disabled className="bg-muted font-bold border-primary/20" />
+                <Label className="text-primary font-bold">Distrito Asignado</Label>
+                <Input value={user?.profile?.distrito || 'Sin asignar'} disabled className="bg-muted font-bold" />
               </div>
             </div>
 
@@ -315,10 +311,11 @@ export default function SolicitudCapacitacionPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="lugar">Lugar de Realización</Label>
-                <Input id="lugar" name="lugar" value={formData.lugar} onChange={handleInputChange} placeholder="Dirección, Escuela o Local" />
+                <Input id="lugar" name="lugar" value={formData.lugar} onChange={handleInputChange} placeholder="Dirección o Local" />
               </div>
             </div>
 
+            {/* Componente de Mapa */}
             <div className="space-y-4 border rounded-xl p-5 bg-background shadow-inner">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-primary font-bold">
@@ -337,11 +334,11 @@ export default function SolicitudCapacitacionPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Latitud</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Latitud</Label>
                   <Input readOnly value={coords.lat} placeholder="0.000000" className="bg-muted/50 border-dashed text-center font-mono text-xs" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Longitud</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Longitud</Label>
                   <Input readOnly value={coords.lng} placeholder="0.000000" className="bg-muted/50 border-dashed text-center font-mono text-xs" />
                 </div>
               </div>
@@ -352,49 +349,46 @@ export default function SolicitudCapacitacionPage() {
             <div className="flex flex-col items-center gap-6 py-4">
               <Button 
                 onClick={generatePdf} 
-                className="w-full sm:w-auto px-8 h-12 text-md font-bold transition-all hover:scale-105" 
+                className="w-full sm:w-auto px-8 h-12 text-md font-bold" 
                 variant="outline"
                 disabled={isGeneratingPdf}
               >
                 {isGeneratingPdf ? (
-                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> CAPTURANDO MAPA Y GENERANDO PDF...</>
+                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> GENERANDO PDF...</>
                 ) : (
-                  <><FileText className="mr-2 h-5 w-5" /> GENERAR SOLICITUD EN PDF CON MAPA</>
+                  <><FileText className="mr-2 h-5 w-5" /> GENERAR SOLICITUD EN PDF</>
                 )}
               </Button>
               
               {pdfGenerated && (
-                <div className="w-full space-y-6 animate-in fade-in slide-in-from-top-4 duration-700">
+                <div className="w-full space-y-6">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-center gap-2 text-green-700 text-sm font-medium">
                     <CheckCircle2 className="h-5 w-5" />
-                    <span>PDF generado con la ubicación. Favor imprimir, firmar y capturar la imagen debajo.</span>
+                    <span>Favor imprimir, firmar y capturar la imagen debajo.</span>
                   </div>
 
-                  <div className="rounded-2xl border-4 border-dashed border-primary/20 p-8 bg-primary/5 relative flex flex-col items-center text-center">
+                  <div className="rounded-2xl border-4 border-dashed border-primary/20 p-8 bg-primary/5 flex flex-col items-center text-center">
                     <div className="mb-4 bg-primary/10 p-3 rounded-full">
                       <Camera className="h-10 w-10 text-primary" />
                     </div>
-                    <Label className="block mb-2 text-xl font-black text-primary uppercase tracking-tight">
-                      Capturar Imagen de la Solicitud Física Firmada
+                    <Label className="block mb-2 text-xl font-black text-primary uppercase">
+                      Capturar Imagen de Solicitud Firmada
                     </Label>
-                    <p className="text-sm text-muted-foreground mb-8 max-w-sm">
-                      Usa la cámara de tu dispositivo para capturar una foto clara de la solicitud con la firma del responsable.
-                    </p>
 
                     {photoDataUri ? (
-                      <div className="relative group w-full max-w-[280px] overflow-hidden rounded-2xl border-4 border-white shadow-2xl transition-transform hover:scale-[1.02]">
-                        <Image src={photoDataUri} alt="Vista previa de la firma" width={280} height={370} className="object-cover aspect-[3/4]" />
+                      <div className="relative group w-full max-w-[280px] overflow-hidden rounded-2xl border-4 border-white shadow-2xl">
+                        <Image src={photoDataUri} alt="Vista previa" width={280} height={370} className="object-cover aspect-[3/4]" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                            <Button variant="destructive" size="sm" className="rounded-full gap-2" onClick={() => setPhotoDataUri(null)}>
-                             <RefreshCw className="h-4 w-4" /> REPETIR CAPTURA
+                             <RefreshCw className="h-4 w-4" /> REPETIR
                            </Button>
                         </div>
                       </div>
                     ) : (
                       <label htmlFor="photo-upload" className="cursor-pointer group relative">
-                        <div className="inline-flex h-16 items-center justify-center rounded-full bg-primary px-10 py-4 text-md font-black text-white shadow-[0_10px_20px_-5px_rgba(var(--primary),0.4)] transition-all group-hover:scale-105 group-hover:shadow-[0_15px_30px_-5px_rgba(var(--primary),0.5)] active:scale-95">
+                        <div className="inline-flex h-16 items-center justify-center rounded-full bg-primary px-10 py-4 text-md font-black text-white shadow-lg transition-all hover:scale-105">
                           <Camera className="mr-3 h-6 w-6" />
-                          INICIAR CÁMARA / SUBIR FOTO
+                          INICIAR CÁMARA
                         </div>
                         <Input id="photo-upload" type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
                       </label>
@@ -408,13 +402,13 @@ export default function SolicitudCapacitacionPage() {
             <Button 
               onClick={handleSubmit} 
               disabled={isSubmitting || !photoDataUri} 
-              className="w-full h-16 text-xl font-black uppercase tracking-wider shadow-xl disabled:bg-muted-foreground/30" 
+              className="w-full h-16 text-xl font-black uppercase shadow-xl" 
               size="lg"
             >
               {isSubmitting ? (
                 <><Loader2 className="animate-spin mr-3 h-7 w-7" /> PROCESANDO...</>
               ) : (
-                <><CheckCircle2 className="mr-3 h-7 w-7" /> FINALIZAR Y GUARDAR EN BASE DE DATOS</>
+                <><CheckCircle2 className="mr-3 h-7 w-7" /> FINALIZAR Y AGENDAR</>
               )}
             </Button>
           </CardFooter>
