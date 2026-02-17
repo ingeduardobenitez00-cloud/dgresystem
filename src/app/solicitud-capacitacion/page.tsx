@@ -52,8 +52,8 @@ export default function SolicitudCapacitacionPage() {
     let isMounted = true;
 
     const initMap = async () => {
-      // Pequeño retraso para asegurar que el contenedor esté listo en el DOM
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Retraso para asegurar que el contenedor esté listo y con dimensiones en el DOM
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       if (typeof window !== 'undefined' && mapRef.current && !leafletMap.current) {
         try {
@@ -61,29 +61,27 @@ export default function SolicitudCapacitacionPage() {
           
           if (!isMounted || !mapRef.current) return;
 
+          // Arreglo para iconos de Leaflet en Next.js
+          delete (L.Icon.Default.prototype as any)._getIconUrl;
+          L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+          });
+
           // Punto de inicio: Asunción, Paraguay (Cerca del TSJE)
           const defaultPos: [number, number] = [-25.3006, -57.6359];
           
           const map = L.map(mapRef.current, {
             center: defaultPos,
             zoom: 15,
-            doubleClickZoom: false, // Desactivamos zoom con doble clic para usarlo para marcar
+            doubleClickZoom: false, 
             attributionControl: false
           });
           
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap'
           }).addTo(map);
-
-          const customIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-          });
 
           // Evento de doble clic para fijar ubicación geográfica
           map.on('dblclick', (e: any) => {
@@ -97,14 +95,16 @@ export default function SolicitudCapacitacionPage() {
             if (markerRef.current) {
               markerRef.current.setLatLng(e.latlng);
             } else {
-              markerRef.current = L.marker(e.latlng, { icon: customIcon }).addTo(map);
+              markerRef.current = L.marker(e.latlng).addTo(map);
             }
           });
 
-          // Invalidar tamaño para forzar el renderizado correcto del mapa
-          setTimeout(() => {
+          // Invalidar tamaño varias veces para asegurar renderizado correcto
+          const invalidator = setInterval(() => {
             map.invalidateSize();
           }, 500);
+
+          setTimeout(() => clearInterval(invalidator), 3000);
 
           leafletMap.current = map;
         } catch (error) {
@@ -129,10 +129,6 @@ export default function SolicitudCapacitacionPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  /**
-   * Genera el PDF formal de solicitud.
-   * Incluye una captura visual del mapa interactivo usando html2canvas.
-   */
   const generatePdf = async () => {
     if (!formData.solicitante || !formData.cedula || !formData.nombre_apellido || !formData.fecha || !formData.hora || !formData.lugar) {
       toast({ variant: "destructive", title: "Faltan datos", description: "Completa el formulario antes de generar el PDF." });
@@ -150,13 +146,11 @@ export default function SolicitudCapacitacionPage() {
       const margin = 20;
       let y = 30;
 
-      // Encabezado del Documento
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text("SOLICITUD DE CAPACITACIÓN", 105, y, { align: "center" });
       y += 20;
 
-      // Datos del Solicitante
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       doc.text(`Solicitante (PARTIDO/MOVIMIENTO): ${formData.solicitante}`, margin, y); y += 10;
@@ -177,7 +171,6 @@ export default function SolicitudCapacitacionPage() {
       doc.text(`Lugar: ${formData.lugar}`, margin, y); y += 8;
       doc.text(`Coordenadas GPS: ${formData.gps}`, margin, y); y += 15;
 
-      // Captura del mapa dinámico usando html2canvas para insertar en el PDF
       if (mapRef.current) {
         const canvas = await html2canvas(mapRef.current, { 
           useCORS: true,
@@ -191,7 +184,6 @@ export default function SolicitudCapacitacionPage() {
         y += 90;
       }
 
-      // Espacio para firma física
       if (y > 240) {
         doc.addPage();
         y = 30;
@@ -221,10 +213,6 @@ export default function SolicitudCapacitacionPage() {
     }
   };
 
-  /**
-   * Guarda definitivamente la solicitud en Firestore.
-   * Almacena todos los datos del formulario, las coordenadas GPS y la foto de la firma.
-   */
   const handleSubmit = async () => {
     if (!firestore || !user || !user.profile) return;
     if (!photoDataUri) {
@@ -244,12 +232,10 @@ export default function SolicitudCapacitacionPage() {
         server_timestamp: serverTimestamp(),
       };
 
-      // Guardado en la colección 'solicitudes-capacitacion' de Firestore
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), solicitudData);
       
       toast({ title: "¡Solicitud Guardada!", description: "La capacitación ha sido agendada correctamente." });
       
-      // Limpiar formulario para una nueva carga
       setFormData({ solicitante: '', cedula: '', nombre_apellido: '', fecha: '', hora: '', lugar: '', gps: '' });
       setCoords({ lat: '', lng: '' });
       setPhotoDataUri(null);
@@ -281,7 +267,6 @@ export default function SolicitudCapacitacionPage() {
             <CardDescription>Los datos se guardarán automáticamente en la base de datos al finalizar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
-            {/* Campos de Asignación Bloqueados */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-primary font-bold">Departamento Asignado</Label>
@@ -295,7 +280,6 @@ export default function SolicitudCapacitacionPage() {
 
             <Separator />
 
-            {/* Datos del Responsable y Capacitación */}
             <div className="space-y-6">
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -330,7 +314,6 @@ export default function SolicitudCapacitacionPage() {
               </div>
             </div>
 
-            {/* Componente de Mapa Interactivo */}
             <div className="space-y-4 border rounded-xl p-5 bg-background shadow-inner">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-primary font-bold">
@@ -343,8 +326,11 @@ export default function SolicitudCapacitacionPage() {
                 </Badge>
               </div>
               
-              <div className="relative aspect-video w-full rounded-xl overflow-hidden border-2 border-primary/10 shadow-sm" style={{ minHeight: '320px' }}>
-                <div ref={mapRef} className="absolute inset-0 z-0 h-full w-full" />
+              <div 
+                className="relative w-full rounded-xl overflow-hidden border-2 border-primary/10 shadow-sm bg-muted" 
+                style={{ height: '400px' }}
+              >
+                <div ref={mapRef} className="h-full w-full" style={{ zIndex: 0 }} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -361,7 +347,6 @@ export default function SolicitudCapacitacionPage() {
 
             <Separator />
 
-            {/* Acciones Finales: PDF y Captura de Firma */}
             <div className="flex flex-col items-center gap-6 py-4">
               <Button 
                 onClick={generatePdf} 
