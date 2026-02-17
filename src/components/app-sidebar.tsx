@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -133,7 +132,7 @@ export default function AppSidebar() {
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} defaultOpen className="group/collapsible">
+            <Collapsible key={group.label} className="group/collapsible">
               <SidebarGroup>
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-2 py-1 rounded-md transition-colors">

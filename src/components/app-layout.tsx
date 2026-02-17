@@ -69,7 +69,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <Sidebar collapsible="icon">
         <AppSidebar />
       </Sidebar>
