@@ -70,7 +70,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <Sidebar collapsible="icon">
+      <Sidebar collapsible="offcanvas">
         <AppSidebar />
       </Sidebar>
       <SidebarInset>

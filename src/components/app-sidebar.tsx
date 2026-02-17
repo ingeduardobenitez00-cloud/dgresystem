@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -104,7 +103,7 @@ export default function AppSidebar() {
             <div className="shrink-0">
               <Image src="/logo.png" alt="Logo" width={24} height={24} className="rounded-sm"/>
             </div>
-            <span className="text-[10px] font-black text-sidebar-foreground truncate group-data-[collapsible=icon]:hidden uppercase leading-tight tracking-tight">
+            <span className="text-[10px] font-black text-sidebar-foreground uppercase leading-tight tracking-tight">
                 JUSTICIA ELECTORAL
             </span>
         </div>
@@ -116,7 +115,7 @@ export default function AppSidebar() {
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} className="group/collapsible" defaultOpen={false}>
+            <Collapsible key={group.label} className="group/collapsible" defaultOpen={true}>
               <SidebarGroup>
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-2 py-1 rounded-md transition-colors">
@@ -151,7 +150,7 @@ export default function AppSidebar() {
         })}
       </SidebarContent>
       <SidebarFooter>
-        <div className="px-4 py-2 text-[9px] text-muted-foreground group-data-[collapsible=icon]:hidden font-mono opacity-50">
+        <div className="px-4 py-2 text-[9px] text-muted-foreground font-mono opacity-50">
             v1.0.0
         </div>
       </SidebarFooter>
