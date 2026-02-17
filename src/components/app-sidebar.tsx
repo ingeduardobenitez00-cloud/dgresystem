@@ -104,10 +104,10 @@ export default function AppSidebar() {
               <Image src="/logo.png" alt="Logo" width={28} height={28} className="object-contain"/>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-black text-sidebar-foreground uppercase leading-tight tracking-tighter">
+              <span className="text-[10px] font-black text-sidebar-foreground uppercase leading-tight tracking-tighter">
                   JUSTICIA
               </span>
-              <span className="text-xs font-black text-primary uppercase leading-tight tracking-tighter">
+              <span className="text-[10px] font-black text-primary uppercase leading-tight tracking-tighter">
                   ELECTORAL
               </span>
             </div>
@@ -120,7 +120,7 @@ export default function AppSidebar() {
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} className="group/collapsible" defaultOpen={true}>
+            <Collapsible key={group.label} className="group/collapsible" defaultOpen={false}>
               <SidebarGroup className="py-1">
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground px-3 py-2 rounded-md transition-all duration-200">
