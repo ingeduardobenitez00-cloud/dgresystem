@@ -69,16 +69,22 @@ export type LocalVotacion = {
 
 export type SolicitudCapacitacion = {
   id: string;
-  solicitante: string;
-  cedula: string;
-  nombre_apellido: string;
+  solicitante_entidad: string;
+  tipo_solicitud: 'divulgacion' | 'capacitacion';
   fecha: string;
-  hora: string;
-  lugar: string;
-  gps: string;
-  foto_firma?: string;
+  hora_desde: string;
+  hora_hasta: string;
+  lugar_local: string;
+  direccion_calle: string;
+  barrio_compania: string;
   departamento: string;
   distrito: string;
+  rol_solicitante: 'apoderado' | 'otro';
+  nombre_completo: string;
+  cedula: string;
+  telefono: string;
+  gps: string;
+  foto_firma?: string;
   usuario_id: string;
   fecha_creacion: string;
 }

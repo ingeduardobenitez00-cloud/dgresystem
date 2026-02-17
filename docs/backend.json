@@ -245,22 +245,28 @@
     "SolicitudCapacitacion": {
       "title": "Solicitud de Capacitación",
       "type": "object",
-      "description": "Formulario de solicitud de capacitación.",
+      "description": "Formulario de solicitud de capacitación oficial.",
       "properties": {
-        "solicitante": { "type": "string" },
-        "cedula": { "type": "string" },
-        "nombre_apellido": { "type": "string" },
+        "solicitante_entidad": { "type": "string", "description": "Partido o Movimiento Político" },
+        "tipo_solicitud": { "type": "string", "enum": ["divulgacion", "capacitacion"] },
         "fecha": { "type": "string", "format": "date" },
-        "hora": { "type": "string" },
-        "lugar": { "type": "string" },
-        "gps": { "type": "string" },
-        "foto_firma": { "type": "string", "description": "Data URI de la solicitud firmada." },
+        "hora_desde": { "type": "string" },
+        "hora_hasta": { "type": "string" },
+        "lugar_local": { "type": "string" },
+        "direccion_calle": { "type": "string" },
+        "barrio_compania": { "type": "string" },
         "departamento": { "type": "string" },
         "distrito": { "type": "string" },
+        "rol_solicitante": { "type": "string", "enum": ["apoderado", "otro"] },
+        "nombre_completo": { "type": "string" },
+        "cedula": { "type": "string" },
+        "telefono": { "type": "string" },
+        "gps": { "type": "string" },
+        "foto_firma": { "type": "string", "description": "Data URI de la solicitud firmada." },
         "usuario_id": { "type": "string" },
         "fecha_creacion": { "type": "string", "format": "date-time" }
       },
-      "required": ["solicitante", "cedula", "nombre_apellido", "fecha", "hora", "departamento", "distrito"]
+      "required": ["solicitante_entidad", "tipo_solicitud", "fecha", "hora_desde", "hora_hasta", "direccion_calle", "nombre_completo", "cedula", "departamento", "distrito"]
     }
   },
   "auth": {
