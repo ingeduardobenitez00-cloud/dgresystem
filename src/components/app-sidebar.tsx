@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -28,7 +29,8 @@ import {
   CalendarDays,
   Vote,
   FileUp,
-  ChevronDown
+  ChevronDown,
+  MessageSquareHeart
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -57,6 +59,7 @@ export default function AppSidebar() {
       items: [
         { href: "/solicitud-capacitacion", label: "Nueva Solicitud", icon: ClipboardCheck },
         { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
+        { href: "/encuesta-satisfaccion", label: "Encuesta Satisfacción", icon: MessageSquareHeart },
       ]
     },
     {

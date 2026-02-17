@@ -77,11 +77,23 @@ service cloud.firestore {
       // A 'funcionario' with the 'delete' permission can delete reports.
       allow delete: if isSignedIn() && (
         isAdmin() ||
-        (isRole('funcionario') && hasPermission('delete') && isAssignedTo(resource.data.departamento, resource.data.distrito))
+        (isRole('funcionario') && hasPermission('delete') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
     }
 
     match /solicitudes-capacitacion/{solicitudId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    match /encuestas-satisfaccion/{encuestaId} {
       allow read: if isSignedIn() && (
         isAdmin() || 
         (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))

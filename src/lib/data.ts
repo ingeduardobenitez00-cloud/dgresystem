@@ -89,4 +89,20 @@ export type SolicitudCapacitacion = {
   fecha_creacion: string;
 }
 
+export type EncuestaSatisfaccion = {
+  id: string;
+  lugar_practica: string;
+  fecha: string;
+  hora: string;
+  edad: string;
+  genero: 'hombre' | 'mujer' | 'pueblo_originario';
+  utilidad_maquina: 'muy_util' | 'util' | 'poco_util' | 'nada_util';
+  facilidad_maquina: 'muy_facil' | 'facil' | 'poco_facil' | 'nada_facil';
+  seguridad_maquina: 'muy_seguro' | 'seguro' | 'poco_seguro' | 'nada_seguro';
+  departamento: string;
+  distrito: string;
+  usuario_id: string;
+  fecha_creacion: string;
+}
+
 export const initialDepartments: Department[] = [];
