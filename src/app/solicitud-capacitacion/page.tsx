@@ -121,7 +121,7 @@ export default function SolicitudCapacitacionPage() {
       const today = new Date();
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${formData.distrito || user?.profile?.distrito}, ${today.getDate()} de ${today.toLocaleString('es-ES', { month: 'long' })} de ${today.getFullYear()}`, 195, 45, { align: "right" });
+      doc.text(`${user?.profile?.distrito || ''}, ${today.getDate()} de ${today.toLocaleString('es-ES', { month: 'long' })} de ${today.getFullYear()}`, 195, 45, { align: "right" });
 
       doc.text("Señor/a", margin, 55);
       doc.setFont('helvetica', 'bold');
@@ -146,7 +146,7 @@ export default function SolicitudCapacitacionPage() {
       // Tabla Principal
       let tableY = 115;
       doc.setDrawColor(0);
-      doc.line(margin, tableY, 195, tableY); // Top line
+      doc.line(margin, tableY, 195, tableY);
       
       const drawRow = (label: string, value: string, y: number, h: number = 8) => {
         doc.line(margin, y, 195, y);
@@ -166,12 +166,12 @@ export default function SolicitudCapacitacionPage() {
       doc.text("HORARIO", margin + 2, tableY + 5);
       doc.text(":", margin + 45, tableY + 5);
       doc.setFont('helvetica', 'normal');
-      doc.text(`DESDE: ${formData.hora_desde} horas`, margin + 48, tableY + 5);
-      doc.text(`HASTA: ${formData.hora_hasta} horas`, margin + 100, tableY + 5);
+      doc.text(`DESDE: ${formData.hora_desde} hs`, margin + 48, tableY + 5);
+      doc.text(`HASTA: ${formData.hora_hasta} hs`, margin + 100, tableY + 5);
       tableY += 8; doc.line(margin, tableY, 195, tableY);
 
       tableY = drawRow("LUGAR Y/O LOCAL", formData.lugar_local, tableY);
-      tableY = drawRow("DIRECCIÓN", `CALLE: ${formData.direccion_calle}`, tableY);
+      tableY = drawRow("DIRECCIÓN (CALLE)", formData.direccion_calle, tableY);
       tableY = drawRow("BARRIO - COMPAÑÍA", formData.barrio_compania, tableY);
       tableY = drawRow("DISTRITO", user?.profile?.distrito || '', tableY);
 
@@ -182,9 +182,9 @@ export default function SolicitudCapacitacionPage() {
       
       doc.setFont('helvetica', 'bold');
       doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, tableY);
-      doc.rect(85, tableY - 3.5, 4, 4); if(isApod) doc.text("X", 86, tableY);
-      doc.text("OTRO", 95, tableY);
-      doc.rect(108, tableY - 3.5, 4, 4); if(isOtro) doc.text("X", 109, tableY);
+      doc.rect(margin + 75, tableY - 3.5, 4, 4); if(isApod) doc.text("X", margin + 76, tableY);
+      doc.text("OTRO", margin + 85, tableY);
+      doc.rect(margin + 98, tableY - 3.5, 4, 4); if(isOtro) doc.text("X", margin + 99, tableY);
       
       tableY += 5;
       tableY = drawRow("NOMBRE COMPLETO", formData.nombre_completo, tableY);
@@ -204,7 +204,7 @@ export default function SolicitudCapacitacionPage() {
       doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", 105, tableY + 5, { align: "center" });
       doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", 105, tableY + 9, { align: "center" });
 
-      tableY += 20;
+      tableY += 15;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, tableY);
@@ -212,17 +212,25 @@ export default function SolicitudCapacitacionPage() {
       tableY += 25;
       doc.text("Firma del Solicitante: ____________________________________________", 105, tableY, { align: "center" });
 
-      // Cuadro Uso Interno
+      // Cuadro Uso Interno - MEJORADO SEGUN CAPTURA
       tableY += 10;
+      doc.setLineWidth(0.3);
       doc.rect(margin, tableY, 180, 45);
       doc.setFont('helvetica', 'bold');
-      doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 5, { align: "center" });
+      doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 7, { align: "center" });
+      
       doc.setFont('helvetica', 'normal');
-      doc.text("Divulgador designado: _______________________________________ C.I.C. Nº: _____________", margin + 5, tableY + 15);
-      doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 25);
-      doc.text("Firma y sello del Jefe del Registro Electoral: ________________________", 105, tableY + 35, { align: "center" });
-      doc.text("Total de personas capacitadas:", margin + 5, tableY + 42);
-      doc.rect(margin + 55, tableY + 38, 100, 5);
+      doc.setFontSize(9);
+      doc.text("Divulgador designado: _______________________________________", margin + 5, tableY + 18);
+      doc.text("C.I.C. Nº: _____________", margin + 130, tableY + 18);
+      
+      doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 28);
+      
+      doc.text("Firma y sello del Jefe del Registro Electoral: ________________________", 105, tableY + 38, { align: "center" });
+      
+      doc.setFontSize(8);
+      doc.text("Total de personas capacitadas:", margin + 5, tableY + 43);
+      doc.rect(margin + 45, tableY + 40, 20, 4);
 
       // Captura del mapa en segunda página
       if (mapRef.current) {
@@ -292,7 +300,7 @@ export default function SolicitudCapacitacionPage() {
               <FileText className="h-6 w-6 text-primary" />
               Proforma de Solicitud (Anexo V)
             </CardTitle>
-            <CardDescription>Complete los datos dictados por el solicitante para generar el documento oficial.</CardDescription>
+            <CardDescription>Complete los datos del solicitante para generar el documento oficial.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -312,8 +320,8 @@ export default function SolicitudCapacitacionPage() {
               <div className="space-y-4">
                 <Label className="text-lg font-bold">1. Datos de la Solicitud</Label>
                 <div className="space-y-2">
-                  <Label htmlFor="solicitante_entidad">Partido / Movimiento Político (Dirigido a:)</Label>
-                  <Input id="solicitante_entidad" name="solicitante_entidad" value={formData.solicitante_entidad} onChange={handleInputChange} placeholder="Ej: ANR, PLRA, Movimiento..." />
+                  <Label htmlFor="solicitante_entidad">PARTIDO POLITICO / MOVIMIENTO POLITICO (Solicitante)</Label>
+                  <Input id="solicitante_entidad" name="solicitante_entidad" value={formData.solicitante_entidad} onChange={handleInputChange} placeholder="Nombre de la entidad solicitante" />
                 </div>
                 <div className="space-y-3">
                   <Label>Tipo de Servicio Solicitado:</Label>
@@ -336,27 +344,31 @@ export default function SolicitudCapacitacionPage() {
                   <Input id="fecha" name="fecha" type="date" value={formData.fecha} onChange={handleInputChange} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="hora_desde">Horario DESDE</Label>
+                  <Label htmlFor="hora_desde">Horario DESDE (hs)</Label>
                   <Input id="hora_desde" name="hora_desde" type="time" value={formData.hora_desde} onChange={handleInputChange} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="hora_hasta">Horario HASTA</Label>
+                  <Label htmlFor="hora_hasta">Horario HASTA (hs)</Label>
                   <Input id="hora_hasta" name="hora_hasta" type="time" value={formData.hora_hasta} onChange={handleInputChange} />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="lugar_local">Lugar y/o Local</Label>
-                  <Input id="lugar_local" name="lugar_local" value={formData.lugar_local} onChange={handleInputChange} placeholder="Nombre del local" />
+                  <Label htmlFor="lugar_local">Dirección (Lugar y/o Local)</Label>
+                  <Input id="lugar_local" name="lugar_local" value={formData.lugar_local} onChange={handleInputChange} placeholder="Ej: Seccional, Club, Domicilio..." />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="direccion_calle">Dirección (Calle)</Label>
-                  <Input id="direccion_calle" name="direccion_calle" value={formData.direccion_calle} onChange={handleInputChange} placeholder="Calle principal y nro" />
+                  <Label htmlFor="direccion_calle">Dirección (Calle y Nro)</Label>
+                  <Input id="direccion_calle" name="direccion_calle" value={formData.direccion_calle} onChange={handleInputChange} placeholder="Calle principal y numeración" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="barrio_compania">Barrio - Compañía</Label>
+                  <Label htmlFor="barrio_compania">BARRIO - COMPAÑÍA</Label>
                   <Input id="barrio_compania" name="barrio_compania" value={formData.barrio_compania} onChange={handleInputChange} />
+                </div>
+                <div className="space-y-2">
+                  <Label>DISTRITO</Label>
+                  <Input value={user?.profile?.distrito || ''} disabled className="bg-muted" />
                 </div>
               </div>
 
@@ -369,17 +381,17 @@ export default function SolicitudCapacitacionPage() {
                   <RadioGroup defaultValue="apoderado" className="flex gap-4" onValueChange={(v) => setFormData(p => ({...p, rol_solicitante: v as any}))}>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="apoderado" id="apod" />
-                      <Label htmlFor="apod">Apoderado</Label>
+                      <Label htmlFor="apod">APODERADO</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="otro" id="otro" />
-                      <Label htmlFor="otro">Otro</Label>
+                      <Label htmlFor="otro">OTRO</Label>
                     </div>
                   </RadioGroup>
                 </div>
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="nombre_completo">Nombre Completo</Label>
+                    <Label htmlFor="nombre_completo">NOMBRE COMPLETO</Label>
                     <Input id="nombre_completo" name="nombre_completo" value={formData.nombre_completo} onChange={handleInputChange} />
                   </div>
                   <div className="space-y-2">
@@ -387,7 +399,7 @@ export default function SolicitudCapacitacionPage() {
                     <Input id="cedula" name="cedula" value={formData.cedula} onChange={handleInputChange} />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="telefono">Número de Contacto (Celular / Línea Baja)</Label>
+                    <Label htmlFor="telefono">NÚMERO DE CONTACTO (CELULAR - LÍNEA BAJA)</Label>
                     <Input id="telefono" name="telefono" value={formData.telefono} onChange={handleInputChange} />
                   </div>
                 </div>
@@ -409,8 +421,14 @@ export default function SolicitudCapacitacionPage() {
                 <div ref={mapRef} className="h-full w-full" style={{ zIndex: 0 }} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Input readOnly value={coords.lat} placeholder="Latitud" className="bg-muted/50 text-center font-mono text-xs" />
-                <Input readOnly value={coords.lng} placeholder="Longitud" className="bg-muted/50 text-center font-mono text-xs" />
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Latitud</Label>
+                  <Input readOnly value={coords.lat} placeholder="0.000000" className="bg-muted/50 text-center font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Longitud</Label>
+                  <Input readOnly value={coords.lng} placeholder="0.000000" className="bg-muted/50 text-center font-mono text-xs" />
+                </div>
               </div>
             </div>
 
