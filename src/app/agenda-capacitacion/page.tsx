@@ -6,7 +6,7 @@ import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, where } from 'firebase/firestore';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { Loader2, Calendar, MapPin, User, FileImage, ExternalLink, ClipboardCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -20,21 +20,34 @@ export default function AgendaCapacitacionPage() {
   const { firestore } = useFirebase();
 
   const solicitudesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'solicitudes-capacitacion'), orderBy('fecha', 'asc'));
-  }, [firestore]);
+    if (!firestore || !user?.profile) return null;
+    
+    const colRef = collection(firestore, 'solicitudes-capacitacion');
+    
+    // Administrative roles (Admin, Director, Jefe) can see everything
+    if (user.profile.role === 'admin' || user.profile.role === 'director' || user.profile.role === 'jefe') {
+      return query(colRef, orderBy('fecha', 'asc'));
+    }
+    
+    // Funcionarios must filter their query to match Firestore rules
+    if (user.profile.role === 'funcionario' && user.profile.departamento && user.profile.distrito) {
+      return query(
+        colRef,
+        where('departamento', '==', user.profile.departamento),
+        where('distrito', '==', user.profile.distrito),
+        orderBy('fecha', 'asc')
+      );
+    }
+    
+    return null;
+  }, [firestore, user]);
 
   const { data: solicitudes, isLoading } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
   const filteredSolicitudes = useMemo(() => {
-    if (!solicitudes || !user || !user.profile) return [];
-    if (user.profile.role === 'admin') return solicitudes;
-    
-    return solicitudes.filter(s => 
-      s.departamento === user.profile?.departamento && 
-      s.distrito === user.profile?.distrito
-    );
-  }, [solicitudes, user]);
+    if (!solicitudes) return [];
+    return solicitudes;
+  }, [solicitudes]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, Record<string, SolicitudCapacitacion[]>> = {};
@@ -48,7 +61,7 @@ export default function AgendaCapacitacionPage() {
     return groups;
   }, [filteredSolicitudes]);
 
-  if (isUserLoading || isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8"/></div>;
+  if (isUserLoading || isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
     <div className="flex min-h-screen flex-col">

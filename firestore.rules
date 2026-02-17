@@ -20,6 +20,11 @@ service cloud.firestore {
       return isSignedIn() && getUserData().role == role;
     }
     
+    function isAdministrative() {
+      let role = getUserData().role;
+      return role == 'admin' || role == 'director' || role == 'jefe';
+    }
+    
     function hasPermission(permission) {
       return isSignedIn() && 'permissions' in getUserData() && permission in getUserData().permissions;
     }
@@ -51,67 +56,67 @@ service cloud.firestore {
     /** Main Data Collections **/
     match /locales-votacion/{localId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isAdministrative();
     }
     
     match /imagenes/{imagenId} {
-      allow read: if isAdmin() || hasPermission('view_images');
+      allow read: if isAdministrative() || hasPermission('view_images');
       allow create: if isSignedIn() && (
-        isAdmin() ||
+        isAdministrative() ||
         (isRole('funcionario') && hasPermission('add') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
       allow update, delete: if isSignedIn() && (
-        isAdmin() ||
+        isAdministrative() ||
         (isRole('funcionario') && (hasPermission('add') || hasPermission('delete')) && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
     }
 
     match /reports/{reportId} {
-      allow read: if isAdmin() || hasPermission('view_report');
+      allow read: if isAdministrative() || hasPermission('view_report');
       allow create, update: if isSignedIn() && (
-        isAdmin() ||
+        isAdministrative() ||
         (isRole('funcionario') && hasPermission('edit') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
       allow delete: if isSignedIn() && (
-        isAdmin() ||
+        isAdministrative() ||
         (isRole('funcionario') && hasPermission('delete') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
     }
 
     match /solicitudes-capacitacion/{solicitudId} {
       allow read: if isSignedIn() && (
-        isAdmin() || 
+        isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
       allow create: if isSignedIn() && (
-        isAdmin() || 
+        isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdministrative();
     }
 
     match /encuestas-satisfaccion/{encuestaId} {
       allow read: if isSignedIn() && (
-        isAdmin() || 
+        isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
       allow create: if isSignedIn() && (
-        isAdmin() || 
+        isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdministrative();
     }
 
     match /informes-divulgador/{informeId} {
       allow read: if isSignedIn() && (
-        isAdmin() || 
+        isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
       allow create: if isSignedIn() && (
-        isAdmin() || 
+        isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdministrative();
     }
 
     /** User Profiles **/
