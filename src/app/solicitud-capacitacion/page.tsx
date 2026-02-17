@@ -122,52 +122,53 @@ export default function SolicitudCapacitacionPage() {
       
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text("Justicia Electoral", 105, 15, { align: "center" });
-      doc.setFontSize(10);
+      doc.text("Justicia Electoral", 105, 12, { align: "center" });
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.text("Custodio de la Voluntad Popular", 105, 20, { align: "center" });
+      doc.text("Custodio de la Voluntad Popular", 105, 16, { align: "center" });
       
       doc.setFillColor(230, 230, 220);
-      doc.rect(margin, 25, 180, 8, 'F');
+      doc.rect(margin, 20, 180, 7, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.text("ANEXO V – PROFORMA DE SOLICITUD", 105, 30, { align: "center" });
+      doc.setFontSize(10);
+      doc.text("ANEXO V – PROFORMA DE SOLICITUD", 105, 24.5, { align: "center" });
 
       const today = new Date();
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${user?.profile?.distrito || ''}, ${today.getDate()} de ${today.toLocaleString('es-ES', { month: 'long' })} de ${today.getFullYear()}`, 195, 45, { align: "right" });
+      doc.text(`${user?.profile?.distrito || ''}, ${today.getDate()} de ${today.toLocaleString('es-ES', { month: 'long' })} de ${today.getFullYear()}`, 195, 35, { align: "right" });
 
-      doc.text("Señores", margin, 55);
+      doc.text("Señores", margin, 42);
       doc.setFont('helvetica', 'bold');
-      doc.text("JEFES DEL REGISTRO ELECTORAL", margin, 60);
-      doc.line(margin, 62, 100, 62);
-      doc.text("Presente:", margin, 70);
+      doc.text("JEFES DEL REGISTRO ELECTORAL", margin, 46);
+      doc.line(margin, 47.5, 80, 47.5);
+      doc.text("Presente:", margin, 54);
 
       doc.setFont('helvetica', 'normal');
-      doc.text(`Tengo el agrado de dirigirme a usted/es, en representación de ${formData.solicitante_entidad.toUpperCase()},`, margin, 80);
-      doc.text("en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas", margin, 85);
-      doc.text(`del 07 de junio del 2026, a los efectos de solicitar:`, margin, 90);
+      doc.text(`Tengo el agrado de dirigirme a usted/es, en representación de ${formData.solicitante_entidad.toUpperCase()},`, margin, 62);
+      doc.text("en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas", margin, 66);
+      doc.text(`del 07 de junio del 2026, a los efectos de solicitar:`, margin, 70);
 
       const isDiv = formData.tipo_solicitud === 'divulgacion';
       const isCap = formData.tipo_solicitud === 'capacitacion';
       
-      doc.rect(25, 100, 4, 4); if(isDiv) doc.text("X", 26, 103.5);
-      doc.text("Divulgación sobre el uso de la Máquina de Votación Electrónica.", 32, 103.5);
+      doc.rect(25, 76, 4, 4); if(isDiv) doc.text("X", 26, 79.2);
+      doc.text("Divulgación sobre el uso de la Máquina de Votación Electrónica.", 32, 79.2);
       
-      doc.rect(25, 108, 4, 4); if(isCap) doc.text("X", 26, 111.5);
-      doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", 32, 111.5);
+      doc.rect(25, 83, 4, 4); if(isCap) doc.text("X", 26, 86.2);
+      doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", 32, 86.2);
 
-      let tableY = 120;
+      let tableY = 92;
       doc.setDrawColor(0);
-      doc.line(margin, tableY, 195, tableY);
+      doc.setLineWidth(0.2);
       
-      const drawRow = (label: string, value: string, y: number, h: number = 8) => {
+      const drawRow = (label: string, value: string, y: number, h: number = 7) => {
         doc.line(margin, y, 195, y);
         doc.setFont('helvetica', 'bold');
-        doc.text(label, margin + 2, y + 5);
-        doc.text(":", margin + 45, y + 5);
+        doc.text(label, margin + 2, y + 4.5);
+        doc.text(":", margin + 45, y + 4.5);
         doc.setFont('helvetica', 'normal');
-        doc.text(value, margin + 48, y + 5);
+        doc.text(value, margin + 48, y + 4.5);
         doc.line(margin, y + h, 195, y + h);
         return y + h;
       };
@@ -175,77 +176,78 @@ export default function SolicitudCapacitacionPage() {
       tableY = drawRow("FECHA", formData.fecha, tableY);
       
       doc.setFont('helvetica', 'bold');
-      doc.text("HORARIO", margin + 2, tableY + 5);
-      doc.text(":", margin + 45, tableY + 5);
+      doc.text("HORARIO", margin + 2, tableY + 4.5);
+      doc.text(":", margin + 45, tableY + 4.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(`DESDE: ${formData.hora_desde} hs`, margin + 48, tableY + 5);
-      doc.text(`HASTA: ${formData.hora_hasta} hs`, margin + 100, tableY + 5);
-      tableY += 8; doc.line(margin, tableY, 195, tableY);
+      doc.text(`DESDE: ${formData.hora_desde} hs`, margin + 48, tableY + 4.5);
+      doc.text(`HASTA: ${formData.hora_hasta} hs`, margin + 100, tableY + 4.5);
+      tableY += 7; doc.line(margin, tableY, 195, tableY);
 
       tableY = drawRow("LUGAR Y/O LOCAL", formData.lugar_local, tableY);
       tableY = drawRow("DIRECCIÓN (CALLE)", formData.direccion_calle, tableY);
       tableY = drawRow("BARRIO - COMPAÑÍA", formData.barrio_compania, tableY);
       tableY = drawRow("DISTRITO", user?.profile?.distrito || '', tableY);
 
-      tableY += 10;
+      tableY += 8;
       const isApod = formData.rol_solicitante === 'apoderado';
       const isOtro = formData.rol_solicitante === 'otro';
       
       doc.setFont('helvetica', 'bold');
       doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, tableY);
-      doc.rect(margin + 75, tableY - 3.5, 4, 4); if(isApod) doc.text("X", margin + 76, tableY);
+      doc.rect(margin + 75, tableY - 3.2, 4, 4); if(isApod) doc.text("X", margin + 76, tableY);
       doc.text("OTRO", margin + 85, tableY);
-      doc.rect(margin + 98, tableY - 3.5, 4, 4); if(isOtro) doc.text("X", margin + 99, tableY);
+      doc.rect(margin + 98, tableY - 3.2, 4, 4); if(isOtro) doc.text("X", margin + 99, tableY);
       
-      tableY += 5;
+      tableY += 4;
       tableY = drawRow("NOMBRE COMPLETO", formData.nombre_completo, tableY);
       tableY = drawRow("C.I.C. Nº", formData.cedula, tableY);
       tableY = drawRow("NÚMERO DE CONTACTO", formData.telefono, tableY);
 
       tableY += 2;
       doc.setFillColor(230, 230, 220);
-      doc.rect(margin, tableY, 180, 6, 'F');
+      doc.rect(margin, tableY, 180, 5, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.text("OBSERVACIÓN", 105, tableY + 4.5, { align: "center" });
-      tableY += 6;
-      doc.rect(margin, tableY, 180, 12);
-      doc.setFontSize(8);
+      doc.text("OBSERVACIÓN", 105, tableY + 3.5, { align: "center" });
+      tableY += 5;
+      doc.rect(margin, tableY, 180, 10);
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'italic');
-      doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", 105, tableY + 5, { align: "center" });
-      doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", 105, tableY + 9, { align: "center" });
+      doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", 105, tableY + 4, { align: "center" });
+      doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", 105, tableY + 7.5, { align: "center" });
 
-      tableY += 12; // Reducido de 15 a 12
-      doc.setFontSize(10);
+      tableY += 14;
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, tableY);
       
-      tableY += 18; // Reducido de 25 a 18 para subir la firma
+      tableY += 15;
       doc.text("Firma del Solicitante: ____________________________________________", 105, tableY, { align: "center" });
 
-      tableY += 8; // Espacio antes del recuadro interno
+      tableY += 6;
       doc.setLineWidth(0.3);
-      doc.rect(margin, tableY, 180, 45);
+      doc.rect(margin, tableY, 180, 40);
       doc.setFont('helvetica', 'bold');
-      doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 7, { align: "center" });
+      doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 6, { align: "center" });
       
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text("Divulgador designado: _______________________________________", margin + 5, tableY + 18);
-      doc.text("C.I.C. Nº: _____________", margin + 130, tableY + 18);
+      doc.setFontSize(8.5);
+      doc.text("Divulgador designado: _______________________________________", margin + 5, tableY + 15);
+      doc.text("C.I.C. Nº: _____________", margin + 130, tableY + 15);
       
-      doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 28);
+      doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 24);
       
-      doc.text("Firma y sello del Jefe del Registro Electoral: ________________________", 105, tableY + 38, { align: "center" });
+      doc.text("Firma y sello del Jefe del Registro Electoral: ________________________", 105, tableY + 32, { align: "center" });
       
-      doc.setFontSize(8);
-      doc.text("Total de personas capacitadas:", margin + 5, tableY + 43);
-      doc.rect(margin + 45, tableY + 40, 20, 4);
+      doc.setFontSize(7.5);
+      doc.text("Total de personas capacitadas:", margin + 5, tableY + 37);
+      doc.rect(margin + 45, tableY + 34.5, 20, 3.5);
 
       if (mapRef.current) {
         doc.addPage();
         const canvas = await html2canvas(mapRef.current, { useCORS: true, logging: false, scale: 2 });
         const mapImgData = canvas.toDataURL('image/png');
         doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
         doc.text("ANEXO: GEORREFERENCIACIÓN DE LA UBICACIÓN SELECCIONADA", 105, 20, { align: "center" });
         doc.addImage(mapImgData, 'PNG', margin, 30, 180, 100);
         doc.setFont('helvetica', 'normal');

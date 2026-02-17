@@ -12,6 +12,9 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarSeparator,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { 
   Settings, 
@@ -27,11 +30,13 @@ import {
   ClipboardCheck,
   CalendarDays,
   Vote,
-  FileUp
+  FileUp,
+  ChevronDown
 } from "lucide-react";
 import { useFirebase, useUser } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export default function AppSidebar() {
   const pathname = usePathname();
@@ -51,133 +56,130 @@ export default function AppSidebar() {
     }
   };
 
-  const menuItems = [
+  const menuGroups = [
     {
-      href: "/",
       label: "Principal",
-      icon: LayoutDashboard,
+      items: [
+        { href: "/", label: "Inicio", icon: LayoutDashboard },
+      ]
     },
     {
-      href: "/fotos",
-      label: "Imágenes",
-      icon: ImageIcon,
+      label: "Registros Electorales",
+      items: [
+        { href: "/ficha", label: "Vista de Ficha", icon: FileText },
+        { href: "/fotos", label: "Imágenes", icon: ImageIcon },
+        { href: "/cargar-ficha", label: "Cargar Ficha", icon: UploadCloud },
+      ]
     },
     {
-      href: "/ficha",
-      label: "Vista de Ficha",
-      icon: FileText,
+      label: "Capacitación",
+      items: [
+        { href: "/solicitud-capacitacion", label: "Nueva Solicitud", icon: ClipboardCheck },
+        { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
+      ]
     },
     {
-      href: "/cargar-ficha",
-      label: "Cargar Ficha",
-      icon: UploadCloud,
+      label: "Análisis y Reportes",
+      items: [
+        { href: "/resumen", label: "Resumen Ubicaciones", icon: BarChart3 },
+        { href: "/informe-general", label: "Informe General PDF", icon: FileArchive },
+      ]
     },
     {
-      href: "/solicitud-capacitacion",
-      label: "Solicitud Capacitación",
-      icon: ClipboardCheck,
-    },
-    {
-      href: "/agenda-capacitacion",
-      label: "Agenda Capacitación",
-      icon: CalendarDays,
-    },
-    {
-      href: "/resumen",
-      label: "Resumen",
-      icon: BarChart3,
-    },
-    {
-      href: "/informe-general",
-      label: "Informe General",
-      icon: FileArchive,
-    },
-    {
-      href: "/locales-votacion",
       label: "Locales de Votación",
-      icon: Vote,
+      items: [
+        { href: "/locales-votacion", label: "Buscador de Locales", icon: Vote },
+        { href: "/cargar-fotos-locales", label: "Cargar Fotos Lote", icon: UploadCloud },
+      ]
     },
     {
-      href: "/importar-reportes",
-      label: "Importar Reportes",
-      icon: FileUp,
+      label: "Gestión de Datos",
+      items: [
+        { href: "/importar-reportes", label: "Importar Reportes", icon: FileUp },
+        { href: "/importar-locales", label: "Importar Locales", icon: FileUp },
+      ]
     },
     {
-      href: "/importar-locales",
-      label: "Importar Locales",
-      icon: FileUp,
-    },
-    {
-      href: "/cargar-fotos-locales",
-      label: "Cargar Fotos Locales",
-      icon: UploadCloud,
-    },
-    {
-      href: "/users",
-      label: "Usuarios",
-      icon: Users,
-    },
-    {
-      href: "/settings",
-      label: "Configuración",
-      icon: Settings,
+      label: "Sistema",
+      items: [
+        { href: "/users", label: "Usuarios", icon: Users },
+        { href: "/settings", label: "Configuración", icon: Settings },
+      ]
     },
   ];
 
-  const accessibleMenuItems = menuItems.filter(item => {
-    if (user?.profile?.role === 'admin') {
-      return true;
-    }
-    if (item.href === '/') {
-        return true;
-    }
-    const moduleName = item.href.substring(1);
+  const isAccessible = (href: string) => {
+    if (user?.profile?.role === 'admin') return true;
+    if (href === '/') return true;
+    const moduleName = href.substring(1);
     return user?.profile?.modules?.includes(moduleName);
-  });
+  };
 
   return (
     <>
       <SidebarHeader>
-        <div className="flex h-10 items-center gap-3">
-            <Image src="/logo.png" alt="Logo" width={32} height={32} className="rounded-sm"/>
-            <span className="text-lg font-bold text-sidebar-foreground truncate group-data-[collapsible=icon]:hidden uppercase tracking-tight">
+        <div className="flex h-12 items-center gap-2 px-2">
+            <div className="shrink-0">
+              <Image src="/logo.png" alt="Logo" width={28} height={28} className="rounded-sm"/>
+            </div>
+            <span className="text-sm font-black text-sidebar-foreground truncate group-data-[collapsible=icon]:hidden uppercase leading-none tracking-tighter">
                 JUSTICIA ELECTORAL
             </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarMenu>
-          {accessibleMenuItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href}
-                tooltip={item.label}
-              >
-                <Link href={item.href}>
-                  <item.icon />
-                  <span className="flex-1 truncate group-data-[collapsible=icon]:hidden">
-                    {item.label}
-                  </span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+        {menuGroups.map((group) => {
+          const accessibleItems = group.items.filter(item => isAccessible(item.href));
+          if (accessibleItems.length === 0) return null;
+
+          return (
+            <Collapsible key={group.label} defaultOpen className="group/collapsible">
+              <SidebarGroup>
+                <SidebarGroupLabel asChild>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent hover:text-sidebar-accent-foreground px-2 py-1 rounded-md transition-colors">
+                    <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">{group.label}</span>
+                    <ChevronDown className="ml-auto h-3 w-3 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </CollapsibleTrigger>
+                </SidebarGroupLabel>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {accessibleItems.map((item) => (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={pathname === item.href}
+                            tooltip={item.label}
+                            className="h-9"
+                          >
+                            <Link href={item.href}>
+                              <item.icon className="h-4 w-4" />
+                              <span className="text-xs font-medium">{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+          );
+        })}
       </SidebarContent>
       <SidebarFooter>
         {user && (
             <div className="px-2 py-2 group-data-[collapsible=icon]:hidden">
-                <div className="flex items-center gap-3 p-2 rounded-md">
-                   <Avatar className="h-8 w-8">
+                <div className="flex items-center gap-3 p-2 rounded-md bg-sidebar-accent/30">
+                   <Avatar className="h-8 w-8 border">
                        <AvatarImage src={user.photoURL ?? undefined} />
-                       <AvatarFallback>
+                       <AvatarFallback className="bg-primary text-white">
                            <User className="h-4 w-4"/>
                        </AvatarFallback>
                    </Avatar>
                    <div className="flex flex-col truncate">
-                       <span className="text-sm font-semibold text-sidebar-foreground truncate">{user.displayName || user.profile?.username || 'Usuario'}</span>
-                       <span className="text-xs text-sidebar-foreground/70 truncate">{user.email}</span>
+                       <span className="text-xs font-bold text-sidebar-foreground truncate">{user.profile?.username || 'Usuario'}</span>
+                       <span className="text-[10px] text-sidebar-foreground/60 truncate uppercase">{user.profile?.role}</span>
                    </div>
                 </div>
             </div>
@@ -185,9 +187,9 @@ export default function AppSidebar() {
         <SidebarSeparator />
         <SidebarMenu>
             <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar Sesión">
-                    <LogOut />
-                    <span className="flex-1 truncate group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
+                <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar Sesión" className="h-9">
+                    <LogOut className="h-4 w-4" />
+                    <span className="text-xs font-medium">Cerrar Sesión</span>
                 </SidebarMenuButton>
             </SidebarMenuItem>
         </SidebarMenu>
