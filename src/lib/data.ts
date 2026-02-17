@@ -105,4 +105,22 @@ export type EncuestaSatisfaccion = {
   fecha_creacion: string;
 }
 
+export type InformeDivulgador = {
+  id: string;
+  lugar_divulgacion: string;
+  fecha: string;
+  hora_desde: string;
+  hora_hasta: string;
+  nombre_divulgador: string;
+  cedula_divulgador: string;
+  vinculo: string;
+  oficina: string;
+  departamento: string;
+  distrito: string;
+  total_personas: number;
+  marcaciones: number[];
+  usuario_id: string;
+  fecha_creacion: string;
+}
+
 export const initialDepartments: Department[] = [];

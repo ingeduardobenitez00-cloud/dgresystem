@@ -56,7 +56,6 @@ service cloud.firestore {
     
     match /imagenes/{imagenId} {
       allow read: if isAdmin() || hasPermission('view_images');
-      // A 'funcionario' with the 'add' permission can manage images for their assigned location.
       allow create: if isSignedIn() && (
         isAdmin() ||
         (isRole('funcionario') && hasPermission('add') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
@@ -69,12 +68,10 @@ service cloud.firestore {
 
     match /reports/{reportId} {
       allow read: if isAdmin() || hasPermission('view_report');
-      // A 'funcionario' with the 'edit' permission can create/update reports.
       allow create, update: if isSignedIn() && (
         isAdmin() ||
         (isRole('funcionario') && hasPermission('edit') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
       );
-      // A 'funcionario' with the 'delete' permission can delete reports.
       allow delete: if isSignedIn() && (
         isAdmin() ||
         (isRole('funcionario') && hasPermission('delete') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
@@ -94,6 +91,18 @@ service cloud.firestore {
     }
 
     match /encuestas-satisfaccion/{encuestaId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || 
+        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
+      );
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    match /informes-divulgador/{informeId} {
       allow read: if isSignedIn() && (
         isAdmin() || 
         (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))

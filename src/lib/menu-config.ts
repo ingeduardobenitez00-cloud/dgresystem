@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -22,13 +22,13 @@ export const dashboardMenuItems = [
   },
   {
     href: '/solicitud-capacitacion',
-    label: 'Solicitud Capacitación',
+    label: 'Nueva Solicitud',
     icon: ClipboardCheck,
     description: 'Crea una nueva solicitud de capacitación con firma.',
   },
   {
     href: '/agenda-capacitacion',
-    label: 'Agenda Capacitación',
+    label: 'Agenda',
     icon: CalendarDays,
     description: 'Visualiza el calendario de capacitaciones agendadas.',
   },
@@ -37,6 +37,12 @@ export const dashboardMenuItems = [
     label: 'Encuesta Satisfacción',
     icon: MessageSquareHeart,
     description: 'Formulario de encuesta sobre el uso de la máquina.',
+  },
+  {
+    href: '/informe-divulgador',
+    label: 'Informe del Divulgador',
+    icon: UserCheck,
+    description: 'Control individual de marcaciones por ciudadano (Anexo III).',
   },
   {
     href: '/resumen',

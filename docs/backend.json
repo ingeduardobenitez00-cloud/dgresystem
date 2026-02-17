@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Dato": {
@@ -405,6 +406,38 @@
         "departamento",
         "distrito"
       ]
+    },
+    "InformeDivulgador": {
+      "title": "Informe del Divulgador (Anexo III)",
+      "type": "object",
+      "description": "Control individual del divulgador con marcaciones.",
+      "properties": {
+        "lugar_divulgacion": { "type": "string" },
+        "fecha": { "type": "string", "format": "date" },
+        "hora_desde": { "type": "string" },
+        "hora_hasta": { "type": "string" },
+        "nombre_divulgador": { "type": "string" },
+        "cedula_divulgador": { "type": "string" },
+        "vinculo": { "type": "string" },
+        "oficina": { "type": "string" },
+        "departamento": { "type": "string" },
+        "distrito": { "type": "string" },
+        "total_personas": { "type": "number" },
+        "marcaciones": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "usuario_id": { "type": "string" },
+        "fecha_creacion": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "lugar_divulgacion",
+        "fecha",
+        "nombre_divulgador",
+        "cedula_divulgador",
+        "departamento",
+        "distrito"
+      ]
     }
   },
   "auth": {
@@ -466,6 +499,12 @@
         "$ref": "#/entities/EncuestaSatisfaccion"
       },
       "description": "Stores satisfaction surveys."
+    },
+    "/informes-divulgador/{informeId}": {
+      "schema": {
+        "$ref": "#/entities/InformeDivulgador"
+      },
+      "description": "Stores individual divulgador reports (Anexo III)."
     }
   }
 }
