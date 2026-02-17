@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Dato": {
@@ -130,6 +129,8 @@
           "type": "string",
           "enum": [
             "admin",
+            "director",
+            "jefe",
             "funcionario",
             "viewer"
           ]

@@ -41,7 +41,7 @@ type UserProfile = {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'funcionario' | 'viewer';
+  role: 'admin' | 'director' | 'jefe' | 'funcionario' | 'viewer';
   modules: string[];
   permissions: string[];
   departamento?: string;
@@ -409,6 +409,8 @@ export default function UsersPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="admin">Administrador</SelectItem>
+                            <SelectItem value="director">Director</SelectItem>
+                            <SelectItem value="jefe">Jefe</SelectItem>
                             <SelectItem value="funcionario">Funcionario</SelectItem>
                             <SelectItem value="viewer">Visualizador</SelectItem>
                         </SelectContent>
@@ -620,7 +622,7 @@ export default function UsersPage() {
                             <Label htmlFor="edit-role">Rol</Label>
                             <Select name="role" required value={editRole} onValueChange={(value: UserProfile['role']) => {
                                 setEditRole(value);
-                                if (value === 'admin') {
+                                if (value === 'admin' || value === 'director' || value === 'jefe') {
                                     setEditDept('');
                                     setEditDist('');
                                     setSelectedDepartment('');
@@ -631,6 +633,8 @@ export default function UsersPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="admin">Administrador</SelectItem>
+                                    <SelectItem value="director">Director</SelectItem>
+                                    <SelectItem value="jefe">Jefe</SelectItem>
                                     <SelectItem value="funcionario">Funcionario</SelectItem>
                                     <SelectItem value="viewer">Visualizador</SelectItem>
                                 </SelectContent>
@@ -646,7 +650,7 @@ export default function UsersPage() {
                                         setEditDept(value);
                                         setEditDist('');
                                         setSelectedDepartment(value);
-                                    }} disabled={editRole === 'admin'}>
+                                    }} disabled={editRole === 'admin' || editRole === 'director'}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Seleccionar departamento"/>
                                         </SelectTrigger>
@@ -657,7 +661,7 @@ export default function UsersPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="distrito-edit">Distrito</Label>
-                                    <Select name="distrito" value={editDist} onValueChange={setEditDist} disabled={!selectedDepartment || editRole === 'admin'}>
+                                    <Select name="distrito" value={editDist} onValueChange={setEditDist} disabled={!selectedDepartment || editRole === 'admin' || editRole === 'director'}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Seleccionar distrito"/>
                                         </SelectTrigger>
