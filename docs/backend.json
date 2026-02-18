@@ -451,6 +451,11 @@
           "type": "array",
           "items": { "type": "number" }
         },
+        "fotos": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Data URIs of the event photos."
+        },
         "usuario_id": { "type": "string" },
         "fecha_creacion": { "type": "string", "format": "date-time" }
       },

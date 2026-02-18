@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserCheck, CheckCircle2, FileDown, CalendarDays, MousePointerSquareDashed } from 'lucide-react';
+import { Loader2, UserCheck, CheckCircle2, FileDown, CalendarDays, MousePointerSquareDashed, Camera, Trash2, Image as ImageIcon, Plus } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -17,6 +17,7 @@ import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 export default function InformeDivulgadorPage() {
   const { user, isUserLoading } = useUser();
@@ -27,6 +28,7 @@ export default function InformeDivulgadorPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [markedCells, setMarcaciones] = useState<number[]>([]);
+  const [eventPhotos, setEventPhotos] = useState<string[]>([]);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     lugar_divulgacion: '',
@@ -109,6 +111,27 @@ export default function InformeDivulgadorPage() {
     );
   };
 
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (eventPhotos.length >= 3) {
+        toast({ variant: "destructive", title: "Límite alcanzado", description: "Solo puedes agregar hasta 3 fotos." });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEventPhotos(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset the input value so the same file can be picked again if deleted
+    e.target.value = '';
+  };
+
+  const removePhoto = (index: number) => {
+    setEventPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!firestore || !user) return;
     
@@ -125,6 +148,7 @@ export default function InformeDivulgadorPage() {
         distrito: user.profile?.distrito || '',
         total_personas: markedCells.length,
         marcaciones: markedCells,
+        fotos: eventPhotos,
         usuario_id: user.uid,
         fecha_creacion: new Date().toISOString(),
         server_timestamp: serverTimestamp(),
@@ -134,6 +158,7 @@ export default function InformeDivulgadorPage() {
       toast({ title: "¡Informe Guardado!", description: "El informe del divulgador ha sido registrado con éxito." });
       
       setMarcaciones([]);
+      setEventPhotos([]);
       setFormData({
         lugar_divulgacion: '',
         fecha: '',
@@ -152,7 +177,7 @@ export default function InformeDivulgadorPage() {
     }
   };
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const doc = new jsPDF();
     const margin = 15;
     
@@ -241,6 +266,28 @@ export default function InformeDivulgadorPage() {
 
     doc.text("__________________________________", 150, y, { align: "center" });
     doc.text("Firma, aclaración y sello Jefes", 150, y + 5, { align: "center" });
+
+    // Add photos page if there are any
+    if (eventPhotos.length > 0) {
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text("FOTOS DEL EVENTO (DIVULGACIÓN / CAPACITACIÓN)", 105, 20, { align: "center" });
+      
+      let photoY = 30;
+      for (const photo of eventPhotos) {
+        if (photoY + 80 > 280) {
+          doc.addPage();
+          photoY = 20;
+        }
+        try {
+          doc.addImage(photo, 'JPEG', margin, photoY, 180, 70);
+          photoY += 85;
+        } catch (e) {
+          console.error("Error adding photo to PDF", e);
+        }
+      }
+    }
 
     doc.save(`AnexoIII-${formData.cedula_divulgador || 'Informe'}.pdf`);
   };
@@ -370,6 +417,57 @@ export default function InformeDivulgadorPage() {
                         </div>
                     ))}
                 </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <Label className="text-lg font-bold flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-primary" />
+                  FOTOS DEL EVENTO (MÁX. 3)
+                </Label>
+                <div className="flex gap-2">
+                  <label htmlFor="camera-capture" className="cursor-pointer">
+                    <div className="inline-flex items-center justify-center rounded-md bg-primary/10 px-3 py-2 text-sm font-bold text-primary hover:bg-primary/20 transition-all">
+                      <Camera className="mr-2 h-4 w-4" /> CÁMARA
+                    </div>
+                    <Input id="camera-capture" type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} disabled={eventPhotos.length >= 3} />
+                  </label>
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <div className="inline-flex items-center justify-center rounded-md border border-primary/20 px-3 py-2 text-sm font-bold text-primary hover:bg-muted transition-all">
+                      <Plus className="mr-2 h-4 w-4" /> GALERÍA
+                    </div>
+                    <Input id="file-upload" type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} disabled={eventPhotos.length >= 3} />
+                  </label>
+                </div>
+              </div>
+
+              {eventPhotos.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {eventPhotos.map((photo, index) => (
+                    <Card key={index} className="relative group overflow-hidden border-2 border-primary/10">
+                      <CardContent className="p-0 aspect-video relative">
+                        <Image src={photo} alt={`Foto ${index + 1}`} fill className="object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Button variant="destructive" size="icon" className="rounded-full" onClick={() => removePhoto(index)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="p-2 bg-muted/50 justify-center">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Foto {index + 1}</span>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center bg-muted/5 text-muted-foreground">
+                  <ImageIcon className="h-10 w-10 mb-2 opacity-20" />
+                  <p className="text-sm font-medium uppercase tracking-tighter">No hay imágenes capturadas</p>
+                  <p className="text-[10px] font-bold">Puedes subir hasta 3 fotografías de la actividad</p>
+                </div>
+              )}
             </div>
 
             <Separator />

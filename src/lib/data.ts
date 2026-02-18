@@ -122,6 +122,7 @@ export type InformeDivulgador = {
   distrito: string;
   total_personas: number;
   marcaciones: number[];
+  fotos?: string[];
   usuario_id: string;
   fecha_creacion: string;
 }
