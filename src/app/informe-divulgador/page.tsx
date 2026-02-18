@@ -41,6 +41,7 @@ export default function InformeDivulgadorPage() {
     cedula_divulgador: '',
     vinculo: '',
     oficina: '',
+    departamento: '',
   });
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function InformeDivulgadorPage() {
         cedula_divulgador: user.profile?.cedula || '',
         vinculo: user.profile?.vinculo || '',
         oficina: user.profile?.distrito || '',
+        departamento: user.profile?.departamento || '',
       }));
     }
   }, [user, isUserLoading, agendaId]);
@@ -95,6 +97,7 @@ export default function InformeDivulgadorPage() {
           cedula_divulgador: item.divulgador_cedula || '',
           vinculo: item.divulgador_vinculo || '',
           oficina: item.distrito || '',
+          departamento: item.departamento || '',
         }));
       }
     }
@@ -118,6 +121,7 @@ export default function InformeDivulgadorPage() {
         cedula_divulgador: item.divulgador_cedula || '',
         vinculo: item.divulgador_vinculo || '',
         oficina: item.distrito || '',
+        departamento: item.departamento || '',
       }));
       toast({ title: "Datos cargados" });
     }
@@ -151,8 +155,8 @@ export default function InformeDivulgadorPage() {
     setIsSubmitting(true);
     const docData = {
       ...formData,
-      departamento: user.profile?.departamento || '',
-      distrito: user.profile?.distrito || '',
+      departamento: formData.departamento || user.profile?.departamento || '',
+      distrito: formData.oficina || user.profile?.distrito || '',
       total_personas: markedCells.length,
       marcaciones: markedCells,
       fotos: eventPhotos,
@@ -179,34 +183,132 @@ export default function InformeDivulgadorPage() {
   const generatePDF = async () => {
     const doc = new jsPDF();
     const margin = 15;
-    if (logoBase64) doc.addImage(logoBase64, 'PNG', margin, 5, 18, 18);
-
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text("INFORME DEL DIVULGADOR (ANEXO III)", 105, 15, { align: "center" });
+    const pageWidth = doc.internal.pageSize.getWidth();
     
-    let y = 35;
-    const drawLine = (label: string, value: string, currentY: number) => {
+    // --- Header ---
+    if (logoBase64) doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text("ANEXO III", 40, 18);
+    doc.text("INFORME DEL DIVULGADOR", 40, 25);
+
+    let y = 40;
+    
+    // Helper for sections
+    const drawSection = (lines: { label: string, value: string, xOffset: number, width: number }[], height: number) => {
+      doc.rect(margin, y, pageWidth - (margin * 2), height);
+      lines.forEach(line => {
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${label}:`, margin, currentY);
+        doc.text(`${line.label}:`, margin + 2 + line.xOffset, y + (height / 2) + 1.5);
         doc.setFont('helvetica', 'normal');
-        doc.text((value || '').toUpperCase(), margin + 50, currentY);
-        doc.line(margin + 50, currentY + 1, 195, currentY + 1);
-        return currentY + 8;
+        doc.text(String(line.value || '').toUpperCase(), margin + 2 + line.xOffset + line.width, y + (height / 2) + 1.5);
+      });
+      y += height;
     };
 
-    y = drawLine("LUGAR", formData.lugar_divulgacion, y);
-    y = drawLine("FECHA", formData.fecha, y);
-    y = drawLine("DIVULGADOR", formData.nombre_divulgador, y);
-    y = drawLine("TOTAL PERSONAS", `${markedCells.length}`, y);
+    // Block 1: Event
+    drawSection([
+      { label: "LUGAR DE DIVULGACIÓN", value: formData.lugar_divulgacion, xOffset: 0, width: 45 }
+    ], 10);
+    
+    const [year, month, day] = formData.fecha.split('-');
+    drawSection([
+      { label: "FECHA", value: `${day}/${month}/${year || '2026'}`, xOffset: 0, width: 15 },
+      { label: "HORARIO DE", value: formData.hora_desde, xOffset: 70, width: 25 },
+      { label: "A", value: formData.hora_hasta, xOffset: 120, width: 5 },
+      { label: "HS.", value: "", xOffset: 145, width: 0 }
+    ], 10);
+
+    // Block 2: Divulgador
+    drawSection([
+      { label: "NOMBRE COMPLETO DIVULGADOR", value: formData.nombre_divulgador, xOffset: 0, width: 55 }
+    ], 10);
+    drawSection([
+      { label: "C.I.C. N.º", value: formData.cedula_divulgador, xOffset: 0, width: 18 },
+      { label: "VÍNCULO", value: formData.vinculo, xOffset: 70, width: 18 }
+    ], 10);
+
+    // Block 3: Location
+    drawSection([
+      { label: "OFICINA", value: formData.oficina, xOffset: 0, width: 18 }
+    ], 10);
+    drawSection([
+      { label: "DEPARTAMENTO", value: formData.departamento, xOffset: 0, width: 30 }
+    ], 10);
 
     y += 10;
-    doc.text("__________________________________", 50, y + 50, { align: "center" });
-    doc.text("Firma Divulgador", 50, y + 55, { align: "center" });
-    doc.text("__________________________________", 150, y + 50, { align: "center" });
-    doc.text("Firma Jefes", 150, y + 55, { align: "center" });
 
-    doc.save(`AnexoIII-${formData.cedula_divulgador}.pdf`);
+    // --- Table Section ---
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text("MARCA CON UNA \"X\" POR CADA CIUDADANO QUE PRACTICÓ", pageWidth / 2, y, { align: 'center' });
+    y += 5;
+
+    const cellWidth = (pageWidth - (margin * 2)) / 13;
+    const cellHeight = 10;
+    const tableStartY = y;
+
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 13; col++) {
+        const num = (row * 13) + col + 1;
+        const x = margin + (col * cellWidth);
+        const cellY = tableStartY + (row * cellHeight);
+        
+        doc.rect(x, cellY, cellWidth, cellHeight);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(num.toString(), x + 1.5, cellY + 3);
+        
+        if (markedCells.includes(num)) {
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.text("X", x + (cellWidth / 2), cellY + (cellHeight / 2) + 2, { align: 'center' });
+        }
+      }
+    }
+
+    y = tableStartY + (8 * cellHeight) + 15;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`TOTAL DE PERSONAS: ${markedCells.length} ciudadanos.`, pageWidth / 2, y, { align: 'center' });
+
+    // --- Signatures ---
+    y += 35;
+    doc.setFontSize(10);
+    doc.text("__________________________________", margin + 40, y, { align: "center" });
+    doc.text("Firma y aclaración Divulgador", margin + 40, y + 5, { align: "center" });
+    
+    doc.text("__________________________________", pageWidth - margin - 40, y, { align: "center" });
+    doc.text("Firma, aclaración y sello Jefes", pageWidth - margin - 40, y + 5, { align: "center" });
+
+    // --- Footer Note ---
+    y += 25;
+    doc.setFontSize(8);
+    doc.text("-", margin, y);
+    doc.text("Control individual del divulgador con cantidad de ciudadanos que practicaron con la MV para", margin + 5, y);
+    doc.text("informe semanal de divulgación de la oficina.", margin + 5, y + 4);
+
+    // --- Photos Page ---
+    if (eventPhotos.length > 0) {
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text("ANEXO FOTOGRÁFICO DEL EVENTO", pageWidth / 2, 20, { align: 'center' });
+      
+      let photoY = 40;
+      for (const photo of eventPhotos) {
+        if (photoY + 70 > doc.internal.pageSize.getHeight() - 20) {
+          doc.addPage();
+          photoY = 20;
+        }
+        doc.addImage(photo, 'JPEG', margin, photoY, pageWidth - (margin * 2), 70);
+        photoY += 80;
+      }
+    }
+
+    doc.save(`AnexoIII-${formData.cedula_divulgador || 'Informe'}.pdf`);
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -240,12 +342,12 @@ export default function InformeDivulgadorPage() {
           <CardContent className="space-y-8 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-6 rounded-xl border-2 border-dashed">
               <div className="space-y-2">
-                <Label className="font-black text-primary text-[10px] uppercase">Nombre Completo</Label>
+                <Label className="font-black text-primary text-[10px] uppercase">Nombre Completo Divulgador</Label>
                 <Input value={formData.nombre_divulgador} readOnly className="bg-white font-bold" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="font-black text-primary text-[10px] uppercase">C.I.C.</Label>
+                  <Label className="font-black text-primary text-[10px] uppercase">C.I.C. N.º</Label>
                   <Input value={formData.cedula_divulgador} readOnly className="bg-white font-bold" />
                 </div>
                 <div className="space-y-2">
@@ -253,18 +355,37 @@ export default function InformeDivulgadorPage() {
                   <Input value={formData.vinculo} readOnly className="bg-white font-bold" />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label className="font-black text-primary text-[10px] uppercase">Oficina</Label>
+                <Input value={formData.oficina} readOnly className="bg-white font-bold" />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-black text-primary text-[10px] uppercase">Departamento</Label>
+                <Input value={formData.departamento} readOnly className="bg-white font-bold" />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} placeholder="Lugar" />
+              <div className="space-y-2">
+                <Label>Lugar de Divulgación</Label>
+                <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} placeholder="Lugar" />
+              </div>
               <div className="grid grid-cols-2 gap-4">
-                <Input name="fecha" type="date" value={formData.fecha} onChange={handleInputChange} />
-                <div className="text-2xl font-black text-primary bg-primary/10 rounded-md p-2 text-center">{markedCells.length}</div>
+                <div className="space-y-2">
+                  <Label>Fecha</Label>
+                  <Input name="fecha" type="date" value={formData.fecha} onChange={handleInputChange} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total Personas</Label>
+                  <div className="text-2xl font-black text-primary bg-primary/10 rounded-md p-2 text-center h-10 flex items-center justify-center">
+                    {markedCells.length}
+                  </div>
+                </div>
               </div>
             </div>
 
             <div className="space-y-4">
-                <Label className="font-bold">MARCACIONES (TÁCTIL)</Label>
+                <Label className="font-bold">MARCA CON UNA "X" POR CADA CIUDADANO QUE PRACTICÓ</Label>
                 <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-13 border rounded-lg overflow-hidden bg-background">
                     {Array.from({ length: 104 }, (_, i) => i + 1).map(num => (
                         <div key={num} onClick={() => toggleCell(num)} className={cn("aspect-square border flex flex-col items-center justify-center cursor-pointer hover:bg-primary/5", markedCells.includes(num) ? "bg-primary/10" : "")}>
@@ -276,24 +397,36 @@ export default function InformeDivulgadorPage() {
             </div>
 
             <div className="space-y-6">
-              <Label className="font-bold flex items-center gap-2"><ImageIcon className="h-5 w-5" /> FOTOS (MÁX. 3)</Label>
+              <Label className="font-bold flex items-center gap-2"><ImageIcon className="h-5 w-5" /> FOTOS DE EVENTO (MÁX. 3)</Label>
               <div className="flex gap-2">
-                <label className="cursor-pointer bg-primary/10 text-primary px-4 py-2 rounded text-sm font-bold">Cámara<Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} /></label>
-                <label className="cursor-pointer border border-primary/20 px-4 py-2 rounded text-sm font-bold">Galería<Input type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} /></label>
+                <label className="cursor-pointer bg-primary/10 text-primary px-4 py-2 rounded text-sm font-bold flex items-center gap-2">
+                  <Camera className="h-4 w-4" /> Cámara
+                  <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
+                </label>
+                <label className="cursor-pointer border border-primary/20 px-4 py-2 rounded text-sm font-bold flex items-center gap-2">
+                  <Plus className="h-4 w-4" /> Galería
+                  <Input type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
+                </label>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {eventPhotos.map((photo, index) => (
-                  <div key={index} className="relative aspect-video border rounded overflow-hidden">
+                  <div key={index} className="relative aspect-video border rounded-lg overflow-hidden shadow-sm">
                     <Image src={photo} alt="Evento" fill className="object-cover" />
-                    <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-7 w-7" onClick={() => setEventPhotos(p => p.filter((_, i) => i !== index))}><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-7 w-7 rounded-full shadow-md" onClick={() => setEventPhotos(p => p.filter((_, i) => i !== index))}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex gap-4 border-t p-6">
-            <Button onClick={generatePDF} variant="outline" className="font-bold">ANEXO III (PDF)</Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 font-bold">GUARDAR INFORME</Button>
+          <CardFooter className="flex flex-col sm:flex-row gap-4 border-t p-6 bg-muted/5">
+            <Button onClick={generatePDF} variant="outline" className="w-full sm:w-auto font-bold h-12">
+              <FileDown className="mr-2 h-5 w-5" /> GENERAR PDF ANEXO III
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 font-bold h-12 text-lg">
+              {isSubmitting ? <><Loader2 className="animate-spin mr-2" /> GUARDANDO...</> : "GUARDAR INFORME"}
+            </Button>
           </CardFooter>
         </Card>
       </main>
