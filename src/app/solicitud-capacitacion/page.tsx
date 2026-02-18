@@ -239,7 +239,7 @@ export default function SolicitudCapacitacionPage() {
 
       tableY += 6;
       doc.setLineWidth(0.3);
-      doc.rect(margin, tableY, 180, 40);
+      doc.rect(margin, tableY, 180, 42);
       doc.setFont('helvetica', 'bold');
       doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 6, { align: "center" });
       
@@ -250,13 +250,17 @@ export default function SolicitudCapacitacionPage() {
       
       doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 24);
       
-      // Right-aligned dual chief signature for internal space
-      doc.text("__________________________________", 150, tableY + 32, { align: "center" });
-      doc.text("Firma, aclaración y sello Jefes", 150, tableY + 37, { align: "center" });
-      
       doc.setFontSize(7.5);
-      doc.text("Total de personas capacitadas:", margin + 5, tableY + 37);
-      doc.rect(margin + 45, tableY + 34.5, 20, 3.5);
+      doc.text("Total de personas capacitadas:", margin + 5, tableY + 33);
+      doc.rect(margin + 45, tableY + 30.5, 20, 3.5);
+
+      // Two signature lines for Jefes
+      doc.setFontSize(8.5);
+      doc.text("___________________________", 85, tableY + 33, { align: "center" });
+      doc.text("Firma, aclaración y sello Jefe", 85, tableY + 38, { align: "center" });
+
+      doc.text("___________________________", 155, tableY + 33, { align: "center" });
+      doc.text("Firma, aclaración y sello Jefe", 155, tableY + 38, { align: "center" });
 
       if (mapRef.current && formData.gps) {
         doc.addPage();
