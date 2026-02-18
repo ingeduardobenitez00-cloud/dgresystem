@@ -7,32 +7,33 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where } from 'firebase/firestore';
-import { type SolicitudCapacitacion } from '@/lib/data';
-import { Loader2, Calendar, MapPin, User, FileImage, ClipboardCheck, LayoutList, Building2, Users } from 'lucide-react';
+import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
+import { Loader2, Calendar, MapPin, FileImage, ClipboardCheck, LayoutList, Building2, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Separator } from '@/components/ui/separator';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+
+  // Master list of departments and districts to get codes
+  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile) return null;
     
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     
-    // Roles administrativos (Admin, Director, Jefe) pueden ver todo
     const isAdministrative = user.profile.role === 'admin' || user.profile.role === 'director' || user.profile.role === 'jefe';
 
     if (isAdministrative) {
       return query(colRef, orderBy('fecha', 'asc'));
     }
     
-    // Los funcionarios deben filtrar su consulta por departamento y distrito
     if (user.profile.role === 'funcionario' && user.profile.departamento && user.profile.distrito) {
       return query(
         colRef,
@@ -45,32 +46,51 @@ export default function AgendaCapacitacionPage() {
     return null;
   }, [firestore, user]);
 
-  const { data: solicitudes, isLoading } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: solicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
-  const groupedData = useMemo(() => {
-    if (!solicitudes) return {};
-    const groups: Record<string, Record<string, SolicitudCapacitacion[]>> = {};
-    
-    solicitudes.forEach(s => {
-      const dept = s.departamento || 'SIN DEPARTAMENTO';
-      const dist = s.distrito || 'SIN DISTRITO';
-      if (!groups[dept]) groups[dept] = {};
-      if (!groups[dept][dist]) groups[dept][dist] = [];
-      groups[dept][dist].push(s);
+  const structuredAgenda = useMemo(() => {
+    if (!datosData || !solicitudes) return [];
+
+    // Map to store department info (code and name)
+    const deptsMap: Map<string, { code: string, name: string, districts: Map<string, SolicitudCapacitacion[]> }> = new Map();
+
+    // Fill with master data first to ensure order and presence of codes
+    datosData.forEach(d => {
+      if (!deptsMap.has(d.departamento)) {
+        deptsMap.set(d.departamento, {
+          code: d.departamento_codigo || '00',
+          name: d.departamento,
+          districts: new Map()
+        });
+      }
     });
 
-    return groups;
-  }, [solicitudes]);
+    // Populate with actual solicitudes
+    solicitudes.forEach(s => {
+      const dept = deptsMap.get(s.departamento);
+      if (dept) {
+        if (!dept.districts.has(s.distrito)) {
+          dept.districts.set(s.distrito, []);
+        }
+        dept.districts.get(s.distrito)!.push(s);
+      }
+    });
+
+    // Convert map to sorted array
+    return Array.from(deptsMap.values())
+      .filter(d => d.districts.size > 0) // Only show departments with activities
+      .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  }, [datosData, solicitudes]);
 
   const stats = useMemo(() => {
     if (!solicitudes) return { total: 0, depts: 0 };
     return {
       total: solicitudes.length,
-      depts: Object.keys(groupedData).length
+      depts: structuredAgenda.length
     };
-  }, [solicitudes, groupedData]);
+  }, [solicitudes, structuredAgenda]);
 
-  if (isUserLoading || isLoading) {
+  if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="animate-spin h-8 w-8 text-primary"/>
@@ -86,10 +106,10 @@ export default function AgendaCapacitacionPage() {
         {/* Cabecera del Reporte */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white p-6 rounded-lg border shadow-sm">
           <div>
-            <h1 className="text-3xl font-black tracking-tight uppercase text-primary">Reporte de Agenda de Capacitaciones</h1>
+            <h1 className="text-3xl font-black tracking-tight uppercase text-primary">Agenda de Capacitaciones</h1>
             <p className="text-muted-foreground flex items-center gap-2 mt-1">
               <LayoutList className="h-4 w-4" />
-              Consolidado nacional de actividades programadas por el CIDEE.
+              Consolidado nacional de actividades programadas.
             </p>
           </div>
           <div className="flex gap-4">
@@ -104,33 +124,33 @@ export default function AgendaCapacitacionPage() {
           </div>
         </div>
 
-        {Object.keys(groupedData).length === 0 ? (
+        {structuredAgenda.length === 0 ? (
           <Card className="p-12 text-center border-dashed">
             <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium text-muted-foreground">No hay capacitaciones agendadas en la base de datos.</p>
+            <p className="text-lg font-medium text-muted-foreground">No hay actividades agendadas para mostrar.</p>
           </Card>
         ) : (
           <div className="space-y-6">
             <Accordion type="multiple" className="w-full space-y-4">
-              {Object.entries(groupedData).map(([dept, distritos]) => (
-                <AccordionItem key={dept} value={dept} className="border bg-white rounded-lg overflow-hidden shadow-sm">
-                  <AccordionTrigger className="hover:no-underline px-6 py-4 bg-muted/30">
+              {structuredAgenda.map((dept) => (
+                <AccordionItem key={dept.name} value={dept.name} className="border bg-white rounded-lg overflow-hidden shadow-sm">
+                  <AccordionTrigger className="hover:no-underline px-6 py-5 bg-muted/10">
                     <div className="flex items-center gap-4 text-left">
-                      <div className="h-10 w-10 rounded bg-primary text-white flex items-center justify-center font-black">
-                        {dept.substring(0, 2).toUpperCase()}
+                      <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black border border-primary/20">
+                        {dept.code}
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold uppercase tracking-tight">{dept}</h2>
+                        <h2 className="text-xl font-bold uppercase tracking-tight">{dept.name}</h2>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                          {Object.values(distritos).flat().length} ACTIVIDADES PROGRAMADAS
+                          {Array.from(dept.districts.values()).flat().length} ACTIVIDADES PROGRAMADAS
                         </span>
                       </div>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="p-0">
-                    <div className="divide-y border-t">
-                      {Object.entries(distritos).map(([dist, items]) => (
-                        <div key={dist} className="p-6 bg-white">
+                    <div className="divide-y border-t bg-muted/5">
+                      {Array.from(dept.districts.entries()).map(([dist, items]) => (
+                        <div key={dist} className="p-6">
                           <div className="flex items-center gap-2 mb-4">
                             <Building2 className="h-5 w-5 text-primary" />
                             <h3 className="text-lg font-black uppercase text-foreground/80">{dist}</h3>
@@ -141,7 +161,7 @@ export default function AgendaCapacitacionPage() {
                           
                           <div className="grid grid-cols-1 gap-4">
                             {items.map((item) => (
-                              <div key={item.id} className="group relative border rounded-md p-4 hover:border-primary transition-all bg-muted/5">
+                              <div key={item.id} className="group relative border rounded-md p-4 hover:border-primary transition-all bg-white">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
                                   
                                   {/* Columna Entidad */}
