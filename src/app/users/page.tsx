@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -35,7 +34,6 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { type Dato } from '@/lib/data';
 import { initializeApp, getApps, deleteApp, type FirebaseApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
-
 
 type UserProfile = {
   id: string;
@@ -123,7 +121,6 @@ const PERMISSION_LABELS: { [key: string]: string } = {
     generar_pdf: 'Generar PDF',
 };
 
-
 export default function UsersPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const { toast } = useToast();
@@ -131,7 +128,7 @@ export default function UsersPage() {
   const { user: currentUser, isUserLoading } = useUser();
 
   const usersQuery = useMemoFirebase(() => (firestore && currentUser?.profile?.role === 'admin' ? collection(firestore, 'users') : null), [firestore, currentUser]);
-  const { data: users, isLoading: isLoadingUsers, setData: setUsers } = useCollection<UserProfile>(usersQuery);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
@@ -294,11 +291,10 @@ export default function UsersPage() {
     }
   };
 
-  const handleDeleteUser = async (userId: string, userEmail: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (!firestore || !currentUser) return;
     try {
         await deleteDoc(doc(firestore, 'users', userId));
-        
         toast({ title: 'Usuario Eliminado', description: 'El registro del usuario ha sido eliminado de Firestore.' });
     } catch (error) {
         const contextualError = new FirestorePermissionError({
@@ -306,7 +302,7 @@ export default function UsersPage() {
             path: `users/${userId}`,
         });
         errorEmitter.emit('permission-error', contextualError);
-        toast({ title: 'Error al eliminar', variant: 'destructive', description: 'No se pudo eliminar the usuario.' });
+        toast({ title: 'Error al eliminar', variant: 'destructive', description: 'No se pudo eliminar el usuario.' });
     }
   };
 
@@ -314,7 +310,6 @@ export default function UsersPage() {
     if (!auth || !firestore || !currentUser) return;
     try {
       await sendPasswordResetEmail(auth, email);
-      
       toast({
         title: 'Correo enviado',
         description: `Se ha enviado un correo para restablecer la contraseña a ${email}.`,
@@ -586,7 +581,7 @@ export default function UsersPage() {
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteUser(user.id, user.email)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>

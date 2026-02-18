@@ -39,7 +39,6 @@ export default function SolicitudCapacitacionPage() {
   });
 
   const [coords, setCoords] = useState<{ lat: string; lng: string }>({ lat: '', lng: '' });
-  const [pdfGenerated, setPdfGenerated] = useState(false);
   const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -139,7 +138,7 @@ export default function SolicitudCapacitacionPage() {
       doc.text("Presente:", margin, 54);
 
       doc.setFont('helvetica', 'normal');
-      doc.text(`Tengo el agrado de dirigirme a usted/es, en representación de ${formData.solicitante_entidad.toUpperCase()},`, margin, 62);
+      doc.text(`Tengo el agrado de dirigirme a usted/es, en representación de ${(formData.solicitante_entidad || '').toUpperCase()},`, margin, 62);
       doc.text("en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas", margin, 66);
       doc.text(`del 07 de junio del 2026, a los efectos de solicitar:`, margin, 70);
 
@@ -162,7 +161,7 @@ export default function SolicitudCapacitacionPage() {
         doc.text(label, margin + 2, y + 4.5);
         doc.text(":", margin + 45, y + 4.5);
         doc.setFont('helvetica', 'normal');
-        doc.text(value, margin + 48, y + 4.5);
+        doc.text(value || '', margin + 48, y + 4.5);
         doc.line(margin, y + h, 195, y + h);
         return y + h;
       };
@@ -173,14 +172,13 @@ export default function SolicitudCapacitacionPage() {
       doc.text("HORARIO", margin + 2, tableY + 4.5);
       doc.text(":", margin + 45, tableY + 4.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(`DESDE: ${formData.hora_desde} hs`, margin + 48, tableY + 4.5);
-      doc.text(`HASTA: ${formData.hora_hasta} hs`, margin + 100, tableY + 4.5);
+      doc.text(`DESDE: ${formData.hora_desde || '--:--'} hs`, margin + 48, tableY + 4.5);
+      doc.text(`HASTA: ${formData.hora_hasta || '--:--'} hs`, margin + 100, tableY + 4.5);
       tableY += 7; doc.line(margin, tableY, 195, tableY);
 
       tableY = drawRow("LUGAR Y/O LOCAL", formData.lugar_local, tableY);
       tableY = drawRow("DIRECCIÓN (CALLE)", formData.direccion_calle, tableY);
       tableY = drawRow("BARRIO - COMPAÑÍA", formData.barrio_compania, tableY);
-      tableY = drawRow("DISTRITO", user?.profile?.distrito || '', tableY);
 
       tableY += 8;
       const isApod = formData.rol_solicitante === 'apoderado';
@@ -330,14 +328,10 @@ export default function SolicitudCapacitacionPage() {
             <CardDescription>Complete los datos del solicitante para generar el documento oficial.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6">
               <div className="space-y-2">
                 <Label className="text-primary font-bold">Departamento Asignado</Label>
                 <Input value={user?.profile?.departamento || ''} disabled className="bg-muted font-bold" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-primary font-bold">Distrito Asignado</Label>
-                <Input value={user?.profile?.distrito || ''} disabled className="bg-muted font-bold" />
               </div>
             </div>
 
