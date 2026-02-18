@@ -8,13 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, TableProperties, CheckCircle2, FileDown, DatabaseZap, AlertCircle } from 'lucide-react';
+import { Loader2, TableProperties, CheckCircle2, FileDown, DatabaseZap, AlertCircle, Search } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { type InformeSemanalFila, type InformeDivulgador } from '@/lib/data';
+import { type InformeDivulgador, type Dato } from '@/lib/data';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -29,16 +30,55 @@ export default function InformeSemanalAnexoIVPage() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
-  // Fetch Informes del Divulgador (Anexo III) to populate this summary
+  // States for filtering (Admins)
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
+
+  const isAdministrative = user?.profile?.role === 'admin' || user?.profile?.role === 'director' || user?.profile?.role === 'jefe';
+
+  // Master list of departments and districts for filtering
+  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+
+  // Initialize filters based on user profile or defaults
+  useEffect(() => {
+    if (!isUserLoading && user?.profile) {
+      if (!isAdministrative) {
+        setSelectedDepartment(user.profile.departamento || null);
+        setSelectedDistrict(user.profile.distrito || null);
+      } else if (!selectedDepartment && user.profile.departamento) {
+        // Optional: default to their own dept if admin
+        setSelectedDepartment(user.profile.departamento);
+        setSelectedDistrict(user.profile.distrito || null);
+      }
+    }
+  }, [user, isUserLoading, isAdministrative]);
+
+  // Update lists for selectors
+  useEffect(() => {
+    if (datosData) {
+      const uniqueDepts = [...new Set(datosData.map(d => d.departamento))].sort();
+      setDepartments(uniqueDepts);
+      
+      if (selectedDepartment) {
+        const uniqueDistricts = [...new Set(datosData.filter(d => d.departamento === selectedDepartment).map(d => d.distrito))].sort();
+        setDistricts(uniqueDistricts);
+      }
+    }
+  }, [datosData, selectedDepartment]);
+
+  // Fetch Informes del Divulgador (Anexo III) based on selection
   const informesQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.profile?.distrito) return null;
+    if (!firestore || !selectedDepartment || !selectedDistrict) return null;
     return query(
       collection(firestore, 'informes-divulgador'),
-      where('departamento', '==', user.profile.departamento),
-      where('distrito', '==', user.profile.distrito),
+      where('departamento', '==', selectedDepartment),
+      where('distrito', '==', selectedDistrict),
       orderBy('fecha', 'desc')
     );
-  }, [firestore, user]);
+  }, [firestore, selectedDepartment, selectedDistrict]);
 
   const { data: informesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
 
@@ -54,7 +94,6 @@ export default function InformeSemanalAnexoIVPage() {
       cantidad_personas: 0,
     }));
 
-    // Map existing reports to the table structure
     const mapped = informesAnexoIII.map(inf => ({
       lugar: inf.lugar_divulgacion,
       fecha: inf.fecha,
@@ -66,7 +105,6 @@ export default function InformeSemanalAnexoIVPage() {
       cantidad_personas: inf.total_personas || 0,
     }));
 
-    // Ensure we always show at least 12 rows for the visual format
     const emptyRowsCount = Math.max(0, 12 - mapped.length);
     const emptyRows = Array(emptyRowsCount).fill(null).map(() => ({
       lugar: '',
@@ -106,9 +144,9 @@ export default function InformeSemanalAnexoIVPage() {
     setIsSubmitting(true);
     try {
       const informeData = {
-        departamento: user.profile?.departamento || '',
-        distrito: user.profile?.distrito || '',
-        filas: consolidatedFilas.filter(f => f.lugar), // Solo guardar filas con datos reales
+        departamento: selectedDepartment || '',
+        distrito: selectedDistrict || '',
+        filas: consolidatedFilas.filter(f => f.lugar),
         usuario_id: user.uid,
         fecha_creacion: new Date().toISOString(),
         server_timestamp: serverTimestamp(),
@@ -147,8 +185,8 @@ export default function InformeSemanalAnexoIVPage() {
         const yInfo = 28;
         doc.text(`REPORTE CONSOLIDADO AL: ${new Date().toLocaleDateString('es-PY')}`, margin, yInfo);
         
-        doc.text(`DISTRITO: ${(user?.profile?.distrito || '').toUpperCase()}`, margin, yInfo + 6);
-        doc.text(`DEPARTAMENTO: ${(user?.profile?.departamento || '').toUpperCase()}`, margin + 80, yInfo + 6);
+        doc.text(`DISTRITO: ${(selectedDistrict || '').toUpperCase()}`, margin, yInfo + 6);
+        doc.text(`DEPARTAMENTO: ${(selectedDepartment || '').toUpperCase()}`, margin + 80, yInfo + 6);
 
         const tableBody = consolidatedFilas.map((f, i) => [
             i + 1,
@@ -195,7 +233,7 @@ export default function InformeSemanalAnexoIVPage() {
         doc.setFontSize(8);
         doc.text("FIRMA Y SELLO DE LOS JEFES", pageWidth - 45, finalY + 5, { align: "center" });
 
-        doc.save(`AnexoIV-${user?.profile?.distrito || 'Semanal'}.pdf`);
+        doc.save(`AnexoIV-${selectedDistrict || 'Semanal'}.pdf`);
     } catch (error) {
         console.error(error);
         toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF." });
@@ -204,12 +242,53 @@ export default function InformeSemanalAnexoIVPage() {
     }
   };
 
-  if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  if (isUserLoading || isLoadingDatos) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
       <Header title="Informe Semanal - Anexo IV" />
       <main className="flex-1 p-4 md:p-8">
+        
+        {/* Administative Filters */}
+        {isAdministrative && (
+          <div className="mx-auto max-w-7xl mb-6">
+            <Card className="bg-white border-primary/20 shadow-sm">
+              <CardHeader className="py-4">
+                <CardTitle className="text-xs font-bold flex items-center gap-2 uppercase tracking-widest text-primary">
+                  <Search className="h-4 w-4" />
+                  Filtrar Ubicación (Acceso Administrativo)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Departamento</Label>
+                    <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); }} value={selectedDepartment || undefined}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar departamento..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Distrito</Label>
+                    <Select onValueChange={setSelectedDistrict} value={selectedDistrict || undefined} disabled={!selectedDepartment}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={!selectedDepartment ? "Primero elija departamento" : "Seleccionar distrito..."} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <Card className="mx-auto max-w-7xl shadow-xl border-t-4 border-t-primary">
           <CardHeader className="bg-primary/5">
             <div className="flex justify-between items-start">
@@ -221,20 +300,28 @@ export default function InformeSemanalAnexoIVPage() {
                     <CardDescription>Resumen automatizado de actividades basado en los Informes del Divulgador (Anexo III).</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 text-right">
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 text-right min-w-[150px]">
                         <p className="text-[10px] font-black text-primary uppercase leading-none">Departamento</p>
-                        <p className="text-sm font-bold truncate">{user?.profile?.departamento || 'No asignado'}</p>
+                        <p className="text-sm font-bold truncate">{selectedDepartment || 'No seleccionado'}</p>
                     </div>
-                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 text-right">
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 text-right min-w-[150px]">
                         <p className="text-[10px] font-black text-primary uppercase leading-none">Distrito</p>
-                        <p className="text-sm font-bold truncate">{user?.profile?.distrito || 'No asignado'}</p>
+                        <p className="text-sm font-bold truncate">{selectedDistrict || 'No seleccionado'}</p>
                     </div>
                 </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             
-            {isLoadingInformes ? (
+            {!selectedDepartment || !selectedDistrict ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-4 border-2 border-dashed rounded-xl">
+                  <Search className="h-12 w-12 text-muted-foreground" />
+                  <div className="text-center">
+                      <p className="text-lg font-black text-muted-foreground uppercase">Seleccione una ubicación</p>
+                      <p className="text-sm text-muted-foreground">Elija un departamento y distrito para cargar los datos del informe.</p>
+                  </div>
+              </div>
+            ) : isLoadingInformes ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-4">
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Sincronizando con Anexo III...</p>
@@ -243,7 +330,7 @@ export default function InformeSemanalAnexoIVPage() {
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 bg-green-50 border border-green-100 p-3 rounded-md text-green-700">
                         <DatabaseZap className="h-4 w-4" />
-                        <span className="text-xs font-bold uppercase">Se han vinculado {informesAnexoIII.length} informes del divulgador registrados recientemente.</span>
+                        <span className="text-xs font-bold uppercase">Se han vinculado {informesAnexoIII.length} informes del divulgador para esta ubicación.</span>
                     </div>
                     
                     <div className="overflow-x-auto border rounded-lg shadow-inner bg-background">
@@ -286,7 +373,7 @@ export default function InformeSemanalAnexoIVPage() {
                     <AlertCircle className="h-12 w-12 text-muted-foreground" />
                     <div className="text-center">
                         <p className="text-lg font-black text-muted-foreground uppercase">No hay datos para consolidar</p>
-                        <p className="text-sm text-muted-foreground">Primero debe registrar los informes individuales en el módulo <b>"Informe del Divulgador"</b>.</p>
+                        <p className="text-sm text-muted-foreground">No se encontraron informes individuales registrados para <b>{selectedDistrict}</b>.</p>
                     </div>
                 </div>
             )}
