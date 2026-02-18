@@ -483,12 +483,21 @@ export default function SolicitudCapacitacionPage() {
                       </div>
                     </div>
                   ) : (
-                    <label htmlFor="photo-upload" className="cursor-pointer group relative">
-                      <div className="inline-flex h-16 items-center justify-center rounded-full bg-primary px-10 py-4 text-md font-black text-white shadow-lg transition-all hover:scale-105 active:scale-95">
-                        <Upload className="mr-3 h-6 w-6" /> SELECCIONAR IMAGEN
-                      </div>
-                      <Input id="photo-upload" type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
-                    </label>
+                    <div className="flex flex-wrap justify-center gap-4">
+                        <label htmlFor="photo-select" className="cursor-pointer group relative">
+                          <div className="inline-flex h-14 items-center justify-center rounded-full bg-primary px-8 py-4 text-sm font-black text-white shadow-lg transition-all hover:scale-105 active:scale-95">
+                            <Upload className="mr-2 h-5 w-5" /> GALERÍA
+                          </div>
+                          <Input id="photo-select" type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
+                        </label>
+                        
+                        <label htmlFor="photo-capture" className="cursor-pointer group relative">
+                          <div className="inline-flex h-14 items-center justify-center rounded-full border-2 border-primary px-8 py-4 text-sm font-black text-primary shadow-lg transition-all hover:scale-105 active:scale-95">
+                            <Camera className="mr-2 h-5 w-5" /> CÁMARA
+                          </div>
+                          <Input id="photo-capture" type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
+                        </label>
+                    </div>
                   )}
                 </div>
               </div>
