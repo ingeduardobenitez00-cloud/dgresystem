@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -129,7 +128,7 @@ export default function AppSidebar() {
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} className="group/collapsible" defaultOpen={false}>
+            <Collapsible key={group.label} className="group/collapsible" defaultOpen={true}>
               <SidebarGroup className="py-1">
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground px-3 py-2 rounded-md transition-all duration-200">
@@ -146,11 +145,11 @@ export default function AppSidebar() {
                             asChild
                             isActive={pathname === item.href}
                             tooltip={item.label}
-                            className="h-10 px-3 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                            className="min-h-10 h-auto px-3 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                           >
-                            <Link href={item.href} className="flex items-center gap-3">
-                              <item.icon className="h-4.5 w-4.5" />
-                              <span className="text-sm font-medium">{item.label}</span>
+                            <Link href={item.href} className="flex items-center gap-3 w-full py-1">
+                              <item.icon className="h-4.5 w-4.5 shrink-0" />
+                              <span className="text-sm font-medium leading-snug break-words whitespace-normal">{item.label}</span>
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

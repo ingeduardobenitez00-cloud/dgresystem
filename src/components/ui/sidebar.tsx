@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -521,9 +520,9 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
-        default: "h-10 text-sm",
-        sm: "h-7 text-xs",
-        lg: "h-12 text-sm group-data-[collapsible=icon]:!p-0",
+        default: "min-h-10 py-2.5 text-sm",
+        sm: "min-h-7 py-1 text-xs",
+        lg: "min-h-12 py-3 text-sm group-data-[collapsible=icon]:!p-0",
       },
     },
     defaultVariants: {
@@ -673,23 +672,7 @@ const SidebarMenuSkeleton = React.forwardRef<
       data-sidebar="menu-skeleton"
       className={cn("rounded-md h-8 flex gap-2 px-2 items-center", className)}
       {...props}
-    >
-      {showIcon && (
-        <Skeleton
-          className="size-4 rounded-md"
-          data-sidebar="menu-skeleton-icon"
-        />
-      )}
-      <Skeleton
-        className="h-4 flex-1 max-w-[--skeleton-width]"
-        data-sidebar="menu-skeleton-text"
-        style={
-          {
-            "--skeleton-width": width,
-          } as React.CSSProperties
-        }
-      />
-    </div>
+    />
   )
 })
 SidebarMenuSkeleton.displayName = "SidebarMenuSkeleton"
