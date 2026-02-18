@@ -150,4 +150,25 @@ export type InformeSemanalAnexoIV = {
   fecha_creacion: string;
 }
 
+export type MovimientoMaquinaRegistro = {
+  nombre: string;
+  cedula: string;
+  vinculo: string;
+  fecha: string;
+  hora: string;
+  codigo_maquina: string;
+  lugar: string;
+  firma: string;
+}
+
+export type MovimientoMaquina = {
+  id: string;
+  solicitud_id: string;
+  departamento: string;
+  distrito: string;
+  salida?: MovimientoMaquinaRegistro;
+  devolucion?: MovimientoMaquinaRegistro;
+  fecha_creacion: string;
+}
+
 export const initialDepartments: Department[] = [];

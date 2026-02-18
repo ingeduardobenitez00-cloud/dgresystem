@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -31,6 +31,12 @@ export const dashboardMenuItems = [
     label: 'Agenda',
     icon: CalendarDays,
     description: 'Visualiza el calendario de capacitaciones agendadas.',
+  },
+  {
+    href: '/control-movimiento-maquinas',
+    label: 'Control de Movimiento de Máquinas',
+    icon: ArrowLeftRight,
+    description: 'Registro de salida y devolución de equipos de votación.',
   },
   {
     href: '/encuesta-satisfaccion',

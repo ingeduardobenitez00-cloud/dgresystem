@@ -506,6 +506,42 @@
         "departamento",
         "distrito"
       ]
+    },
+    "MovimientoMaquina": {
+      "title": "Control de Movimiento de Máquinas",
+      "type": "object",
+      "description": "Registro de salida y devolución de máquinas de votación.",
+      "properties": {
+        "solicitud_id": { "type": "string" },
+        "departamento": { "type": "string" },
+        "distrito": { "type": "string" },
+        "salida": {
+          "type": "object",
+          "properties": {
+            "nombre": { "type": "string" },
+            "cedula": { "type": "string" },
+            "vinculo": { "type": "string" },
+            "fecha": { "type": "string", "format": "date" },
+            "hora": { "type": "string" },
+            "codigo_maquina": { "type": "string" },
+            "lugar": { "type": "string" },
+            "firma": { "type": "string" }
+          }
+        },
+        "devolucion": {
+          "type": "object",
+          "properties": {
+            "nombre": { "type": "string" },
+            "cedula": { "type": "string" },
+            "vinculo": { "type": "string" },
+            "fecha": { "type": "string", "format": "date" },
+            "hora": { "type": "string" },
+            "codigo_maquina": { "type": "string" },
+            "lugar": { "type": "string" },
+            "firma": { "type": "string" }
+          }
+        }
+      }
     }
   },
   "auth": {
@@ -579,6 +615,12 @@
         "$ref": "#/entities/InformeSemanalPuntosFijos"
       },
       "description": "Stores weekly reports for fixed disclosure points (Anexo IV)."
+    },
+    "/movimientos-maquinas/{movimientoId}": {
+      "schema": {
+        "$ref": "#/entities/MovimientoMaquina"
+      },
+      "description": "Stores machine movement logs."
     }
   }
 }

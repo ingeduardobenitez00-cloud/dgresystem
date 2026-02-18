@@ -86,7 +86,8 @@ service cloud.firestore {
     match /solicitudes-capacitacion/{solicitudId} {
       allow read: if isSignedIn() && (
         isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
+        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito)) ||
+        (isRole('divulgador') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
       allow create: if isSignedIn() && (
         isAdministrative() || 
@@ -96,39 +97,27 @@ service cloud.firestore {
     }
 
     match /encuestas-satisfaccion/{encuestaId} {
-      allow read: if isSignedIn() && (
-        isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
-      );
-      allow create: if isSignedIn() && (
-        isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
-      );
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if isAdministrative();
     }
 
     match /informes-divulgador/{informeId} {
-      allow read: if isSignedIn() && (
-        isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
-      );
-      allow create: if isSignedIn() && (
-        isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
-      );
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if isAdministrative();
     }
 
     match /informes-semanales-anexo-iv/{informeId} {
-      allow read: if isSignedIn() && (
-        isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito))
-      );
-      allow create: if isSignedIn() && (
-        isAdministrative() || 
-        (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
-      );
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if isAdministrative();
+    }
+
+    match /movimientos-maquinas/{movimientoId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdministrative();
     }
 
     /** User Profiles **/
