@@ -312,6 +312,18 @@
         "usuario_id": {
           "type": "string"
         },
+        "divulgador_id": {
+          "type": "string",
+          "description": "ID del usuario asignado como divulgador."
+        },
+        "divulgador_nombre": {
+          "type": "string",
+          "description": "Nombre del usuario asignado como divulgador."
+        },
+        "divulgador_cedula": {
+          "type": "string",
+          "description": "Cédula del usuario asignado como divulgador."
+        },
         "fecha_creacion": {
           "type": "string",
           "format": "date-time"

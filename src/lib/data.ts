@@ -86,6 +86,9 @@ export type SolicitudCapacitacion = {
   gps: string;
   foto_firma?: string;
   usuario_id: string;
+  divulgador_id?: string;
+  divulgador_nombre?: string;
+  divulgador_cedula?: string;
   fecha_creacion: string;
 }
 

@@ -75,8 +75,8 @@ export default function InformeDivulgadorPage() {
           fecha: item.fecha,
           hora_desde: item.hora_desde,
           hora_hasta: item.hora_hasta,
-          nombre_divulgador: item.nombre_completo || '',
-          cedula_divulgador: item.cedula || '',
+          nombre_divulgador: item.divulgador_nombre || item.nombre_completo || '',
+          cedula_divulgador: item.divulgador_cedula || item.cedula || '',
         }));
       }
     }
@@ -96,8 +96,8 @@ export default function InformeDivulgadorPage() {
         fecha: item.fecha,
         hora_desde: item.hora_desde,
         hora_hasta: item.hora_hasta,
-        nombre_divulgador: item.nombre_completo || '',
-        cedula_divulgador: item.cedula || '',
+        nombre_divulgador: item.divulgador_nombre || item.nombre_completo || '',
+        cedula_divulgador: item.divulgador_cedula || item.cedula || '',
       }));
       toast({ title: "Datos cargados", description: "Se ha importado la información de la agenda." });
     }
@@ -256,7 +256,7 @@ export default function InformeDivulgadorPage() {
             <CardHeader className="py-4">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary" />
-                IMPORTAR DATOS DE LA AGENDA
+                VINCULAR CON ACTIVIDAD DE LA AGENDA
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -271,7 +271,7 @@ export default function InformeDivulgadorPage() {
                       {agendaItems && agendaItems.length > 0 ? (
                         agendaItems.map(item => (
                           <SelectItem key={item.id} value={item.id}>
-                            {item.fecha} - {item.lugar_local}
+                            {item.fecha} - {item.lugar_local} {item.divulgador_nombre ? `(${item.divulgador_nombre})` : ''}
                           </SelectItem>
                         ))
                       ) : (
