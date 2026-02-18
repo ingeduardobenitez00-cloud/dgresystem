@@ -53,6 +53,11 @@ service cloud.firestore {
         }
     }
 
+    match /maquinas/{maquinaId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     /** Main Data Collections **/
     match /locales-votacion/{localId} {
       allow read: if isSignedIn();

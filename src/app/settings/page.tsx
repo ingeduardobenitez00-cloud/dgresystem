@@ -1,17 +1,17 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { FileUp, Loader2, CheckCircle2, TableIcon, Database, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, TableIcon, Database, PlusCircle, Trash2, Edit, Cpu, Search, Trash } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { type Dato, type Department, type District } from '@/lib/data';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { type Dato, type Department, type District, type MaquinaVotacion } from '@/lib/data';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import {
   Dialog,
   DialogContent,
@@ -35,483 +35,365 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, getDocs, deleteDoc, setDoc, addDoc, updateDoc, where, query } from 'firebase/firestore';
+import { collection, doc, writeBatch, getDocs, deleteDoc, addDoc, updateDoc, where, query, orderBy } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-
-
-type PreviewData = {
-  departamento: string;
-  distrito: string;
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from '@/components/ui/badge';
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export default function SettingsPage() {
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [isParsing, setIsParsing] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [previewData, setPreviewData] = useState<Dato[]>([]);
   const { toast } = useToast();
-  
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<{type: 'department' | 'district', deptId: string, distId?: string, name: string} | null>(null);
-  const [newItemName, setNewItemName] = useState('');
-
   const { firestore, user: currentUser } = useFirebase();
+
+  // --- TAB 1: GEOGRAFIA ---
+  const [fileNameGeo, setFileNameGeo] = useState<string | null>(null);
+  const [isParsingGeo, setIsParsingGeo] = useState(false);
+  const [isUploadingGeo, setIsUploadingGeo] = useState(false);
+  const [previewGeo, setPreviewGeo] = useState<Dato[]>([]);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
-  const [departmentsWithDistricts, setDepartmentsWithDistricts] = useState<(Department & {districts: District[]})[]>([]);
-
-  useEffect(() => {
-    if (datosData) {
-        const departmentsMap: Map<string, Department & { districts: District[] }> = new Map();
-
-        datosData.forEach((dato) => {
-            if (!departmentsMap.has(dato.departamento)) {
-                departmentsMap.set(dato.departamento, {
-                    id: dato.departamento, // Assume department name is unique enough for ID here
-                    name: dato.departamento,
-                    districts: [],
-                });
-            }
-
-            const department = departmentsMap.get(dato.departamento);
-            if (department) {
-                // Check if district already exists
-                if (!department.districts.some(d => d.name === dato.distrito)) {
-                    department.districts.push({
-                        id: dato.id!, // Use doc id from firestore
-                        departmentId: dato.departamento,
-                        name: dato.distrito,
-                    });
-                }
-            }
-        });
-
-        const sortedDepartments = Array.from(departmentsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-        sortedDepartments.forEach(dept => dept.districts.sort((a, b) => a.name.localeCompare(b.name)));
-
-        setDepartmentsWithDistricts(sortedDepartments);
-    }
-}, [datosData]);
-
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.type === 'text/csv') {
-        setFileName(file.name);
-        parseFile(file);
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Archivo no válido',
-          description: 'Por favor, selecciona un archivo .xlsx o .csv',
-        });
-        e.target.value = ''; // Reset input
+  const departmentsWithDistricts = useMemo(() => {
+    if (!datosData) return [];
+    const deptsMap: Map<string, Department & { districts: District[] }> = new Map();
+    datosData.forEach((dato) => {
+      if (!deptsMap.has(dato.departamento)) {
+        deptsMap.set(dato.departamento, { id: dato.departamento, name: dato.departamento, districts: [] });
       }
-    }
-  };
+      const department = deptsMap.get(dato.departamento);
+      if (department && !department.districts.some(d => d.name === dato.distrito)) {
+        department.districts.push({ id: dato.id!, departmentId: dato.departamento, name: dato.distrito });
+      }
+    });
+    return Array.from(deptsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [datosData]);
 
-  const parseFile = (file: File) => {
-    setIsParsing(true);
-    setPreviewData([]);
+  // --- TAB 2: MAQUINAS ---
+  const [fileNameMaq, setFileNameMaq] = useState<string | null>(null);
+  const [isParsingMaq, setIsParsingMaq] = useState(false);
+  const [isUploadingMaq, setIsUploadingMaq] = useState(false);
+  const [previewMaq, setPreviewMaq] = useState<Omit<MaquinaVotacion, 'id'>[]>([]);
+  const [maqSearch, setMaqSearch] = useState('');
+
+  const maquinasQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'maquinas'), orderBy('departamento'), orderBy('distrito')) : null, [firestore]);
+  const { data: maquinasData, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
+
+  const filteredMaquinas = useMemo(() => {
+    if (!maquinasData) return [];
+    const term = maqSearch.toLowerCase();
+    return maquinasData.filter(m => 
+      m.codigo.toLowerCase().includes(term) || 
+      m.departamento.toLowerCase().includes(term) || 
+      m.distrito.toLowerCase().includes(term)
+    );
+  }, [maquinasData, maqSearch]);
+
+  // --- HANDLERS GEOGRAFIA ---
+  const handleGeoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsParsingGeo(true);
+    setFileNameGeo(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet);
-
-        const parsedData: Dato[] = json.map((row: any) => ({
-          departamento: row.DEPARTAMENTO,
-          distrito: row.DISTRITO,
-          departamento_codigo: row.DEPARTAMENTO_CODIGO,
-          distrito_codigo: row.DISTRITO_CODIGO,
-        }));
-        
-        setPreviewData(parsedData);
-        toast({
-          title: 'Vista previa generada',
-          description: `Se han encontrado ${parsedData.length} registros en el archivo.`,
-        });
-      } catch (error) {
-        console.error("Error parsing file:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Error al procesar el archivo',
-          description: 'Asegúrate de que el archivo tenga las columnas DEPARTAMENTO y DISTRITO. Las columnas DEPARTAMENTO_CODIGO y DISTRITO_CODIGO son opcionales.',
-        });
-      } finally {
-        setIsParsing(false);
-      }
+        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const parsed = json.map((row: any) => ({
+          departamento: String(row.DEPARTAMENTO || '').trim(),
+          distrito: String(row.DISTRITO || '').trim(),
+          departamento_codigo: String(row.DEPARTAMENTO_CODIGO || '').trim(),
+          distrito_codigo: String(row.DISTRITO_CODIGO || '').trim(),
+        })).filter(d => d.departamento && d.distrito);
+        setPreviewGeo(parsed);
+      } catch (err) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo procesar el archivo.' });
+      } finally { setIsParsingGeo(false); }
     };
-    reader.onerror = () => {
-      toast({
-          variant: 'destructive',
-          title: 'Error al leer el archivo',
-          description: 'No se pudo leer el archivo seleccionado.',
-      });
-      setIsParsing(false);
-    }
     reader.readAsBinaryString(file);
   };
-  
 
-  const handleSaveData = async () => {
-    if (!firestore || previewData.length === 0 || !currentUser) return;
-    setIsUploading(true);
-
-    const BATCH_SIZE = 100;
-    const datosCollection = collection(firestore, 'datos');
-    
+  const handleSaveGeo = async () => {
+    if (!firestore || previewGeo.length === 0) return;
+    setIsUploadingGeo(true);
+    const batchSize = 100;
     try {
-      for (let i = 0; i < previewData.length; i += BATCH_SIZE) {
+      for (let i = 0; i < previewGeo.length; i += batchSize) {
         const batch = writeBatch(firestore);
-        const chunk = previewData.slice(i, i + BATCH_SIZE);
-        
-        chunk.forEach(item => {
-            const newDocRef = doc(datosCollection);
-            batch.set(newDocRef, item);
-        });
-        
-        await batch.commit();
-        await delay(2000); // Pause for 2 seconds between batches
-      }
-
-      toast({
-          title: 'Datos importados',
-          description: 'Los nuevos departamentos y distritos se han añadido con éxito.',
-          action: <CheckCircle2 className="text-green-500" />,
-      });
-      setPreviewData([]);
-      setFileName(null);
-    } catch (error) {
-      console.error(error);
-      const contextualError = new FirestorePermissionError({
-          operation: 'write',
-          path: 'datos (batch)',
-      });
-      errorEmitter.emit('permission-error', contextualError);
-      toast({
-          title: 'Error al importar',
-          description: 'No se pudieron guardar los datos. Revisa los permisos.',
-          variant: 'destructive',
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-
-  const handleAddItem = async (type: 'department' | 'district', deptId?: string) => {
-      if (!firestore || !currentUser) return;
-      const name = prompt(`Introduce el nombre del nuevo ${type === 'department' ? 'departamento' : 'distrito'}`);
-      if (name) {
-          try {
-            if (type === 'department') {
-                const newDato = { departamento: name, distrito: 'Nuevo Distrito (Editar)' };
-                await addDoc(collection(firestore, 'datos'), newDato);
-            } else if (type === 'district' && deptId) {
-                const newDato = { departamento: deptId, distrito: name };
-                await addDoc(collection(firestore, 'datos'), newDato);
-            }
-          } catch(err) {
-                 const contextualError = new FirestorePermissionError({operation: 'create', path: `datos`});
-                 errorEmitter.emit('permission-error', contextualError);
-          }
-      }
-  };
-
-  const handleOpenEditModal = (type: 'department' | 'district', deptId: string, distId?: string, name: string) => {
-    setEditingItem({ type, deptId, distId, name });
-    setNewItemName(name);
-    setEditModalOpen(true);
-  };
-  
-  const handleUpdateItem = async () => {
-    if (!editingItem || !newItemName || !firestore || !currentUser) return;
-    setIsUploading(true);
-    const { type, deptId, distId } = editingItem;
-    
-    try {
-      if (type === 'department') {
-        const q = query(collection(firestore, 'datos'), where('departamento', '==', deptId));
-        const querySnapshot = await getDocs(q);
-        const batch = writeBatch(firestore);
-        querySnapshot.forEach(document => {
-            const docRef = doc(firestore, 'datos', document.id);
-            batch.update(docRef, { departamento: newItemName });
+        previewGeo.slice(i, i + batchSize).forEach(item => {
+          batch.set(doc(collection(firestore, 'datos')), item);
         });
         await batch.commit();
-
-      } else if (type === 'district' && distId) {
-        const distRef = doc(firestore, 'datos', distId);
-        await updateDoc(distRef, { distrito: newItemName });
+        await delay(1000);
       }
-      setEditModalOpen(false);
-      setEditingItem(null);
-      toast({ title: 'Elemento actualizado', description: 'El nombre ha sido cambiado con éxito.' });
-    } catch (error) {
-       const contextualError = new FirestorePermissionError({
-            operation: 'update',
-            path: type === 'department' ? `datos where departamento == ${deptId}` : `datos/${distId}`,
-       });
-       errorEmitter.emit('permission-error', contextualError);
-       toast({ title: 'Error al actualizar', variant: 'destructive', description: 'No se pudo actualizar el elemento.' });
-    } finally {
-        setIsUploading(false);
-    }
+      toast({ title: '¡Éxito!', description: 'Departamentos y distritos importados.' });
+      setPreviewGeo([]);
+      setFileNameGeo(null);
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar la importación.' });
+    } finally { setIsUploadingGeo(false); }
   };
-  
-  const handleDeleteItem = async (type: 'department' | 'district', deptId: string, distId?: string) => {
-      if (!firestore || !currentUser) return;
-      setIsUploading(true);
+
+  // --- HANDLERS MAQUINAS ---
+  const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsParsingMaq(true);
+    setFileNameMaq(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
       try {
-        if (type === 'department') {
-            const q = query(collection(firestore, 'datos'), where('departamento', '==', deptId));
-            const querySnapshot = await getDocs(q);
-            const batch = writeBatch(firestore);
-            querySnapshot.forEach(document => {
-                const docRef = doc(firestore, 'datos', document.id);
-                batch.delete(docRef);
-            });
-            await batch.commit();
-        } else if (distId) {
-            await deleteDoc(doc(firestore, 'datos', distId));
-        }
-        toast({ title: 'Elemento eliminado', variant: 'destructive' });
-      } catch (error) {
-        const contextualError = new FirestorePermissionError({
-            operation: 'delete',
-            path: type === 'department' ? `datos where departamento == ${deptId}` : `datos/${distId}`,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        toast({ title: 'Error al eliminar', variant: 'destructive', description: 'No se pudo eliminar el elemento.' });
-      } finally {
-        setIsUploading(false);
-      }
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const parsed = json.map((row: any) => ({
+          codigo: String(row.CODIGO || row.SERIAL || row.MAQUINA || '').trim(),
+          departamento: String(row.DEPARTAMENTO || '').trim(),
+          distrito: String(row.DISTRITO || '').trim(),
+          fecha_registro: new Date().toISOString()
+        })).filter(m => m.codigo && m.departamento && m.distrito);
+        setPreviewMaq(parsed);
+      } catch (err) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Error al procesar archivo de máquinas.' });
+      } finally { setIsParsingMaq(false); }
+    };
+    reader.readAsBinaryString(file);
   };
 
+  const handleSaveMaq = async () => {
+    if (!firestore || previewMaq.length === 0) return;
+    setIsUploadingMaq(true);
+    const batchSize = 100;
+    try {
+      for (let i = 0; i < previewMaq.length; i += batchSize) {
+        const batch = writeBatch(firestore);
+        previewMaq.slice(i, i + batchSize).forEach(item => {
+          batch.set(doc(collection(firestore, 'maquinas')), item);
+        });
+        await batch.commit();
+        await delay(500);
+      }
+      toast({ title: 'Inventario Actualizado', description: 'Se han cargado los códigos de máquinas.' });
+      setPreviewMaq([]);
+      setFileNameMaq(null);
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Error al guardar el inventario.' });
+    } finally { setIsUploadingMaq(false); }
+  };
+
+  const handleDeleteMaquina = async (id: string) => {
+    if (!firestore) return;
+    try {
+      await deleteDoc(doc(firestore, 'maquinas', id));
+      toast({ title: 'Máquina eliminada' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error' });
+    }
+  };
 
   return (
-    <div className="flex min-h-screen w-full flex-col">
-      <Header title="Configuración" />
-      <main className="flex flex-1 flex-col items-center p-4 gap-8">
-        <Card className="w-full max-w-4xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileUp className="h-5 w-5" />
-              Importar Departamentos y Distritos
-            </CardTitle>
-            <CardDescription>
-              Sube un archivo .xlsx o .csv con las columnas DEPARTAMENTO y DISTRITO para cargarlos en el sistema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <label
-                htmlFor="file-upload"
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted"
-              >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <FileUp className="w-8 h-8 mb-3 text-muted-foreground" />
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
-                  </p>
-                  <p className="text-xs text-muted-foreground">XLSX o CSV</p>
-                </div>
-                <Input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept=".xlsx,.csv" disabled={isParsing || isUploading} />
-              </label>
-              {fileName && previewData.length > 0 && (
-                <p className="text-sm text-center text-muted-foreground">Archivo seleccionado: {fileName}</p>
-              )}
-            </div>
-            
-            {(isParsing || isUploading) && (
-              <div className="space-y-2 flex items-center justify-center">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <p className="text-sm font-medium text-center">{isUploading ? 'Guardando datos...' : 'Procesando archivo...'}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+    <div className="flex min-h-screen w-full flex-col bg-muted/5">
+      <Header title="Configuración del Sistema" />
+      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        
+        <Tabs defaultValue="geografia" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+            <TabsTrigger value="geografia" className="gap-2"><Database className="h-4 w-4" /> Geografía</TabsTrigger>
+            <TabsTrigger value="maquinas" className="gap-2"><Cpu className="h-4 w-4" /> Inventario Máquinas</TabsTrigger>
+          </TabsList>
 
-        {previewData.length > 0 && (
-          <Card className="w-full max-w-4xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TableIcon className="h-5 w-5" />
-                Vista Previa de Datos
-              </CardTitle>
-              <CardDescription>
-                Revisa los datos que se importarán. Si todo es correcto, haz clic en "Guardar Datos".
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="max-h-64 overflow-auto border rounded-md">
+          {/* TAB: GEOGRAFIA */}
+          <TabsContent value="geografia" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-primary flex items-center gap-2">
+                  <Database className="h-5 w-5" /> Importar Estructura Geográfica
+                </CardTitle>
+                <CardDescription>Cargue los departamentos y distritos oficiales desde Excel (Columnas: DEPARTAMENTO, DISTRITO).</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 bg-muted/30">
+                  <label htmlFor="geo-up" className="cursor-pointer flex flex-col items-center">
+                    <FileUp className="h-10 w-10 text-muted-foreground mb-2" />
+                    <span className="text-sm font-bold uppercase text-muted-foreground">Seleccionar Excel Geográfico</span>
+                    <Input id="geo-up" type="file" className="hidden" accept=".xlsx,.csv" onChange={handleGeoFile} disabled={isParsingGeo || isUploadingGeo} />
+                  </label>
+                  {fileNameGeo && <p className="mt-2 text-xs font-black text-primary">{fileNameGeo}</p>}
+                </div>
+                {previewGeo.length > 0 && (
+                  <div className="mt-6 border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
                     <Table>
-                        <TableHeader className="sticky top-0 bg-muted">
-                            <TableRow>
-                                <TableHead>Departamento</TableHead>
-                                <TableHead>Código Dept.</TableHead>
-                                <TableHead>Distrito</TableHead>
-                                <TableHead>Código Dist.</TableHead>
-                            </TableRow>
+                      <TableHeader className="bg-muted">
+                        <TableRow>
+                          <TableHead className="text-[10px] font-black uppercase">Departamento</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase">Distrito</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {previewGeo.slice(0, 10).map((row, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-xs uppercase">{row.departamento}</TableCell>
+                            <TableCell className="text-xs uppercase">{row.distrito}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {previewGeo.length > 10 && <p className="p-2 text-[10px] text-center bg-muted/50 font-bold">Y {previewGeo.length - 10} registros más...</p>}
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full font-black uppercase" onClick={handleSaveGeo} disabled={previewGeo.length === 0 || isUploadingGeo}>
+                  {isUploadingGeo ? <Loader2 className="animate-spin mr-2" /> : <Database className="mr-2 h-4 w-4" />}
+                  Guardar Estructura Geográfica
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {departmentsWithDistricts.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Estructura Actual</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Accordion type="single" collapsible className="w-full">
+                    {departmentsWithDistricts.map((dept) => (
+                      <AccordionItem key={dept.id} value={dept.id}>
+                        <AccordionTrigger className="uppercase font-bold text-sm">{dept.name}</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pl-4">
+                            {dept.districts.map(dist => (
+                              <div key={dist.id} className="text-[10px] font-bold p-2 bg-muted/50 rounded uppercase border border-dashed">
+                                {dist.name}
+                              </div>
+                            ))}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* TAB: MAQUINAS */}
+          <TabsContent value="maquinas" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Importador Máquinas */}
+              <Card className="lg:col-span-1 border-primary/20">
+                <CardHeader className="bg-primary/5">
+                  <CardTitle className="text-primary flex items-center gap-2 text-sm uppercase font-black">
+                    <Cpu className="h-4 w-4" /> Cargar Inventario
+                  </CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold">Importe códigos de máquinas por ubicación.</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <label htmlFor="maq-up" className="cursor-pointer flex flex-col items-center text-center">
+                      <FileUp className="h-8 w-8 text-primary mb-2" />
+                      <span className="text-[10px] font-black uppercase text-muted-foreground">Archivo Excel Máquinas</span>
+                      <span className="text-[8px] text-muted-foreground mt-1">(CODIGO, DEPARTAMENTO, DISTRITO)</span>
+                      <Input id="maq-up" type="file" className="hidden" accept=".xlsx,.csv" onChange={handleMaqFile} disabled={isParsingMaq || isUploadingMaq} />
+                    </label>
+                    {fileNameMaq && <p className="mt-2 text-[10px] font-black text-primary truncate w-full">{fileNameMaq}</p>}
+                  </div>
+                  
+                  {previewMaq.length > 0 && (
+                    <div className="space-y-2">
+                      <Badge variant="secondary" className="w-full justify-center py-1 text-[10px] font-black uppercase">
+                        {previewMaq.length} Equipos Listos
+                      </Badge>
+                      <Button className="w-full font-black uppercase h-12" onClick={handleSaveMaq} disabled={isUploadingMaq}>
+                        {isUploadingMaq ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        PROCESAR INVENTARIO
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Listado de Máquinas */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <CardTitle className="text-sm font-black uppercase tracking-widest">Maquinas Registradas</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase">{maquinasData?.length || 0} Equipos en base de datos</CardDescription>
+                    </div>
+                    <div className="relative w-full md:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input 
+                        placeholder="Buscar por código o ubicación..." 
+                        className="pl-9 h-9 text-xs" 
+                        value={maqSearch}
+                        onChange={(e) => setMaqSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingMaquinas ? (
+                    <div className="flex justify-center py-10"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-muted/50">
+                          <TableRow>
+                            <TableHead className="text-[9px] font-black uppercase">Código Máquina</TableHead>
+                            <TableHead className="text-[9px] font-black uppercase">Departamento</TableHead>
+                            <TableHead className="text-[9px] font-black uppercase">Distrito</TableHead>
+                            <TableHead className="text-right text-[9px] font-black uppercase">Acción</TableHead>
+                          </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {previewData.map((row, index) => (
-                                <TableRow key={index}>
-                                    <TableCell>{row.departamento}</TableCell>
-                                    <TableCell>{row.departamento_codigo || '-'}</TableCell>
-                                    <TableCell>{row.distrito}</TableCell>
-                                    <TableCell>{row.distrito_codigo || '-'}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-                 <Button onClick={handleSaveData} className="w-full mt-6" size="lg" disabled={isUploading}>
-                    {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Guardar Datos
-                </Button>
-            </CardContent>
-          </Card>
-        )}
-        
-        {departmentsWithDistricts.length > 0 && previewData.length === 0 && (
-          <Card className="w-full max-w-4xl">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className='flex items-center gap-2'>
-                  <Database className="h-5 w-5" />
-                  Datos Guardados
-                </div>
-                <Button variant="outline" size="sm" onClick={() => handleAddItem('department')} disabled={isUploading}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Añadir Departamento
-                </Button>
-              </CardTitle>
-              <CardDescription>
-                Estos son los departamentos y distritos actualmente en el sistema. Puedes editarlos o eliminarlos.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-            {isLoadingDatos || isUploading ? (
-                 <div className="flex justify-center items-center h-32">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                 </div>
-            ) : (
-              <Accordion type="single" collapsible className="w-full">
-                {departmentsWithDistricts.map((department) => (
-                  <AccordionItem value={department.id} key={department.id}>
-                    <div className="flex items-center w-full">
-                      <AccordionTrigger className="flex-1 text-base">{department.name}</AccordionTrigger>
-                      <div className="flex gap-2 ml-4">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {e.stopPropagation(); handleOpenEditModal('department', department.name, undefined, department.name)}} disabled={isUploading}>
-                              <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()} disabled={isUploading}>
-                                      <Trash2 className="h-4 w-4" />
+                          {filteredMaquinas.length > 0 ? (
+                            filteredMaquinas.slice(0, 50).map((maq) => (
+                              <TableRow key={maq.id} className="group hover:bg-primary/5 transition-colors">
+                                <TableCell className="font-black text-xs text-primary">{maq.codigo}</TableCell>
+                                <TableCell className="text-[10px] uppercase font-bold">{maq.departamento}</TableCell>
+                                <TableCell className="text-[10px] uppercase font-bold">{maq.distrito}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => handleDeleteMaquina(maq.id)}
+                                  >
+                                    <Trash className="h-3.5 w-3.5" />
                                   </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                          Esta acción no se puede deshacer. Esto eliminará permanentemente el departamento y todos sus distritos.
-                                      </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleDeleteItem('department', department.name)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                  </AlertDialogFooter>
-                              </AlertDialogContent>
-                          </AlertDialog>
-                      </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-xs uppercase font-bold">
+                                No se encontraron máquinas registradas.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                      {filteredMaquinas.length > 50 && (
+                        <div className="p-3 bg-muted/30 text-center text-[10px] font-bold uppercase text-muted-foreground">
+                          Mostrando los primeros 50 de {filteredMaquinas.length} resultados. Use el buscador para filtrar.
+                        </div>
+                      )}
                     </div>
-                    <AccordionContent>
-                      <div className="pl-4 space-y-2">
-                        {department.districts.map((district) => (
-                          <div key={district.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
-                            <span>{district.name}</span>
-                            <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal('district', department.id, district.id, district.name)} disabled={isUploading}>
-                                    <Edit className="h-4 w-4" />
-                                </Button>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isUploading}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Esta acción no se puede deshacer. Esto eliminará permanentemente el distrito.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteItem('district', department.id, district.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                          </div>
-                        ))}
-                        <Button variant="outline" size="sm" className="mt-2" onClick={() => handleAddItem('district', department.id)} disabled={isUploading}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Añadir Distrito
-                        </Button>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )}
-            </CardContent>
-          </Card>
-        )}
-      </main>
+                  )}
+                </CardContent>
+              </Card>
 
-       <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Nombre</DialogTitle>
-            <DialogDescription>
-              Introduce el nuevo nombre para "{editingItem?.name}".
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Nombre
-              </Label>
-              <Input
-                id="name"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                className="col-span-3"
-              />
             </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-                <Button type="button" variant="secondary">Cancelar</Button>
-            </DialogClose>
-            <Button onClick={handleUpdateItem}>Guardar Cambios</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </TabsContent>
+        </Tabs>
+
+      </main>
     </div>
   );
 }

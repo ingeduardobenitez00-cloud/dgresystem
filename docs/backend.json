@@ -65,6 +65,34 @@
         "departmentId"
       ]
     },
+    "MaquinaVotacion": {
+      "title": "Máquina de Votación",
+      "type": "object",
+      "description": "Representa una máquina de votación en el inventario oficial.",
+      "properties": {
+        "codigo": {
+          "type": "string",
+          "description": "El número de serie o código único de la máquina."
+        },
+        "departamento": {
+          "type": "string",
+          "description": "Departamento donde está asignada físicamente."
+        },
+        "distrito": {
+          "type": "string",
+          "description": "Distrito donde está asignada físicamente."
+        },
+        "fecha_registro": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "codigo",
+        "departamento",
+        "distrito"
+      ]
+    },
     "Imagen": {
       "title": "Imagen",
       "type": "object",
@@ -567,6 +595,12 @@
         "$ref": "#/entities/Distrito"
       },
       "description": "Stores district information for a specific department."
+    },
+    "/maquinas/{maquinaId}": {
+      "schema": {
+        "$ref": "#/entities/MaquinaVotacion"
+      },
+      "description": "Stores official voting machine serial codes and their assigned location."
     },
     "/imagenes/{imagenId}": {
       "schema": {

@@ -24,6 +24,14 @@ export interface Department {
   districts: District[];
 }
 
+export type MaquinaVotacion = {
+  id: string;
+  codigo: string;
+  departamento: string;
+  distrito: string;
+  fecha_registro: string;
+}
+
 export type ReportData = {
   id: string;
   departamento: string;
