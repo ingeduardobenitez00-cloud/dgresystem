@@ -130,7 +130,6 @@ export default function SolicitudCapacitacionPage() {
       const doc = new jsPDF();
       const margin = 15;
       
-      // Logo institucional arriba a la izquierda
       if (logoBase64) {
         doc.addImage(logoBase64, 'PNG', margin, 5, 18, 18);
       }
@@ -237,9 +236,10 @@ export default function SolicitudCapacitacionPage() {
       tableY += 15;
       doc.text("Firma del Solicitante: ____________________________________________", 105, tableY, { align: "center" });
 
+      // BLOQUE DE USO INTERNO RESTAURADO
       tableY += 6;
       doc.setLineWidth(0.3);
-      doc.rect(margin, tableY, 180, 42);
+      doc.rect(margin, tableY, 180, 25);
       doc.setFont('helvetica', 'bold');
       doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 6, { align: "center" });
       
@@ -248,20 +248,9 @@ export default function SolicitudCapacitacionPage() {
       doc.text("Divulgador designado: _______________________________________", margin + 5, tableY + 15);
       doc.text("C.I.C. Nº: _____________", margin + 130, tableY + 15);
       
-      doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 24);
-      
-      doc.setFontSize(7.5);
-      doc.text("Total de personas capacitadas:", margin + 5, tableY + 33);
-      doc.rect(margin + 45, tableY + 30.5, 20, 3.5);
+      doc.text("Código de la Máquina de Votación asignada: ___________________________________________", margin + 5, tableY + 22);
 
-      // Two signature lines for Jefes
-      doc.setFontSize(8.5);
-      doc.text("___________________________", 85, tableY + 33, { align: "center" });
-      doc.text("Firma, aclaración y sello Jefe", 85, tableY + 38, { align: "center" });
-
-      doc.text("___________________________", 155, tableY + 33, { align: "center" });
-      doc.text("Firma, aclaración y sello Jefe", 155, tableY + 38, { align: "center" });
-
+      // SEGUNDA PÁGINA: MAPA + FIRMAS JEFES
       if (mapRef.current && formData.gps) {
         doc.addPage();
         const canvas = await html2canvas(mapRef.current, { useCORS: true, logging: false, scale: 2 });
@@ -272,6 +261,15 @@ export default function SolicitudCapacitacionPage() {
         doc.addImage(mapImgData, 'PNG', margin, 30, 180, 100);
         doc.setFont('helvetica', 'normal');
         doc.text(`Ubicación GPS: ${formData.gps}`, margin, 140);
+
+        // BLOQUE DE FIRMAS DEBAJO DEL GPS
+        let sigY = 175;
+        doc.setFontSize(9);
+        doc.text("___________________________", 55, sigY, { align: "center" });
+        doc.text("Firma, aclaración y sello Jefe", 55, sigY + 5, { align: "center" });
+
+        doc.text("___________________________", 155, sigY, { align: "center" });
+        doc.text("Firma, aclaración y sello Jefe", 155, sigY + 5, { align: "center" });
       }
 
       doc.save(`Solicitud-AnexoV-${formData.cedula || 'Borrador'}.pdf`);
