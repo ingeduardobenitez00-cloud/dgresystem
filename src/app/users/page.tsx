@@ -40,7 +40,7 @@ type UserProfile = {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'director' | 'jefe' | 'funcionario' | 'viewer';
+  role: 'admin' | 'director' | 'jefe' | 'funcionario' | 'divulgador' | 'viewer';
   modules: string[];
   permissions: string[];
   departamento?: string;
@@ -412,6 +412,7 @@ export default function UsersPage() {
                             <SelectItem value="director">Director</SelectItem>
                             <SelectItem value="jefe">Jefe</SelectItem>
                             <SelectItem value="funcionario">Funcionario</SelectItem>
+                            <SelectItem value="divulgador">Divulgador</SelectItem>
                             <SelectItem value="viewer">Visualizador</SelectItem>
                         </SelectContent>
                     </Select>
@@ -636,6 +637,7 @@ export default function UsersPage() {
                                     <SelectItem value="director">Director</SelectItem>
                                     <SelectItem value="jefe">Jefe</SelectItem>
                                     <SelectItem value="funcionario">Funcionario</SelectItem>
+                                    <SelectItem value="divulgador">Divulgador</SelectItem>
                                     <SelectItem value="viewer">Visualizador</SelectItem>
                                 </SelectContent>
                             </Select>

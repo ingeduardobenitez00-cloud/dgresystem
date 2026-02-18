@@ -34,7 +34,9 @@ export default function AgendaCapacitacionPage() {
       return query(colRef, orderBy('fecha', 'asc'));
     }
     
-    if (user.profile.role === 'funcionario' && user.profile.departamento && user.profile.distrito) {
+    const isAssignedWorker = user.profile.role === 'funcionario' || user.profile.role === 'divulgador';
+
+    if (isAssignedWorker && user.profile.departamento && user.profile.distrito) {
       return query(
         colRef,
         where('departamento', '==', user.profile.departamento),
