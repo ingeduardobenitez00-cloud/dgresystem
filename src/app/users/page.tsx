@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, KeyRound, BadgeInfo } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, KeyRound, BadgeInfo, Search, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -137,6 +137,7 @@ export default function UsersPage() {
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
+  const [searchTerm, setSearchTerm] = useState('');
   const [departments, setDepartments] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
@@ -165,6 +166,21 @@ export default function UsersPage() {
       setDistricts([]);
     }
   }, [selectedDepartment, datosData]);
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!searchTerm.trim()) return users;
+
+    const term = searchTerm.toLowerCase().trim();
+    return users.filter(u => 
+      u.username.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term) ||
+      u.role.toLowerCase().includes(term) ||
+      (u.departamento?.toLowerCase().includes(term)) ||
+      (u.distrito?.toLowerCase().includes(term)) ||
+      (u.cedula?.toLowerCase().includes(term))
+    );
+  }, [users, searchTerm]);
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!passwordVisible);
@@ -550,13 +566,36 @@ export default function UsersPage() {
 
         <Card className="w-full max-w-7xl">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Listado de Usuarios
-            </CardTitle>
-            <CardDescription>
-                Usuarios registrados en el sistema.
-            </CardDescription>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        Listado de Usuarios
+                    </CardTitle>
+                    <CardDescription>
+                        {filteredUsers.length} usuario(s) encontrado(s).
+                    </CardDescription>
+                </div>
+                <div className="relative w-full md:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        placeholder="Buscar funcionario..." 
+                        className="pl-10"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                            onClick={() => setSearchTerm('')}
+                        >
+                            <X className="h-3 w-3" />
+                        </Button>
+                    )}
+                </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoadingUsers ? (
@@ -578,9 +617,9 @@ export default function UsersPage() {
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {users && users.length > 0 ? (
-                            users.map((user) => (
-                            <TableRow key={user.id}>
+                        {filteredUsers.length > 0 ? (
+                            filteredUsers.map((user) => (
+                            <TableRow key={user.id} className="group/row">
                                 <TableCell className="font-medium">{user.username}</TableCell>
                                 <TableCell>{user.email}</TableCell>
                                 <TableCell>
@@ -594,54 +633,56 @@ export default function UsersPage() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(user)}>
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                <KeyRound className="h-4 w-4" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Restablecer Contraseña</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                ¿Estás seguro de que quieres enviar un correo de restablecimiento de contraseña a {user.email}?
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleResetPassword(user.email)}>Enviar Correo</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Esta acción eliminará el registro del usuario de la base de datos, pero no su cuenta de autenticación.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                    <div className="flex justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(user)}>
+                                            <Edit className="h-4 w-4" />
+                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                    <KeyRound className="h-4 w-4" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Restablecer Contraseña</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                    ¿Estás seguro de que quieres enviar un correo de restablecimiento de contraseña a {user.email}?
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleResetPassword(user.email)}>Enviar Correo</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta acción eliminará el registro del usuario de la base de datos, pero no su cuenta de autenticación.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                             ))
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={7} className="h-24 text-center">
-                                    No hay usuarios registrados.
+                                    No se encontraron usuarios que coincidan con la búsqueda.
                                 </TableCell>
                             </TableRow>
                         )}
