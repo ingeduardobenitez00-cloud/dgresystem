@@ -333,6 +333,10 @@
           "type": "string",
           "description": "Cédula del usuario asignado como divulgador."
         },
+        "divulgador_vinculo": {
+          "type": "string",
+          "description": "Vínculo laboral del usuario asignado como divulgador."
+        },
         "fecha_creacion": {
           "type": "string",
           "format": "date-time"

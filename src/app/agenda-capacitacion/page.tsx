@@ -101,7 +101,8 @@ export default function AgendaCapacitacionPage() {
       await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedSolicitud.id), {
         divulgador_id: selectedUser.id,
         divulgador_nombre: selectedUser.username,
-        divulgador_cedula: selectedUser.cedula || '' 
+        divulgador_cedula: selectedUser.cedula || '',
+        divulgador_vinculo: selectedUser.vinculo || ''
       });
       toast({ title: "¡Divulgador Asignado!", description: `${selectedUser.username} ha sido asignado a esta actividad.` });
       setSelectedSolicitud(null);
@@ -223,7 +224,7 @@ export default function AgendaCapacitacionPage() {
                                                 <CheckCircle2 className="h-3 w-3 text-green-600" />
                                                 <div className="flex flex-col">
                                                   <p className="text-xs font-black uppercase text-primary leading-none">{item.divulgador_nombre}</p>
-                                                  {item.divulgador_cedula && <p className="text-[9px] text-muted-foreground mt-0.5">C.I. {item.divulgador_cedula}</p>}
+                                                  {item.divulgador_cedula && <p className="text-[9px] text-muted-foreground mt-0.5">C.I. {item.divulgador_cedula} ({item.divulgador_vinculo})</p>}
                                                 </div>
                                             </div>
                                         ) : (

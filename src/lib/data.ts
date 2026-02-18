@@ -89,6 +89,7 @@ export type SolicitudCapacitacion = {
   divulgador_id?: string;
   divulgador_nombre?: string;
   divulgador_cedula?: string;
+  divulgador_vinculo?: string;
   fecha_creacion: string;
 }
 

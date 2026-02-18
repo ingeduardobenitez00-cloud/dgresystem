@@ -79,6 +79,7 @@ export default function InformeDivulgadorPage() {
           hora_hasta: item.hora_hasta,
           nombre_divulgador: item.divulgador_nombre || item.nombre_completo || '',
           cedula_divulgador: item.divulgador_cedula || item.cedula || '',
+          vinculo: item.divulgador_vinculo || '',
         }));
       }
     }
@@ -100,6 +101,7 @@ export default function InformeDivulgadorPage() {
         hora_hasta: item.hora_hasta,
         nombre_divulgador: item.divulgador_nombre || item.nombre_completo || '',
         cedula_divulgador: item.divulgador_cedula || item.cedula || '',
+        vinculo: item.divulgador_vinculo || '',
       }));
       toast({ title: "Datos cargados", description: "Se ha importado la información de la agenda." });
     }
@@ -198,7 +200,7 @@ export default function InformeDivulgadorPage() {
         doc.setFont('helvetica', 'bold');
         doc.text(`${label}:`, margin, currentY);
         doc.setFont('helvetica', 'normal');
-        doc.text(value.toUpperCase(), margin + 50, currentY);
+        doc.text((value || '').toUpperCase(), margin + 50, currentY);
         doc.line(margin + 50, currentY + 1, 195, currentY + 1);
         return currentY + 8;
     };
