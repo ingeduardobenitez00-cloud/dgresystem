@@ -129,14 +129,14 @@ export default function AppSidebar() {
 
           return (
             <Collapsible key={group.label} className="group/collapsible" defaultOpen={false}>
-              <SidebarGroup className="py-1">
+              <SidebarGroup className="py-0.5">
                 <SidebarGroupLabel asChild>
-                  <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground px-3 py-2 rounded-md transition-all duration-200">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/60">{group.label}</span>
-                    <ChevronDown className="h-3.5 w-3.5 opacity-50 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground px-3 py-1.5 rounded-md transition-all duration-200">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-sidebar-foreground/60">{group.label}</span>
+                    <ChevronDown className="h-3 w-3 opacity-50 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                   </CollapsibleTrigger>
                 </SidebarGroupLabel>
-                <CollapsibleContent className="space-y-1 px-1">
+                <CollapsibleContent className="space-y-0.5 px-1">
                   <SidebarGroupContent>
                     <SidebarMenu>
                       {accessibleItems.map((item) => (
@@ -145,11 +145,11 @@ export default function AppSidebar() {
                             asChild
                             isActive={pathname === item.href}
                             tooltip={item.label}
-                            className="min-h-10 h-auto px-3 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                            className="min-h-9 h-auto px-3 transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                           >
                             <Link href={item.href} className="flex items-center gap-3 w-full py-1">
-                              <item.icon className="h-4.5 w-4.5 shrink-0" />
-                              <span className="text-sm font-medium leading-snug break-words whitespace-normal">{item.label}</span>
+                              <item.icon className="h-4 w-4 shrink-0" />
+                              <span className="text-xs font-medium leading-snug break-words whitespace-normal">{item.label}</span>
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
