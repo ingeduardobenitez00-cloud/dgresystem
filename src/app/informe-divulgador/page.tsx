@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserCheck, CheckCircle2, FileDown, CalendarDays, MousePointerSquareDashed, Camera, Trash2, Image as ImageIcon, Plus } from 'lucide-react';
+import { Loader2, UserCheck, CheckCircle2, FileDown, CalendarDays, MousePointerSquareDashed, Camera, Trash2, Image as ImageIcon, Plus, Building2 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -56,6 +56,19 @@ export default function InformeDivulgadorPage() {
     fetchLogo();
   }, []);
 
+  // Pre-fill from profile if no agenda item is selected yet
+  useEffect(() => {
+    if (!isUserLoading && user?.profile && !agendaId) {
+      setFormData(prev => ({
+        ...prev,
+        nombre_divulgador: user.profile?.username || '',
+        cedula_divulgador: user.profile?.cedula || '',
+        vinculo: user.profile?.vinculo || '',
+        oficina: user.profile?.distrito || '',
+      }));
+    }
+  }, [user, isUserLoading, agendaId]);
+
   const agendaQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile?.distrito) return null;
     return query(
@@ -77,9 +90,10 @@ export default function InformeDivulgadorPage() {
           fecha: item.fecha,
           hora_desde: item.hora_desde,
           hora_hasta: item.hora_hasta,
-          nombre_divulgador: item.divulgador_nombre || item.nombre_completo || '',
-          cedula_divulgador: item.divulgador_cedula || item.cedula || '',
+          nombre_divulgador: item.divulgador_nombre || '',
+          cedula_divulgador: item.divulgador_cedula || '',
           vinculo: item.divulgador_vinculo || '',
+          oficina: item.distrito || '',
         }));
       }
     }
@@ -99,9 +113,10 @@ export default function InformeDivulgadorPage() {
         fecha: item.fecha,
         hora_desde: item.hora_desde,
         hora_hasta: item.hora_hasta,
-        nombre_divulgador: item.divulgador_nombre || item.nombre_completo || '',
-        cedula_divulgador: item.divulgador_cedula || item.cedula || '',
+        nombre_divulgador: item.divulgador_nombre || '',
+        cedula_divulgador: item.divulgador_cedula || '',
         vinculo: item.divulgador_vinculo || '',
+        oficina: item.distrito || '',
       }));
       toast({ title: "Datos cargados", description: "Se ha importado la información de la agenda." });
     }
@@ -126,7 +141,6 @@ export default function InformeDivulgadorPage() {
       };
       reader.readAsDataURL(file);
     }
-    // Reset the input value so the same file can be picked again if deleted
     e.target.value = '';
   };
 
@@ -161,16 +175,14 @@ export default function InformeDivulgadorPage() {
       
       setMarcaciones([]);
       setEventPhotos([]);
-      setFormData({
+      // Keep professional data but clear event data
+      setFormData(prev => ({
+        ...prev,
         lugar_divulgacion: '',
         fecha: '',
         hora_desde: '',
         hora_hasta: '',
-        nombre_divulgador: '',
-        cedula_divulgador: '',
-        vinculo: '',
-        oficina: '',
-      });
+      }));
     } catch (error) {
       console.error(error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el informe." });
@@ -269,7 +281,6 @@ export default function InformeDivulgadorPage() {
     doc.text("__________________________________", 150, y, { align: "center" });
     doc.text("Firma, aclaración y sello Jefes", 150, y + 5, { align: "center" });
 
-    // Add photos page if there are any
     if (eventPhotos.length > 0) {
       doc.addPage();
       doc.setFont('helvetica', 'bold');
@@ -343,15 +354,45 @@ export default function InformeDivulgadorPage() {
             <CardDescription>Control semanal de ciudadanos que practicaron con la Máquina de Votación.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
+            
+            {/* Professional Data Section (Read Only) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-6 rounded-xl border-2 border-dashed">
+              <div className="space-y-2">
+                <Label htmlFor="nombre_divulgador" className="font-black text-primary text-[10px] uppercase tracking-widest">Nombre Completo Divulgador</Label>
+                <Input id="nombre_divulgador" name="nombre_divulgador" value={formData.nombre_divulgador} readOnly className="bg-white font-bold border-primary/20" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cedula_divulgador" className="font-black text-primary text-[10px] uppercase tracking-widest">C.I.C. N.º</Label>
+                  <Input id="cedula_divulgador" name="cedula_divulgador" value={formData.cedula_divulgador} readOnly className="bg-white font-bold border-primary/20" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vinculo" className="font-black text-primary text-[10px] uppercase tracking-widest">Vínculo</Label>
+                  <Input id="vinculo" name="vinculo" value={formData.vinculo} readOnly className="bg-white font-bold border-primary/20" />
+                </div>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="oficina" className="font-black text-primary text-[10px] uppercase tracking-widest flex items-center gap-2">
+                  <Building2 className="h-3 w-3" /> Oficina / Registro Electoral
+                </Label>
+                <Input id="oficina" name="oficina" value={formData.oficina} readOnly className="bg-white font-bold border-primary/20" />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Event Data Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="lugar_divulgacion">LUGAR DE DIVULGACIÓN</Label>
-                <Input id="lugar_divulgacion" name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} />
+                <Input id="lugar_divulgacion" name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} className={agendaId ? "bg-primary/5 font-semibold" : ""} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fecha">FECHA</Label>
-                  <Input id="fecha" name="fecha" type="date" value={formData.fecha} onChange={handleInputChange} />
+                  <Input id="fecha" name="fecha" type="date" value={formData.fecha} onChange={handleInputChange} className={agendaId ? "bg-primary/5 font-semibold" : ""} />
                 </div>
                 <div className="space-y-2 text-right">
                     <Label className="text-primary font-bold">TOTAL PERSONAS</Label>
@@ -362,38 +403,18 @@ export default function InformeDivulgadorPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="hora_desde">HORARIO DESDE</Label>
-                  <Input id="hora_desde" name="hora_desde" type="time" value={formData.hora_desde} onChange={handleInputChange} />
+                  <Input id="hora_desde" name="hora_desde" type="time" value={formData.hora_desde} onChange={handleInputChange} className={agendaId ? "bg-primary/5 font-semibold" : ""} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="hora_hasta">HORARIO HASTA</Label>
-                  <Input id="hora_hasta" name="hora_hasta" type="time" value={formData.hora_hasta} onChange={handleInputChange} />
+                  <Input id="hora_hasta" name="hora_hasta" type="time" value={formData.hora_hasta} onChange={handleInputChange} className={agendaId ? "bg-primary/5 font-semibold" : ""} />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nombre_divulgador">NOMBRE COMPLETO DIVULGADOR</Label>
-                <Input id="nombre_divulgador" name="nombre_divulgador" value={formData.nombre_divulgador} onChange={handleInputChange} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cedula_divulgador">C.I.C. N.º</Label>
-                  <Input id="cedula_divulgador" name="cedula_divulgador" value={formData.cedula_divulgador} onChange={handleInputChange} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vinculo">VÍNCULO</Label>
-                  <Input id="vinculo" name="vinculo" value={formData.vinculo} onChange={handleInputChange} placeholder="Ej: Funcionario" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="oficina">OFICINA</Label>
-                <Input id="oficina" name="oficina" value={formData.oficina} onChange={handleInputChange} />
               </div>
             </div>
 
             <Separator />
 
+            {/* Tally Sheet Section */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
                     <Label className="text-lg font-bold flex items-center gap-2">
@@ -423,6 +444,7 @@ export default function InformeDivulgadorPage() {
 
             <Separator />
 
+            {/* Photos Section */}
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <Label className="text-lg font-bold flex items-center gap-2">

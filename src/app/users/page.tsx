@@ -733,7 +733,8 @@ export default function UsersPage() {
                         {editRole === 'divulgador' && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-primary/5 border border-dashed border-primary/20 rounded-lg">
                             <div className="space-y-2">
-                              <Label htmlFor="cedula-edit" name="cedula" defaultValue={editingUser.cedula} placeholder="Ej: 1.234.567" required />
+                              <Label htmlFor="cedula-edit" className="text-primary font-bold">NÚMERO DE CÉDULA</Label>
+                              <Input id="cedula-edit" name="cedula" defaultValue={editingUser.cedula} placeholder="Ej: 1.234.567" required />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="vinculo-edit" className="text-primary font-bold">TIPO DE VÍNCULO</Label>
