@@ -156,6 +156,15 @@
         "distrito": {
           "type": "string",
           "description": "The district assigned to the user."
+        },
+        "cedula": {
+          "type": "string",
+          "description": "Número de cédula del divulgador."
+        },
+        "vinculo": {
+          "type": "string",
+          "enum": ["PERMANENTE", "CONTRATADO", "COMISIONADO"],
+          "description": "Tipo de vínculo laboral."
         }
       },
       "required": [

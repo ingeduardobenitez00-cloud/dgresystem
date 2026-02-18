@@ -101,8 +101,7 @@ export default function AgendaCapacitacionPage() {
       await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedSolicitud.id), {
         divulgador_id: selectedUser.id,
         divulgador_nombre: selectedUser.username,
-        // Since we don't have CI in UserProfile yet, we use a placeholder or leave it empty for manual fill
-        divulgador_cedula: '' 
+        divulgador_cedula: selectedUser.cedula || '' 
       });
       toast({ title: "¡Divulgador Asignado!", description: `${selectedUser.username} ha sido asignado a esta actividad.` });
       setSelectedSolicitud(null);
@@ -222,7 +221,10 @@ export default function AgendaCapacitacionPage() {
                                         {item.divulgador_nombre ? (
                                             <div className="flex items-center gap-2">
                                                 <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                                <p className="text-xs font-black uppercase text-primary">{item.divulgador_nombre}</p>
+                                                <div className="flex flex-col">
+                                                  <p className="text-xs font-black uppercase text-primary leading-none">{item.divulgador_nombre}</p>
+                                                  {item.divulgador_cedula && <p className="text-[9px] text-muted-foreground mt-0.5">C.I. {item.divulgador_cedula}</p>}
+                                                </div>
                                             </div>
                                         ) : (
                                             <p className="text-[10px] italic text-muted-foreground">Sin asignar</p>
@@ -251,7 +253,9 @@ export default function AgendaCapacitacionPage() {
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {staffUsers?.map(u => (
-                                                                <SelectItem key={u.id} value={u.id}>{u.username} ({u.role})</SelectItem>
+                                                                <SelectItem key={u.id} value={u.id}>
+                                                                  {u.username} ({u.role}) {u.cedula ? `- C.I. ${u.cedula}` : ''}
+                                                                </SelectItem>
                                                             ))}
                                                         </SelectContent>
                                                     </Select>

@@ -13,6 +13,8 @@ export interface UserProfile {
   distrito?: string;
   modules?: string[];
   permissions?: string[];
+  cedula?: string;
+  vinculo?: 'PERMANENTE' | 'CONTRATADO' | 'COMISIONADO' | string;
 }
 
 // Combines Firebase Auth user with Firestore profile data

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, KeyRound, BadgeInfo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -45,6 +45,8 @@ type UserProfile = {
   permissions: string[];
   departamento?: string;
   distrito?: string;
+  cedula?: string;
+  vinculo?: string;
 };
 
 const ALL_MODULES = [
@@ -138,6 +140,7 @@ export default function UsersPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [selectedRole, setSelectedRole] = useState<string>('viewer');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -187,11 +190,22 @@ export default function UsersPage() {
     const role = formData.get('role') as UserProfile['role'];
     const departamento = formData.get('departamento') as string;
     const distrito = formData.get('distrito') as string;
+    const cedula = formData.get('cedula') as string;
+    const vinculo = formData.get('vinculo') as string;
 
     const modules = ALL_MODULES.filter(module => formData.get(`access-${module}`));
     const permissions = ALL_PERMISSIONS.filter(permission => formData.get(`perm-${permission}`));
 
-    const newUserProfile: Omit<UserProfile, 'id'> = { username, email, role, modules, permissions, departamento, distrito };
+    const newUserProfile: Omit<UserProfile, 'id'> = { 
+      username, 
+      email, 
+      role, 
+      modules, 
+      permissions, 
+      departamento, 
+      distrito,
+      ...(role === 'divulgador' ? { cedula, vinculo } : {})
+    };
 
     const tempAppName = 'temp-user-creation';
     let tempApp: FirebaseApp | undefined = undefined;
@@ -213,6 +227,7 @@ export default function UsersPage() {
       });
       form.reset();
       setSelectedDepartment('');
+      setSelectedRole('viewer');
     } catch (error: any) {
       console.error('Error creating user:', error);
       if (error.code === 'auth/email-already-in-use') {
@@ -268,10 +283,19 @@ export default function UsersPage() {
     const role = formData.get('role') as UserProfile['role'];
     const departamento = formData.get('departamento') as string;
     const distrito = formData.get('distrito') as string;
+    const cedula = formData.get('cedula') as string;
+    const vinculo = formData.get('vinculo') as string;
     const modules = ALL_MODULES.filter(module => formData.get(`access-${module}`));
     const permissions = ALL_PERMISSIONS.filter(permission => formData.get(`perm-${permission}`));
     
-    const updatedFields = { role, modules, permissions, departamento, distrito };
+    const updatedFields: any = { 
+      role, 
+      modules, 
+      permissions, 
+      departamento, 
+      distrito,
+      ...(role === 'divulgador' ? { cedula, vinculo } : { cedula: '', vinculo: '' })
+    };
 
     const userDocRef = doc(firestore, 'users', editingUser.id);
 
@@ -403,7 +427,7 @@ export default function UsersPage() {
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="role">Rol</Label>
-                    <Select name="role" required defaultValue="viewer">
+                    <Select name="role" required defaultValue="viewer" onValueChange={setSelectedRole}>
                         <SelectTrigger id="role">
                         <SelectValue placeholder="Seleccionar un rol" />
                         </SelectTrigger>
@@ -418,6 +442,28 @@ export default function UsersPage() {
                     </Select>
                 </div>
               </div>
+
+              {selectedRole === 'divulgador' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-primary/5 border border-dashed border-primary/20 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="space-y-2">
+                    <Label htmlFor="cedula" className="text-primary font-bold">NÚMERO DE CÉDULA</Label>
+                    <Input id="cedula" name="cedula" placeholder="Ej: 1.234.567" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vinculo" className="text-primary font-bold">TIPO DE VÍNCULO</Label>
+                    <Select name="vinculo" required defaultValue="CONTRATADO">
+                      <SelectTrigger id="vinculo">
+                        <SelectValue placeholder="Seleccionar vínculo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PERMANENTE">PERMANENTE</SelectItem>
+                        <SelectItem value="CONTRATADO">CONTRATADO</SelectItem>
+                        <SelectItem value="COMISIONADO">COMISIONADO</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
               
               <Separator />
 
@@ -642,6 +688,29 @@ export default function UsersPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {editRole === 'divulgador' && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-primary/5 border border-dashed border-primary/20 rounded-lg">
+                            <div className="space-y-2">
+                              <Label htmlFor="cedula-edit" className="text-primary font-bold">NÚMERO DE CÉDULA</Label>
+                              <Input id="cedula-edit" name="cedula" defaultValue={editingUser.cedula} placeholder="Ej: 1.234.567" required />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="vinculo-edit" className="text-primary font-bold">TIPO DE VÍNCULO</Label>
+                              <Select name="vinculo" required defaultValue={editingUser.vinculo || 'CONTRATADO'}>
+                                <SelectTrigger id="vinculo-edit">
+                                  <SelectValue placeholder="Seleccionar vínculo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="PERMANENTE">PERMANENTE</SelectItem>
+                                  <SelectItem value="CONTRATADO">CONTRATADO</SelectItem>
+                                  <SelectItem value="COMISIONADO">COMISIONADO</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
+
                         <Separator />
                         <div className="space-y-4">
                             <Label>Asignación de Ubicación (Opcional)</Label>
