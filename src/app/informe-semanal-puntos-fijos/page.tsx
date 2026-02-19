@@ -36,7 +36,8 @@ export default function InformeSemanalAnexoIVPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
 
-  const isAdministrative = user?.profile?.role === 'admin' || user?.profile?.role === 'director' || user?.profile?.role === 'jefe';
+  // De-couple "Administrative" power from hardcoded roles. Now depends on admin role OR admin_filter permission.
+  const canFilterAll = user?.profile?.role === 'admin' || user?.profile?.permissions?.includes('admin_filter');
 
   // Master list of departments and districts for filtering
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
@@ -45,7 +46,7 @@ export default function InformeSemanalAnexoIVPage() {
   // Initialize filters based on user profile or defaults
   useEffect(() => {
     if (!isUserLoading && user?.profile) {
-      if (!isAdministrative) {
+      if (!canFilterAll) {
         setSelectedDepartment(user.profile.departamento || null);
         setSelectedDistrict(user.profile.distrito || null);
       } else if (!selectedDepartment && user.profile.departamento) {
@@ -54,7 +55,7 @@ export default function InformeSemanalAnexoIVPage() {
         setSelectedDistrict(user.profile.distrito || null);
       }
     }
-  }, [user, isUserLoading, isAdministrative]);
+  }, [user, isUserLoading, canFilterAll]);
 
   // Update lists for selectors
   useEffect(() => {
@@ -256,8 +257,8 @@ export default function InformeSemanalAnexoIVPage() {
       <Header title="Informe Semanal - Anexo IV" />
       <main className="flex-1 p-4 md:p-8">
         
-        {/* Administative Filters */}
-        {isAdministrative && (
+        {/* Unified Filter Logic: Access based on admin role or specific permission */}
+        {canFilterAll && (
           <div className="mx-auto max-w-7xl mb-6">
             <Card className="bg-white border-primary/20 shadow-sm">
               <CardHeader className="py-4">

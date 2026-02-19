@@ -8,10 +8,9 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
-import { Loader2, Calendar, MapPin, FileImage, ClipboardCheck, LayoutList, Building2, Users, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Loader2, Calendar, MapPin, ClipboardCheck, LayoutList, Building2, UserPlus, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import Image from 'next/image';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,23 +28,31 @@ export default function AgendaCapacitacionPage() {
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
-  // User list for assignment
+  // User list for assignment - Filtering by district if the current user is restricted
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile) return null;
+    
+    const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
+    
+    if (canFilterAll) {
+      return collection(firestore, 'users');
+    }
+    
     return query(
       collection(firestore, 'users'),
       where('distrito', '==', user.profile.distrito || '')
     );
   }, [firestore, user]);
+  
   const { data: staffUsers } = useCollection(usersQuery);
 
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile) return null;
     
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    const isAdministrative = user.profile.role === 'admin' || user.profile.role === 'director' || user.profile.role === 'jefe';
+    const canViewAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
 
-    if (isAdministrative) {
+    if (canViewAll) {
       return query(colRef, orderBy('fecha', 'asc'));
     }
     
@@ -121,7 +128,8 @@ export default function AgendaCapacitacionPage() {
     };
   }, [solicitudes, structuredAgenda]);
 
-  const canAssign = user?.profile?.role === 'admin' || user?.profile?.role === 'director' || user?.profile?.role === 'jefe';
+  // Access check based on explicit permission or admin role
+  const canAssign = user?.profile?.role === 'admin' || user?.profile?.permissions?.includes('assign_staff');
 
   if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
     return (
