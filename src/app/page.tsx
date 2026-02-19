@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, ChevronRight, LayoutGrid } from 'lucide-react';
@@ -50,9 +49,14 @@ const MODULE_GROUPS = [
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const groupedModules = useMemo(() => {
-    if (!user) return [];
+    if (!user || !mounted) return [];
 
     return MODULE_GROUPS.map(group => {
       const accessibleInGroup = dashboardMenuItems.filter(item => {
@@ -66,9 +70,9 @@ export default function Home() {
         items: accessibleInGroup
       };
     }).filter(group => group.items.length > 0);
-  }, [user]);
+  }, [user, mounted]);
 
-  if (isUserLoading) {
+  if (isUserLoading || !mounted) {
     return (
       <div className="flex min-h-screen w-full flex-col">
         <Header title="Cargando Panel..." />
@@ -82,7 +86,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/5">
       <Header title="Panel de Gestión Integral" />
-      <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="mb-6 bg-white p-5 rounded-xl border shadow-sm">
             <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">
                 Bienvenido, <span className="text-primary">{user?.profile?.username || 'Usuario'}</span>
