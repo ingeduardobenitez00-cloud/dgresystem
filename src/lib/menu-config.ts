@@ -87,12 +87,6 @@ export const dashboardMenuItems = [
     description: 'Importa locales de votación desde un archivo Excel.',
   },
   {
-    href: '/importar-padron',
-    label: 'Importar Padrón Electoral',
-    icon: DatabaseBackup,
-    description: 'Herramienta masiva para cargar archivos de 1M de registros.',
-  },
-  {
     href: '/importar-partidos',
     label: 'Importar Partidos Políticos',
     icon: Flag,

@@ -66,7 +66,8 @@ const ALL_MODULES = [
   'encuesta-satisfaccion',
   'informe-divulgador',
   'informe-semanal-puntos-fijos',
-  'estadisticas-capacitacion'
+  'estadisticas-capacitacion',
+  'importar-partidos'
 ];
 
 const MODULE_LABELS: { [key: string]: string } = {
@@ -86,7 +87,8 @@ const MODULE_LABELS: { [key: string]: string } = {
   'encuesta-satisfaccion': 'Encuesta Satisfacción',
   'informe-divulgador': 'Informe del Divulgador',
   'informe-semanal-puntos-fijos': 'Informe Semanal (Anexo IV)',
-  'estadisticas-capacitacion': 'Estadísticas CIDEE'
+  'estadisticas-capacitacion': 'Estadísticas CIDEE',
+  'importar-partidos': 'Importar Partidos'
 };
 
 const MODULE_GROUPS = [
@@ -108,7 +110,7 @@ const MODULE_GROUPS = [
   },
   {
     label: "Gestión de Datos",
-    modules: ['importar-reportes', 'importar-locales']
+    modules: ['importar-reportes', 'importar-locales', 'importar-partidos']
   },
   {
     label: "Sistema",
@@ -345,7 +347,7 @@ export default function UsersPage() {
             path: `users/${userId}`,
         });
         errorEmitter.emit('permission-error', contextualError);
-        toast({ title: 'Error al eliminar', variant: 'destructive', description: 'No se pudo eliminar el usuario.' });
+        toast({ title: 'Error al eliminar', variant: 'destructive', description: 'No se pudo eliminar the user.' });
     }
   };
 
