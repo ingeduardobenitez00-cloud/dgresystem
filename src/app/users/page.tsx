@@ -19,7 +19,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -685,7 +684,7 @@ export default function UsersPage() {
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col overflow-hidden">
-                    <ScrollArea className="flex-1 p-6">
+                    <div className="flex-1 overflow-y-auto p-6">
                         <div className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
@@ -772,7 +771,7 @@ export default function UsersPage() {
 
                             <div className="space-y-4">
                                 <Label className="text-sm font-black uppercase text-primary">Acceso a Módulos y Atributos</Label>
-                                <Accordion type="multiple" className="w-full border rounded-xl overflow-hidden bg-white">
+                                <Accordion type="multiple" className="w-full border rounded-xl overflow-hidden bg-white shadow-sm">
                                     {MODULE_GROUPS.map((group, idx) => (
                                         <AccordionItem value={`edit-group-${idx}`} key={`edit-${group.label}`} className="border-b last:border-b-0 px-4">
                                             <AccordionTrigger className="hover:no-underline py-3 text-[10px] font-black uppercase text-muted-foreground">
@@ -813,8 +812,8 @@ export default function UsersPage() {
                                 </Accordion>
                             </div>
                         </div>
-                    </ScrollArea>
-                    <DialogFooter className="p-6 bg-muted/30 border-t gap-3">
+                    </div>
+                    <DialogFooter className="p-6 bg-muted/30 border-t gap-3 shrink-0">
                         <DialogClose asChild>
                             <Button type="button" variant="outline" className="uppercase font-bold h-12">Cancelar</Button>
                         </DialogClose>
