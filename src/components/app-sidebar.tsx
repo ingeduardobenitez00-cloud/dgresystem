@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -123,7 +122,7 @@ export default function AppSidebar() {
               <Image src="/logo.png" alt="Logo" width={30} height={30} className="object-contain" priority />
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] font-black text-sidebar-foreground uppercase leading-none tracking-tight">
+              <span className="text-[11px] font-black text-foreground uppercase leading-none tracking-tight">
                   JUSTICIA
               </span>
               <span className="text-[11px] font-black text-primary uppercase leading-none tracking-tight mt-0.5">
@@ -139,11 +138,11 @@ export default function AppSidebar() {
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} className="group/collapsible mb-2" defaultOpen={true}>
+            <Collapsible key={group.label} className="group/collapsible mb-2" defaultOpen={group.label === "Principal"}>
               <SidebarGroup className="py-0">
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 px-3 py-2 rounded-lg transition-all duration-200 group/trigger">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-sidebar-foreground/50 group-hover/trigger:text-sidebar-foreground transition-colors">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-sidebar-foreground/60 group-hover/trigger:text-sidebar-foreground transition-colors">
                       {group.label}
                     </span>
                     <ChevronDown className="h-3 w-3 opacity-30 transition-transform group-data-[state=open]/collapsible:rotate-180" />
