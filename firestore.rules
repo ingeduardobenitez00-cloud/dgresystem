@@ -99,11 +99,12 @@ service cloud.firestore {
     }
 
     match /solicitudes-capacitacion/{solicitudId} {
-      allow read: if isSignedIn() && (
+      allow get: if isSignedIn() && (
         isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(resource.data.departamento, resource.data.distrito)) ||
         (isRole('divulgador') && isAssignedTo(resource.data.departamento, resource.data.distrito))
       );
+      allow list: if isSignedIn() && (isAdministrative() || isRole('funcionario') || isRole('divulgador'));
       allow create: if isSignedIn() && (
         isAdministrative() || 
         (isRole('funcionario') && isAssignedTo(request.resource.data.departamento, request.resource.data.distrito))
@@ -142,11 +143,11 @@ service cloud.firestore {
 
     /** User Profiles **/
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if isOwner(userId) || isAdmin();
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isAdmin() || (isAdministrative() && request.query.distrito == getUserData().distrito);
+        allow create: if isOwner(userId) || isAdmin();
+        allow update: if isOwner(userId) || isAdmin();
+        allow delete: if isAdmin();
     }
   }
 }

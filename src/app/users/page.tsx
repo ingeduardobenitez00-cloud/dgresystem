@@ -516,7 +516,7 @@ export default function UsersPage() {
               <Separator />
 
               <div className="space-y-4">
-                <Label className="text-md font-bold">Acceso a Módulos</Label>
+                <Label className="text-md font-bold">Acceso y Permisos</Label>
                 <Accordion type="multiple" className="w-full border rounded-md">
                     {MODULE_GROUPS.map((group, idx) => (
                         <AccordionItem value={`group-${idx}`} key={group.label} className="border-b last:border-b-0 px-4">
@@ -534,26 +534,28 @@ export default function UsersPage() {
                                         </div>
                                     ))}
                                 </div>
+                                {group.label === 'Sistema' && (
+                                    <>
+                                        <Separator className="my-4" />
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-bold uppercase text-muted-foreground">Permisos Globales</Label>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border p-4 rounded-md bg-muted/10">
+                                                {ALL_PERMISSIONS.map(permission => (
+                                                    <div key={permission} className="flex items-center space-x-2">
+                                                        <Checkbox id={`perm-${permission}`} name={`perm-${permission}`} />
+                                                        <Label htmlFor={`perm-${permission}`} className="font-normal capitalize text-xs">
+                                                            {PERMISSION_LABELS[permission] || permission}
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </AccordionContent>
                         </AccordionItem>
                     ))}
                 </Accordion>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <Label className="text-md font-bold">Permisos Globales</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border p-4 rounded-md bg-muted/10">
-                    {ALL_PERMISSIONS.map(permission => (
-                        <div key={permission} className="flex items-center space-x-2">
-                            <Checkbox id={`perm-${permission}`} name={`perm-${permission}`} />
-                            <Label htmlFor={`perm-${permission}`} className="font-normal capitalize text-xs">
-                                {PERMISSION_LABELS[permission] || permission}
-                            </Label>
-                        </div>
-                    ))}
-                </div>
               </div>
 
             </CardContent>
@@ -788,7 +790,7 @@ export default function UsersPage() {
                         </div>
                         <Separator />
                         <div className="space-y-4">
-                            <Label className="text-md font-bold">Acceso a Módulos</Label>
+                            <Label className="text-md font-bold">Acceso y Permisos</Label>
                             <Accordion type="multiple" className="w-full border rounded-md">
                                 {MODULE_GROUPS.map((group, idx) => (
                                     <AccordionItem value={`edit-group-${idx}`} key={`edit-${group.label}`} className="border-b last:border-b-0 px-4">
@@ -806,24 +808,28 @@ export default function UsersPage() {
                                                     </div>
                                                 ))}
                                             </div>
+                                            {group.label === 'Sistema' && (
+                                                <>
+                                                    <Separator className="my-4" />
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Permisos Globales</Label>
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border p-4 rounded-md bg-muted/10">
+                                                            {ALL_PERMISSIONS.map(permission => (
+                                                                <div key={`edit-perm-${permission}`} className="flex items-center space-x-2">
+                                                                    <Checkbox id={`edit-perm-${permission}`} name={`perm-${permission}`} defaultChecked={editingUser.permissions.includes(permission)} />
+                                                                    <Label htmlFor={`edit-perm-${permission}`} className="font-normal capitalize text-xs">
+                                                                        {PERMISSION_LABELS[permission] || permission}
+                                                                    </Label>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
                                         </AccordionContent>
                                     </AccordionItem>
                                 ))}
                             </Accordion>
-                        </div>
-                        <Separator />
-                        <div className="space-y-4">
-                            <Label className="text-md font-bold">Permisos Globales</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border p-4 rounded-md bg-muted/10">
-                                {ALL_PERMISSIONS.map(permission => (
-                                    <div key={`edit-perm-${permission}`} className="flex items-center space-x-2">
-                                        <Checkbox id={`edit-perm-${permission}`} name={`perm-${permission}`} defaultChecked={editingUser.permissions.includes(permission)} />
-                                        <Label htmlFor={`edit-perm-${permission}`} className="font-normal capitalize text-xs">
-                                            {PERMISSION_LABELS[permission] || permission}
-                                        </Label>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     </div>
                     <DialogFooter>

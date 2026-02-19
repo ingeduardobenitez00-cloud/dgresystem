@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as CardDescriptionUI } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
@@ -11,7 +11,7 @@ import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
 import { Loader2, Calendar, MapPin, FileImage, ClipboardCheck, LayoutList, Building2, Users, UserPlus, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
