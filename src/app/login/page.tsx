@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -83,7 +82,14 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
        <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center">
-            <Image src="/logo.png" alt="Logo de la aplicación" width={80} height={80} className="mb-4" />
+            <Image 
+              src="/logo.png" 
+              alt="Logo de la aplicación" 
+              width={80} 
+              height={80} 
+              className="mb-4" 
+              priority 
+            />
              <h1 className="text-2xl font-bold tracking-tight mt-2 uppercase text-primary">
                 JUSTICIA ELECTORAL
              </h1>

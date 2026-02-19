@@ -1,16 +1,16 @@
-
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { useUser } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/app-sidebar';
 import { dashboardMenuItems } from '@/lib/menu-config';
+import { Button } from './ui/button';
 
 function AuthLayout({ children }: { children: React.ReactNode }) {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, userError } = useUser();
   const pathname = usePathname();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -66,6 +66,28 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
     
     return false;
   }, [isUserLoading, user, pathname, accessibleMenuItems, mounted]);
+
+  if (userError) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center p-6 text-center space-y-6 bg-background">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-black uppercase text-primary tracking-tighter">Fallo de Conexión</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Hubo un problema al conectar con los servicios de Justicia Electoral.
+          </p>
+          {userError.message && (
+            <div className="p-3 bg-muted/50 rounded-lg text-[10px] font-mono text-muted-foreground break-all mt-4 border border-dashed">
+              DETALLE: {userError.message}
+            </div>
+          )}
+        </div>
+        <Button onClick={() => window.location.reload()} className="h-12 px-10 font-black uppercase shadow-lg">
+          <RefreshCw className="mr-2 h-4 w-4" /> Reintentar Acceso
+        </Button>
+        <p className="text-[10px] uppercase font-bold text-muted-foreground/40">Sistema de Gestión Integral</p>
+      </div>
+    );
+  }
 
   if (isRedirecting) {
     return (

@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from 'next/image';
@@ -36,7 +35,13 @@ export default function Header({ title }: { title?: string }) {
           </SidebarTrigger>
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 relative">
-               <Image src="/logo.png" alt="Justicia Electoral Logo" fill className="object-contain" priority />
+               <Image 
+                src="/logo.png" 
+                alt="Justicia Electoral Logo" 
+                fill 
+                className="object-contain" 
+                priority 
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-foreground uppercase leading-tight tracking-tighter">
