@@ -7,6 +7,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  swcMinify: true,
   images: {
     remotePatterns: [
       {
@@ -29,7 +30,9 @@ const nextConfig = {
       },
     ],
   },
-  experimental: {},
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
+  },
 };
 
 module.exports = nextConfig;

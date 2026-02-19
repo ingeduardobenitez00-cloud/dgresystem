@@ -18,10 +18,10 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    // Safety timeout: if after 15s we are still loading, show an error hatch
+    // Safety timeout: if after 10s we are still loading, allow interaction
     const timer = setTimeout(() => {
       if (isUserLoading) setTimedOut(true);
-    }, 15000);
+    }, 10000);
     return () => clearTimeout(timer);
   }, [isUserLoading]);
 
@@ -33,49 +33,42 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (!mounted || isUserLoading) return;
+    if (!mounted) return;
 
-    if (!user && pathname !== '/login') {
+    // Fast track for login page
+    if (!isUserLoading && !user && pathname !== '/login') {
       router.replace('/login');
     } else if (user && pathname === '/login') {
       router.replace('/');
-    } else if (user && pathname === '/' && user.profile?.role && user.profile?.role !== 'admin' && accessibleMenuItems.length === 1) {
-      const targetPath = accessibleMenuItems[0]?.href;
-      if (targetPath) router.replace(targetPath);
     }
-  }, [isUserLoading, user, pathname, router, accessibleMenuItems, mounted]);
+  }, [isUserLoading, user, pathname, router, mounted]);
 
-  if (userError || timedOut) {
+  if (userError) {
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center p-6 text-center space-y-6 bg-background">
+        <AlertTriangle className="h-12 w-12 text-destructive" />
         <div className="space-y-2">
-          <div className="flex justify-center mb-4">
-            <AlertTriangle className="h-12 w-12 text-yellow-500" />
-          </div>
-          <h2 className="text-2xl font-black uppercase text-primary tracking-tighter">Tiempo de espera agotado</h2>
+          <h2 className="text-xl font-black uppercase text-primary">Error de Conexión</h2>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            El sistema está tardando demasiado en responder o hay un error de conexión.
+            No se pudo sincronizar con el servidor. Verifique su conexión a internet.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button onClick={() => window.location.reload()} className="h-12 px-8 font-black uppercase">
-            <RefreshCw className="mr-2 h-4 w-4" /> Reintentar
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/login')} className="h-12 px-8 font-black uppercase">
-            Ir al Login
-          </Button>
-        </div>
+        <Button onClick={() => window.location.reload()} className="h-12 px-8 font-black uppercase">
+          <RefreshCw className="mr-2 h-4 w-4" /> Reintentar
+        </Button>
       </div>
     );
   }
 
-  if (isUserLoading || !mounted) {
+  // Show nothing until mounted to prevent hydration mismatches
+  if (!mounted) return null;
+
+  // Show loading screen ONLY if we are truly loading and not on login
+  if (isUserLoading && !timedOut && pathname !== '/login') {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          </div>
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
             Sincronizando Sistema
           </p>
@@ -94,7 +87,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
         <AppSidebar />
       </Sidebar>
       <SidebarInset>
-        <div key={pathname} className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col">
           {children}
         </div>
       </SidebarInset>

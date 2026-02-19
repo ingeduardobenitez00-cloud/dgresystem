@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
   DatabaseBackup, 
@@ -17,8 +16,6 @@ import {
   Database, 
   Play, 
   Pause,
-  AlertCircle,
-  DollarSign,
   Trash2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -36,16 +33,17 @@ export default function ImportarPadronPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [totalRecords, setTotalRecords] = useState(0);
   const [processedRecords, setProcessedRecords] = useState(0);
-  const [pendingData, setPendingData] = useState<any[]>([]);
-  const [errors, setErrors] = useState<number>(0);
+  
+  // CRITICAL: Store data in a Ref to avoid React state overhead with 1M items
+  const pendingDataRef = useRef<any[]>([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const BATCH_SIZE = 500;
-  const PAUSE_BETWEEN_BATCHES = 800;
+  const PAUSE_BETWEEN_BATCHES = 1000;
 
-  // Cleanup on unmount to free memory
   useEffect(() => {
     return () => {
-      setPendingData([]);
+      pendingDataRef.current = [];
     };
   }, []);
 
@@ -57,49 +55,62 @@ export default function ImportarPadronPage() {
     setStatus('parsing');
     setTotalRecords(0);
     setProcessedRecords(0);
-    setErrors(0);
+    setIsDataLoaded(false);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = event.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary', cellDates: false, bookVBA: false, bookProps: false });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-        
-        if (json.length === 0) throw new Error("El archivo está vacío.");
+    // Yield control to browser to show the loader before heavy parsing
+    setTimeout(() => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = event.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary', cellDates: false, bookVBA: false, bookProps: false });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+          
+          if (json.length === 0) throw new Error("El archivo está vacío.");
 
-        setTotalRecords(json.length);
-        setPendingData(json);
-        setStatus('idle');
-        toast({ title: "Archivo procesado", description: `Se han detectado ${json.length.toLocaleString()} registros.` });
-      } catch (err: any) {
-        setStatus('error');
-        toast({ variant: "destructive", title: "Error al leer archivo", description: err.message });
-      }
-    };
-    reader.readAsBinaryString(file);
+          pendingDataRef.current = json;
+          setTotalRecords(json.length);
+          setIsDataLoaded(true);
+          setStatus('idle');
+          toast({ title: "Archivo procesado", description: `Se han detectado ${json.length.toLocaleString()} registros.` });
+        } catch (err: any) {
+          setStatus('error');
+          toast({ variant: "destructive", title: "Error al leer archivo", description: err.message });
+        }
+      };
+      reader.readAsBinaryString(file);
+    }, 100);
   };
 
   const clearData = () => {
-    setPendingData([]);
+    pendingDataRef.current = [];
     setFileName(null);
     setTotalRecords(0);
     setProcessedRecords(0);
+    setIsDataLoaded(false);
     setStatus('idle');
   };
 
   const startImport = async () => {
-    if (!firestore || pendingData.length === 0) return;
+    if (!firestore || pendingDataRef.current.length === 0) return;
     
     setStatus('uploading');
     const colRef = collection(firestore, 'padron');
     let currentIdx = processedRecords;
 
-    while (currentIdx < pendingData.length && status !== 'paused') {
+    const runBatch = async () => {
+      if (currentIdx >= pendingDataRef.current.length || status === 'paused') {
+        if (currentIdx >= pendingDataRef.current.length) {
+          setStatus('completed');
+          toast({ title: "Importación finalizada" });
+        }
+        return;
+      }
+
       const batch = writeBatch(firestore);
-      const end = Math.min(currentIdx + BATCH_SIZE, pendingData.length);
-      const chunk = pendingData.slice(currentIdx, end);
+      const end = Math.min(currentIdx + BATCH_SIZE, pendingDataRef.current.length);
+      const chunk = pendingDataRef.current.slice(currentIdx, end);
 
       chunk.forEach((item: any) => {
         const newDocRef = doc(colRef);
@@ -119,21 +130,17 @@ export default function ImportarPadronPage() {
         await batch.commit();
         currentIdx = end;
         setProcessedRecords(currentIdx);
-        // Small delay to prevent blocking the UI thread too much
-        await new Promise(res => setTimeout(res, PAUSE_BETWEEN_BATCHES));
+        
+        // Use a timeout to allow the browser to process UI updates and stay responsive
+        setTimeout(runBatch, PAUSE_BETWEEN_BATCHES);
       } catch (err) {
         console.error("Batch error:", err);
-        setErrors(prev => prev + chunk.length);
-        currentIdx = end;
-        setProcessedRecords(currentIdx);
+        setStatus('error');
+        toast({ variant: "destructive", title: "Error en la subida", description: "El proceso se ha detenido." });
       }
+    };
 
-      if (currentIdx >= pendingData.length) {
-        setStatus('completed');
-        toast({ title: "Importación finalizada" });
-        break;
-      }
-    }
+    runBatch();
   };
 
   const progressPercentage = totalRecords > 0 ? Math.round((processedRecords / totalRecords) * 100) : 0;
@@ -148,10 +155,10 @@ export default function ImportarPadronPage() {
             <h1 className="text-3xl font-black uppercase text-primary tracking-tight">Motor de Carga Masiva</h1>
             <p className="text-muted-foreground flex items-center gap-2 mt-1">
               <DatabaseBackup className="h-4 w-4" />
-              Gestión de archivos de 500k - 1M de registros.
+              Gestión de archivos de gran volumen.
             </p>
           </div>
-          {pendingData.length > 0 && status !== 'uploading' && (
+          {isDataLoaded && status !== 'uploading' && (
             <Button variant="ghost" size="sm" onClick={clearData} className="text-destructive font-bold uppercase text-[10px]">
               <Trash2 className="h-3 w-3 mr-1" /> Limpiar Memoria
             </Button>
@@ -162,7 +169,7 @@ export default function ImportarPadronPage() {
           <Card className={cn("border-2 transition-all", status === 'uploading' ? "border-primary shadow-xl" : "")}>
             <CardHeader>
               <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                <FileUp className="h-4 w-4" /> SELECCIONAR ARCHIVO (500K RECOMENDADO)
+                <FileUp className="h-4 w-4" /> SELECCIONAR ARCHIVO
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -200,7 +207,7 @@ export default function ImportarPadronPage() {
                 </div>
               )}
             </CardContent>
-            {fileName && (
+            {fileName && status !== 'parsing' && (
               <CardFooter className="bg-muted/5 border-t p-6">
                 {status === 'idle' && (
                   <Button className="w-full h-12 font-black uppercase" onClick={startImport}>
@@ -213,7 +220,7 @@ export default function ImportarPadronPage() {
                   </Button>
                 )}
                 {status === 'paused' && (
-                  <Button className="w-full h-12 font-black uppercase" onClick={startImport}>
+                  <Button className="w-full h-12 font-black uppercase" onClick={() => setStatus('idle')}>
                     <Play className="mr-2 h-5 w-5" /> REANUDAR CARGA
                   </Button>
                 )}
@@ -229,11 +236,11 @@ export default function ImportarPadronPage() {
           <Card className="border-amber-200 bg-amber-50/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-amber-800 text-[10px] font-black uppercase flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" /> Recomendación de Estabilidad
+                <AlertTriangle className="h-4 w-4" /> Importante: Rendimiento
               </CardTitle>
             </CardHeader>
             <CardContent className="text-[11px] text-amber-700 leading-relaxed font-medium">
-              Si el sistema se vuelve lento, usa el botón "Limpiar Memoria" después de cada carga. Procesa archivos de máximo 500,000 registros para una experiencia óptima en el navegador.
+              El procesamiento de archivos grandes bloquea momentáneamente el navegador. Si aparece el aviso "La página no responde", elija **ESPERAR**. El sistema está trabajando en segundo plano.
             </CardContent>
           </Card>
         </div>
@@ -242,8 +249,8 @@ export default function ImportarPadronPage() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <div className="bg-white max-w-md w-full rounded-2xl p-10 text-center shadow-2xl">
               <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-              <h3 className="text-xl font-black uppercase">Analizando Excel...</h3>
-              <p className="text-sm text-muted-foreground mt-2">Estamos procesando los registros. Este proceso consume RAM, por favor espera.</p>
+              <h3 className="text-xl font-black uppercase">Analizando Datos...</h3>
+              <p className="text-sm text-muted-foreground mt-2">Estamos preparando los registros. Por favor, no cierres esta pestaña.</p>
             </div>
           </div>
         )}
