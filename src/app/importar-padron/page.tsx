@@ -35,6 +35,7 @@ export default function ImportarPadronPage() {
   const [processedRecords, setProcessedRecords] = useState(0);
   
   // CRITICAL: Store data in a Ref to avoid React state overhead with 1M items
+  // This is the main reason why the page becomes unresponsive
   const pendingDataRef = useRef<any[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -43,6 +44,7 @@ export default function ImportarPadronPage() {
 
   useEffect(() => {
     return () => {
+      // Clear memory on unmount
       pendingDataRef.current = [];
     };
   }, []);
@@ -63,6 +65,7 @@ export default function ImportarPadronPage() {
       reader.onload = (event) => {
         try {
           const data = event.target?.result;
+          // Use light options for XLSX to save memory
           const workbook = XLSX.read(data, { type: 'binary', cellDates: false, bookVBA: false, bookProps: false });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });

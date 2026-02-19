@@ -19,6 +19,7 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
     // Safety timeout: if after 10s we are still loading, allow interaction
+    // This prevents the "Unresponsive Page" error from blocking the whole UI
     const timer = setTimeout(() => {
       if (isUserLoading) setTimedOut(true);
     }, 10000);
@@ -63,7 +64,8 @@ function AuthLayout({ children }: { children: React.ReactNode }) {
   // Show nothing until mounted to prevent hydration mismatches
   if (!mounted) return null;
 
-  // Show loading screen ONLY if we are truly loading and not on login
+  // Show loading screen ONLY if we are truly loading and not timed out
+  // If timed out, we show the children anyway to avoid locking the user out
   if (isUserLoading && !timedOut && pathname !== '/login') {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background">
