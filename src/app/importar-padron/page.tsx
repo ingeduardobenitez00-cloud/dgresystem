@@ -18,7 +18,8 @@ import {
   Database, 
   Play, 
   Pause,
-  AlertCircle
+  AlertCircle,
+  DollarSign
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useFirebase } from '@/firebase';
@@ -82,15 +83,11 @@ export default function ImportarPadronPage() {
     let currentIdx = processedRecords;
 
     while (currentIdx < pendingData.length && status !== 'paused') {
-      // Check for pause signal inside the loop (via ref or state check)
-      // Since state updates are async, we use a local variable check or similar logic
-      
       const batch = writeBatch(firestore);
       const end = Math.min(currentIdx + BATCH_SIZE, pendingData.length);
       const chunk = pendingData.slice(currentIdx, end);
 
       chunk.forEach((item: any) => {
-        // Normalización de datos masivos
         const newDocRef = doc(colRef);
         batch.set(newDocRef, {
           cedula: String(item.CEDULA || item.cedula || '').trim(),
@@ -108,8 +105,6 @@ export default function ImportarPadronPage() {
         await batch.commit();
         currentIdx = end;
         setProcessedRecords(currentIdx);
-        
-        // Anti-throttle pause
         await new Promise(res => setTimeout(res, PAUSE_BETWEEN_BATCHES));
       } catch (err) {
         console.error("Batch error:", err);
@@ -118,7 +113,6 @@ export default function ImportarPadronPage() {
         setProcessedRecords(currentIdx);
       }
 
-      // Check for completion
       if (currentIdx >= pendingData.length) {
         setStatus('completed');
         toast({ title: "Importación finalizada", description: `Se procesaron ${totalRecords.toLocaleString()} registros.` });
@@ -128,6 +122,12 @@ export default function ImportarPadronPage() {
   };
 
   const progressPercentage = totalRecords > 0 ? Math.round((processedRecords / totalRecords) * 100) : 0;
+  
+  // Estimated cost calculation: $0.18 per 100k writes
+  const estimatedCost = useMemo(() => {
+    if (totalRecords === 0) return 0;
+    return (totalRecords / 100000) * 0.18;
+  }, [totalRecords]);
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/10">
@@ -138,7 +138,7 @@ export default function ImportarPadronPage() {
           <h1 className="text-3xl font-black uppercase text-primary tracking-tight">Big Data Import</h1>
           <p className="text-muted-foreground flex items-center gap-2 mt-1">
             <DatabaseBackup className="h-4 w-4" />
-            Herramienta para carga de archivos de 1 millón de registros (cedula1, cedula2, etc.)
+            Herramienta para carga de archivos de 1 millón de registros.
           </p>
         </div>
 
@@ -175,7 +175,10 @@ export default function ImportarPadronPage() {
                       <p className="text-[10px] font-black uppercase text-muted-foreground">Progreso de Carga</p>
                       <p className="text-2xl font-black text-primary">{processedRecords.toLocaleString()} <span className="text-sm text-muted-foreground font-bold">/ {totalRecords.toLocaleString()}</span></p>
                     </div>
-                    <Badge className="h-8 px-4 text-sm font-black">{progressPercentage}%</Badge>
+                    <div className="text-right space-y-1">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground">Costo Estimado Firestore</p>
+                        <p className="text-xl font-black text-green-600">${estimatedCost.toFixed(2)} USD</p>
+                    </div>
                   </div>
                   
                   <Progress value={progressPercentage} className="h-4" />
@@ -221,28 +224,44 @@ export default function ImportarPadronPage() {
             </CardFooter>
           </Card>
 
-          <Card className="border-amber-200 bg-amber-50/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-amber-800 text-xs font-black uppercase flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" /> ADVERTENCIA TÉCNICA
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-[11px] text-amber-700 font-medium leading-relaxed">
-              <ul className="list-disc pl-4 space-y-1">
-                <li>Cargar 1 millón de registros puede tardar entre 30 y 60 minutos dependiendo de la conexión.</li>
-                <li>No cierre esta pestaña mientras el proceso esté activo.</li>
-                <li>Firestore tiene límites de escritura. Asegúrate de que tu cuenta tenga habilitada la facturación para este volumen de datos.</li>
-                <li>El sistema procesa lotes de 500 registros para maximizar la eficiencia y cumplir con las reglas de seguridad.</li>
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-amber-200 bg-amber-50/50">
+                <CardHeader className="pb-2">
+                <CardTitle className="text-amber-800 text-xs font-black uppercase flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" /> ADVERTENCIA TÉCNICA
+                </CardTitle>
+                </CardHeader>
+                <CardContent className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                <ul className="list-disc pl-4 space-y-1">
+                    <li>Cargar 1 millón de registros puede tardar entre 30 y 60 minutos.</li>
+                    <li>No cierre esta pestaña mientras el proceso esté activo.</li>
+                    <li>El sistema procesa lotes de 500 registros para maximizar la eficiencia.</li>
+                </ul>
+                </CardContent>
+            </Card>
+
+            <Card className="border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-2">
+                <CardTitle className="text-blue-800 text-xs font-black uppercase flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" /> INFORMACIÓN DE COSTOS
+                </CardTitle>
+                </CardHeader>
+                <CardContent className="text-[11px] text-blue-700 font-medium leading-relaxed">
+                <ul className="list-disc pl-4 space-y-1">
+                    <li>Firestore cobra por escritura. 1M de registros cuesta aprox. **$1.80 USD**.</li>
+                    <li>**Plan Blaze es requerido**: El plan gratuito solo permite 20,000 registros al día.</li>
+                    <li>El almacenamiento mensual de 9M de registros tendrá un costo recurrente aproximado de **$1 a $3 USD**.</li>
+                </ul>
+                </CardContent>
+            </Card>
+          </div>
 
           {status === 'parsing' && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
               <Card className="max-w-md w-full text-center p-10">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
                 <h3 className="text-xl font-black uppercase mb-2">Procesando Excel...</h3>
-                <p className="text-sm text-muted-foreground">Esto puede tardar unos segundos dependiendo del tamaño del archivo. Estamos preparando los millones de registros para la carga.</p>
+                <p className="text-sm text-muted-foreground">Estamos preparando los millones de registros para la carga. Por favor, no cierres el navegador.</p>
               </Card>
             </div>
           )}
