@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -19,7 +18,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { cn } from '@/lib/utils';
+import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import { type PartidoPolitico } from '@/lib/data';
 import {
   Command,
@@ -214,7 +213,7 @@ export default function SolicitudCapacitacionPage() {
       doc.setFont('helvetica', 'bold');
       doc.text("FECHA", margin + 2, tableY + 5.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(`: ${formData.fecha.split('-').reverse().join(' / ')} / 2026`, margin + col1W + 2, tableY + 5.5);
+      doc.text(`: ${formatDateToDDMMYYYY(formData.fecha)}`, margin + col1W + 2, tableY + 5.5);
       tableY += rowH;
 
       // Horario Row

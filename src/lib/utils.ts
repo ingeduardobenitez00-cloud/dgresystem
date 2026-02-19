@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -22,4 +21,12 @@ export const capitalizeWords = (str: string): string => {
   return str.replace(/\b\w/g, char => char.toUpperCase());
 }
 
-    
+export const formatDateToDDMMYYYY = (dateString: string | undefined): string => {
+  if (!dateString) return '';
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    // Expected format YYYY-MM-DD -> Output DD-MM-YYYY
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateString;
+}

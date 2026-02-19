@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
@@ -16,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -212,17 +211,8 @@ function InformeContent() {
       { label: "LUGAR DE DIVULGACIÓN", value: formData.lugar_divulgacion, xOffset: 0, labelWidth: 48 }
     ], 10);
     
-    // Safety date parsing
-    let formattedDate = "";
-    if (formData.fecha) {
-        const parts = formData.fecha.split('-');
-        if (parts.length === 3) {
-            formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
-    }
-
     drawSection([
-      { label: "FECHA", value: formattedDate, xOffset: 0, labelWidth: 15 },
+      { label: "FECHA", value: formatDateToDDMMYYYY(formData.fecha), xOffset: 0, labelWidth: 15 },
       { label: "HORARIO DE", value: formData.hora_desde, xOffset: 70, labelWidth: 25 },
       { label: "A", value: formData.hora_hasta, xOffset: 120, labelWidth: 5 },
       { label: "HS.", value: "", xOffset: 145, labelWidth: 0 }
@@ -336,7 +326,7 @@ function InformeContent() {
                   <SelectTrigger><SelectValue placeholder="Seleccionar actividad..." /></SelectTrigger>
                   <SelectContent>
                     {agendaItems?.map(item => (
-                      <SelectItem key={item.id} value={item.id}>{item.fecha} - {item.lugar_local}</SelectItem>
+                      <SelectItem key={item.id} value={item.id}>{formatDateToDDMMYYYY(item.fecha)} - {item.lugar_local}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

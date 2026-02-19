@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -16,6 +15,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { type InformeDivulgador, type Dato } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatDateToDDMMYYYY } from '@/lib/utils';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -192,7 +192,7 @@ export default function InformeSemanalAnexoIVPage() {
         const tableBody = consolidatedFilas.map((f, i) => [
             i + 1,
             f.lugar.toUpperCase(),
-            f.fecha,
+            formatDateToDDMMYYYY(f.fecha),
             f.hora_desde ? `DE: ${f.hora_desde} A: ${f.hora_hasta} HS.` : '',
             f.nombre_divulgador.toUpperCase(),
             f.cedula,
@@ -360,7 +360,7 @@ export default function InformeSemanalAnexoIVPage() {
                                 <tr key={i} className={fila.lugar ? "hover:bg-primary/5 transition-colors" : "bg-muted/5"}>
                                 <td className="p-2 text-center font-bold border-r text-muted-foreground">{i + 1}</td>
                                 <td className="p-2 border-r uppercase font-medium">{fila.lugar}</td>
-                                <td className="p-2 border-r text-center">{fila.fecha}</td>
+                                <td className="p-2 border-r text-center">{formatDateToDDMMYYYY(fila.fecha)}</td>
                                 <td className="p-2 border-r text-center">
                                     {fila.hora_desde ? `${fila.hora_desde} - ${fila.hora_hasta}` : ''}
                                 </td>

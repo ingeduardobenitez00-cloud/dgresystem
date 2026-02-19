@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
@@ -19,6 +18,7 @@ import { type SolicitudCapacitacion } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { formatDateToDDMMYYYY } from '@/lib/utils';
 
 function EncuestaContent() {
   const { user, isUserLoading } = useUser();
@@ -164,7 +164,7 @@ function EncuestaContent() {
     doc.setFont('helvetica', 'normal');
     doc.text(`LUGAR: ${formData.lugar_practica.toUpperCase()}`, margin, y);
     y += 10;
-    doc.text(`FECHA: ${formData.fecha}    HORA: ${formData.hora}`, margin, y);
+    doc.text(`FECHA: ${formatDateToDDMMYYYY(formData.fecha)}    HORA: ${formData.hora}`, margin, y);
     y += 10;
     doc.text(`EDAD: ${formData.edad} AÑOS`, margin, y);
     y += 10;
@@ -237,7 +237,7 @@ function EncuestaContent() {
                         {agendaItems && agendaItems.length > 0 ? (
                           agendaItems.map(item => (
                             <SelectItem key={item.id} value={item.id}>
-                              {item.fecha} - {item.lugar_local} ({item.hora_desde} hs)
+                              {formatDateToDDMMYYYY(item.fecha)} - {item.lugar_local} ({item.hora_desde} hs)
                             </SelectItem>
                           ))
                         ) : (

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -15,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { formatDateToDDMMYYYY } from '@/lib/utils';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -218,7 +218,7 @@ export default function AgendaCapacitacionPage() {
                                     <div className="flex items-center gap-2 mt-1">
                                       <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
                                       <p className="text-[10px] font-bold uppercase">
-                                        {new Date(item.fecha + 'T12:00:00').toLocaleDateString('es-PY', { weekday: 'short', day: '2-digit', month: 'short' })}
+                                        {formatDateToDDMMYYYY(item.fecha)}
                                         <span className="mx-1 text-primary">|</span>
                                         {item.hora_desde} a {item.hora_hasta} HS
                                       </p>

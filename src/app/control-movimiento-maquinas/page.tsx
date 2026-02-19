@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -27,7 +26,7 @@ import { collection, addDoc, query, where, doc, updateDoc, orderBy } from 'fireb
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -111,7 +110,7 @@ export default function ControlMovimientoMaquinasPage() {
     );
   }, [firestore, user]);
 
-  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
+  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapatitacion>(agendaQuery);
 
   const movimientosQuery = useMemoFirebase(() => {
     if (!firestore || !selectedSolicitudId) return null;
@@ -257,7 +256,7 @@ export default function ControlMovimientoMaquinasPage() {
     addLine("FUNCIONARIO RESPONSABLE", data.nombre);
     addLine("NÚMERO DE CÉDULA", data.cedula);
     addLine("VÍNCULO", data.vinculo);
-    addLine("FECHA", data.fecha);
+    addLine("FECHA", formatDateToDDMMYYYY(data.fecha));
     addLine("HORA DE " + (type === 'salida' ? 'SALIDA' : 'DEVOLUCIÓN'), data.hora);
     addLine("CÓDIGO MÁQUINA", data.codigo_maquina);
     addLine("LUGAR DE DIVULGACIÓN", data.lugar);
@@ -303,7 +302,7 @@ export default function ControlMovimientoMaquinasPage() {
                   {agendaItems && agendaItems.length > 0 ? (
                     agendaItems.map(item => (
                       <SelectItem key={item.id} value={item.id}>
-                        {item.fecha} | {item.lugar_local} ({item.solicitante_entidad})
+                        {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local} ({item.solicitante_entidad})
                       </SelectItem>
                     ))
                   ) : (
@@ -355,7 +354,7 @@ export default function ControlMovimientoMaquinasPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Fecha Salida</Label>
-                      <Input value={currentMovimiento?.salida?.fecha || salidaData.fecha} readOnly className="bg-muted/50 font-bold" />
+                      <Input value={formatDateToDDMMYYYY(currentMovimiento?.salida?.fecha || salidaData.fecha)} readOnly className="bg-muted/50 font-bold" />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Hora Salida</Label>
@@ -439,7 +438,7 @@ export default function ControlMovimientoMaquinasPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase font-black text-muted-foreground">Fecha Devolución</Label>
-                        <Input value={currentMovimiento?.devolucion?.fecha || devolucionData.fecha} readOnly className="bg-muted/50 font-bold" />
+                        <Input value={formatDateToDDMMYYYY(currentMovimiento?.devolucion?.fecha || devolucionData.fecha)} readOnly className="bg-muted/50 font-bold" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase font-black text-muted-foreground">Hora Devolución</Label>
