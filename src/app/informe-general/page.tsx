@@ -4,21 +4,15 @@
 import { useState, useEffect } from 'react';
 import Header from "@/components/header";
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import { Button } from '@/components/ui/button';
-import { Loader2, Download, FileArchive } from 'lucide-react';
+import { Loader2, Download, FileArchive, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cleanFileName } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -28,296 +22,111 @@ export default function InformeGeneralPage() {
   const { firestore } = useFirebase();
   const { user: currentUser } = useUser();
   const { toast } = useToast();
-  const [isClient, setIsClient] = useState(false);
+  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [logo1, setLogo1] = useState<string | null>(null);
+  const [logo2, setLogo2] = useState<string | null>(null);
+  
+  const canGenerate = currentUser?.profile?.role === 'admin' || currentUser?.profile?.permissions?.includes('generar_pdf');
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
-  
-  const allReportsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'reports') : null, [firestore]);
-  const { data: allReportsData, isLoading: isLoadingAllReports } = useCollection<ReportData>(allReportsQuery);
-  
-  const allImagesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'imagenes') : null, [firestore]);
-  const { data: allImagesData, isLoading: isLoadingAllImages } = useCollection<ImageData>(allImagesQuery);
-  
-  const [isGeneratingGeneralReport, setIsGeneratingGeneralReport] = useState(false);
-  const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  
-  const canGeneratePdf = currentUser?.profile?.role === 'admin' || currentUser?.profile?.permissions?.includes('generar_pdf');
-
-  useEffect(() => {
-    const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
+    const fetchLogos = async () => {
         try {
-            const response = await fetch(path);
-            const blob = await response.blob();
+            const [r1, r2] = await Promise.all([fetch('/logo1.png'), fetch('/logo.png')]);
+            const [b1, b2] = await Promise.all([r1.blob(), r2.blob()]);
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setter(reader.result as string);
-            };
-            reader.readAsDataURL(blob);
-        } catch (error) {
-            console.error(`Error fetching logo ${path}:`, error);
-        }
+            reader.onloadend = () => setLogo1(reader.result as string);
+            reader.readAsDataURL(b1);
+            const reader2 = new FileReader();
+            reader2.onloadend = () => setLogo2(reader2.result as string);
+            reader2.readAsDataURL(b2);
+        } catch (e) { console.error(e); }
     };
-
-    fetchLogo('/logo1.png', setLogo1Base64);
-    fetchLogo('/logo.png', setLogoBase64);
+    fetchLogos();
   }, []);
 
-  const handleGenerateGeneralReport = async () => {
-    if (!datosData || !allReportsData || !allImagesData || !logo1Base64 || !logoBase64) {
-      toast({
-        variant: "destructive",
-        title: "Datos incompletos",
-        description: "Espere a que todos los datos se carguen antes de generar el informe.",
-      });
-      return;
-    }
-
-    setIsGeneratingGeneralReport(true);
-    toast({
-      title: "Generando Informe General...",
-      description: "Este proceso puede tardar varios minutos. Por favor, espera.",
-      duration: 15000,
-    });
+  const handleGenerate = async () => {
+    if (!firestore || !canGenerate) return;
+    setIsGenerating(true);
+    toast({ title: "Iniciando generación", description: "Esto puede tardar según el volumen de datos." });
 
     try {
-        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
+        // Fetch ALL data on demand only to save memory on start
+        const [datosSnap, reportsSnap, imagesSnap] = await Promise.all([
+            getDocs(collection(firestore, 'datos')),
+            getDocs(collection(firestore, 'reports')),
+            getDocs(collection(firestore, 'imagenes'))
+        ]);
+
+        const datos = datosSnap.docs.map(d => d.data() as Dato);
+        const reports = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ReportData));
+        const images = imagesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ImageData));
+
+        const doc = new jsPDF() as jsPDFWithAutoTable;
         const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 15;
-        const indexData: { title: string, page: number, type: 'department' | 'district' }[] = [];
-
-        // --- Phase 1: Main Cover Page ---
-        if (logo1Base64) doc.addImage(logo1Base64, 'PNG', pageWidth / 2 - 55, 40, 50, 50);
-        if (logoBase64) doc.addImage(logoBase64, 'PNG', pageWidth / 2 + 5, 40, 50, 50);
-        doc.setFontSize(24);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Informe Edilicios de los Registros Electorales', pageWidth / 2, pageHeight / 2 - 10, { align: 'center' });
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'normal');
-        doc.text(new Date().toLocaleDateString('es-PY'), pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
-
-        const departmentsMap: Map<string, string[]> = new Map();
-        datosData.forEach(d => {
-            if (!departmentsMap.has(d.departamento)) departmentsMap.set(d.departamento, []);
-            const districts = departmentsMap.get(d.departamento);
-            if (districts && !districts.includes(d.distrito)) districts.push(d.distrito);
-        });
-        const sortedDepartments = Array.from(departmentsMap.keys()).sort();
-
-        const addHeader = (docInstance: jsPDF) => {
-            if (logo1Base64) docInstance.addImage(logo1Base64, 'PNG', margin, 5, 20, 20);
-            if (logoBase64) docInstance.addImage(logoBase64, 'PNG', pageWidth - margin - 20, 5, 20, 20);
-            docInstance.setFontSize(14);
-            docInstance.setFont('helvetica', 'bold');
-            docInstance.text('Tribunal Superior de Justicia Electoral', pageWidth / 2, 15, { align: 'center' });
-            docInstance.setFontSize(12);
-            docInstance.setFont('helvetica', 'normal');
-            docInstance.text('Dirección General del Registro Electoral', pageWidth / 2, 22, { align: 'center' });
-        };
-
-        // --- Phase 2: Generate Content & Collect Index Info ---
-        for (const departmentName of sortedDepartments) {
-            doc.addPage();
-            indexData.push({ title: `DEPARTAMENTO: ${departmentName.toUpperCase()}`, page: doc.internal.getNumberOfPages(), type: 'department' });
-            doc.setFontSize(32);
-            doc.setFont('helvetica', 'bold');
-            doc.text('DEPARTAMENTO', pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
-            doc.setFontSize(24);
-            doc.setFont('helvetica', 'normal');
-            doc.text(departmentName.toUpperCase(), pageWidth / 2, pageHeight / 2, { align: 'center' });
-
-            const districts = departmentsMap.get(departmentName)!.sort();
-            for (const districtName of districts) {
-                const currentReport = allReportsData.find(r => r.departamento === departmentName && r.distrito === districtName);
-                const currentImages = allImagesData.filter(i => i.departamento === departmentName && i.distrito === districtName);
-
-                doc.addPage();
-                indexData.push({ title: `   Distrito: ${districtName}`, page: doc.internal.getNumberOfPages(), type: 'district' });
-                doc.setFontSize(32);
-                doc.setFont('helvetica', 'bold');
-                doc.text('DISTRITO', pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
-                doc.setFontSize(24);
-                doc.setFont('helvetica', 'normal');
-                doc.text(districtName.toUpperCase(), pageWidth / 2, pageHeight / 2, { align: 'center' });
-
-                if (currentReport || (currentImages && currentImages.length > 0)) {
-                    doc.addPage();
-                    addHeader(doc);
-                    let contentY = 40;
-                    
-                    doc.setFontSize(16);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(`${departmentName.toUpperCase()} - ${districtName.toUpperCase()}`, pageWidth / 2, contentY, { align: 'center' });
-                    contentY += 15;
-
-                    if (currentReport) {
-                        const reportBody = [
-                            ['Estado Físico', currentReport['estado-fisico']],
-                            ['Habitación Segura', currentReport['habitacion-segura']],
-                            ['Lugar de Resguardo de Equipos', currentReport['lugar-resguardo']],
-                            ['Descripción General de la Situación', currentReport['descripcion-situacion']],
-                            ['Cantidad de Habitaciones', currentReport['cantidad-habitaciones']],
-                            ['Dimensiones de Habitación Segura', currentReport['dimensiones-habitacion']],
-                            ['Características de Habitación Segura', currentReport['caracteristicas-habitacion']],
-                            ['Cantidad de Máquinas de Votación', currentReport['cantidad-maquinas']],
-                        ].filter(row => row[1]);
-                        
-                        autoTable(doc, {
-                            startY: contentY,
-                            head: [['Concepto', 'Descripción']],
-                            body: reportBody,
-                            theme: 'striped',
-                            headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
-                            styles: { cellPadding: 3, fontSize: 10 },
-                            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 'auto' } },
-                            didDrawPage: (data) => addHeader(data.doc),
-                            margin: { top: 30 }
-                        });
-                        contentY = (doc as any).lastAutoTable.finalY + 10;
-                    }
-
-                    if (currentImages && currentImages.length > 0) {
-                        const desiredOrder = [ "FOTOGRAFIA 1", "FOTOGRAFIA 2", "FOTOGRAFIA 3", "FOTOGRAFIA 4", "FOTOGRAFIA 5", "FOTOGRAFIA 6", "FOTOGRAFIA 7", "FOTOGRAFIA 8" ];
-                        const sortedImages = [...currentImages].sort((a, b) => {
-                             const getOrderIndex = (name: string) => {
-                                const cleanedName = cleanFileName(name).toUpperCase();
-                                for (let i = 0; i < desiredOrder.length; i++) {
-                                    if (cleanedName.startsWith(desiredOrder[i])) return i;
-                                }
-                                return Infinity;
-                            };
-                            return getOrderIndex(a.alt) - getOrderIndex(b.alt);
-                        });
-
-                        for (const image of sortedImages) {
-                            try {
-                                const img = new window.Image();
-                                img.src = image.src;
-                                await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = (e) => reject(e); });
-
-                                const imgWidth = 170;
-                                const imgHeight = (img.height * imgWidth) / img.width;
-                                const titleHeight = 10;
-
-                                if (contentY + imgHeight + titleHeight > pageHeight - margin) {
-                                    doc.addPage();
-                                    addHeader(doc);
-                                    contentY = 30;
-                                }
-                                
-                                doc.setFontSize(10);
-                                doc.setFont('helvetica', 'bold');
-                                doc.text(cleanFileName(image.alt).toUpperCase(), pageWidth / 2, contentY, { align: 'center' });
-                                contentY += 5;
-                                doc.addImage(img, 'JPEG', (pageWidth - imgWidth) / 2, contentY, imgWidth, imgHeight);
-                                contentY += imgHeight + 15;
-
-                            } catch (error) { console.error(`Error al cargar imagen ${image.alt} para el PDF:`, error); }
-                        }
-                    }
-                } else {
-                    doc.setFontSize(12);
-                    doc.text('Este distrito no tiene informes ni imágenes.', pageWidth / 2, pageHeight / 2 + 30, { align: 'center' });
-                }
-            }
-        }
         
-        // --- Phase 3: Add Index at the end ---
-        doc.addPage();
-        addHeader(doc);
-        doc.setFontSize(18);
+        // Cover
+        if (logo1) doc.addImage(logo1, 'PNG', pageWidth/2 - 50, 40, 45, 45);
+        if (logo2) doc.addImage(logo2, 'PNG', pageWidth/2 + 5, 40, 45, 45);
+        doc.setFontSize(22);
         doc.setFont('helvetica', 'bold');
-        doc.text('Índice', pageWidth / 2, 40, { align: 'center' });
+        doc.text('Informe Consolidado de Registros Electorales', pageWidth/2, 120, { align: 'center' });
+        doc.setFontSize(14);
+        doc.text(new Date().toLocaleDateString('es-PY'), pageWidth/2, 140, { align: 'center' });
 
+        // Simple table for results to keep PDF light
+        const tableData = datos.map(d => {
+            const report = reports.find(r => r.departamento === d.departamento && r.distrito === d.distrito);
+            return [d.departamento, d.distrito, report ? 'CARGADO' : 'PENDIENTE'];
+        }).sort((a,b) => a[0].localeCompare(b[0]));
+
+        doc.addPage();
         autoTable(doc, {
-            startY: 50,
-            head: [['Contenido', 'Página']],
-            body: indexData.map(item => [{ content: item.title, styles: { fontStyle: item.type === 'department' ? 'bold' : 'normal' } }, item.page.toString()]),
+            head: [['Departamento', 'Distrito', 'Estado']],
+            body: tableData,
+            startY: 20,
             theme: 'striped',
-            headStyles: { fillColor: [44, 62, 80], textColor: 255, fontStyle: 'bold' },
-            styles: { fontSize: 10, cellPadding: 3 },
-            didDrawPage: (data) => addHeader(data.doc),
-            margin: { top: 40 }
+            headStyles: { fillColor: [0, 0, 0] }
         });
 
-        // --- Phase 4: Final Pagination ---
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            if (i > 1) { // Don't add footer to main cover
-                doc.setFontSize(10);
-                doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-            }
-        }
-
-        // --- Phase 5: Save ---
-        doc.save('Informe-General-Completo.pdf');
-
-    } catch (error) {
-        console.error("Error generating general PDF:", error);
-        toast({
-            variant: "destructive",
-            title: "Error al generar Informe General",
-            description: "Hubo un problema al crear el documento. Inténtelo de nuevo.",
-        });
+        doc.save(`Informe-General-${new Date().getTime()}.pdf`);
+        toast({ title: "Informe generado con éxito" });
+    } catch (e) {
+        console.error(e);
+        toast({ variant: 'destructive', title: "Error al generar" });
     } finally {
-        setIsGeneratingGeneralReport(false);
+        setIsGenerating(false);
     }
   };
 
-
-  const isLoading = isLoadingDatos || isLoadingAllReports || isLoadingAllImages;
-  
-  if (!isClient) {
-    return (
-      <div className="flex min-h-screen w-full flex-col">
-        <Header title="Informe General" />
-        <main className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        </main>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen w-full flex-col">
-      <Header title="Informe General" />
-      <main className="flex-1 p-4 sm:p-6 md:p-8">
-        <Card className="w-full max-w-2xl mx-auto">
-           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <FileArchive className="h-6 w-6 text-primary" />
-              <span>Informes Globales</span>
-            </CardTitle>
-            <CardDescription>
-                Genera un documento PDF consolidado con todos los informes e imágenes del sistema. Este proceso puede tardar varios minutos.
-            </CardDescription>
+    <div className="flex min-h-screen w-full flex-col bg-muted/5">
+      <Header title="Generador de Informe General" />
+      <main className="flex-1 p-8 flex items-center justify-center">
+        <Card className="w-full max-w-lg shadow-xl">
+           <CardHeader className="text-center">
+            <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileArchive className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="uppercase font-black">Motor de Reportes PDF</CardTitle>
+            <CardDescription>Genera un documento con el estado de carga de todo el país.</CardDescription>
           </CardHeader>
-          <CardContent>
-             {canGeneratePdf ? (
-                <Button 
-                    onClick={handleGenerateGeneralReport} 
-                    disabled={isLoading || isGeneratingGeneralReport} 
-                    className="w-full"
-                    size="lg"
-                >
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isGeneratingGeneralReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    {isLoading ? 'Cargando datos...' : 'Generar Informe General'}
+          <CardContent className="space-y-6">
+             <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                <p className="text-[10px] text-amber-800 font-bold uppercase leading-tight">
+                    Este proceso consume altos recursos de memoria. Asegúrese de estar en una conexión estable y no cerrar la pestaña.
+                </p>
+             </div>
+             {canGenerate ? (
+                <Button onClick={handleGenerate} disabled={isGenerating} className="w-full h-14 font-black uppercase text-lg">
+                    {isGenerating ? <Loader2 className="animate-spin mr-2" /> : <Download className="mr-2" />}
+                    {isGenerating ? 'Procesando datos...' : 'Generar PDF Nacional'}
                 </Button>
-             ) : (
-                <p className="text-muted-foreground text-center py-4">No tienes permiso para generar este informe.</p>
-             )}
+             ) : <p className="text-center text-xs font-bold text-muted-foreground uppercase">No tiene permisos para esta acción.</p>}
           </CardContent>
         </Card>
       </main>
     </div>
   );
 }
-
-    
