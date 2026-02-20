@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, MapPin, Navigation } from 'lucide-react';
+import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, MapPin, Navigation, Landmark } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -362,7 +362,15 @@ export default function SolicitudCapacitacionPage() {
       toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
     }
     setIsSubmitting(true);
-    const docData = { ...formData, departamento: user.profile?.departamento || '', distrito: user.profile?.distrito || '', foto_firma: photoDataUri || '', usuario_id: user.uid, fecha_creacion: new Date().toISOString(), server_timestamp: serverTimestamp() };
+    const docData = { 
+      ...formData, 
+      departamento: user.profile?.departamento || '', 
+      distrito: user.profile?.distrito || '', 
+      foto_firma: photoDataUri || '', 
+      usuario_id: user.uid, 
+      fecha_creacion: new Date().toISOString(), 
+      server_timestamp: serverTimestamp() 
+    };
     try {
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
       toast({ title: "¡Solicitud Registrada!" });
@@ -404,6 +412,27 @@ export default function SolicitudCapacitacionPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-8 bg-white">
+                
+                {/* Jurisdicción Asignada - Top Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-xl border border-dashed mb-4">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
+                      <Landmark className="h-3 w-3" /> Departamento Asignado
+                    </Label>
+                    <p className="font-black text-sm uppercase px-3 py-2 bg-white rounded-lg border border-primary/10 shadow-sm truncate">
+                      {user?.profile?.departamento || 'Sin asignar'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
+                      <Navigation className="h-3 w-3" /> Distrito / Oficina
+                    </Label>
+                    <p className="font-black text-sm uppercase px-3 py-2 bg-white rounded-lg border border-primary/10 shadow-sm truncate">
+                      {user?.profile?.distrito || 'Sin asignar'}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tighter">GRUPO POLÍTICO SOLICITANTE</Label>
                    <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
@@ -502,9 +531,13 @@ export default function SolicitudCapacitacionPage() {
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">BARRIO - COMPAÑÍA</Label>
                     <Input name="barrio_compania" placeholder="Nombre del barrio" value={formData.barrio_compania} onChange={handleInputChange} className="h-11 font-bold border-2" />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">DISTRITO</Label>
-                    <Input value={user?.profile?.distrito || ''} readOnly className="h-11 bg-muted/50 font-black uppercase border-2 text-primary" />
+                  <div className="space-y-2 flex flex-col justify-end">
+                    <div className="flex items-center gap-2 p-3 bg-muted/20 border border-dashed rounded-lg opacity-60">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                        Solicitud en {user?.profile?.distrito}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
