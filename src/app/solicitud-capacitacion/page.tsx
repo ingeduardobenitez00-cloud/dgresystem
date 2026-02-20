@@ -15,9 +15,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { cn } from '@/lib/utils';
+import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import { type PartidoPolitico } from '@/lib/data';
 import Image from 'next/image';
+import jsPDF from 'jspdf';
 import {
   Command,
   CommandEmpty,
@@ -67,10 +68,24 @@ export default function SolicitudCapacitacionPage() {
   const [isPartyPopoverOpen, setIsPartyPopoverOpen] = useState(false);
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   useEffect(() => {
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
+
+    const fetchLogo = async () => {
+      try {
+        const response = await fetch('/logo.png');
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => setLogoBase64(reader.result as string);
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error fetching logo:", error);
+      }
+    };
+    fetchLogo();
   }, []);
 
   const searchCedulaInPadron = useCallback(async (cedula: string) => {
@@ -133,6 +148,77 @@ export default function SolicitudCapacitacionPage() {
   const partidosQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'partidos-politicos'), orderBy('nombre')) : null, [firestore]);
   const { data: partidosData } = useCollection<PartidoPolitico>(partidosQuery);
 
+  const handlePreviewPDF = () => {
+    if (!logoBase64) {
+      toast({ variant: 'destructive', title: 'Error', description: 'El logo institucional aún no ha cargado.' });
+      return;
+    }
+
+    const doc = new jsPDF();
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("JUSTICIA ELECTORAL", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text("ANEXO V: SOLICITUD DE CAPACITACIÓN / DIVULGACIÓN", 105, 28, { align: "center" });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString('es-PY')}`, pageWidth - margin, 35, { align: 'right' });
+
+    let y = 50;
+    const addRow = (label: string, value: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${label}:`, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(value || '').toUpperCase(), margin + 65, y);
+      doc.line(margin + 65, y + 1, 190, y + 1);
+      y += 12;
+    };
+
+    addRow("GRUPO POLÍTICO", formData.solicitante_entidad);
+    addRow("TIPO DE ACTIVIDAD", formData.tipo_solicitud.join(' y ').toUpperCase());
+    addRow("FECHA PROPUESTA", formatDateToDDMMYYYY(formData.fecha));
+    addRow("HORARIO", `${formData.hora_desde} a ${formData.hora_hasta} HS`);
+    addRow("LUGAR / LOCAL", formData.lugar_local);
+    addRow("DIRECCIÓN", formData.direccion_calle);
+    addRow("BARRIO", formData.barrio_compania);
+    addRow("DISTRITO", user?.profile?.distrito || '');
+    addRow("DEPARTAMENTO", user?.profile?.departamento || '');
+
+    y += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text("DATOS DEL RESPONSABLE SOLICITANTE", margin, y);
+    y += 10;
+
+    addRow("NOMBRE COMPLETO", formData.nombre_completo);
+    addRow("CÉDULA DE IDENTIDAD", formData.cedula);
+    addRow("TELÉFONO", formData.telefono);
+    addRow("ROL", formData.rol_solicitante.toUpperCase());
+
+    if (photoDataUri) {
+      y += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text("DOCUMENTO ADJUNTO / FIRMA:", margin, y);
+      doc.addImage(photoDataUri, 'JPEG', margin + 65, y - 5, 60, 45);
+      y += 50;
+    } else {
+      y += 30;
+    }
+
+    doc.setFontSize(9);
+    doc.text("__________________________", 55, y, { align: "center" });
+    doc.text("Firma del Solicitante", 55, y + 5, { align: "center" });
+    doc.text("__________________________", 155, y, { align: "center" });
+    doc.text("Sello y Firma Justicia Electoral", 155, y + 5, { align: "center" });
+
+    doc.save(`AnexoV-${formData.solicitante_entidad || 'Solicitud'}.pdf`);
+  };
+
   const handleSubmit = async () => {
     if (!firestore || !user) return;
     if (!formData.solicitante_entidad || !formData.lugar_local || !formData.nombre_completo || formData.tipo_solicitud.length === 0) {
@@ -189,7 +275,11 @@ export default function SolicitudCapacitacionPage() {
               Proforma oficial de solicitud de capacitación (Anexo V).
             </p>
           </div>
-          <Button variant="outline" className="font-bold border-primary text-primary hover:bg-primary/5">
+          <Button 
+            onClick={handlePreviewPDF} 
+            variant="outline" 
+            className="font-bold border-primary text-primary hover:bg-primary/5"
+          >
             <FileText className="mr-2 h-4 w-4" /> VISTA PREVIA PDF
           </Button>
         </div>
