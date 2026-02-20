@@ -106,11 +106,12 @@ export default function SolicitudCapacitacionPage() {
 
         if (leafletMap.current) return;
 
+        // Referencia Asuncion: [-25.3006, -57.6359]
         mapInstance = L.map(mapRef.current!, {
           center: [-25.3006, -57.6359],
           zoom: 13,
           attributionControl: false,
-          doubleClickZoom: false, 
+          doubleClickZoom: false, // Desactivar para usar dblclick como marcador
         });
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -152,13 +153,13 @@ export default function SolicitudCapacitacionPage() {
         
         mapInstance.on('dblclick', (e: any) => {
           updateLocation(e.latlng.lat, e.latlng.lng);
-          toast({ title: "Ubicación fijada", description: "Las coordenadas han sido capturadas." });
+          toast({ title: "Ubicación fijada", description: "Las coordenadas han sido capturadas correctamente." });
         });
 
-        // Force resize to ensure tiles render correctly
+        // Forzar redibujado de tiles
         setTimeout(() => {
           if (mapInstance) mapInstance.invalidateSize();
-        }, 500);
+        }, 400);
 
       } catch (error) {
         console.error("Leaflet initialization failed:", error);
@@ -252,7 +253,6 @@ export default function SolicitudCapacitacionPage() {
     try {
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
       toast({ title: "¡Solicitud Registrada!", description: "La actividad ha sido agendada con éxito." });
-      // Reset form
       setFormData({
         solicitante_entidad: '',
         tipo_solicitud: ['divulgacion'],
