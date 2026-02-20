@@ -14,6 +14,7 @@ import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, li
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
@@ -99,6 +100,7 @@ export default function SolicitudCapacitacionPage() {
     if (isUserLoading || !user) return;
 
     let mapInstance: any;
+    let resizeObserver: ResizeObserver;
 
     const initMap = async () => {
       if (!mapContainerRef.current) return;
@@ -166,10 +168,13 @@ export default function SolicitudCapacitacionPage() {
           updateCoords(result.location.y, result.location.x);
         });
 
-        // Forced refresh to avoid grey tiles
-        setTimeout(() => {
-          mapInstance.invalidateSize();
-        }, 800);
+        // ResizeObserver to handle grey tiles issue
+        resizeObserver = new ResizeObserver(() => {
+          if (mapInstance) {
+            mapInstance.invalidateSize();
+          }
+        });
+        resizeObserver.observe(mapContainerRef.current);
 
         mapRef.current = mapInstance;
       } catch (err) {
@@ -182,6 +187,9 @@ export default function SolicitudCapacitacionPage() {
     return () => {
       if (mapInstance) {
         mapInstance.remove();
+      }
+      if (resizeObserver && mapContainerRef.current) {
+        resizeObserver.unobserve(mapContainerRef.current);
       }
     };
   }, [user, isUserLoading]);
@@ -272,18 +280,14 @@ export default function SolicitudCapacitacionPage() {
     const barX = pageWidth - margin - 15;
     const barY = 10;
     const barW = 4;
-    const barH = 15;
-    doc.setFillColor(255, 0, 0); // Red
-    doc.rect(barX, barY, barW, barH, 'F');
-    doc.setFillColor(255, 255, 255); // White
-    doc.rect(barX + 4, barY, barW, barH, 'F');
-    doc.setFillColor(0, 0, 255); // Blue
-    doc.rect(barX + 8, barY, barW, barH, 'F');
-    doc.setDrawColor(200, 200, 200);
-    doc.rect(barX, barY, 12, barH, 'S');
+    const barY_red = 10;
+    doc.setFillColor(255, 0, 0); doc.rect(barX, barY_red, barW, 15, 'F');
+    doc.setFillColor(255, 255, 255); doc.rect(barX + 4, barY_red, barW, 15, 'F');
+    doc.setFillColor(0, 0, 255); doc.rect(barX + 8, barY_red, barW, 15, 'F');
+    doc.setDrawColor(200, 200, 200); doc.rect(barX, barY_red, 12, 15, 'S');
 
     // Section Title
-    doc.setFillColor(235, 235, 220); // Light beige shaded bar
+    doc.setFillColor(235, 235, 220);
     doc.rect(margin, 35, pageWidth - (margin * 2), 8, 'F');
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -293,137 +297,71 @@ export default function SolicitudCapacitacionPage() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = today.toLocaleString('es-PY', { month: 'long' });
-    const year = today.getFullYear();
-    doc.text(`_________________, : ${day} de ${month} de ${year}`, pageWidth - margin, 50, { align: 'right' });
-
-    // Salutation
-    doc.setFont('helvetica', 'bold');
-    doc.text("Señor/a", margin, 60);
-    doc.line(margin, 66, 100, 66);
+    doc.text(`_________________, : ${today.getDate()} de ${today.toLocaleString('es-PY', { month: 'long' })} de ${today.getFullYear()}`, pageWidth - margin, 50, { align: 'right' });
 
     // Body
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('helvetica', 'bold'); doc.text("Señor/a", margin, 60); doc.line(margin, 66, 100, 66);
     doc.text("Presente:", margin, 75);
     doc.setFont('helvetica', 'normal');
     const bodyText = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas del 07 de junio del 2026, a los efectos de solicitar:";
-    const splitBody = doc.splitTextToSize(bodyText, pageWidth - (margin * 2) - 10);
-    doc.text(splitBody, margin + 10, 82);
+    doc.text(doc.splitTextToSize(bodyText, pageWidth - (margin * 2) - 10), margin + 10, 82);
 
     // Checkboxes
     let checkY = 95;
-    doc.rect(margin + 10, checkY, 5, 5);
-    if (formData.tipo_solicitud.includes('divulgacion')) doc.text("X", margin + 11.5, checkY + 4);
+    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud.includes('divulgacion')) doc.text("X", margin + 11.5, checkY + 4);
     doc.text("Divulgación sobre el uso de la Máquina de Votación Electrónica.", margin + 20, checkY + 4);
-
     checkY += 8;
-    doc.rect(margin + 10, checkY, 5, 5);
-    if (formData.tipo_solicitud.includes('capacitacion')) doc.text("X", margin + 11.5, checkY + 4);
+    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud.includes('capacitacion')) doc.text("X", margin + 11.5, checkY + 4);
     doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", margin + 20, checkY + 4);
 
-    // Table 1
+    // Table
     let tableY = 115;
     const drawCell = (x: number, y: number, w: number, h: number, label: string, value: string) => {
-      doc.rect(x, y, w, h);
-      doc.setFont('helvetica', 'bold');
-      doc.text(label, x + 2, y + 5);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`: ${String(value || '').toUpperCase()}`, x + 40, y + 5);
+      doc.rect(x, y, w, h); doc.setFont('helvetica', 'bold'); doc.text(label, x + 2, y + 5);
+      doc.setFont('helvetica', 'normal'); doc.text(`: ${String(value || '').toUpperCase()}`, x + 40, y + 5);
     };
-
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "FECHA", formatDateToDDMMYYYY(formData.fecha));
-    tableY += 8;
+    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "FECHA", formatDateToDDMMYYYY(formData.fecha)); tableY += 8;
     doc.rect(margin, tableY, pageWidth - (margin * 2), 8);
-    doc.setFont('helvetica', 'bold');
-    doc.text("HORARIO", margin + 2, tableY + 5);
-    doc.text("DESDE:", margin + 40, tableY + 5);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${formData.hora_desde} horas`, margin + 55, tableY + 5);
-    doc.setFont('helvetica', 'bold');
-    doc.text("HASTA:", margin + 85, tableY + 5);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${formData.hora_hasta} horas`, margin + 100, tableY + 5);
+    doc.setFont('helvetica', 'bold'); doc.text("HORARIO", margin + 2, tableY + 5);
+    doc.text("DESDE:", margin + 40, tableY + 5); doc.setFont('helvetica', 'normal'); doc.text(`${formData.hora_desde} hs`, margin + 55, tableY + 5);
+    doc.setFont('helvetica', 'bold'); doc.text("HASTA:", margin + 85, tableY + 5); doc.setFont('helvetica', 'normal'); doc.text(`${formData.hora_hasta} hs`, margin + 100, tableY + 5);
     tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "LUGAR Y/O LOCAL", formData.lugar_local);
-    tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "DIRECCIÓN", `CALLE: ${formData.direccion_calle}`);
-    tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "BARRIO - COMPAÑÍA", formData.barrio_compania);
-    tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "DISTRITO", user?.profile?.distrito || '');
+    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "LUGAR Y/O LOCAL", formData.lugar_local); tableY += 8;
+    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "DIRECCIÓN", `CALLE: ${formData.direccion_calle}`); tableY += 8;
+    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "BARRIO - COMPAÑÍA", formData.barrio_compania); tableY += 8;
+    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "DISTRITO", user?.profile?.distrito || ''); tableY += 8;
+    if (formData.gps) { drawCell(margin, tableY, pageWidth - (margin * 2), 8, "COORDENADAS GPS", formData.gps); tableY += 8; }
 
-    // GPS Info
-    if (formData.gps) {
-      tableY += 8;
-      drawCell(margin, tableY, pageWidth - (margin * 2), 8, "COORDENADAS GPS", formData.gps);
-    }
-
-    // Applicant Section
-    tableY += 12;
-    doc.setFont('helvetica', 'bold');
-    doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, tableY);
-    doc.rect(margin + 75, tableY - 4, 5, 5);
-    if (formData.rol_solicitante === 'apoderado') doc.text("X", margin + 76.5, tableY);
-    doc.text("OTRO", margin + 85, tableY);
-    doc.rect(margin + 98, tableY - 4, 5, 5);
-    if (formData.rol_solicitante === 'otro') doc.text("X", margin + 99.5, tableY);
-
-    tableY += 4;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "NOMBRE COMPLETO", formData.nombre_completo);
-    tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "C.I.C. N.º", formData.cedula);
-    tableY += 8;
-    doc.rect(margin, tableY, pageWidth - (margin * 2), 10);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text("NUMERO DE CONTACTO", margin + 2, tableY + 4);
-    doc.text("(CELULAR – LÍNEA BAJA)", margin + 2, tableY + 8);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`: ${formData.telefono}`, margin + 40, tableY + 6);
+    // Applicant
+    tableY += 4; doc.setFont('helvetica', 'bold'); doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, tableY);
+    doc.rect(margin + 75, tableY - 4, 5, 5); if (formData.rol_solicitante === 'apoderado') doc.text("X", margin + 76.5, tableY);
+    doc.text("OTRO", margin + 85, tableY); doc.rect(margin + 98, tableY - 4, 5, 5); if (formData.rol_solicitante === 'otro') doc.text("X", margin + 99.5, tableY);
+    tableY += 4; drawCell(margin, tableY, pageWidth - (margin * 2), 8, "NOMBRE COMPLETO", formData.nombre_completo);
+    tableY += 8; drawCell(margin, tableY, pageWidth - (margin * 2), 8, "C.I.C. N.º", formData.cedula);
+    tableY += 8; doc.rect(margin, tableY, pageWidth - (margin * 2), 10);
+    doc.setFontSize(8); doc.text("NUMERO DE CONTACTO", margin + 2, tableY + 4); doc.text("(CELULAR – LÍNEA BAJA)", margin + 2, tableY + 8);
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.text(`: ${formData.telefono}`, margin + 40, tableY + 6);
 
     // Observation
-    tableY += 10;
-    doc.setFillColor(235, 235, 220);
-    doc.rect(margin, tableY, pageWidth - (margin * 2), 6, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.text("OBSERVACIÓN", 105, tableY + 4.5, { align: "center" });
-    tableY += 6;
-    doc.rect(margin, tableY, pageWidth - (margin * 2), 12);
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(9);
+    tableY += 10; doc.setFillColor(235, 235, 220); doc.rect(margin, tableY, pageWidth - (margin * 2), 6, 'F');
+    doc.setFont('helvetica', 'bold'); doc.text("OBSERVACIÓN", 105, tableY + 4.5, { align: "center" });
+    tableY += 6; doc.rect(margin, tableY, pageWidth - (margin * 2), 12); doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
     doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", 105, tableY + 5, { align: "center" });
     doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", 105, tableY + 10, { align: "center" });
 
-    // Closing
-    tableY += 20;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, tableY);
-
     // Signature
-    tableY += 20;
+    tableY += 30; doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     doc.text("Firma del Solicitante: ________________________________________________", margin + 20, tableY);
-    if (photoDataUri) {
-      doc.addImage(photoDataUri, 'JPEG', margin + 60, tableY - 15, 40, 30);
-    }
+    if (photoDataUri) doc.addImage(photoDataUri, 'JPEG', margin + 60, tableY - 15, 40, 30);
 
-    // Internal Use Box
-    tableY += 10;
-    doc.rect(margin, tableY, pageWidth - (margin * 2), 50);
-    doc.setFont('helvetica', 'bold');
+    // Internal Box
+    tableY += 10; doc.rect(margin, tableY, pageWidth - (margin * 2), 50); doc.setFont('helvetica', 'bold');
     doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 6, { align: "center" });
-    
     doc.setFont('helvetica', 'normal');
     doc.text("Divulgador designado: _______________________________________ C.I.C. N.º: __________________", margin + 5, tableY + 15);
     doc.text("Código de la Máquina de Votación asignada: __________________________________________________", margin + 5, tableY + 25);
-    
     doc.text("__________________________________________", 105, tableY + 38, { align: "center" });
     doc.text("Firma y sello del Jefe del Registro Electoral:", 105, tableY + 43, { align: "center" });
-    
-    doc.text("Total de personas capacitadas:", margin + 5, tableY + 48);
-    doc.rect(margin + 55, tableY + 44, 100, 5);
 
     doc.save(`AnexoV-${formData.solicitante_entidad || 'Solicitud'}.pdf`);
   };
@@ -431,43 +369,17 @@ export default function SolicitudCapacitacionPage() {
   const handleSubmit = async () => {
     if (!firestore || !user) return;
     if (!formData.solicitante_entidad || !formData.lugar_local || !formData.nombre_completo || formData.tipo_solicitud.length === 0) {
-      toast({ variant: "destructive", title: "Faltan datos obligatorios", description: "Por favor complete los campos requeridos." });
-      return;
+      toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
     }
     setIsSubmitting(true);
-    const docData = { 
-      ...formData, 
-      departamento: user.profile?.departamento || '', 
-      distrito: user.profile?.distrito || '', 
-      foto_firma: photoDataUri || '', 
-      usuario_id: user.uid, 
-      fecha_creacion: new Date().toISOString(), 
-      server_timestamp: serverTimestamp() 
-    };
+    const docData = { ...formData, departamento: user.profile?.departamento || '', distrito: user.profile?.distrito || '', foto_firma: photoDataUri || '', usuario_id: user.uid, fecha_creacion: new Date().toISOString(), server_timestamp: serverTimestamp() };
     try {
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
-      toast({ title: "¡Solicitud Registrada!", description: "La actividad ha sido agendada con éxito." });
-      setFormData({
-        solicitante_entidad: '',
-        tipo_solicitud: ['divulgacion'],
-        fecha: new Date().toISOString().split('T')[0],
-        hora_desde: '08:00',
-        hora_hasta: '12:00',
-        lugar_local: '',
-        direccion_calle: '',
-        barrio_compania: '',
-        rol_solicitante: 'apoderado',
-        nombre_completo: '',
-        cedula: '',
-        telefono: '',
-        gps: '',
-      });
+      toast({ title: "¡Solicitud Registrada!" });
+      setFormData({ solicitante_entidad: '', tipo_solicitud: ['divulgacion'], fecha: new Date().toISOString().split('T')[0], hora_desde: '08:00', hora_hasta: '12:00', lugar_local: '', direccion_calle: '', barrio_compania: '', rol_solicitante: 'apoderado', nombre_completo: '', cedula: '', telefono: '', gps: '' });
       setPhotoDataUri(null);
-    } catch (error) { 
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData }));
-    } finally { 
-      setIsSubmitting(false); 
-    }
+    } catch (error) { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData })); }
+    finally { setIsSubmitting(false); }
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
@@ -480,15 +392,10 @@ export default function SolicitudCapacitacionPage() {
           <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Nueva Solicitud</h1>
             <p className="text-muted-foreground font-medium flex items-center gap-2 mt-1">
-              <FileText className="h-4 w-4" />
-              Proforma oficial de solicitud de capacitación (Anexo V).
+              <FileText className="h-4 w-4" /> Proforma oficial de solicitud de capacitación (Anexo V).
             </p>
           </div>
-          <Button 
-            onClick={handlePreviewPDF} 
-            variant="outline" 
-            className="font-bold border-primary text-primary hover:bg-primary/5"
-          >
+          <Button onClick={handlePreviewPDF} variant="outline" className="font-bold border-primary text-primary hover:bg-primary/5">
             <FileText className="mr-2 h-4 w-4" /> VISTA PREVIA PDF
           </Button>
         </div>
@@ -518,15 +425,7 @@ export default function SolicitudCapacitacionPage() {
                             <CommandEmpty>No encontrado.</CommandEmpty>
                             <CommandGroup>
                               {partidosData?.map((p) => (
-                                <CommandItem 
-                                  key={p.id} 
-                                  value={p.nombre} 
-                                  onSelect={(val) => { 
-                                    setFormData(prev => ({...prev, solicitante_entidad: val})); 
-                                    setIsPartyPopoverOpen(false); 
-                                  }}
-                                  className="font-bold uppercase text-xs"
-                                >
+                                <CommandItem key={p.id} value={p.nombre} onSelect={(val) => { setFormData(prev => ({...prev, solicitante_entidad: val})); setIsPartyPopoverOpen(false); }} className="font-bold uppercase text-xs">
                                   {p.nombre}
                                 </CommandItem>
                               ))}
@@ -543,11 +442,11 @@ export default function SolicitudCapacitacionPage() {
                       <div className="mt-4 space-y-3">
                           <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
                             <Checkbox id="c1" checked={formData.tipo_solicitud.includes('divulgacion')} onCheckedChange={() => handleCheckboxChange('divulgacion')} />
-                            <label htmlFor="c1" className="text-xs font-bold uppercase cursor-pointer flex-1">Divulgación (Máquina de Votación)</label>
+                            <label htmlFor="c1" className="text-xs font-bold uppercase cursor-pointer flex-1">Divulgación (Máquina)</label>
                           </div>
                           <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
                             <Checkbox id="c2" checked={formData.tipo_solicitud.includes('capacitacion')} onCheckedChange={() => handleCheckboxChange('capacitacion')} />
-                            <label htmlFor="c2" className="text-xs font-bold uppercase cursor-pointer flex-1">Capacitación (Miembros de Mesa)</label>
+                            <label htmlFor="c2" className="text-xs font-bold uppercase cursor-pointer flex-1">Capacitación (Mesa)</label>
                           </div>
                       </div>
                   </div>
@@ -558,11 +457,11 @@ export default function SolicitudCapacitacionPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-4"> 
                           <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">HORARIO DESDE</Label>
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">DESDE</Label>
                             <Input type="time" name="hora_desde" value={formData.hora_desde} onChange={handleInputChange} className="h-11 font-bold border-2" />
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">HORARIO HASTA</Label>
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">HASTA</Label>
                             <Input type="time" name="hora_hasta" value={formData.hora_hasta} onChange={handleInputChange} className="h-11 font-bold border-2" />
                           </div>
                       </div>
@@ -572,7 +471,7 @@ export default function SolicitudCapacitacionPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">LUGAR Y/O LOCAL</Label>
-                    <Input name="lugar_local" placeholder="Nombre del local o punto de encuentro" value={formData.lugar_local} onChange={handleInputChange} className="h-11 font-bold border-2" />
+                    <Input name="lugar_local" placeholder="Nombre del local" value={formData.lugar_local} onChange={handleInputChange} className="h-11 font-bold border-2" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">DIRECCIÓN (CALLE)</Label>
@@ -583,7 +482,7 @@ export default function SolicitudCapacitacionPage() {
                     <Input name="barrio_compania" placeholder="Nombre del barrio" value={formData.barrio_compania} onChange={handleInputChange} className="h-11 font-bold border-2" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">DISTRITO (AUTODETECTADO)</Label>
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">DISTRITO</Label>
                     <Input value={user?.profile?.distrito || ''} readOnly className="h-11 bg-muted/50 font-black uppercase border-2 text-primary" />
                   </div>
                 </div>
@@ -594,7 +493,7 @@ export default function SolicitudCapacitacionPage() {
                   <Label className="text-sm font-black uppercase text-primary tracking-widest block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
                   <RadioGroup value={formData.rol_solicitante} onValueChange={(v: any) => setFormData(p => ({ ...p, rol_solicitante: v }))} className="flex gap-8">
                       <div className="flex items-center space-x-2"><RadioGroupItem value="apoderado" id="r-apo" /><Label htmlFor="r-apo" className="font-bold cursor-pointer">APODERADO</Label></div>
-                      <div className="flex items-center space-x-2"><RadioGroupItem value="otro" id="r-otro" /><Label htmlFor="r-otro" className="font-bold cursor-pointer">OTRO (PARTICULAR)</Label></div>
+                      <div className="flex items-center space-x-2"><RadioGroupItem value="otro" id="r-otro" /><Label htmlFor="r-otro" className="font-bold cursor-pointer">OTRO</Label></div>
                   </RadioGroup>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
