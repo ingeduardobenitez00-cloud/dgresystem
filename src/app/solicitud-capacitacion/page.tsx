@@ -192,7 +192,7 @@ export default function SolicitudCapacitacionPage() {
         resizeObserver.unobserve(mapContainerRef.current);
       }
     };
-  }, [user, isUserLoading]);
+  }, [user, isUserLoading, toast]);
 
   const searchCedulaInPadron = useCallback(async (cedula: string) => {
     if (!firestore || !cedula || cedula.length < 4) return;
@@ -278,9 +278,8 @@ export default function SolicitudCapacitacionPage() {
 
     // Tricolor bar
     const barX = pageWidth - margin - 15;
-    const barY = 10;
-    const barW = 4;
     const barY_red = 10;
+    const barW = 4;
     doc.setFillColor(255, 0, 0); doc.rect(barX, barY_red, barW, 15, 'F');
     doc.setFillColor(255, 255, 255); doc.rect(barX + 4, barY_red, barW, 15, 'F');
     doc.setFillColor(0, 0, 255); doc.rect(barX + 8, barY_red, barW, 15, 'F');
@@ -382,6 +381,11 @@ export default function SolicitudCapacitacionPage() {
     finally { setIsSubmitting(false); }
   };
 
+  const selectedParty = useMemo(() => 
+    partidosData?.find(p => p.nombre === formData.solicitante_entidad), 
+    [partidosData, formData.solicitante_entidad]
+  );
+
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
 
   return (
@@ -414,19 +418,45 @@ export default function SolicitudCapacitacionPage() {
                    <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
                       <PopoverTrigger asChild>
                       <Button variant="outline" role="combobox" className="w-full justify-between mt-1 h-12 font-bold text-lg border-2">
-                          {partidosData?.find(p => p.nombre === formData.solicitante_entidad)?.nombre || "Seleccionar partido o movimiento..."}
+                          <span className="truncate flex items-center gap-2">
+                            {selectedParty ? (
+                              <>
+                                {selectedParty.nombre}
+                                {selectedParty.siglas && (
+                                  <Badge variant="secondary" className="bg-primary/5 text-primary border-none font-black text-[10px]">
+                                    {selectedParty.siglas}
+                                  </Badge>
+                                )}
+                              </>
+                            ) : "Seleccionar partido o movimiento..."}
+                          </span>
                           <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <Command>
-                          <CommandInput placeholder="Buscar partido..." />
-                          <CommandList>
+                          <CommandInput placeholder="Buscar partido o siglas..." />
+                          <CommandList className="max-h-[400px]">
                             <CommandEmpty>No encontrado.</CommandEmpty>
                             <CommandGroup>
                               {partidosData?.map((p) => (
-                                <CommandItem key={p.id} value={p.nombre} onSelect={(val) => { setFormData(prev => ({...prev, solicitante_entidad: val})); setIsPartyPopoverOpen(false); }} className="font-bold uppercase text-xs">
-                                  {p.nombre}
+                                <CommandItem 
+                                  key={p.id} 
+                                  value={`${p.nombre} ${p.siglas}`} 
+                                  onSelect={() => { 
+                                    setFormData(prev => ({...prev, solicitante_entidad: p.nombre})); 
+                                    setIsPartyPopoverOpen(false); 
+                                  }} 
+                                  className="flex items-center justify-between font-bold uppercase text-[10px] py-3 cursor-pointer"
+                                >
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="leading-tight">{p.nombre}</span>
+                                    {p.siglas && (
+                                      <span className="text-[9px] text-primary/60 font-black tracking-widest">
+                                        {p.siglas}
+                                      </span>
+                                    )}
+                                  </div>
                                 </CommandItem>
                               ))}
                             </CommandGroup>
