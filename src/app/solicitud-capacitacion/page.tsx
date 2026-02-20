@@ -98,11 +98,15 @@ export default function SolicitudCapacitacionPage() {
   useEffect(() => {
     if (typeof window === 'undefined' || !mapContainerRef.current) return;
 
+    let map: any = null;
+    let resizeObserver: ResizeObserver | null = null;
+
     const initMap = async () => {
       const L = (await import('leaflet')).default;
       const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
-      import('leaflet/dist/leaflet.css');
       import('leaflet-geosearch/dist/geosearch.css');
+
+      if (!mapContainerRef.current || mapInstanceRef.current) return;
 
       // Arreglar iconos de Leaflet
       delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -112,17 +116,14 @@ export default function SolicitudCapacitacionPage() {
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
 
-      if (mapInstanceRef.current) return;
-
-      const initialPos: [number, number] = [-25.311549, -57.653496]; // Asunción por defecto
-      const map = L.map(mapContainerRef.current).setView(initialPos, 13);
+      const initialPos: [number, number] = [-25.311549, -57.653496];
+      map = L.map(mapContainerRef.current, { doubleClickZoom: false }).setView(initialPos, 13);
       mapInstanceRef.current = map;
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
 
-      // Buscador
       const provider = new OpenStreetMapProvider();
       const searchControl = new (GeoSearchControl as any)({
         provider,
@@ -136,41 +137,35 @@ export default function SolicitudCapacitacionPage() {
       });
       map.addControl(searchControl);
 
-      // Evento de búsqueda
       map.on('geosearch/showlocation', (result: any) => {
         const { x, y } = result.location;
         const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
         setFormData(prev => ({ ...prev, gps: coords }));
-        
         if (markerRef.current) map.removeLayer(markerRef.current);
         markerRef.current = L.marker([y, x]).addTo(map);
       });
 
-      // Evento de doble clic para capturar coordenadas
       map.on('dblclick', (e: any) => {
         const { lat, lng } = e.latlng;
         const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         setFormData(prev => ({ ...prev, gps: coords }));
-        
         if (markerRef.current) map.removeLayer(markerRef.current);
         markerRef.current = L.marker([lat, lng]).addTo(map);
-        
         toast({ title: "Ubicación fijada", description: `Coordenadas: ${coords}` });
       });
 
-      // Resize observer para evitar mapa gris
-      const resizeObserver = new ResizeObserver(() => {
-        map.invalidateSize();
+      resizeObserver = new ResizeObserver(() => {
+        if (map) map.invalidateSize();
       });
       resizeObserver.observe(mapContainerRef.current);
 
-      // Invalidar tamaño con delay
       setTimeout(() => map.invalidateSize(), 500);
     };
 
     initMap();
 
     return () => {
+      if (resizeObserver) resizeObserver.disconnect();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
