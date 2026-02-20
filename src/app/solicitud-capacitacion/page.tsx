@@ -1,3 +1,4 @@
+
 'use client';
 
 import 'leaflet/dist/leaflet.css';
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, MousePointer2, Building, Camera, Trash2, FileUp, MapPin, X } from 'lucide-react';
+import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, MapPin, X, Navigation } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -70,6 +71,7 @@ export default function SolicitudCapacitacionPage() {
   const [isPartyPopoverOpen, setIsPartyPopoverOpen] = useState(false);
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
@@ -81,22 +83,21 @@ export default function SolicitudCapacitacionPage() {
   useEffect(() => {
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
+    setMapReady(true);
   }, []);
 
-  // MAP EFFECT
+  // MAP INITIALIZATION
   useEffect(() => {
-    if (typeof window === 'undefined' || !mapRef.current || leafletMap.current) {
+    if (typeof window === 'undefined' || !mapRef.current || !mapReady || leafletMap.current) {
       return;
     }
-
-    let mapInstance: any;
 
     const initMap = async () => {
       try {
         const L = (await import('leaflet')).default;
-        const { GeoSearchControl, OpenStreetMapProvider } = await import('leaflet-geosearch');
+        const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
-        // Fix default icons
+        // Fix Leaflet Icons
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -104,78 +105,77 @@ export default function SolicitudCapacitacionPage() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        if (leafletMap.current) return;
-
-        // Referencia Asuncion: [-25.3006, -57.6359]
-        mapInstance = L.map(mapRef.current!, {
+        // Initialize Map centered in Asunción
+        const instance = L.map(mapRef.current!, {
           center: [-25.3006, -57.6359],
           zoom: 13,
-          attributionControl: false,
-          doubleClickZoom: false, // Desactivar para usar dblclick como marcador
+          zoomControl: true,
+          doubleClickZoom: false,
+          attributionControl: false
         });
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-        }).addTo(mapInstance);
-        
+          maxZoom: 19
+        }).addTo(instance);
+
         const provider = new OpenStreetMapProvider();
         const searchControl = new (GeoSearchControl as any)({
-          provider: provider,
+          provider,
           style: 'bar',
           showMarker: false,
-          showPopup: false,
           autoClose: true,
-          retainZoomLevel: false,
-          animateZoom: true,
           keepResult: true,
-          searchLabel: 'Buscar dirección o punto...'
+          searchLabel: 'Buscar local o calle...'
         });
-        mapInstance.addControl(searchControl);
+        instance.addControl(searchControl);
 
-        leafletMap.current = mapInstance;
-
-        const updateLocation = (lat: number, lng: number) => {
-          const latStr = lat.toFixed(6);
-          const lngStr = lng.toFixed(6);
-          setFormData(prev => ({ ...prev, gps: `${latStr}, ${lngStr}` }));
-
+        const setPosition = (lat: number, lng: number) => {
+          const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+          setFormData(prev => ({ ...prev, gps: coords }));
+          
           if (markerRef.current) {
             markerRef.current.setLatLng([lat, lng]);
           } else {
-            markerRef.current = L.marker([lat, lng]).addTo(mapInstance);
+            markerRef.current = L.marker([lat, lng], { draggable: true }).addTo(instance);
+            markerRef.current.on('dragend', (ev: any) => {
+              const pos = ev.target.getLatLng();
+              setPosition(pos.lat, pos.lng);
+            });
           }
-          mapInstance.setView([lat, lng], 16);
+          instance.panTo([lat, lng]);
         };
 
-        mapInstance.on('geosearch/showlocation', (result: any) => {
-          updateLocation(result.location.y, result.location.x);
-        });
-        
-        mapInstance.on('dblclick', (e: any) => {
-          updateLocation(e.latlng.lat, e.latlng.lng);
-          toast({ title: "Ubicación fijada", description: "Las coordenadas han sido capturadas correctamente." });
+        instance.on('geosearch/showlocation', (result: any) => {
+          setPosition(result.location.y, result.location.x);
         });
 
-        // Forzar redibujado de tiles
+        instance.on('dblclick', (e: any) => {
+          setPosition(e.latlng.lat, e.latlng.lng);
+          toast({ title: "Ubicación fijada", description: "Coordenadas capturadas con éxito." });
+        });
+
+        leafletMap.current = instance;
+
+        // Ensure tiles are correctly rendered
         setTimeout(() => {
-          if (mapInstance) mapInstance.invalidateSize();
-        }, 400);
+          instance.invalidateSize();
+        }, 500);
 
-      } catch (error) {
-        console.error("Leaflet initialization failed:", error);
+      } catch (err) {
+        console.error("Error loading map:", err);
       }
     };
 
     initMap();
 
     return () => {
-      if (mapInstance) {
-        mapInstance.remove();
+      if (leafletMap.current) {
+        leafletMap.current.remove();
         leafletMap.current = null;
         markerRef.current = null;
       }
     };
-  }, [toast]);
+  }, [mapReady, toast]);
 
   const searchCedulaInPadron = useCallback(async (cedula: string) => {
     if (!firestore || !cedula || cedula.length < 4) return;
@@ -434,25 +434,23 @@ export default function SolicitudCapacitacionPage() {
 
           <div className="space-y-8">
               <Card className="shadow-xl border-none overflow-hidden h-fit">
-                  <CardHeader className="bg-white border-b py-6">
-                    <CardTitle className="text-2xl font-black uppercase tracking-tight text-center text-black">
+                  <CardHeader className="bg-white border-b py-6 text-center">
+                    <CardTitle className="text-2xl font-black uppercase tracking-tight text-black">
                       GEORREFERENCIACIÓN
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0 relative h-[400px]">
-                      <div className="absolute inset-0 z-10">
-                          <div ref={mapRef} className="h-full w-full"></div>
-                          {!formData.gps && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none z-20">
-                                  <div className="bg-white rounded-xl p-8 shadow-2xl text-center max-w-[85%] border border-muted/50">
-                                      <MousePointer2 className="mx-auto h-12 w-12 text-black mb-4 -rotate-12" />
-                                      <p className="font-black text-sm text-black uppercase leading-tight tracking-tight">
-                                        DOBLE CLIC EN EL MAPA PARA MARCAR UBICACIÓN
-                                      </p>
-                                  </div>
+                  <CardContent className="p-0 relative h-[450px] bg-muted/20">
+                      <div ref={mapRef} className="h-full w-full z-10"></div>
+                      {!formData.gps && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none z-20 p-6">
+                              <div className="bg-white rounded-2xl p-8 shadow-2xl text-center max-w-xs border border-muted/50 animate-in fade-in zoom-in duration-300">
+                                  <Navigation className="mx-auto h-14 w-14 text-black mb-6" />
+                                  <p className="font-black text-sm text-black uppercase leading-tight tracking-tight">
+                                    DOBLE CLIC EN EL MAPA PARA MARCAR UBICACIÓN
+                                  </p>
                               </div>
-                          )}
-                      </div>
+                          </div>
+                      )}
                   </CardContent>
                   {formData.gps && (
                       <CardFooter className="flex flex-col items-start py-4 px-6 bg-white border-t gap-1">
