@@ -103,7 +103,8 @@ export default function AppSidebar() {
   ];
 
   const isAccessible = (href: string) => {
-    if (user?.profile?.role === 'admin') return true;
+    // Se elimina el acceso automático por rol 'admin'.
+    // El acceso ahora depende estrictamente de la lista de módulos en el perfil.
     if (href === '/') return true;
     const moduleName = href.substring(1);
     return user?.profile?.modules?.includes(moduleName);

@@ -61,7 +61,8 @@ export default function Home() {
     return MODULE_GROUPS.map(group => {
       const accessibleInGroup = dashboardMenuItems.filter(item => {
         const moduleName = item.href.substring(1);
-        const hasAccess = user.profile?.role === 'admin' || user.profile?.modules?.includes(moduleName);
+        // Respetar estrictamente la lista de módulos asignados, incluso para administradores
+        const hasAccess = user.profile?.modules?.includes(moduleName);
         return group.modules.includes(moduleName) && hasAccess;
       });
 
@@ -93,7 +94,7 @@ export default function Home() {
             </h1>
             <p className="mt-1 text-xs text-muted-foreground font-medium flex items-center gap-2">
                 <LayoutGrid className="h-3.5 w-3.5" />
-                Sistema de Gestión de la Justicia Electoral. Seleccione una categoría para desplegar los módulos.
+                Sistema de Gestión de la Justicia Electoral. Seleccione una categoría para desplegar los módulos autorizados.
             </p>
         </div>
 
