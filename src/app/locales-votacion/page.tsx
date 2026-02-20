@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { type LocalVotacion, type Dato } from '@/lib/data';
 import Header from '@/components/header';
@@ -34,6 +34,7 @@ const getImageUrl = (src: any) => {
 
 export default function LocalesVotacionPage() {
   const { firestore } = useFirebase();
+  const { user } = useUser();
 
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
@@ -54,7 +55,7 @@ export default function LocalesVotacionPage() {
   const [loadingDepts, setLoadingDepts] = useState<Set<string>>(new Set());
 
   const searchLocalesQuery = useMemoFirebase(() => {
-    if (!firestore || !shouldFetch) return null;
+    if (!firestore || !user || !shouldFetch) return null;
     const conditions = [];
     if (selectedDepartment) conditions.push(where('departamento', '==', selectedDepartment));
     if (selectedDistrict) conditions.push(where('distrito', '==', selectedDistrict));
@@ -62,7 +63,7 @@ export default function LocalesVotacionPage() {
     if (selectedLocalFilter) conditions.push(where('local', '==', selectedLocalFilter));
     if (conditions.length > 0) return query(collection(firestore, 'locales-votacion'), ...conditions);
     return null;
-  }, [firestore, shouldFetch, selectedDepartment, selectedDistrict, selectedZone, selectedLocalFilter]);
+  }, [firestore, user, shouldFetch, selectedDepartment, selectedDistrict, selectedZone, selectedLocalFilter]);
 
   const { data: searchResults, isLoading: isSearching } = useCollection<LocalVotacion>(searchLocalesQuery);
   
@@ -88,7 +89,7 @@ export default function LocalesVotacionPage() {
   }, [selectedDepartment, datosData]);
 
   const handleFetchDeptGallery = async (deptName: string) => {
-    if (!firestore || galleryData[deptName] || loadingDepts.has(deptName)) return;
+    if (!firestore || !user || galleryData[deptName] || loadingDepts.has(deptName)) return;
 
     setLoadingDepts(prev => new Set(prev).add(deptName));
     try {
@@ -117,6 +118,11 @@ export default function LocalesVotacionPage() {
 
   const handleSearch = () => {
     if (selectedDepartment) setShouldFetch(true);
+  };
+
+  const handleViewFicha = (local: LocalVotacion) => {
+    setSelectedLocal(local);
+    setIsFichaOpen(true);
   };
 
   const hasAnyPhoto = (local: LocalVotacion) => fotoKeys.some(key => !!local[key]);

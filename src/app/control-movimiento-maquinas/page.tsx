@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -110,15 +111,15 @@ export default function ControlMovimientoMaquinasPage() {
     );
   }, [firestore, user]);
 
-  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapatitacion>(agendaQuery);
+  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
 
   const movimientosQuery = useMemoFirebase(() => {
-    if (!firestore || !selectedSolicitudId) return null;
+    if (!firestore || !user || !selectedSolicitudId) return null;
     return query(
       collection(firestore, 'movimientos-maquinas'),
       where('solicitud_id', '==', selectedSolicitudId)
     );
-  }, [firestore, selectedSolicitudId]);
+  }, [firestore, user, selectedSolicitudId]);
 
   const { data: movimientosData, isLoading: isLoadingMovimientos } = useCollection<MovimientoMaquina>(movimientosQuery);
   const currentMovimiento = movimientosData && movimientosData.length > 0 ? movimientosData[0] : null;
