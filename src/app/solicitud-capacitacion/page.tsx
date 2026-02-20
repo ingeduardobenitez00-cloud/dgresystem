@@ -51,7 +51,7 @@ export default function SolicitudCapacitacionPage() {
 
   const [formData, setFormData] = useState({
     solicitante_entidad: '',
-    tipo_solicitud: ['divulgacion'] as string[],
+    tipo_solicitud: 'divulgacion' as 'divulgacion' | 'capacitacion',
     fecha: '',
     hora_desde: '08:00',
     hora_hasta: '12:00',
@@ -109,10 +109,8 @@ export default function SolicitudCapacitacionPage() {
         const L = await import('leaflet');
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
         
-        // CSS imports handled by the environment, but ensuring common patterns
         const initialCoords: [number, number] = [-25.311549, -57.653496];
 
-        // Fix default icons
         // @ts-ignore
         delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
@@ -165,7 +163,6 @@ export default function SolicitudCapacitacionPage() {
           updateCoords(result.location.y, result.location.x);
         });
 
-        // ResizeObserver to handle grey tiles issue
         resizeObserver = new ResizeObserver(() => {
           if (mapInstance) {
             mapInstance.invalidateSize();
@@ -173,7 +170,6 @@ export default function SolicitudCapacitacionPage() {
         });
         resizeObserver.observe(mapContainerRef.current);
 
-        // Initial invalidation to ensure tiles load
         setTimeout(() => mapInstance.invalidateSize(), 500);
 
         mapRef.current = mapInstance;
@@ -232,13 +228,8 @@ export default function SolicitudCapacitacionPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleCheckboxChange = (value: string) => {
-    setFormData(prev => {
-      const newTipo = prev.tipo_solicitud.includes(value)
-        ? prev.tipo_solicitud.filter(item => item !== value)
-        : [...prev.tipo_solicitud, value];
-      return { ...prev, tipo_solicitud: newTipo };
-    });
+  const handleTypeSelection = (value: 'divulgacion' | 'capacitacion') => {
+    setFormData(prev => ({ ...prev, tipo_solicitud: value }));
   };
 
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,10 +298,10 @@ export default function SolicitudCapacitacionPage() {
 
     // Checkboxes
     let checkY = 95;
-    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud.includes('divulgacion')) doc.text("X", margin + 11.5, checkY + 4);
+    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud === 'divulgacion') doc.text("X", margin + 11.5, checkY + 4);
     doc.text("Divulgación sobre el uso de la Máquina de Votación Electrónica.", margin + 20, checkY + 4);
     checkY += 8;
-    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud.includes('capacitacion')) doc.text("X", margin + 11.5, checkY + 4);
+    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud === 'capacitacion') doc.text("X", margin + 11.5, checkY + 4);
     doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", margin + 20, checkY + 4);
 
     // Table
@@ -367,7 +358,7 @@ export default function SolicitudCapacitacionPage() {
 
   const handleSubmit = async () => {
     if (!firestore || !user) return;
-    if (!formData.solicitante_entidad || !formData.lugar_local || !formData.nombre_completo || formData.tipo_solicitud.length === 0) {
+    if (!formData.solicitante_entidad || !formData.lugar_local || !formData.nombre_completo || !formData.tipo_solicitud) {
       toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
     }
     setIsSubmitting(true);
@@ -375,7 +366,7 @@ export default function SolicitudCapacitacionPage() {
     try {
       await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
       toast({ title: "¡Solicitud Registrada!" });
-      setFormData({ solicitante_entidad: '', tipo_solicitud: ['divulgacion'], fecha: new Date().toISOString().split('T')[0], hora_desde: '08:00', hora_hasta: '12:00', lugar_local: '', direccion_calle: '', barrio_compania: '', rol_solicitante: 'apoderado', nombre_completo: '', cedula: '', telefono: '', gps: '' });
+      setFormData({ solicitante_entidad: '', tipo_solicitud: 'divulgacion', fecha: new Date().toISOString().split('T')[0], hora_desde: '08:00', hora_hasta: '12:00', lugar_local: '', direccion_calle: '', barrio_compania: '', rol_solicitante: 'apoderado', nombre_completo: '', cedula: '', telefono: '', gps: '' });
       setPhotoDataUri(null);
     } catch (error) { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData })); }
     finally { setIsSubmitting(false); }
@@ -471,11 +462,11 @@ export default function SolicitudCapacitacionPage() {
                       <Label className="text-[10px] font-black uppercase text-primary tracking-widest">TIPO DE SOLICITUD</Label>
                       <div className="mt-4 space-y-3">
                           <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                            <Checkbox id="c1" checked={formData.tipo_solicitud.includes('divulgacion')} onCheckedChange={() => handleCheckboxChange('divulgacion')} />
+                            <Checkbox id="c1" checked={formData.tipo_solicitud === 'divulgacion'} onCheckedChange={() => handleTypeSelection('divulgacion')} />
                             <label htmlFor="c1" className="text-xs font-bold uppercase cursor-pointer flex-1">Divulgación (Máquina)</label>
                           </div>
                           <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                            <Checkbox id="c2" checked={formData.tipo_solicitud.includes('capacitacion')} onCheckedChange={() => handleCheckboxChange('capacitacion')} />
+                            <Checkbox id="c2" checked={formData.tipo_solicitud === 'capacitacion'} onCheckedChange={() => handleTypeSelection('capacitacion')} />
                             <label htmlFor="c2" className="text-xs font-bold uppercase cursor-pointer flex-1">Capacitación (Mesa)</label>
                           </div>
                       </div>
