@@ -1,18 +1,17 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmark, Navigation } from 'lucide-react';
+import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmark, Navigation, MapPin, CheckCircle2 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -72,6 +71,11 @@ export default function SolicitudCapacitacionPage() {
   const [padronFound, setPadronFound] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
+  // Mapa Refs y Estado
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+
   useEffect(() => {
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
@@ -89,6 +93,90 @@ export default function SolicitudCapacitacionPage() {
     };
     fetchLogo();
   }, []);
+
+  // Inicialización del Mapa
+  useEffect(() => {
+    if (typeof window === 'undefined' || !mapContainerRef.current) return;
+
+    const initMap = async () => {
+      const L = (await import('leaflet')).default;
+      const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
+      import('leaflet/dist/leaflet.css');
+      import('leaflet-geosearch/dist/geosearch.css');
+
+      // Arreglar iconos de Leaflet
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      if (mapInstanceRef.current) return;
+
+      const initialPos: [number, number] = [-25.311549, -57.653496]; // Asunción por defecto
+      const map = L.map(mapContainerRef.current).setView(initialPos, 13);
+      mapInstanceRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Buscador
+      const provider = new OpenStreetMapProvider();
+      const searchControl = new (GeoSearchControl as any)({
+        provider,
+        style: 'bar',
+        showMarker: true,
+        retainZoomLevel: false,
+        animateZoom: true,
+        autoClose: true,
+        searchLabel: 'Buscar dirección...',
+        keepResult: true
+      });
+      map.addControl(searchControl);
+
+      // Evento de búsqueda
+      map.on('geosearch/showlocation', (result: any) => {
+        const { x, y } = result.location;
+        const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
+        setFormData(prev => ({ ...prev, gps: coords }));
+        
+        if (markerRef.current) map.removeLayer(markerRef.current);
+        markerRef.current = L.marker([y, x]).addTo(map);
+      });
+
+      // Evento de doble clic para capturar coordenadas
+      map.on('dblclick', (e: any) => {
+        const { lat, lng } = e.latlng;
+        const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        setFormData(prev => ({ ...prev, gps: coords }));
+        
+        if (markerRef.current) map.removeLayer(markerRef.current);
+        markerRef.current = L.marker([lat, lng]).addTo(map);
+        
+        toast({ title: "Ubicación fijada", description: `Coordenadas: ${coords}` });
+      });
+
+      // Resize observer para evitar mapa gris
+      const resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      resizeObserver.observe(mapContainerRef.current);
+
+      // Invalidar tamaño con delay
+      setTimeout(() => map.invalidateSize(), 500);
+    };
+
+    initMap();
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [toast]);
 
   const searchCedulaInPadron = useCallback(async (cedula: string) => {
     if (!firestore || !cedula || cedula.length < 4) return;
@@ -435,12 +523,50 @@ export default function SolicitudCapacitacionPage() {
 
                 <Separator />
 
+                {/* Georreferenciación */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
+                      <MapPin className="h-4 w-4" /> GEORREFERENCIACIÓN DEL EVENTO
+                    </Label>
+                    {formData.gps && (
+                      <Badge className="bg-green-100 text-green-700 border-none shadow-sm font-black text-[9px] uppercase px-3 py-1">
+                        UBICACIÓN FIJADA
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="rounded-xl overflow-hidden border-4 border-muted shadow-inner bg-muted/20 relative group">
+                    <div ref={mapContainerRef} className="h-[400px] w-full z-0" />
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+                      <div className="bg-black/80 text-white text-[9px] font-black uppercase px-4 py-2 rounded-full backdrop-blur-md shadow-2xl border border-white/20 whitespace-nowrap">
+                        Doble clic en el mapa para capturar coordenadas exactas
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Navigation className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black uppercase text-muted-foreground leading-none mb-1">COORDENADAS GPS</p>
+                        <p className="font-black text-sm text-primary tracking-tight">
+                          {formData.gps || 'PENDIENTE DE CAPTURA'}
+                        </p>
+                      </div>
+                    </div>
+                    {formData.gps && (
+                      <Badge className="bg-primary text-white border-none shadow-sm font-black text-[9px] uppercase px-3 py-1">
+                        CAPTURADO
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
                 <div className="space-y-6">
-                  <Label className="text-sm font-black uppercase text-primary tracking-widest block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
-                  <RadioGroup value={formData.rol_solicitante} onValueChange={(v: any) => setFormData(p => ({ ...p, rol_solicitante: v }))} className="flex gap-8">
-                      <div className="flex items-center space-x-2"><RadioGroupItem value="apoderado" id="r-apo" /><Label htmlFor="r-apo" className="font-bold cursor-pointer">APODERADO</Label></div>
-                      <div className="flex items-center space-x-2"><RadioGroupItem value="otro" id="r-otro" /><Label htmlFor="r-otro" className="font-bold cursor-pointer">OTRO</Label></div>
-                  </RadioGroup>
+                  <Label className="text-sm font-black uppercase tracking-tight text-primary block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">NOMBRE COMPLETO</Label>
