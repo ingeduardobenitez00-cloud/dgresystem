@@ -17,13 +17,8 @@ import {
 const MODULE_GROUPS = [
   {
     label: "CIDEE - CAPACITACIONES",
-    description: "Gestión de solicitudes, agendas, encuestas e informes de capacitación nacional.",
-    modules: ['solicitud-capacitacion', 'agenda-capacitacion', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
-  },
-  {
-    label: "DGRE",
-    description: "Dirección General del Registro Electoral - Control patrimonial y logístico.",
-    modules: ['control-movimiento-maquinas']
+    description: "Gestión de solicitudes, agendas, movimientos de equipos, encuestas e informes de capacitación nacional.",
+    modules: ['solicitud-capacitacion', 'agenda-capacitacion', 'control-movimiento-maquinas', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
   },
   {
     label: "Registros Electorales",
@@ -103,7 +98,7 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          <Accordion type="multiple" className="space-y-3">
+          <Accordion type="multiple" className="space-y-3" defaultValue={["CIDEE - CAPACITACIONES"]}>
             {groupedModules.map((group) => (
               <AccordionItem 
                 key={group.label} 

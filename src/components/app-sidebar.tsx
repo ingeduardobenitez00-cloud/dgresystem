@@ -52,9 +52,15 @@ export default function AppSidebar() {
       ]
     },
     {
-      label: "DGRE",
+      label: "CIDEE - CAPACITACIONES",
       items: [
+        { href: "/solicitud-capacitacion", label: "Nueva Solicitud", icon: ClipboardCheck },
+        { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
         { href: "/control-movimiento-maquinas", label: "Movimiento de Máquinas", icon: ArrowLeftRight },
+        { href: "/encuesta-satisfaccion", label: "Encuesta Satisfacción", icon: MessageSquareHeart },
+        { href: "/informe-divulgador", label: "Informe del Divulgador", icon: UserCheck },
+        { href: "/informe-semanal-puntos-fijos", label: "Informe Semanal (Anexo IV)", icon: TableProperties },
+        { href: "/estadisticas-capacitacion", label: "Estadísticas", icon: PieChart },
       ]
     },
     {
@@ -63,17 +69,6 @@ export default function AppSidebar() {
         { href: "/ficha", label: "Vista de Ficha", icon: FileText },
         { href: "/fotos", label: "Imágenes", icon: ImageIcon },
         { href: "/cargar-ficha", label: "Cargar Ficha", icon: UploadCloud },
-      ]
-    },
-    {
-      label: "CIDEE - CAPACITACIONES",
-      items: [
-        { href: "/solicitud-capacitacion", label: "Nueva Solicitud", icon: ClipboardCheck },
-        { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
-        { href: "/encuesta-satisfaccion", label: "Encuesta Satisfacción", icon: MessageSquareHeart },
-        { href: "/informe-divulgador", label: "Informe del Divulgador", icon: UserCheck },
-        { href: "/informe-semanal-puntos-fijos", label: "Informe Semanal (Anexo IV)", icon: TableProperties },
-        { href: "/estadisticas-capacitacion", label: "Estadísticas", icon: PieChart },
       ]
     },
     {
@@ -138,7 +133,7 @@ export default function AppSidebar() {
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} className="group/collapsible mb-2" defaultOpen={group.label === "Principal"}>
+            <Collapsible key={group.label} className="group/collapsible mb-2" defaultOpen={group.label === "Principal" || group.label === "CIDEE - CAPACITACIONES"}>
               <SidebarGroup className="py-0">
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 px-3 py-2 rounded-lg transition-all duration-200 group/trigger">

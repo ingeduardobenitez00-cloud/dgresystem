@@ -23,24 +23,22 @@ El acceso a estos módulos se define en el perfil de cada usuario (`user.profile
 ### A. CIDEE - CAPACITACIONES
 *   `solicitud-capacitacion`: Carga del Anexo V (Solicitudes).
 *   `agenda-capacitacion`: Visualización y gestión del calendario.
+*   `control-movimiento-maquinas`: Registro de salida y entrada de equipos.
 *   `encuesta-satisfaccion`: Registro de feedback ciudadano.
 *   `informe-divulgador`: Carga del Anexo III (Marcaciones).
 *   `informe-semanal-puntos-fijos`: Consolidado Anexo IV.
 *   `estadisticas-capacitacion`: Dashboard analítico de satisfacción.
 
-### B. DGRE (Patrimonio)
-*   `control-movimiento-maquinas`: Registro de salida y entrada de equipos.
-
-### C. Registros Electorales (Edilicio)
+### B. Registros Electorales (Edilicio)
 *   `ficha`: Visualización de ficha técnica por distrito.
 *   `fotos`: Galería fotográfica organizada.
 *   `cargar-ficha`: Redirección directa al distrito asignado para carga.
 
-### D. Locales de Votación
+### C. Locales de Votación
 *   `locales-votacion`: Buscador georreferenciado de locales.
 *   `cargar-fotos-locales`: Herramienta de carga masiva de fotos de campo.
 
-### E. Gestión de Datos (Importación)
+### D. Gestión de Datos (Importación)
 *   `importar-reportes`: Carga masiva desde Excel de datos edilicios.
 *   `importar-locales`: Carga masiva de locales de votación.
 *   `importar-partidos`: Gestión del directorio de agrupaciones políticas.

@@ -18,6 +18,7 @@
 
 ### C. Divulgador / Funcionario (Nivel Operativo)
 *   **Ejecución de Campo**: Carga de la **Solicitud de Capacitación (Anexo V)** con georreferenciación GPS y captura de firma.
+*   **Control de Equipos**: Registro del **Movimiento de Máquinas** (salida y devolución) vinculado a la actividad agendada.
 *   **Registro de Productividad**: Uso del **Anexo III** para marcar la cantidad de ciudadanos capacitados mediante un tablero táctil de 104 celdas.
 *   **Recolección de Feedback**: Registro de la **Encuesta de Satisfacción** vinculada automáticamente a la agenda asignada.
 *   **Documentación Edilicia**: Carga de la ficha técnica y las 8 categorías de fotos obligatorias del Registro Electoral asignado.
@@ -29,9 +30,10 @@
 ### Módulo CIDEE - CAPACITACIONES
 1.  **Solicitud (Anexo V)**: Digitaliza el pedido de las organizaciones políticas. Incluye mapa interactivo para fijar coordenadas y cámara para adjuntar el documento físico firmado.
 2.  **Agenda Dinámica**: Centro de control donde se visualizan las actividades pendientes y se asigna el personal responsable.
-3.  **Informe Anexo III**: Registro individual por sesión de capacitación. Autocompleta los datos del funcionario (Nombre, Cédula, Vínculo) si fue asignado en agenda.
-4.  **Informe Semanal Anexo IV**: Módulo de **Inteligencia de Datos**. Consolida automáticamente todos los Anexos III del distrito en una tabla resumen para exportación PDF horizontal.
-5.  **Estadísticas CIDEE**: Dashboard analítico con gráficos interactivos (Recharts) sobre distribución de género, edad y percepción de seguridad de la Máquina de Votación.
+3.  **Control Movimiento Máquinas**: Registro de salida y entrada de equipos de votación, con generación de formularios 01 y 02.
+4.  **Informe Anexo III**: Registro individual por sesión de capacitación. Autocompleta los datos del funcionario (Nombre, Cédula, Vínculo) si fue asignado en agenda.
+5.  **Informe Semanal Anexo IV**: Módulo de **Inteligencia de Datos**. Consolida automáticamente todos los Anexos III del distrito en una tabla resumen para exportación PDF horizontal.
+6.  **Estadísticas CIDEE**: Dashboard analítico con gráficos interactivos (Recharts) sobre distribución de género, edad y percepción de seguridad de la Máquina de Votación.
 
 ### Módulo de Registros Electorales
 1.  **Vista de Ficha**: Reporte técnico detallado sobre el estado edilicio, dimensiones de habitaciones seguras y resguardo de equipos.
