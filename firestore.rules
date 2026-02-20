@@ -100,7 +100,13 @@ service cloud.firestore {
 
     match /solicitudes-capacitacion/{solicitudId} {
       allow get: if isSignedIn() && hasPermission('solicitud-capacitacion', 'view');
-      allow list: if isSignedIn() && (hasPermission('solicitud-capacitacion', 'view') || hasPermission('agenda-capacitacion', 'view'));
+      allow list: if isSignedIn() && (
+        hasPermission('solicitud-capacitacion', 'view') || 
+        hasPermission('agenda-capacitacion', 'view') ||
+        hasPermission('encuesta-satisfaccion', 'view') ||
+        hasPermission('informe-divulgador', 'view') ||
+        hasPermission('control-movimiento-maquinas', 'view')
+      );
       allow create: if hasPermission('solicitud-capacitacion', 'add');
       allow update: if hasPermission('agenda-capacitacion', 'edit') || hasGlobalPermission('assign_staff');
       allow delete: if hasPermission('agenda-capacitacion', 'delete');

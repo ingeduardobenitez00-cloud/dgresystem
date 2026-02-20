@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, MapPin, Navigation, Landmark } from 'lucide-react';
+import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmark, Navigation } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -72,11 +72,6 @@ export default function SolicitudCapacitacionPage() {
   const [padronFound, setPadronFound] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
-  // Map Refs
-  const mapRef = useRef<any>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markerRef = useRef<any>(null);
-
   useEffect(() => {
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
@@ -94,101 +89,6 @@ export default function SolicitudCapacitacionPage() {
     };
     fetchLogo();
   }, []);
-
-  // Initialize Map
-  useEffect(() => {
-    if (isUserLoading || !user) return;
-
-    let mapInstance: any;
-    let resizeObserver: ResizeObserver;
-
-    const initMap = async () => {
-      if (!mapContainerRef.current) return;
-
-      try {
-        const L = await import('leaflet');
-        const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
-        
-        const initialCoords: [number, number] = [-25.311549, -57.653496];
-
-        // @ts-ignore
-        delete L.Icon.Default.prototype._getIconUrl;
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        });
-
-        mapInstance = L.map(mapContainerRef.current, {
-          doubleClickZoom: false,
-          zoomControl: true,
-        }).setView(initialCoords, 15);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(mapInstance);
-
-        const provider = new OpenStreetMapProvider();
-        // @ts-ignore
-        const searchControl = new GeoSearchControl({
-          provider: provider,
-          style: 'bar',
-          showMarker: true,
-          showPopup: false,
-          autoClose: true,
-          retainZoomLevel: false,
-          animateZoom: true,
-          keepResult: true,
-          searchLabel: 'Buscar dirección...',
-        });
-        mapInstance.addControl(searchControl);
-
-        const updateCoords = (lat: number, lng: number) => {
-          const coordsStr = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-          setFormData(prev => ({ ...prev, gps: coordsStr }));
-          
-          if (markerRef.current) {
-            markerRef.current.setLatLng([lat, lng]);
-          } else {
-            markerRef.current = L.marker([lat, lng]).addTo(mapInstance);
-          }
-        };
-
-        mapInstance.on('dblclick', (e: any) => {
-          updateCoords(e.latlng.lat, e.latlng.lng);
-          toast({ title: "Ubicación fijada", description: "Coordenadas capturadas con éxito." });
-        });
-
-        mapInstance.on('geosearch/showlocation', (result: any) => {
-          updateCoords(result.location.y, result.location.x);
-        });
-
-        resizeObserver = new ResizeObserver(() => {
-          if (mapInstance) {
-            mapInstance.invalidateSize();
-          }
-        });
-        resizeObserver.observe(mapContainerRef.current);
-
-        setTimeout(() => mapInstance.invalidateSize(), 500);
-
-        mapRef.current = mapInstance;
-      } catch (err) {
-        console.error("Error initializing map:", err);
-      }
-    };
-
-    initMap();
-
-    return () => {
-      if (mapInstance) {
-        mapInstance.remove();
-      }
-      if (resizeObserver && mapContainerRef.current) {
-        resizeObserver.unobserve(mapContainerRef.current);
-      }
-    };
-  }, [user, isUserLoading, toast]);
 
   const searchCedulaInPadron = useCallback(async (cedula: string) => {
     if (!firestore || !cedula || cedula.length < 4) return;
@@ -413,7 +313,7 @@ export default function SolicitudCapacitacionPage() {
               </CardHeader>
               <CardContent className="p-6 space-y-8 bg-white">
                 
-                {/* Jurisdicción Asignada - Top Section */}
+                {/* Jurisdicción Asignada */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-xl border border-dashed mb-4">
                   <div className="space-y-1">
                     <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
@@ -488,7 +388,7 @@ export default function SolicitudCapacitacionPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                   <div className="border-2 border-dashed rounded-xl p-5 bg-muted/20">
-                      <Label className="text-[10px] font-black uppercase text-primary tracking-widest">TIPO DE SOLICITUD</Label>
+                      <Label className="text-[10px] font-black uppercase text-primary tracking-widest">TIPO DE SOLICITUD (SELECCIÓN EXCLUSIVA)</Label>
                       <div className="mt-4 space-y-3">
                           <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
                             <Checkbox id="c1" checked={formData.tipo_solicitud === 'divulgacion'} onCheckedChange={() => handleTypeSelection('divulgacion')} />
@@ -531,14 +431,6 @@ export default function SolicitudCapacitacionPage() {
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">BARRIO - COMPAÑÍA</Label>
                     <Input name="barrio_compania" placeholder="Nombre del barrio" value={formData.barrio_compania} onChange={handleInputChange} className="h-11 font-bold border-2" />
                   </div>
-                  <div className="space-y-2 flex flex-col justify-end">
-                    <div className="flex items-center gap-2 p-3 bg-muted/20 border border-dashed rounded-lg opacity-60">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                        Solicitud en {user?.profile?.distrito}
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
                 <Separator />
@@ -580,41 +472,6 @@ export default function SolicitudCapacitacionPage() {
           </div>
 
           <div className="space-y-8">
-              {/* Georreferenciación Section */}
-              <Card className="shadow-lg border-none overflow-hidden rounded-xl bg-white">
-                <CardHeader className="py-4">
-                  <CardTitle className="text-xl font-black text-center uppercase tracking-tight text-primary">
-                    GEORREFERENCIACIÓN
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div 
-                    ref={mapContainerRef} 
-                    className="h-80 w-full bg-muted relative z-0 border-y"
-                    style={{ minHeight: '320px' }}
-                  >
-                    {!mapRef.current && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-muted/30 p-4 flex items-center justify-between gap-2">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-primary uppercase">Coordenadas GPS</span>
-                      <span className="text-xs font-bold font-mono truncate">
-                        {formData.gps || "Sin capturar (Doble clic)"}
-                      </span>
-                    </div>
-                    {formData.gps && (
-                      <Badge className="bg-white text-primary border-none shadow-sm font-black text-[9px] uppercase px-3 py-1">
-                        CAPTURADO
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Documental Section */}
               <Card className="shadow-lg border-none overflow-hidden">
                   <CardHeader className="bg-muted/50 border-b">
