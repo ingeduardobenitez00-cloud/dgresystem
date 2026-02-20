@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X } from 'lucide-react';
+import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, MapPin } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -71,7 +71,6 @@ export default function SolicitudCapacitacionPage() {
   const [isPartyPopoverOpen, setIsPartyPopoverOpen] = useState(false);
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
@@ -82,12 +81,11 @@ export default function SolicitudCapacitacionPage() {
   useEffect(() => {
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
-    setMapReady(true);
   }, []);
 
   // MAP INITIALIZATION
   useEffect(() => {
-    if (typeof window === 'undefined' || !mapRef.current || !mapReady || leafletMap.current) {
+    if (typeof window === 'undefined' || !mapRef.current || leafletMap.current) {
       return;
     }
 
@@ -124,7 +122,7 @@ export default function SolicitudCapacitacionPage() {
           showMarker: false,
           autoClose: true,
           keepResult: true,
-          searchLabel: 'Ingrese dirección...'
+          searchLabel: 'Ingresar dirección...'
         });
         instance.addControl(searchControl);
 
@@ -162,7 +160,7 @@ export default function SolicitudCapacitacionPage() {
 
         leafletMap.current = instance;
 
-        // CRITICAL: Force invalidateSize to fix gray tiles issue
+        // Force invalidateSize to fix gray tiles issue
         setTimeout(() => {
           instance.invalidateSize();
         }, 500);
@@ -181,7 +179,7 @@ export default function SolicitudCapacitacionPage() {
         markerRef.current = null;
       }
     };
-  }, [mapReady, toast]);
+  }, [toast]);
 
   const searchCedulaInPadron = useCallback(async (cedula: string) => {
     if (!firestore || !cedula || cedula.length < 4) return;
