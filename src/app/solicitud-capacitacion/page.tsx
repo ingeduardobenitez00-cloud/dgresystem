@@ -102,9 +102,18 @@ export default function SolicitudCapacitacionPage() {
     let resizeObserver: ResizeObserver | null = null;
 
     const initMap = async () => {
+      // Dynamic imports for Leaflet and Leaflet-GeoSearch
       const L = (await import('leaflet')).default;
       const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
-      import('leaflet-geosearch/dist/geosearch.css');
+      
+      // Ensure CSS is injected
+      if (!document.getElementById('leaflet-geosearch-css')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-geosearch-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.css';
+        document.head.appendChild(link);
+      }
 
       if (!mapContainerRef.current || mapInstanceRef.current) return;
 
@@ -163,6 +172,7 @@ export default function SolicitudCapacitacionPage() {
       });
 
       // Solución definitiva al mapa gris (invalidateSize)
+      // Usamos ResizeObserver para detectar cuando el contenedor es visible y tiene tamaño
       resizeObserver = new ResizeObserver(() => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize();
@@ -170,14 +180,14 @@ export default function SolicitudCapacitacionPage() {
       });
       resizeObserver.observe(mapContainerRef.current);
 
-      // Forzar renderizado inicial
-      setTimeout(() => {
+      // Múltiples intentos de redimensionado para asegurar renderizado correcto
+      const forceRefresh = () => {
         if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-      }, 300);
+      };
       
-      setTimeout(() => {
-        if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-      }, 1000);
+      requestAnimationFrame(forceRefresh);
+      setTimeout(forceRefresh, 500);
+      setTimeout(forceRefresh, 1500);
     };
 
     initMap();
@@ -536,7 +546,7 @@ export default function SolicitudCapacitacionPage() {
 
                 <Separator />
 
-                {/* Sección movida: Datos del Solicitante Responsable */}
+                {/* Datos del Solicitante Responsable */}
                 <div className="space-y-6">
                   <Label className="text-sm font-black uppercase tracking-tight text-primary block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -576,7 +586,7 @@ export default function SolicitudCapacitacionPage() {
                     )}
                   </div>
                   <div className="rounded-xl overflow-hidden border-4 border-muted shadow-inner bg-muted/20 relative group">
-                    <div ref={mapContainerRef} className="h-[400px] w-full z-0" style={{ minHeight: '400px' }} />
+                    <div ref={mapContainerRef} className="h-[400px] w-full" style={{ minHeight: '400px', backgroundColor: '#f3f4f6' }} />
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
                       <div className="bg-black/80 text-white text-[9px] font-black uppercase px-4 py-2 rounded-full backdrop-blur-md shadow-2xl border border-white/20 whitespace-nowrap">
                         Doble clic en el mapa para capturar coordenadas exactas
