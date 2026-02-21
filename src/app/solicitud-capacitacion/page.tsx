@@ -94,7 +94,7 @@ export default function SolicitudCapacitacionPage() {
     fetchLogo();
   }, []);
 
-  // Inicialización del Mapa
+  // Inicialización del Mapa Robusta
   useEffect(() => {
     if (typeof window === 'undefined' || !mapContainerRef.current) return;
 
@@ -108,7 +108,7 @@ export default function SolicitudCapacitacionPage() {
 
       if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-      // Arreglar iconos de Leaflet
+      // Fix para iconos de Leaflet (asegura visualización correcta del marcador)
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -117,13 +117,19 @@ export default function SolicitudCapacitacionPage() {
       });
 
       const initialPos: [number, number] = [-25.311549, -57.653496];
-      map = L.map(mapContainerRef.current, { doubleClickZoom: false }).setView(initialPos, 13);
+      map = L.map(mapContainerRef.current, { 
+        doubleClickZoom: false,
+        zoomControl: true,
+        scrollWheelZoom: true
+      }).setView(initialPos, 13);
+      
       mapInstanceRef.current = map;
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
 
+      // Buscador de Direcciones
       const provider = new OpenStreetMapProvider();
       const searchControl = new (GeoSearchControl as any)({
         provider,
@@ -137,6 +143,7 @@ export default function SolicitudCapacitacionPage() {
       });
       map.addControl(searchControl);
 
+      // Captura desde el buscador
       map.on('geosearch/showlocation', (result: any) => {
         const { x, y } = result.location;
         const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
@@ -145,6 +152,7 @@ export default function SolicitudCapacitacionPage() {
         markerRef.current = L.marker([y, x]).addTo(map);
       });
 
+      // Captura por doble clic
       map.on('dblclick', (e: any) => {
         const { lat, lng } = e.latlng;
         const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -154,12 +162,22 @@ export default function SolicitudCapacitacionPage() {
         toast({ title: "Ubicación fijada", description: `Coordenadas: ${coords}` });
       });
 
+      // Solución definitiva al mapa gris (invalidateSize)
       resizeObserver = new ResizeObserver(() => {
-        if (map) map.invalidateSize();
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
       });
       resizeObserver.observe(mapContainerRef.current);
 
-      setTimeout(() => map.invalidateSize(), 500);
+      // Forzar renderizado inicial
+      setTimeout(() => {
+        if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+      }, 300);
+      
+      setTimeout(() => {
+        if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+      }, 1000);
     };
 
     initMap();
@@ -518,7 +536,7 @@ export default function SolicitudCapacitacionPage() {
 
                 <Separator />
 
-                {/* Georreferenciación */}
+                {/* Georreferenciación Reparada */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Label className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
@@ -531,7 +549,7 @@ export default function SolicitudCapacitacionPage() {
                     )}
                   </div>
                   <div className="rounded-xl overflow-hidden border-4 border-muted shadow-inner bg-muted/20 relative group">
-                    <div ref={mapContainerRef} className="h-[400px] w-full z-0" />
+                    <div ref={mapContainerRef} className="h-[400px] w-full z-0" style={{ minHeight: '400px' }} />
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
                       <div className="bg-black/80 text-white text-[9px] font-black uppercase px-4 py-2 rounded-full backdrop-blur-md shadow-2xl border border-white/20 whitespace-nowrap">
                         Doble clic en el mapa para capturar coordenadas exactas

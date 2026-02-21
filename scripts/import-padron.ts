@@ -47,7 +47,7 @@ async function run() {
 
     // Procesar archivos del 1 al 9 si existen
     let filesFound = 0;
-    for (let i = 1; i <= 9; i++) {
+    for (let i = 1; i <= 17; i++) {
       const success = await importFile(i);
       if (success) filesFound++;
     }
