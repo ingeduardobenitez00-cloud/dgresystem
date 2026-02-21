@@ -536,6 +536,33 @@ export default function SolicitudCapacitacionPage() {
 
                 <Separator />
 
+                {/* Sección movida: Datos del Solicitante Responsable */}
+                <div className="space-y-6">
+                  <Label className="text-sm font-black uppercase tracking-tight text-primary block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground">NOMBRE COMPLETO</Label>
+                        <div className="relative">
+                          <Input name="nombre_completo" placeholder="Nombre y Apellido" value={formData.nombre_completo} onChange={handleInputChange} readOnly={padronFound} className={cn("h-11 font-bold border-2", padronFound && "bg-green-50 border-green-200 text-green-900")} />
+                          {padronFound && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-9 w-9" onClick={() => { setFormData(p => ({...p, nombre_completo: '', cedula: ''})); setPadronFound(false); }}><X className="h-4 w-4"/></Button>}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground">C.I.C. N.º</Label>
+                        <div className="relative">
+                          <Input name="cedula" placeholder="Ej: 1.234.567" value={formData.cedula} onChange={handleCedulaChange} disabled={isSearchingCedula} className="h-11 font-black border-2" />
+                          {isSearchingCedula && <Loader2 className="absolute right-2 top-3 h-5 w-5 animate-spin text-primary" />}
+                        </div>
+                      </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">NÚMERO DE CONTACTO</Label>
+                    <Input name="telefono" placeholder="Celular o Línea Baja" value={formData.telefono} onChange={handleInputChange} className="h-11 font-bold border-2" />
+                  </div>
+                </div>
+
+                <Separator />
+
                 {/* Georreferenciación Reparada */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -576,31 +603,6 @@ export default function SolicitudCapacitacionPage() {
                   </div>
                 </div>
 
-                <Separator />
-
-                <div className="space-y-6">
-                  <Label className="text-sm font-black uppercase tracking-tight text-primary block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">NOMBRE COMPLETO</Label>
-                        <div className="relative">
-                          <Input name="nombre_completo" placeholder="Nombre y Apellido" value={formData.nombre_completo} onChange={handleInputChange} readOnly={padronFound} className={cn("h-11 font-bold border-2", padronFound && "bg-green-50 border-green-200 text-green-900")} />
-                          {padronFound && <Button variant="ghost" size="icon" className="absolute right-1 top-1 h-9 w-9" onClick={() => { setFormData(p => ({...p, nombre_completo: '', cedula: ''})); setPadronFound(false); }}><X className="h-4 w-4"/></Button>}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">C.I.C. N.º</Label>
-                        <div className="relative">
-                          <Input name="cedula" placeholder="Ej: 1.234.567" value={formData.cedula} onChange={handleCedulaChange} disabled={isSearchingCedula} className="h-11 font-black border-2" />
-                          {isSearchingCedula && <Loader2 className="absolute right-2 top-3 h-5 w-5 animate-spin text-primary" />}
-                        </div>
-                      </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">NÚMERO DE CONTACTO</Label>
-                    <Input name="telefono" placeholder="Celular o Línea Baja" value={formData.telefono} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                  </div>
-                </div>
               </CardContent>
               <CardFooter className="bg-primary p-0">
                   <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-primary text-white hover:bg-primary/90 text-xl font-black uppercase rounded-none shadow-2xl">
