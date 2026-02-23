@@ -186,30 +186,29 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    {/* Column 3: Divulgador Info */}
-                                    <div className="lg:col-span-3">
+                                    {/* Column 3: Divulgador Info & Asignar */}
+                                    <div className="lg:col-span-3 space-y-2">
                                       <div className="p-4 rounded-xl bg-muted/20 border-2 border-dashed border-muted transition-colors group-hover:bg-primary/5 group-hover:border-primary/20">
                                           <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">DIVULGADOR ASIGNADO</p>
                                           <p className="text-sm font-black uppercase text-primary truncate">
                                             {item.divulgador_nombre || 'POR ASIGNAR'}
                                           </p>
                                       </div>
+                                      {canAssign && (
+                                          <Button variant="outline" size="sm" className="h-9 w-full text-[9px] font-black uppercase border-2 border-primary/20 hover:border-primary hover:bg-primary/5 transition-all" onClick={() => setSelectedSolicitud(item)}>
+                                              <UserPlus className="mr-2 h-3.5 w-3.5" /> ASIGNAR PERSONAL
+                                          </Button>
+                                      )}
                                     </div>
 
                                     {/* Column 4: Botones de Acción */}
-                                    <div className="lg:col-span-3 flex flex-wrap lg:flex-nowrap justify-end gap-2">
+                                    <div className="lg:col-span-3 flex flex-wrap lg:flex-nowrap justify-end gap-2 items-center">
                                       <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase border-2 flex-1 lg:flex-none" onClick={() => setQrSolicitud(item)}>
                                           <QrCode className="mr-2 h-3.5 w-3.5" /> QR ENCUESTA
                                       </Button>
                                       
-                                      {canAssign && (
-                                          <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase border-2 flex-1 lg:flex-none" onClick={() => setSelectedSolicitud(item)}>
-                                              <UserPlus className="mr-2 h-3.5 w-3.5" /> ASIGNAR
-                                          </Button>
-                                      )}
-                                      
                                       <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex-1 lg:flex-none">
-                                        <Button variant="default" size="sm" className="h-10 w-full text-[10px] font-black uppercase shadow-lg px-6">
+                                        <Button variant="default" size="sm" className="h-10 w-full text-[10px] font-black uppercase shadow-lg px-8">
                                           INFORME
                                         </Button>
                                       </Link>
