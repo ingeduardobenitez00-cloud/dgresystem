@@ -604,6 +604,9 @@ export default function SolicitudCapacitacionPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-4">
+                    <div className="bg-primary/5 text-primary text-[10px] font-black uppercase px-4 py-2 rounded-lg border border-primary/10 text-center">
+                      Doble clic en el mapa para capturar coordenadas exactas
+                    </div>
                     <div className="rounded-xl overflow-hidden border-4 border-muted shadow-inner bg-muted/20 relative">
                       {/* Contenedor del mapa con height fijo y z-index asegurado */}
                       <div 
@@ -611,11 +614,6 @@ export default function SolicitudCapacitacionPage() {
                         className="h-[350px] w-full bg-muted/30 relative z-10" 
                         style={{ height: '350px', minHeight: '350px' }} 
                       />
-                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
-                        <div className="bg-black/80 text-white text-[9px] font-black uppercase px-4 py-2 rounded-full backdrop-blur-md shadow-2xl border border-white/20 whitespace-nowrap">
-                          Doble clic en el mapa para capturar coordenadas exactas
-                        </div>
-                      </div>
                     </div>
                     <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex flex-col items-center justify-between gap-4">
                       <div className="flex items-center gap-3 w-full">
