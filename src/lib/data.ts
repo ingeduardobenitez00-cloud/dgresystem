@@ -168,6 +168,7 @@ export type MovimientoMaquinaRegistro = {
   codigo_maquina: string;
   lugar: string;
   firma: string;
+  lacre_estado?: 'correcto' | 'violentado';
 }
 
 export type MovimientoMaquina = {

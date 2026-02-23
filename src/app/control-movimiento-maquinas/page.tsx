@@ -22,7 +22,9 @@ import {
   Lock,
   Search,
   FileText,
-  Printer
+  Printer,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
@@ -33,6 +35,7 @@ import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function ControlMovimientoMaquinasPage() {
   const { user, isUserLoading } = useUser();
@@ -51,11 +54,13 @@ export default function ControlMovimientoMaquinasPage() {
     codigo_maquina: '',
     fecha: '',
     hora: '',
+    lacre_estado: 'correcto' as 'correcto' | 'violentado',
   });
   const [devolucionData, setDevolucionData] = useState({
     codigo_maquina: '',
     fecha: '',
     hora: '',
+    lacre_estado: 'correcto' as 'correcto' | 'violentado',
   });
 
   // Handle Hydration: Set initial dates on client mount
@@ -170,7 +175,8 @@ export default function ControlMovimientoMaquinasPage() {
       hora: salidaData.hora,
       codigo_maquina: salidaData.codigo_maquina,
       lugar: selectedSolicitud.lugar_local,
-      firma: salidaFotoDoc, // Ahora es la foto del documento completo
+      firma: salidaFotoDoc,
+      lacre_estado: salidaData.lacre_estado
     };
 
     const docData = {
@@ -212,7 +218,8 @@ export default function ControlMovimientoMaquinasPage() {
       hora: devolucionData.hora,
       codigo_maquina: currentMovimiento.salida?.codigo_maquina || '',
       lugar: selectedSolicitud.lugar_local,
-      firma: devolucionFotoDoc, // Ahora es la foto del documento completo
+      firma: devolucionFotoDoc,
+      lacre_estado: devolucionData.lacre_estado
     };
 
     try {
@@ -251,7 +258,8 @@ export default function ControlMovimientoMaquinasPage() {
         hora: currentData.hora,
         codigo_maquina: type === 'salida' ? currentData.codigo_maquina : (currentMovimiento?.salida?.codigo_maquina || ''),
         lugar: selectedSolicitud.lugar_local,
-        firma: null
+        firma: null,
+        lacre_estado: currentData.lacre_estado
       };
     } else {
       dataToUse = type === 'salida' ? currentMovimiento?.salida : currentMovimiento?.devolucion;
@@ -294,12 +302,35 @@ export default function ControlMovimientoMaquinasPage() {
     addLine("CÓDIGO MÁQUINA", dataToUse.codigo_maquina);
     addLine("LUGAR DE DIVULGACIÓN", dataToUse.lugar);
 
-    y += 10;
+    // Lacre Status Section in PDF
+    y += 5;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin, y, 170, 25, 3, 3);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    const lacreLabel = type === 'salida' ? "ESTADO DE LOS LACRES A LA ENTREGA" : "ESTADO DE LOS LACRES A LA DEVOLUCIÓN";
+    doc.text(lacreLabel, margin + 5, y + 8);
+    
+    // Correcto option
+    const correctSelected = !isProforma && dataToUse.lacre_estado === 'correcto';
+    doc.circle(margin + 10, y + 18, 3);
+    if (correctSelected) doc.text("X", margin + 9, y + 19);
+    doc.setFont('helvetica', 'bold');
+    doc.text("CORRECTO", margin + 15, y + 19);
+    
+    // Violentado option
+    const violentSelected = !isProforma && dataToUse.lacre_estado === 'violentado';
+    doc.circle(margin + 60, y + 18, 3);
+    if (violentSelected) doc.text("X", margin + 59, y + 19);
+    doc.text("VIOLENTADO", margin + 65, y + 19);
+
+    y += 35;
     doc.setFont('helvetica', 'bold');
     doc.text("FIRMA DEL FUNCIONARIO:", margin, y);
     
     if (!isProforma && dataToUse.firma) {
-      // Si ya tiene firma (foto del doc), la mostramos abajo
       doc.addPage();
       doc.text("RESPALDO DEL DOCUMENTO FIRMADO", 105, 20, { align: 'center' });
       doc.addImage(dataToUse.firma, 'JPEG', margin, 30, 170, 230);
@@ -417,6 +448,26 @@ export default function ControlMovimientoMaquinasPage() {
                     />
                   </div>
 
+                  {/* Lacre Section Salida */}
+                  <div className="p-4 bg-muted/30 border-2 rounded-xl space-y-3">
+                    <Label className="text-[10px] font-black uppercase text-primary">ESTADO DE LOS LACRES A LA ENTREGA</Label>
+                    <RadioGroup 
+                      value={currentMovimiento?.salida?.lacre_estado || salidaData.lacre_estado} 
+                      onValueChange={(val: any) => setSalidaData(p => ({...p, lacre_estado: val}))}
+                      disabled={!!currentMovimiento}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="correcto" id="s-correcto" />
+                        <Label htmlFor="s-correcto" className="text-xs font-bold uppercase cursor-pointer">Correcto</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="violentado" id="s-violentado" />
+                        <Label htmlFor="s-violentado" className="text-xs font-bold uppercase cursor-pointer text-destructive">Violentado</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
                   <div className="p-4 bg-muted/20 rounded-lg border space-y-3">
                     <Label className="text-xs font-bold uppercase flex items-center gap-2">
                       <FileText className="h-3 w-3" /> Documento Físico Firmado
@@ -499,6 +550,26 @@ export default function ControlMovimientoMaquinasPage() {
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-orange-600">Código Máquina (Confirmado)</Label>
                       <Input value={currentMovimiento?.salida?.codigo_maquina || ''} readOnly className="bg-muted font-black text-lg border-orange-200" />
+                    </div>
+
+                    {/* Lacre Section Devolucion */}
+                    <div className="p-4 bg-muted/30 border-2 rounded-xl space-y-3">
+                      <Label className="text-[10px] font-black uppercase text-orange-600">ESTADO DE LOS LACRES A LA DEVOLUCIÓN</Label>
+                      <RadioGroup 
+                        value={currentMovimiento?.devolucion?.lacre_estado || devolucionData.lacre_estado} 
+                        onValueChange={(val: any) => setDevolucionData(p => ({...p, lacre_estado: val}))}
+                        disabled={!!currentMovimiento?.devolucion}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="correcto" id="d-correcto" />
+                          <Label htmlFor="d-correcto" className="text-xs font-bold uppercase cursor-pointer">Correcto</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="violentado" id="d-violentado" />
+                          <Label htmlFor="d-violentado" className="text-xs font-bold uppercase cursor-pointer text-destructive">Violentado</Label>
+                        </div>
+                      </RadioGroup>
                     </div>
 
                     <div className="p-4 bg-muted/20 rounded-lg border space-y-3">
