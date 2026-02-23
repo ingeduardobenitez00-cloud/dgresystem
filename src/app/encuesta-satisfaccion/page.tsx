@@ -209,22 +209,31 @@ function EncuestaContent() {
     y += 15;
 
     doc.setFont('helvetica', 'bold');
-    doc.text("¿Qué tan seguro/a se siente?", margin, y);
+    doc.text("Después de la práctica, ¿qué tan seguro/a se siente para utilizar", margin, y);
+    y += 5;
+    doc.text("la máquina de votación?", margin, y);
     y += 7;
     doc.setFont('helvetica', 'normal');
     const seguridadMap = { muy_seguro: 'Muy seguro/a', seguro: 'Seguro/a', poco_seguro: 'Poco seguro/a', nada_seguro: 'Nada seguro/a' };
     doc.text(`[X] ${seguridadMap[formData.seguridad_maquina as keyof typeof seguridadMap]}`, margin + 5, y);
     
     y = 240;
-    doc.setLineWidth(0.5);
-    doc.line(margin, y, 190, y);
-    y += 10;
+    doc.setLineWidth(0.2);
+    doc.rect(margin, y, 170, 30);
+    
+    y += 6;
     doc.setFont('helvetica', 'bold');
-    doc.text("PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, y, { align: "center" });
-    y += 10;
+    doc.text("PARA USO INTERNO DE LA JUSTICIA ELECTORAL", margin + 5, y);
+    
+    y += 8;
     doc.setFont('helvetica', 'normal');
-    doc.text(`Distrito: ${user?.profile?.distrito || ''}`, margin, y);
-    doc.text(`Departamento: ${user?.profile?.departamento || ''}`, 110, y);
+    doc.setFontSize(10);
+    doc.text(`Distrito: ${user?.profile?.distrito || '____________________'}`, margin + 5, y);
+    doc.text(`Departamento: ${user?.profile?.departamento || '____________________'}`, margin + 85, y);
+    
+    y += 8;
+    doc.setFontSize(9);
+    doc.text("Enviar a la Dirección del CIDEE hasta el martes posterior a la semana de divulgación.", margin + 5, y);
 
     doc.save(`Encuesta-${formData.lugar_practica || 'Satisfaccion'}.pdf`);
   };
@@ -360,7 +369,7 @@ function EncuestaContent() {
                     <Label htmlFor="f-1" className="flex-1 font-bold cursor-pointer">Muy fácil</Label>
                   </div>
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
-                    <RadioGroupItem value="facil" id="f-2" />
+                    <RadioGroupItem value="fasil" id="f-2" />
                     <Label htmlFor="f-2" className="flex-1 font-bold cursor-pointer">Fácil</Label>
                   </div>
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
@@ -373,7 +382,49 @@ function EncuestaContent() {
                   </div>
                 </RadioGroup>
               </div>
+
+              <div className="space-y-4">
+                <Label className="font-black text-sm uppercase tracking-tight text-primary block">
+                  Después de la práctica, ¿qué tan seguro/a se siente para utilizar la máquina de votación?
+                </Label>
+                <RadioGroup value={formData.seguridad_maquina} onValueChange={(v) => handleValueChange('seguridad_maquina', v)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
+                    <RadioGroupItem value="muy_seguro" id="s-1" />
+                    <Label htmlFor="s-1" className="flex-1 font-bold cursor-pointer">Muy seguro/a</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
+                    <RadioGroupItem value="seguro" id="s-2" />
+                    <Label htmlFor="s-2" className="flex-1 font-bold cursor-pointer">Seguro/a</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
+                    <RadioGroupItem value="poco_seguro" id="s-3" />
+                    <Label htmlFor="s-3" className="flex-1 font-bold cursor-pointer">Poco seguro/a</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
+                    <RadioGroupItem value="nada_seguro" id="s-4" />
+                    <Label htmlFor="s-4" className="flex-1 font-bold cursor-pointer">Nada seguro/a</Label>
+                  </div>
+                </RadioGroup>
+              </div>
             </div>
+
+            <div className="mt-10 border-2 border-primary/20 p-6 rounded-lg bg-white shadow-sm">
+                <p className="font-black text-xs uppercase text-primary mb-4 tracking-widest border-b pb-2">PARA USO INTERNO DE LA JUSTICIA ELECTORAL</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground">Distrito:</span>
+                        <span className="font-bold border-b border-dashed border-primary/40 pb-1">{user?.profile?.distrito || 'N/A'}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground">Departamento:</span>
+                        <span className="font-bold border-b border-dashed border-primary/40 pb-1">{user?.profile?.departamento || 'N/A'}</span>
+                    </div>
+                </div>
+                <p className="text-[10px] font-medium italic text-muted-foreground mt-4">
+                    Enviar a la Dirección del CIDEE hasta el martes posterior a la semana de divulgación.
+                </p>
+            </div>
+
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row gap-4 bg-muted/30 border-t p-6">
             <Button onClick={generatePDF} variant="outline" className="w-full sm:w-auto font-black h-14 px-8 border-primary text-primary hover:bg-primary/5">
