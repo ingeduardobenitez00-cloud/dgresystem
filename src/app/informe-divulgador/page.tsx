@@ -9,13 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserCheck, FileDown, CalendarDays, Camera, Trash2, Image as ImageIcon, Plus, X, CheckCircle2 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
+import { Loader2, UserCheck, FileDown, Camera, Trash2, CheckCircle2, Globe, X } from 'lucide-react';
+import { useUser, useFirebase, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, doc } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -44,6 +43,7 @@ function InformeContent() {
   const [markedCells, setMarcaciones] = useState<number[]>([]);
   const [eventPhotos, setEventPhotos] = useState<string[]>([]);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     lugar_divulgacion: '',
     fecha: '',
@@ -57,9 +57,34 @@ function InformeContent() {
     distrito: '',
   });
 
-  // State para búsqueda de Cédula del Divulgador
+  // State para búsqueda de Cédula del Divulgador (Manual)
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
+
+  // FETCH AUTOMÁTICO DESDE LA AGENDA
+  const solicitudRef = useMemoFirebase(() => 
+    firestore && agendaId ? doc(firestore, 'solicitudes-capacitacion', agendaId) : null,
+    [firestore, agendaId]
+  );
+  const { data: agendaDoc, isLoading: isLoadingDoc } = useDoc<SolicitudCapacitacion>(solicitudRef);
+
+  useEffect(() => {
+    if (agendaDoc) {
+      setFormData(prev => ({
+        ...prev,
+        lugar_divulgacion: agendaDoc.lugar_local,
+        fecha: agendaDoc.fecha,
+        hora_desde: agendaDoc.hora_desde,
+        hora_hasta: agendaDoc.hora_hasta,
+        nombre_divulgador: agendaDoc.divulgador_nombre || '',
+        cedula_divulgador: agendaDoc.divulgador_cedula || '',
+        vinculo: agendaDoc.divulgador_vinculo || '',
+        oficina: agendaDoc.distrito || '',
+        departamento: agendaDoc.departamento || '',
+        distrito: agendaDoc.distrito || '',
+      }));
+    }
+  }, [agendaDoc]);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -76,6 +101,7 @@ function InformeContent() {
     fetchLogo();
   }, []);
 
+  // Carga inicial por perfil si no hay agendaId
   useEffect(() => {
     if (!isUserLoading && user?.profile && !agendaId) {
       setFormData(prev => ({
@@ -89,45 +115,6 @@ function InformeContent() {
       }));
     }
   }, [user, isUserLoading, agendaId]);
-
-  const agendaQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.profile?.distrito) return null;
-    
-    const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
-    
-    if (canFilterAll) {
-        return collection(firestore, 'solicitudes-capacitacion');
-    }
-
-    return query(
-      collection(firestore, 'solicitudes-capacitacion'),
-      where('departamento', '==', user.profile.departamento),
-      where('distrito', '==', user.profile.distrito)
-    );
-  }, [firestore, user]);
-
-  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
-
-  useEffect(() => {
-    if (agendaId && agendaItems) {
-      const item = agendaItems.find(a => a.id === agendaId);
-      if (item) {
-        setFormData(prev => ({
-          ...prev,
-          lugar_divulgacion: item.lugar_local,
-          fecha: item.fecha,
-          hora_desde: item.hora_desde,
-          hora_hasta: item.hora_hasta,
-          nombre_divulgador: item.divulgador_nombre || '',
-          cedula_divulgador: item.divulgador_cedula || '',
-          vinculo: item.divulgador_vinculo || '',
-          oficina: item.distrito || '',
-          departamento: item.departamento || '',
-          distrito: item.distrito || '',
-        }));
-      }
-    }
-  }, [agendaId, agendaItems]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -176,26 +163,6 @@ function InformeContent() {
       setFormData(p => ({ ...p, nombre_divulgador: '', cedula_divulgador: '' }));
       setPadronFound(false);
   }
-
-  const handleAgendaSelect = (id: string) => {
-    const item = agendaItems?.find(a => a.id === id);
-    if (item) {
-      setFormData(prev => ({
-        ...prev,
-        lugar_divulgacion: item.lugar_local,
-        fecha: item.fecha,
-        hora_desde: item.hora_desde,
-        hora_hasta: item.hora_hasta,
-        nombre_divulgador: item.divulgador_nombre || '',
-        cedula_divulgador: item.divulgador_cedula || '',
-        vinculo: item.divulgador_vinculo || '',
-        oficina: item.distrito || '',
-        departamento: item.departamento || '',
-        distrito: item.distrito || '',
-      }));
-      toast({ title: "Actividad Vinculada", description: "Se han cargado los datos de la agenda." });
-    }
-  };
 
   const toggleCell = (num: number) => {
     setMarcaciones(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
@@ -328,41 +295,25 @@ function InformeContent() {
     doc.save(`AnexoIII-${formData.cedula_divulgador}.pdf`);
   };
 
-  if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  if (isUserLoading || (agendaId && isLoadingDoc)) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
       <Header title="Anexo III" />
       <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full">
         
-        <div className="mb-6">
-          <Card className="bg-primary/5 border-primary/20 shadow-md">
-            <CardHeader className="py-4">
-              <CardTitle className="text-xs font-black flex items-center gap-2 uppercase tracking-widest text-primary">
-                <CalendarDays className="h-4 w-4" />
-                VINCULAR CON ACTIVIDAD DE LA AGENDA
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select onValueChange={handleAgendaSelect} value={agendaId || undefined}>
-                <SelectTrigger className="h-12 border-2 bg-white">
-                  <SelectValue placeholder={isLoadingAgenda ? "Cargando actividades..." : "Seleccione una sesión programada..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  {agendaItems && agendaItems.length > 0 ? (
-                    agendaItems.map(item => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local} ({item.solicitante_entidad})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>No hay actividades disponibles</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-        </div>
+        {agendaId && agendaDoc && (
+            <div className="mb-6 animate-in fade-in slide-in-from-top-4">
+                <div className="bg-primary text-white p-4 rounded-xl shadow-lg flex items-center gap-4">
+                    <Globe className="h-8 w-8 opacity-50 shrink-0" />
+                    <div>
+                        <p className="text-[10px] font-black uppercase opacity-80">Reportando Sesión en:</p>
+                        <p className="text-lg font-black uppercase leading-tight">{agendaDoc.lugar_local}</p>
+                        <p className="text-[10px] font-bold opacity-80">{agendaDoc.distrito} - {agendaDoc.departamento}</p>
+                    </div>
+                </div>
+            </div>
+        )}
 
         <Card className="shadow-xl border-t-4 border-t-primary overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
@@ -382,10 +333,10 @@ function InformeContent() {
                         name="nombre_divulgador"
                         value={formData.nombre_divulgador} 
                         onChange={handleInputChange}
-                        readOnly={padronFound}
-                        className={cn("font-bold h-11 border-2", padronFound && "bg-green-50 border-green-300 text-green-900")}
+                        readOnly={padronFound || !!agendaId}
+                        className={cn("font-bold h-11 border-2", (padronFound || !!agendaId) && "bg-green-50 border-green-300 text-green-900")}
                     />
-                    {padronFound && (
+                    {padronFound && !agendaId && (
                         <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={clearDivulgadorData}>
                             <X className="h-4 w-4" />
                         </Button>
@@ -400,7 +351,7 @@ function InformeContent() {
                         name="cedula_divulgador" 
                         value={formData.cedula_divulgador} 
                         onChange={handleCedulaDivulgadorChange} 
-                        disabled={isSearchingCedula}
+                        disabled={isSearchingCedula || !!agendaId}
                         className="font-black h-11 border-2"
                     />
                     {isSearchingCedula && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
@@ -408,28 +359,28 @@ function InformeContent() {
                 </div>
                 <div className="space-y-2">
                   <Label className="font-black text-primary text-[10px] uppercase tracking-widest">Vínculo</Label>
-                  <Input name="vinculo" value={formData.vinculo} onChange={handleInputChange} className="font-bold h-11 border-2" />
+                  <Input name="vinculo" value={formData.vinculo} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="font-black text-primary text-[10px] uppercase tracking-widest">Oficina / Distrito</Label>
-                <Input name="oficina" value={formData.oficina} onChange={handleInputChange} className="font-bold h-11 border-2" />
+                <Input name="oficina" value={formData.oficina} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
               </div>
               <div className="space-y-2">
                 <Label className="font-black text-primary text-[10px] uppercase tracking-widest">Departamento</Label>
-                <Input name="departamento" value={formData.departamento} onChange={handleInputChange} className="font-bold h-11 border-2" />
+                <Input name="departamento" value={formData.departamento} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Lugar de Divulgación</Label>
-                    <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} className="font-bold h-11 border-2" />
+                    <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">Fecha</Label>
-                        <Input type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} className="font-bold h-11 border-2" />
+                        <Input type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">Cantidad Personas</Label>
