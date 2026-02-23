@@ -245,21 +245,16 @@ export default function ControlMovimientoMaquinasPage() {
     let dataToUse: any = null;
     
     if (isProforma) {
-      const currentData = type === 'salida' ? salidaData : devolucionData;
-      if (type === 'salida' && !currentData.codigo_maquina) {
-        toast({ variant: 'destructive', title: 'Código requerido', description: 'Ingrese el código de la máquina para la proforma.' });
-        return;
-      }
       dataToUse = {
         nombre: selectedSolicitud.divulgador_nombre || user?.profile?.username || '',
         cedula: selectedSolicitud.divulgador_cedula || user?.profile?.cedula || '',
         vinculo: selectedSolicitud.divulgador_vinculo || user?.profile?.vinculo || '',
-        fecha: currentData.fecha,
-        hora: currentData.hora,
-        codigo_maquina: type === 'salida' ? currentData.codigo_maquina : (currentMovimiento?.salida?.codigo_maquina || ''),
+        fecha: type === 'salida' ? salidaData.fecha : devolucionData.fecha,
+        hora: type === 'salida' ? salidaData.hora : devolucionData.hora,
+        codigo_maquina: type === 'salida' ? salidaData.codigo_maquina : (currentMovimiento?.salida?.codigo_maquina || ''),
         lugar: selectedSolicitud.lugar_local,
         firma: null,
-        lacre_estado: currentData.lacre_estado
+        lacre_estado: type === 'salida' ? salidaData.lacre_estado : devolucionData.lacre_estado
       };
     } else {
       dataToUse = type === 'salida' ? currentMovimiento?.salida : currentMovimiento?.devolucion;
@@ -269,78 +264,141 @@ export default function ControlMovimientoMaquinasPage() {
 
     const doc = new jsPDF();
     const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
     
+    // Header
     doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text("JUSTICIA ELECTORAL", 105, 20, { align: "center" });
-    doc.setFontSize(12);
-    doc.text(type === 'salida' ? "FORMULARIO 01: SALIDA DE MÁQUINA" : "FORMULARIO 02: DEVOLUCIÓN DE MÁQUINA", 105, 28, { align: "center" });
+    const title = type === 'salida' ? "FORMULARIO 01 – SALIDA DE MÁQUINA DE VOTACIÓN" : "FORMULARIO 02 – DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN";
+    doc.text(title, 105, 20, { align: "center" });
 
-    if (isProforma) {
-      doc.setFontSize(10);
-      doc.setTextColor(150);
-      doc.text("PROFORMA PARA FIRMA FÍSICA", 105, 34, { align: "center" });
-      doc.setTextColor(0);
-    }
+    // Fecha (top right)
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    const fechaText = isProforma ? "FECHA ___/___/___" : `FECHA ${formatDateToDDMMYYYY(dataToUse.fecha)}`;
+    doc.text(fechaText, pageWidth - margin - 40, 30);
 
-    let y = 50;
-    const addLine = (label: string, value: string) => {
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${label}:`, margin, y);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(value || '').toUpperCase(), margin + 60, y);
-      doc.line(margin + 60, y + 1, 190, y + 1);
-      y += 12;
-    };
+    let y = 45;
 
-    addLine("FUNCIONARIO RESPONSABLE", dataToUse.nombre);
-    addLine("NÚMERO DE CÉDULA", dataToUse.cedula);
-    addLine("VÍNCULO", dataToUse.vinculo);
-    addLine("FECHA", formatDateToDDMMYYYY(dataToUse.fecha));
-    addLine("HORA DE " + (type === 'salida' ? 'SALIDA' : 'DEVOLUCIÓN'), dataToUse.hora);
-    addLine("CÓDIGO MÁQUINA", dataToUse.codigo_maquina);
-    addLine("LUGAR DE DIVULGACIÓN", dataToUse.lugar);
-
-    // Lacre Status Section in PDF
-    y += 5;
+    // Nº C.I.
+    doc.setFont('helvetica', 'bold');
+    doc.text("Nº C.I:", margin, y);
     doc.setDrawColor(0);
     doc.setLineWidth(0.5);
-    doc.roundedRect(margin, y, 170, 25, 3, 3);
-    
+    doc.roundedRect(margin + 15, y - 6, 60, 8, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(dataToUse.cedula || ''), margin + 20, y - 1);
+
+    y += 12;
+
+    // Vínculo
     doc.setFont('helvetica', 'bold');
+    doc.text("VÍNCULO:", margin, y);
+    
+    const drawCheckbox = (x: number, label: string, isChecked: boolean) => {
+      doc.rect(x, y - 5, 5, 5);
+      if (isChecked) doc.text("X", x + 1, y - 1);
+      doc.setFont('helvetica', 'normal');
+      doc.text(label, x + 7, y);
+    };
+
+    const currentVinculo = String(dataToUse.vinculo || '').toUpperCase();
+    drawCheckbox(margin + 25, "PERMANENTE", currentVinculo === 'PERMANENTE');
+    drawCheckbox(margin + 75, "CONTRATADO", currentVinculo === 'CONTRATADO');
+    drawCheckbox(margin + 125, "COMISIONADO", currentVinculo === 'COMISIONADO');
+
+    y += 15;
+
+    // Nombre Completo
+    doc.setFont('helvetica', 'bold');
+    doc.text("NOMBRE COMPLETO DEL FUNCIONARIO RESPONSABLE", margin, y);
+    y += 4;
+    doc.roundedRect(margin, y, 170, 8, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(dataToUse.nombre || '').toUpperCase(), margin + 5, y + 6);
+
+    y += 20;
+
+    // Hora y Lacre (Row)
+    const hourLabel = type === 'salida' ? "HORA DE SALIDA:" : "HORA DE DEVOLUCIÓN:";
+    doc.setFont('helvetica', 'bold');
+    doc.text(hourLabel, margin, y);
+    doc.roundedRect(margin + 45, y - 6, 35, 8, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    const hourVal = isProforma ? "___:___ HS" : `${dataToUse.hora} HS`;
+    doc.text(hourVal, margin + 50, y - 1);
+
+    // Box Lacre (Right)
+    const boxX = margin + 100;
+    doc.roundedRect(boxX, y - 10, 70, 25, 3, 3);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    const lacreTitle = type === 'salida' ? "ESTADO DE LOS LACRES A LA ENTREGA" : "ESTADO DE LOS LACRES A LA DEVOLUCIÓN";
+    doc.text(lacreTitle, boxX + 5, y - 4, { maxWidth: 60 });
+    
+    const drawCircleOption = (cx: number, cy: number, label: string, isChecked: boolean) => {
+      doc.circle(cx, cy, 3);
+      if (isChecked) doc.text("X", cx - 1, cy + 1);
+      doc.text(label, cx + 5, cy + 1);
+    };
+
+    const lacreStatus = dataToUse.lacre_estado || 'correcto';
+    drawCircleOption(boxX + 10, y + 8, "CORRECTO", !isProforma && lacreStatus === 'correcto');
+    drawCircleOption(boxX + 45, y + 8, "VIOLENTADO", !isProforma && lacreStatus === 'violentado');
+
+    y += 25;
+
+    // Número de Código Máquina
     doc.setFontSize(11);
-    const lacreLabel = type === 'salida' ? "ESTADO DE LOS LACRES A LA ENTREGA" : "ESTADO DE LOS LACRES A LA DEVOLUCIÓN";
-    doc.text(lacreLabel, margin + 5, y + 8);
-    
-    // Correcto option
-    const correctSelected = !isProforma && dataToUse.lacre_estado === 'correcto';
-    doc.circle(margin + 10, y + 18, 3);
-    if (correctSelected) doc.text("X", margin + 9, y + 19);
     doc.setFont('helvetica', 'bold');
-    doc.text("CORRECTO", margin + 15, y + 19);
-    
-    // Violentado option
-    const violentSelected = !isProforma && dataToUse.lacre_estado === 'violentado';
-    doc.circle(margin + 60, y + 18, 3);
-    if (violentSelected) doc.text("X", margin + 59, y + 19);
-    doc.text("VIOLENTADO", margin + 65, y + 19);
+    doc.text("NÚMERO DE CÓDIGO DE LA MÁQUINA DE VOTACIÓN", margin, y);
+    y += 4;
+    doc.roundedRect(margin, y, 90, 8, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(dataToUse.codigo_maquina || '').toUpperCase(), margin + 5, y + 6);
+
+    y += 15;
+
+    // Lugar de Divulgación
+    doc.setFont('helvetica', 'bold');
+    const lugarLabel = "LUGAR DE LA DIVULGACIÓN (ANEXO I LUGAR FIJO DE DIVULGACIÓN O ANEXO V PROFORMA DE SOLICITUD)";
+    doc.text(doc.splitTextToSize(lugarLabel, 170), margin, y);
+    y += 10;
+    doc.roundedRect(margin, y, 170, 8, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(dataToUse.lugar || '').toUpperCase(), margin + 5, y + 6);
 
     y += 35;
-    doc.setFont('helvetica', 'bold');
-    doc.text("FIRMA DEL FUNCIONARIO:", margin, y);
+
+    // Signatures Area
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
     
+    // Left Chief
+    doc.line(margin, y, margin + 70, y);
+    doc.text("FIRMA JEFE", margin, y + 5);
+    doc.text("ACLARACIÓN:", margin, y + 10);
+
+    // Right Chief
+    doc.line(pageWidth - margin - 70, y, pageWidth - margin, y);
+    doc.text("FIRMA JEFE", pageWidth - margin - 70, y + 5);
+    doc.text("ACLARACIÓN:", pageWidth - margin - 70, y + 10);
+
+    // Center Staff
+    y += 20;
+    const centerLineX = (pageWidth - 80) / 2;
+    doc.line(centerLineX, y, centerLineX + 80, y);
+    const staffLabel = type === 'salida' ? "FIRMA DEL FUNCIONARIO QUE RETIRA" : "FIRMA DEL FUNCIONARIO QUE DEVUELVE";
+    doc.text(staffLabel, centerLineX, y + 5);
+    doc.text("ACLARACIÓN:", centerLineX, y + 10);
+
     if (!isProforma && dataToUse.firma) {
       doc.addPage();
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
       doc.text("RESPALDO DEL DOCUMENTO FIRMADO", 105, 20, { align: 'center' });
       doc.addImage(dataToUse.firma, 'JPEG', margin, 30, 170, 230);
-    } else {
-      y += 50;
-      doc.setFontSize(10);
-      doc.text("__________________________", 55, y, { align: "center" });
-      doc.text("Firma y Aclaración", 55, y + 5, { align: "center" });
-      doc.text("__________________________", 155, y, { align: "center" });
-      doc.text("Sello y Firma Jefatura", 155, y + 5, { align: "center" });
     }
 
     const name = isProforma ? 'Proforma' : 'Comprobante';
