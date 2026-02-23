@@ -34,6 +34,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+// Import CSS for Leaflet and Geosearch
+import 'leaflet/dist/leaflet.css';
+import 'leaflet-geosearch/dist/geosearch.css';
+
 function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<F>): Promise<ReturnType<F>> =>
@@ -94,7 +98,7 @@ export default function SolicitudCapacitacionPage() {
     fetchLogo();
   }, []);
 
-  // Lógica de Mapa Reparada
+  // REPARACIÓN DEFINITIVA DEL MAPA
   useEffect(() => {
     let map: any = null;
     let L: any = null;
@@ -104,9 +108,11 @@ export default function SolicitudCapacitacionPage() {
       if (typeof window === 'undefined' || !mapContainerRef.current || mapInstanceRef.current) return;
 
       try {
+        // Carga dinámica de Leaflet y Plugins
         L = (await import('leaflet')).default;
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
+        // Configuración de Iconos (Solución a iconos invisibles)
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -114,19 +120,25 @@ export default function SolicitudCapacitacionPage() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        const initialPos: [number, number] = [-25.311549, -57.653496];
+        // Inicialización de instancia
+        const initialPos: [number, number] = [-25.311549, -57.653496]; // Asunción
         map = L.map(mapContainerRef.current, {
+          center: initialPos,
+          zoom: 13,
           doubleClickZoom: false,
           zoomControl: true,
           scrollWheelZoom: true
-        }).setView(initialPos, 13);
+        });
 
         mapInstanceRef.current = map;
 
+        // Capa de mapas OSM
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
           attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
+        // Control de Búsqueda
         const provider = new OpenStreetMapProvider();
         const searchControl = new (GeoSearchControl as any)({
           provider,
@@ -140,6 +152,7 @@ export default function SolicitudCapacitacionPage() {
         });
         map.addControl(searchControl);
 
+        // Eventos de captura
         map.on('geosearch/showlocation', (result: any) => {
           const { x, y } = result.location;
           const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
@@ -156,14 +169,21 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        setTimeout(() => {
-          if (map) map.invalidateSize();
-        }, 500);
-
-        resizeObserver = new ResizeObserver(() => {
+        // EL TRUCO MÁGICO: Forzar refresco en múltiples etapas
+        const forceRefresh = () => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
+        };
+
+        forceRefresh();
+        setTimeout(forceRefresh, 100);
+        setTimeout(forceRefresh, 500);
+        setTimeout(forceRefresh, 1000);
+
+        // Observador de cambios de tamaño (maneja apertura de sidebar)
+        resizeObserver = new ResizeObserver(() => {
+          forceRefresh();
         });
         resizeObserver.observe(mapContainerRef.current);
 
@@ -172,7 +192,8 @@ export default function SolicitudCapacitacionPage() {
       }
     };
 
-    const timer = setTimeout(initMap, 400);
+    // Delay de seguridad para asegurar que el layout esté listo
+    const timer = setTimeout(initMap, 500);
 
     return () => {
       clearTimeout(timer);
@@ -584,7 +605,12 @@ export default function SolicitudCapacitacionPage() {
                   </CardHeader>
                   <CardContent className="p-6 space-y-4">
                     <div className="rounded-xl overflow-hidden border-4 border-muted shadow-inner bg-muted/20 relative">
-                      <div ref={mapContainerRef} className="h-[350px] w-full bg-muted/30" style={{ minHeight: '350px' }} />
+                      {/* Contenedor del mapa con height fijo y z-index asegurado */}
+                      <div 
+                        ref={mapContainerRef} 
+                        className="h-[350px] w-full bg-muted/30 relative z-10" 
+                        style={{ height: '350px', minHeight: '350px' }} 
+                      />
                       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
                         <div className="bg-black/80 text-white text-[9px] font-black uppercase px-4 py-2 rounded-full backdrop-blur-md shadow-2xl border border-white/20 whitespace-nowrap">
                           Doble clic en el mapa para capturar coordenadas exactas
