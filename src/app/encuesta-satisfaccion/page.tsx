@@ -18,7 +18,7 @@ import { type SolicitudCapacitacion } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { formatDateToDDMMYYYY } from '@/lib/utils';
+import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 
 function EncuestaContent() {
   const { user, isUserLoading } = useUser();
@@ -331,7 +331,7 @@ function EncuestaContent() {
 
             <div className="space-y-8">
               <div className="space-y-4">
-                <Label className="font-black text-sm uppercase tracking-tight text-primary">¿Le parece útil practicar con la máquina de votación?</Label>
+                <Label className="font-black text-sm uppercase tracking-tight text-primary block">¿Le parece útil practicar con la máquina de votación?</Label>
                 <RadioGroup value={formData.utilidad_maquina} onValueChange={(v) => handleValueChange('utilidad_maquina', v)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer data-[state=checked]:border-primary">
                     <RadioGroupItem value="muy_util" id="u-1" />
@@ -353,7 +353,7 @@ function EncuestaContent() {
               </div>
 
               <div className="space-y-4">
-                <Label className="font-black text-sm uppercase tracking-tight text-primary">¿Le resultó fácil usar la máquina de votación?</Label>
+                <Label className="font-black text-sm uppercase tracking-tight text-primary block">¿Le resultó fácil usar la máquina de votación?</Label>
                 <RadioGroup value={formData.facilidad_maquina} onValueChange={(v) => handleValueChange('facilidad_maquina', v)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
                     <RadioGroupItem value="muy_facil" id="f-1" />
