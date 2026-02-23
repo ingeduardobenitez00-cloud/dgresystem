@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as CardDescriptionUI } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
-import { Loader2, Calendar, MapPin, ClipboardCheck, LayoutList, Building2, UserPlus, CheckCircle2, QrCode, X, Clock } from 'lucide-react';
+import { Loader2, Calendar, MapPin, ClipboardCheck, LayoutList, Building2, UserPlus, CheckCircle2, QrCode, X, Clock, Printer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
+import jsPDF from 'jspdf';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -26,6 +27,24 @@ export default function AgendaCapacitacionPage() {
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [isAssigning, setIsAssigning] = useState(false);
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Load institutional logo
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const response = await fetch('/logo.png');
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => setLogoBase64(reader.result as string);
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error fetching logo:", error);
+      }
+    };
+    fetchLogo();
+  }, []);
 
   // Master list of departments and districts
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
@@ -101,6 +120,91 @@ export default function AgendaCapacitacionPage() {
       return `${baseUrl}/encuesta-satisfaccion?solicitudId=${id}`;
   }
 
+  const handlePrintQrPdf = async () => {
+    if (!qrSolicitud || !logoBase64) return;
+    setIsGeneratingPdf(true);
+
+    try {
+      const url = getEncuestaUrl(qrSolicitud.id);
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(url)}`;
+      
+      // Fetch QR image and convert to base64
+      const response = await fetch(qrApiUrl);
+      const blob = await response.blob();
+      const qrBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+
+      // Header Letterhead
+      doc.addImage(logoBase64, 'PNG', margin, 15, 25, 25);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text("JUSTICIA ELECTORAL", 50, 25);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text("Dirección General del Registro Electoral", 50, 31);
+      doc.text("Centro de Información, Documentación y Educación Electoral (CIDEE)", 50, 36);
+
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.line(margin, 45, pageWidth - margin, 45);
+
+      // Body
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text("ENCUESTA DE SATISFACCIÓN", pageWidth / 2, 70, { align: 'center' });
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      doc.text("Uso de la Máquina de Votación Electrónica", pageWidth / 2, 80, { align: 'center' });
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`LOCAL: ${qrSolicitud.lugar_local.toUpperCase()}`, pageWidth / 2, 100, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(`${qrSolicitud.distrito} - ${qrSolicitud.departamento}`, pageWidth / 2, 108, { align: 'center' });
+
+      // QR Code
+      const qrSize = 100;
+      doc.addImage(qrBase64, 'PNG', (pageWidth - qrSize) / 2, 120, qrSize, qrSize);
+
+      // Instructions
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text("ESCANEE EL CÓDIGO QR PARA COMPLETAR LA ENCUESTA", pageWidth / 2, 235, { align: 'center' });
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100);
+      doc.text("Link de acceso directo:", pageWidth / 2, 245, { align: 'center' });
+      doc.text(url, pageWidth / 2, 250, { align: 'center', maxWidth: 150 });
+
+      // Footer
+      doc.setTextColor(0);
+      doc.setFontSize(8);
+      doc.text(`Generado el: ${new Date().toLocaleString('es-PY')}`, margin, 280);
+
+      doc.save(`QR-Encuesta-${qrSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
+      toast({ title: "PDF Generado", description: "El documento está listo para imprimir." });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF del QR." });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const canAssign = user?.profile?.role === 'admin' || user?.profile?.permissions?.includes('assign_staff');
 
   if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
@@ -147,7 +251,6 @@ export default function AgendaCapacitacionPage() {
                     <div className="divide-y divide-muted/50 bg-white">
                       {Array.from(dept.districts.entries()).map(([dist, items]) => (
                         <div key={dist} className="p-0">
-                          {/* District Header visually similar to user image */}
                           <div className="flex items-center gap-2 px-6 py-4 bg-muted/10">
                             <Building2 className="h-5 w-5 text-primary" />
                             <h3 className="text-md font-black uppercase text-foreground">{dept.code} - {dist}</h3>
@@ -158,7 +261,6 @@ export default function AgendaCapacitacionPage() {
                               <Card key={item.id} className="group relative border shadow-none hover:border-primary transition-all overflow-hidden">
                                 <div className="p-4 sm:p-6">
                                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                                    {/* Column 1: Solicitante */}
                                     <div className="lg:col-span-3 space-y-1">
                                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">SOLICITANTE</p>
                                       <p className="font-black text-sm uppercase leading-none text-primary">{item.nombre_completo}</p>
@@ -169,7 +271,6 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    {/* Column 2: Ubicacion y Fecha */}
                                     <div className="lg:col-span-3 space-y-3">
                                       <div className="flex items-center gap-3">
                                         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -187,7 +288,6 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    {/* Column 3: Divulgador Info & Asignar */}
                                     <div className="lg:col-span-3 space-y-2">
                                       <div className="p-4 rounded-xl bg-muted/20 border-2 border-dashed border-muted transition-colors group-hover:bg-primary/5 group-hover:border-primary/20">
                                           <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">DIVULGADOR ASIGNADO</p>
@@ -202,7 +302,6 @@ export default function AgendaCapacitacionPage() {
                                       )}
                                     </div>
 
-                                    {/* Column 4: Botones de Acción */}
                                     <div className="lg:col-span-3 flex flex-wrap lg:flex-nowrap justify-end gap-2 items-center">
                                       <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase border-2 flex-1 lg:flex-none" onClick={() => setQrSolicitud(item)}>
                                           <QrCode className="mr-2 h-3.5 w-3.5" /> QR ENCUESTA
@@ -253,7 +352,13 @@ export default function AgendaCapacitacionPage() {
                           {getEncuestaUrl(qrSolicitud?.id || '')}
                       </code>
                   </div>
-                  <Button variant="ghost" className="w-full text-[10px] font-black uppercase" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
+                  <div className="grid grid-cols-1 gap-2 w-full">
+                    <Button onClick={handlePrintQrPdf} disabled={isGeneratingPdf} className="w-full h-12 font-black uppercase text-[10px] shadow-lg">
+                        {isGeneratingPdf ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Printer className="mr-2 h-4 w-4" />}
+                        IMPRIMIR QR
+                    </Button>
+                    <Button variant="ghost" className="w-full text-[10px] font-black uppercase" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
+                  </div>
               </div>
           </DialogContent>
       </Dialog>
