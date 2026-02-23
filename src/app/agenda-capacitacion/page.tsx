@@ -97,7 +97,8 @@ export default function AgendaCapacitacionPage() {
 
   const getEncuestaUrl = (id: string) => {
       if (typeof window === 'undefined') return '';
-      return `${window.location.origin}/encuesta-satisfaccion?solicitudId=${id}`;
+      const baseUrl = window.location.origin;
+      return `${baseUrl}/encuesta-satisfaccion?solicitudId=${id}`;
   }
 
   const canAssign = user?.profile?.role === 'admin' || user?.profile?.permissions?.includes('assign_staff');
@@ -241,7 +242,7 @@ export default function AgendaCapacitacionPage() {
               <div className="flex flex-col items-center justify-center space-y-6 pt-4">
                   <div className="p-4 bg-white border-4 border-primary rounded-[2.5rem] shadow-2xl">
                       <img 
-                        src={`https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(getEncuestaUrl(qrSolicitud?.id || ''))}&choe=UTF-8`} 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getEncuestaUrl(qrSolicitud?.id || ''))}`} 
                         alt="QR Encuesta" 
                         className="w-48 h-48"
                       />
