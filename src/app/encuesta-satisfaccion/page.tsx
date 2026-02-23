@@ -31,6 +31,7 @@ function EncuestaContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   
+  // Safe access to search params after mount to prevent hydration mismatch
   const solicitudIdFromUrl = isMounted ? searchParams.get('solicitudId') : null;
 
   const [formData, setFormData] = useState({
@@ -46,7 +47,6 @@ function EncuestaContent() {
     distrito: '',
   });
 
-  // Safety mount check to prevent hydration errors with useSearchParams
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -62,11 +62,11 @@ function EncuestaContent() {
     if (publicSolicitud) {
       setFormData(prev => ({
         ...prev,
-        lugar_practica: publicSolicitud.lugar_local,
-        fecha: publicSolicitud.fecha,
-        hora: publicSolicitud.hora_desde,
-        departamento: publicSolicitud.departamento,
-        distrito: publicSolicitud.distrito,
+        lugar_practica: publicSolicitud.lugar_local || '',
+        fecha: publicSolicitud.fecha || '',
+        hora: publicSolicitud.hora_desde || '',
+        departamento: publicSolicitud.departamento || '',
+        distrito: publicSolicitud.distrito || '',
       }));
     }
   }, [publicSolicitud]);
