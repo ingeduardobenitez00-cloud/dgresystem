@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,19 +7,21 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 /**
  * An invisible component that listens for globally emitted 'permission-error' events.
- * It throws any received error only in development to be caught by Next.js's overlay.
- * In production, it logs the error to prevent application crashes.
+ * It handles errors gracefully to prevent application crashes for end-users.
  */
 export function FirebaseErrorListener() {
   const [error, setError] = useState<FirestorePermissionError | null>(null);
 
   useEffect(() => {
     const handleError = (error: FirestorePermissionError) => {
-      // In production, we don't want to crash the app for the end-user (e.g. Citizens)
-      if (process.env.NODE_ENV === 'development') {
+      // We only want to crash the app in development to help developers debug.
+      // In a real hosted environment, we suppress the crash to keep the app functional.
+      const isDev = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
+      
+      if (isDev) {
         setError(error);
       } else {
-        console.warn('Firestore Permission Error (Suppressed in Production):', error.message);
+        console.warn('Firestore Permission Error (Suppressed for Stability):', error.message);
       }
     };
 
@@ -29,6 +32,7 @@ export function FirebaseErrorListener() {
     };
   }, []);
 
+  // Throwing here will trigger the Nearest Error Boundary or Next.js App Error Screen
   if (error) {
     throw error;
   }

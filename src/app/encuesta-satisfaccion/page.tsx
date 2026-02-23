@@ -20,9 +20,10 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
+import { Badge } from '@/components/ui/badge';
 
 function EncuestaContent() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -31,7 +32,6 @@ function EncuestaContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   
-  // Get ID directly to avoid hydration delays in fetch logic
   const solicitudIdFromUrl = searchParams.get('solicitudId');
 
   const [formData, setFormData] = useState({
@@ -114,7 +114,6 @@ function EncuestaContent() {
     try {
       await addDoc(collection(firestore, 'encuestas-satisfaccion'), encuestaData);
       toast({ title: "¡Gracias!", description: "Tu feedback ha sido registrado exitosamente." });
-      // Clear personal fields but keep location if it was from QR
       setFormData(p => ({ 
         ...p, 
         edad: '', 

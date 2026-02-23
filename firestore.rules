@@ -52,23 +52,23 @@ service cloud.firestore {
     }
 
     match /partidos-politicos/{partidoId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     /** Main Data Collections **/
     match /locales-votacion/{localId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn();
     }
     
     match /imagenes/{imagenId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn();
     }
 
     match /reports/{reportId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn();
     }
 
@@ -86,17 +86,20 @@ service cloud.firestore {
     }
 
     match /informes-divulgador/{informeId} {
-      allow read, create, update: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /informes-semanales-anexo-iv/{informeId} {
-      allow read, create, update: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /movimientos-maquinas/{movimientoId} {
-      allow read, create, update: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
