@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, CalendarDays, Search } from 'lucide-react';
+import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, CalendarDays } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -40,7 +41,20 @@ function EncuestaContent() {
     utilidad_maquina: 'muy_util' as const,
     facilidad_maquina: 'muy_facil' as const,
     seguridad_maquina: 'muy_seguro' as const,
+    departamento: '',
+    distrito: '',
   });
+
+  // Handle defaults from user profile when first loaded
+  useEffect(() => {
+    if (!isUserLoading && user?.profile && !formData.departamento) {
+      setFormData(prev => ({
+        ...prev,
+        departamento: user.profile?.departamento || '',
+        distrito: user.profile?.distrito || '',
+      }));
+    }
+  }, [user, isUserLoading, formData.departamento]);
 
   // Set initial dates only on client to avoid hydration mismatch
   useEffect(() => {
@@ -104,6 +118,8 @@ function EncuestaContent() {
           lugar_practica: item.lugar_local,
           fecha: item.fecha,
           hora: item.hora_desde,
+          departamento: item.departamento,
+          distrito: item.distrito,
         }));
       }
     }
@@ -127,6 +143,8 @@ function EncuestaContent() {
         lugar_practica: item.lugar_local,
         fecha: item.fecha,
         hora: item.hora_desde,
+        departamento: item.departamento,
+        distrito: item.distrito,
       }));
       toast({ title: "Datos de Agenda Cargados", description: `Ubicación: ${item.lugar_local}` });
     }
@@ -143,8 +161,6 @@ function EncuestaContent() {
     setIsSubmitting(true);
     const encuestaData = {
       ...formData,
-      departamento: user.profile?.departamento || '',
-      distrito: user.profile?.distrito || '',
       usuario_id: user.uid,
       fecha_creacion: new Date().toISOString(),
       server_timestamp: serverTimestamp(),
@@ -228,8 +244,8 @@ function EncuestaContent() {
     y += 8;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Distrito: ${user?.profile?.distrito || '____________________'}`, margin + 5, y);
-    doc.text(`Departamento: ${user?.profile?.departamento || '____________________'}`, margin + 85, y);
+    doc.text(`Distrito: ${formData.distrito || '____________________'}`, margin + 5, y);
+    doc.text(`Departamento: ${formData.departamento || '____________________'}`, margin + 85, y);
     
     y += 8;
     doc.setFontSize(9);
@@ -319,7 +335,7 @@ function EncuestaContent() {
 
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase text-primary tracking-widest">GÉNERO</Label>
-                <RadioGroup value={formData.genero} onValueChange={(v) => handleValueChange('genero', v)} className="flex flex-wrap gap-6 bg-muted/20 p-4 rounded-lg border-2 border-dashed">
+                <RadioGroup value={formData.genero} onValueChange={(v) => handleValueChange('genero', v as any)} className="flex flex-wrap gap-6 bg-muted/20 p-4 rounded-lg border-2 border-dashed">
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="hombre" id="g-h" />
                     <Label htmlFor="g-h" className="font-bold cursor-pointer">HOMBRE</Label>
@@ -341,7 +357,7 @@ function EncuestaContent() {
             <div className="space-y-8">
               <div className="space-y-4">
                 <Label className="font-black text-sm uppercase tracking-tight text-primary block">¿Le parece útil practicar con la máquina de votación?</Label>
-                <RadioGroup value={formData.utilidad_maquina} onValueChange={(v) => handleValueChange('utilidad_maquina', v)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <RadioGroup value={formData.utilidad_maquina} onValueChange={(v) => handleValueChange('utilidad_maquina', v as any)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer data-[state=checked]:border-primary">
                     <RadioGroupItem value="muy_util" id="u-1" />
                     <Label htmlFor="u-1" className="flex-1 font-bold cursor-pointer">Muy útil</Label>
@@ -363,13 +379,13 @@ function EncuestaContent() {
 
               <div className="space-y-4">
                 <Label className="font-black text-sm uppercase tracking-tight text-primary block">¿Le resultó fácil usar la máquina de votación?</Label>
-                <RadioGroup value={formData.facilidad_maquina} onValueChange={(v) => handleValueChange('facilidad_maquina', v)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <RadioGroup value={formData.facilidad_maquina} onValueChange={(v) => handleValueChange('facilidad_maquina', v as any)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
                     <RadioGroupItem value="muy_facil" id="f-1" />
                     <Label htmlFor="f-1" className="flex-1 font-bold cursor-pointer">Muy fácil</Label>
                   </div>
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
-                    <RadioGroupItem value="fasil" id="f-2" />
+                    <RadioGroupItem value="facil" id="f-2" />
                     <Label htmlFor="f-2" className="flex-1 font-bold cursor-pointer">Fácil</Label>
                   </div>
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
@@ -387,7 +403,7 @@ function EncuestaContent() {
                 <Label className="font-black text-sm uppercase tracking-tight text-primary block">
                   Después de la práctica, ¿qué tan seguro/a se siente para utilizar la máquina de votación?
                 </Label>
-                <RadioGroup value={formData.seguridad_maquina} onValueChange={(v) => handleValueChange('seguridad_maquina', v)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <RadioGroup value={formData.seguridad_maquina} onValueChange={(v) => handleValueChange('seguridad_maquina', v as any)} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center space-x-2 border-2 p-4 rounded-xl hover:bg-primary/5 transition-colors cursor-pointer">
                     <RadioGroupItem value="muy_seguro" id="s-1" />
                     <Label htmlFor="s-1" className="flex-1 font-bold cursor-pointer">Muy seguro/a</Label>
@@ -413,11 +429,11 @@ function EncuestaContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                     <div className="flex flex-col gap-1">
                         <span className="text-[10px] font-black uppercase text-muted-foreground">Distrito:</span>
-                        <span className="font-bold border-b border-dashed border-primary/40 pb-1">{user?.profile?.distrito || 'N/A'}</span>
+                        <span className="font-bold border-b border-dashed border-primary/40 pb-1">{formData.distrito || 'N/A'}</span>
                     </div>
                     <div className="flex flex-col gap-1">
                         <span className="text-[10px] font-black uppercase text-muted-foreground">Departamento:</span>
-                        <span className="font-bold border-b border-dashed border-primary/40 pb-1">{user?.profile?.departamento || 'N/A'}</span>
+                        <span className="font-bold border-b border-dashed border-primary/40 pb-1">{formData.departamento || 'N/A'}</span>
                     </div>
                 </div>
                 <p className="text-[10px] font-medium italic text-muted-foreground mt-4">
