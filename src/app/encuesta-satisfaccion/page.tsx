@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -10,20 +10,19 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, CalendarDays, ExternalLink, Globe } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, orderBy, doc } from 'firebase/firestore';
+import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, Globe } from 'lucide-react';
+import { useUser, useFirebase, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 
 function EncuestaContent() {
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -31,7 +30,6 @@ function EncuestaContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const [selectedAgendaId, setSelectedAgendaId] = useState<string | undefined>(solicitudIdFromUrl || undefined);
   
   const [formData, setFormData] = useState({
     lugar_practica: '',
@@ -46,7 +44,7 @@ function EncuestaContent() {
     distrito: '',
   });
 
-  // Fetch specific solicitud if provided in URL (Public or Private)
+  // Fetch specific solicitud if provided in URL (Automated via QR)
   const solicitudRef = useMemoFirebase(() => 
     firestore && solicitudIdFromUrl ? doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl) : null,
     [firestore, solicitudIdFromUrl]
@@ -81,17 +79,6 @@ function EncuestaContent() {
     fetchLogo();
   }, []);
 
-  const agendaQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.profile) return null;
-    const colRef = collection(firestore, 'solicitudes-capacitacion');
-    const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
-    if (canFilterAll) return query(colRef, orderBy('fecha', 'desc'));
-    if (!user.profile.departamento || !user.profile.distrito) return null;
-    return query(colRef, where('departamento', '==', user.profile.departamento), where('distrito', '==', user.profile.distrito), orderBy('fecha', 'desc'));
-  }, [firestore, user]);
-
-  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -99,21 +86,6 @@ function EncuestaContent() {
 
   const handleValueChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleAgendaSelect = (id: string) => {
-    setSelectedAgendaId(id);
-    const item = agendaItems?.find(a => a.id === id);
-    if (item) {
-      setFormData(prev => ({
-        ...prev,
-        lugar_practica: item.lugar_local,
-        fecha: item.fecha,
-        hora: item.hora_desde,
-        departamento: item.departamento,
-        distrito: item.distrito,
-      }));
-    }
   };
 
   const handleSubmit = async () => {
@@ -134,7 +106,15 @@ function EncuestaContent() {
     try {
       await addDoc(collection(firestore, 'encuestas-satisfaccion'), encuestaData);
       toast({ title: "¡Gracias!", description: "Tu feedback ha sido registrado exitosamente." });
-      setFormData(p => ({ ...p, edad: '', genero: 'hombre' }));
+      // Reset sensitive/personal fields but keep location context if came from QR
+      setFormData(p => ({ 
+        ...p, 
+        edad: '', 
+        genero: 'hombre',
+        utilidad_maquina: 'muy_util' as const,
+        facilidad_maquina: 'muy_facil' as const,
+        seguridad_maquina: 'muy_seguro' as const,
+      }));
     } catch (error) {
       const contextualError = new FirestorePermissionError({
         path: 'encuestas-satisfaccion',
@@ -197,39 +177,6 @@ function EncuestaContent() {
       )}
       <main className="flex-1 p-4 md:p-8">
         
-        {user && !solicitudIdFromUrl && (
-          <div className="mx-auto max-w-3xl mb-6">
-            <Card className="bg-primary/5 border-primary/20 shadow-md">
-              <CardHeader className="py-4">
-                <CardTitle className="text-xs font-black flex items-center gap-2 uppercase tracking-widest text-primary">
-                  <CalendarDays className="h-4 w-4" />
-                  VINCULAR CON ACTIVIDAD DE LA AGENDA (USO INTERNO)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Select onValueChange={handleAgendaSelect} value={selectedAgendaId || undefined}>
-                    <SelectTrigger className="h-12 border-2 bg-white">
-                      <SelectValue placeholder={isLoadingAgenda ? "Cargando actividades..." : "Seleccione una actividad de la agenda..."} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agendaItems && agendaItems.length > 0 ? (
-                        agendaItems.map(item => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local} ({item.solicitante_entidad})
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="none" disabled>No se encontraron actividades agendadas</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {solicitudIdFromUrl && !isLoadingPublicSol && publicSolicitud && (
             <div className="mx-auto max-w-3xl mb-6 animate-in fade-in slide-in-from-top-4">
                 <div className="bg-green-600 text-white p-4 rounded-xl shadow-lg flex items-center gap-4">
@@ -263,7 +210,7 @@ function EncuestaContent() {
                     onChange={handleInputChange} 
                     readOnly={!!solicitudIdFromUrl}
                     placeholder="Nombre del local o institución" 
-                    className={cn("h-11 font-bold border-2", (selectedAgendaId || solicitudIdFromUrl) && "bg-green-50 border-green-200")} 
+                    className={cn("h-11 font-bold border-2", solicitudIdFromUrl && "bg-green-50 border-green-200")} 
                   />
                   {(formData.lugar_practica) && <CheckCircle2 className="absolute right-3 top-3 h-5 w-5 text-green-500" />}
                 </div>
