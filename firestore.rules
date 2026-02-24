@@ -23,7 +23,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
-    /** Regla Crítica para Personal Operativo **/
+    /** Regla para Personal Operativo **/
     match /divulgadores/{document=**} {
       allow read, write: if isSignedIn();
     }

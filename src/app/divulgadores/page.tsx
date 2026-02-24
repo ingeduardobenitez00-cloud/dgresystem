@@ -55,17 +55,23 @@ export default function DivulgadoresPage() {
     const colRef = collection(firestore, 'divulgadores');
     const profile = currentUser.profile;
     
-    // Admin sees all
+    // Admin or privileged users see all
     if (profile.role === 'admin' || profile.permissions?.includes('admin_filter')) {
       return query(colRef, orderBy('nombre'));
     }
     
-    // Jefe sees only their district
+    // Regional staff sees only their district
     if (profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('nombre'));
+        return query(
+          colRef, 
+          where('departamento', '==', profile.departamento), 
+          where('distrito', '==', profile.distrito), 
+          orderBy('nombre')
+        );
     }
     
-    return query(colRef, orderBy('nombre'));
+    // Fallback: Avoid full scan for other roles without jurisdiction to prevent permission errors
+    return null;
   }, [firestore, currentUser, isUserLoading]);
 
   const { data: divulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulQuery);
