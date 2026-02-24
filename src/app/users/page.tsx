@@ -94,11 +94,7 @@ const MODULE_LABELS: { [key: string]: string } = {
 const MODULE_GROUPS = [
   {
     label: "CIDEE - CAPACITACIONES",
-    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
-  },
-  {
-    label: "DGRE",
-    modules: ['control-movimiento-maquinas']
+    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
   },
   {
     label: "Registros Electorales",
@@ -311,7 +307,7 @@ export default function UsersPage() {
             <div className="col-span-2 flex justify-center">
                 <Checkbox id={`${prefix}access-${mod}`} name={`${prefix}access-${mod}`} defaultChecked={isEdit ? user?.modules?.includes(mod) : false} />
             </div>
-            {ACTIONS.filter(a => a.id !== 'view').map(action => (
+            {ACTIONS.filter(a => a.id !== 'view').forEach(action => (
                 <div key={action.id} className="col-span-2 flex justify-center">
                     <Checkbox id={`${prefix}perm-${mod}-${action.id}`} name={`${prefix}perm-${mod}-${action.id}`} defaultChecked={isEdit ? user?.permissions?.includes(`${mod}:${action.id}`) : false} />
                 </div>
