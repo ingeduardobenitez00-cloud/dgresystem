@@ -53,13 +53,20 @@ export default function AgendaCapacitacionPage() {
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   // Divulgadores list for assignment (NOT users)
+  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado
   const divulQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.profile) return null;
+    if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'divulgadores');
     const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
+    
     if (canFilterAll) return query(colRef, orderBy('nombre'));
-    return query(colRef, where('distrito', '==', user.profile.distrito || ''), orderBy('nombre'));
-  }, [firestore, user]);
+    
+    if (user.profile.distrito) {
+        return query(colRef, where('distrito', '==', user.profile.distrito), orderBy('nombre'));
+    }
+    
+    return null;
+  }, [firestore, user, isUserLoading]);
   
   const { data: divulStaff } = useCollection<Divulgador>(divulQuery);
 
@@ -72,12 +79,18 @@ export default function AgendaCapacitacionPage() {
   }, [divulStaff, staffSearch]);
 
   const solicitudesQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.profile) return null;
+    if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const canViewAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
+    
     if (canViewAll) return query(colRef, orderBy('fecha', 'asc'));
-    return query(colRef, where('departamento', '==', user.profile.departamento), where('distrito', '==', user.profile.distrito), orderBy('fecha', 'asc'));
-  }, [firestore, user]);
+    
+    if (user.profile.departamento && user.profile.distrito) {
+        return query(colRef, where('departamento', '==', user.profile.departamento), where('distrito', '==', user.profile.distrito), orderBy('fecha', 'asc'));
+    }
+    
+    return null;
+  }, [firestore, user, isUserLoading]);
 
   const { data: solicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 

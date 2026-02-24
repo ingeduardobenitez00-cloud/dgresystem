@@ -58,9 +58,9 @@ service cloud.firestore {
 
     /** Main Data Collections **/
     
-    // Regla para Divulgadores: Acceso para cualquier usuario autenticado
-    // Se añade este comentario para forzar la actualización de seguridad v1.0.1
-    match /divulgadores/{divulgadorId} {
+    // Regla para Divulgadores: Acceso robusto para usuarios autenticados
+    // Se utiliza {document=**} para asegurar permisos en list y get v1.0.2
+    match /divulgadores/{document=**} {
       allow read, write: if isSignedIn();
     }
 

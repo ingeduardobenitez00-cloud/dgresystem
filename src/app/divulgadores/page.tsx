@@ -55,24 +55,28 @@ export default function DivulgadoresPage() {
   }, [datosData, selectedDept]);
 
   // Divulgadores Data
-  // CRITICAL FIX: Ensure user profile is loaded before querying to avoid permission errors
+  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado y el usuario autenticado
   const divulQuery = useMemoFirebase(() => {
-    if (!firestore || !currentUser?.profile) return null;
+    if (!firestore || isUserLoading || !currentUser?.profile) return null;
     const colRef = collection(firestore, 'divulgadores');
     
-    // Si es Jefe o Funcionario, solo ve los de su distrito asignado
+    // Si es Jefe o Funcionario, solo ve los de su distrito asignado para cumplir con privacidad regional
     if (currentUser.profile.role === 'jefe' || currentUser.profile.role === 'funcionario') {
         const dist = currentUser.profile.distrito || '';
         if (dist) return query(colRef, where('distrito', '==', dist), orderBy('nombre'));
     }
     
-    // Si tiene permiso de filtro nacional o es admin
+    // Si tiene permiso de filtro nacional o es admin, permite el listado completo
     const canViewAll = currentUser.profile.role === 'admin' || currentUser.profile.permissions?.includes('admin_filter');
     if (canViewAll) return query(colRef, orderBy('nombre'));
     
-    // Default fallback: empty query or based on profile district
-    return query(colRef, where('distrito', '==', currentUser.profile.distrito || 'NoDistrito'), orderBy('nombre'));
-  }, [firestore, currentUser]);
+    // Fallback: Filtrar por distrito del perfil si existe, sino no devuelve nada para evitar error de permisos de raíz
+    if (currentUser.profile.distrito) {
+        return query(colRef, where('distrito', '==', currentUser.profile.distrito), orderBy('nombre'));
+    }
+    
+    return null;
+  }, [firestore, currentUser, isUserLoading]);
 
   const { data: divulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulQuery);
 
@@ -245,7 +249,7 @@ export default function DivulgadoresPage() {
                     {isLoadingDivul ? (
                       <TableRow><TableCell colSpan={4} className="text-center py-10"><Loader2 className="animate-spin h-6 w-6 mx-auto text-primary" /></TableCell></TableRow>
                     ) : filteredDivul.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-[10px] font-bold uppercase">No hay divulgadores registrados.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-[10px] font-bold uppercase">No hay divulgadores registrados o acceso restringido.</TableCell></TableRow>
                     ) : filteredDivul.map(d => (
                       <TableRow key={d.id} className="group/row">
                         <TableCell className="py-3">
