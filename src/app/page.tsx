@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -87,7 +86,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/5">
-      <Header title="Panel de Gestión Integral" />
+      <Header title="Sistema de Gestión" />
       <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="mb-6 bg-white p-5 rounded-xl border shadow-sm">
             <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">
@@ -95,7 +94,7 @@ export default function Home() {
             </h1>
             <p className="mt-1 text-xs text-muted-foreground font-medium flex items-center gap-2">
                 <LayoutGrid className="h-3.5 w-3.5" />
-                Sistema de Gestión de la Justicia Electoral. Seleccione una categoría para desplegar los módulos autorizados.
+                Seleccione una categoría para desplegar los módulos autorizados
             </p>
         </div>
 
