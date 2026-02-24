@@ -58,12 +58,9 @@ service cloud.firestore {
 
     /** Main Data Collections **/
     
-    // Regla para Divulgadores: Acceso robusto v1.0.5
-    match /divulgadores/{divulId} {
+    // CORRECCIÓN CRÍTICA: Acceso a divulgadores unificado v1.0.8
+    match /divulgadores/{docId} {
       allow read, write: if isSignedIn();
-    }
-    match /divulgadores {
-      allow list: if isSignedIn();
     }
 
     match /locales-votacion/{localId} {
