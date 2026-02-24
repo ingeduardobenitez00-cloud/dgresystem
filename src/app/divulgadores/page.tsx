@@ -56,7 +56,9 @@ export default function DivulgadoresPage() {
     const profile = currentUser.profile;
     
     // Admin or privileged users see all
-    if (profile.role === 'admin' || profile.permissions?.includes('admin_filter')) {
+    const canViewAll = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    
+    if (canViewAll) {
       return query(colRef, orderBy('nombre'));
     }
     

@@ -56,10 +56,12 @@ export default function AgendaCapacitacionPage() {
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const profile = user.profile;
     
-    const canViewAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
+    // Admins and Directors have national view
+    const canViewAll = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
     
     if (canViewAll) return query(colRef, orderBy('fecha', 'asc'));
     
+    // regional users need assigned jurisdiction
     if (profile.departamento && profile.distrito) {
         return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha', 'asc'));
     }
@@ -69,13 +71,14 @@ export default function AgendaCapacitacionPage() {
 
   const { data: solicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
-  // Divulgadores Query (Filtered by Jefe's Jurisdiction)
+  // Divulgadores Query (Filtered by jurisdiction)
   const divulgadoresQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'divulgadores');
     const profile = user.profile;
 
-    if (profile.role === 'admin') return query(colRef, orderBy('nombre'));
+    const canViewAll = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    if (canViewAll) return query(colRef, orderBy('nombre'));
 
     if (profile.departamento && profile.distrito) {
       return query(
@@ -88,7 +91,7 @@ export default function AgendaCapacitacionPage() {
     return null;
   }, [firestore, user, isUserLoading]);
 
-  const { data: divulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
+  const { data: divulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divuladoresQuery);
 
   const filteredDivul = useMemo(() => {
     if (!divulgadores) return [];

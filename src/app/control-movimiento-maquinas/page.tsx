@@ -100,8 +100,12 @@ export default function ControlMovimientoMaquinasPage() {
   const agendaQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
+    
+    // Global views
+    const canFilterAll = ['admin', 'director'].includes(user.profile.role || '') || user.profile.permissions?.includes('admin_filter');
     if (canFilterAll) return query(colRef, orderBy('fecha', 'desc'));
+    
+    // Regional restriction
     if (!user.profile.departamento || !user.profile.distrito) return null;
     return query(colRef, where('departamento', '==', user.profile.departamento), where('distrito', '==', user.profile.distrito), orderBy('fecha', 'desc'));
   }, [firestore, user]);
