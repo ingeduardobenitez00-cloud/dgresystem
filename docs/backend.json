@@ -32,20 +32,6 @@
         "distrito"
       ]
     },
-    "Divulgador": {
-      "title": "Divulgador",
-      "type": "object",
-      "description": "Personal operativo que realiza las capacitaciones, no tiene acceso al sistema.",
-      "properties": {
-        "nombre": { "type": "string" },
-        "cedula": { "type": "string" },
-        "vinculo": { "type": "string", "enum": ["PERMANENTE", "CONTRATADO", "COMISIONADO"] },
-        "departamento": { "type": "string" },
-        "distrito": { "type": "string" },
-        "fecha_registro": { "type": "string", "format": "date-time" }
-      },
-      "required": ["nombre", "cedula", "departamento", "distrito"]
-    },
     "UserProfile": {
       "title": "User Profile",
       "type": "object",
@@ -106,11 +92,7 @@
         "departamento": { "type": "string" },
         "distrito": { "type": "string" },
         "nombre_completo": { "type": "string" },
-        "cedula": { "type": "string" },
-        "divulgador_id": { "type": "string" },
-        "divulgador_nombre": { "type": "string" },
-        "divulgador_cedula": { "type": "string" },
-        "divulgador_vinculo": { "type": "string" }
+        "cedula": { "type": "string" }
       }
     }
   },
@@ -120,10 +102,6 @@
     ]
   },
   "firestore": {
-    "/divulgadores/{divulgadorId}": {
-      "schema": { "$ref": "#/entities/Divulgador" },
-      "description": "Directorio de personal operativo para capacitaciones."
-    },
     "/users/{userId}": {
       "schema": {
         "$ref": "#/entities/UserProfile"

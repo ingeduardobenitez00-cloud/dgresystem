@@ -11,7 +11,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
-  SidebarSeparator,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -28,15 +27,13 @@ import {
   ClipboardCheck,
   CalendarDays,
   Vote,
-  FileUp,
   ChevronDown,
   MessageSquareHeart,
   UserCheck,
   PieChart,
   TableProperties,
   ArrowLeftRight,
-  Flag,
-  UserPlus
+  Flag
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -57,7 +54,6 @@ export default function AppSidebar() {
       label: "CIDEE - CAPACITACIONES",
       items: [
         { href: "/solicitud-capacitacion", label: "Nueva Solicitud", icon: ClipboardCheck },
-        { href: "/divulgadores", label: "Divulgadores", icon: UserPlus },
         { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
         { href: "/control-movimiento-maquinas", label: "Movimiento de Máquinas", icon: ArrowLeftRight },
         { href: "/encuesta-satisfaccion", label: "Encuesta Satisfacción", icon: MessageSquareHeart },

@@ -76,9 +76,6 @@ function InformeContent() {
         fecha: agendaDoc.fecha,
         hora_desde: agendaDoc.hora_desde,
         hora_hasta: agendaDoc.hora_hasta,
-        nombre_divulgador: agendaDoc.divulgador_nombre || '',
-        cedula_divulgador: agendaDoc.divulgador_cedula || '',
-        vinculo: agendaDoc.divulgador_vinculo || '',
         oficina: agendaDoc.distrito || '',
         departamento: agendaDoc.departamento || '',
         distrito: agendaDoc.distrito || '',
@@ -138,7 +135,7 @@ function InformeContent() {
         const fullName = `${userDoc.nombre || ''} ${userDoc.apellido || ''}`.trim();
         setFormData(prev => ({ ...prev, nombre_divulgador: fullName, cedula_divulgador: cedula }));
         setPadronFound(true);
-        toast({ title: "Divulgador Encontrado", description: `Datos de ${fullName} cargados.` });
+        toast({ title: "Funcionario Encontrado", description: `Datos de ${fullName} cargados.` });
       } else {
         setPadronFound(false);
       }
@@ -333,10 +330,10 @@ function InformeContent() {
                         name="nombre_divulgador"
                         value={formData.nombre_divulgador} 
                         onChange={handleInputChange}
-                        readOnly={padronFound || !!agendaId}
-                        className={cn("font-bold h-11 border-2", (padronFound || !!agendaId) && "bg-green-50 border-green-300 text-green-900")}
+                        readOnly={padronFound}
+                        className={cn("font-bold h-11 border-2", padronFound && "bg-green-50 border-green-300 text-green-900")}
                     />
-                    {padronFound && !agendaId && (
+                    {padronFound && (
                         <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={clearDivulgadorData}>
                             <X className="h-4 w-4" />
                         </Button>
@@ -351,7 +348,7 @@ function InformeContent() {
                         name="cedula_divulgador" 
                         value={formData.cedula_divulgador} 
                         onChange={handleCedulaDivulgadorChange} 
-                        disabled={isSearchingCedula || !!agendaId}
+                        disabled={isSearchingCedula}
                         className="font-black h-11 border-2"
                     />
                     {isSearchingCedula && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />}
@@ -359,28 +356,28 @@ function InformeContent() {
                 </div>
                 <div className="space-y-2">
                   <Label className="font-black text-primary text-[10px] uppercase tracking-widest">Vínculo</Label>
-                  <Input name="vinculo" value={formData.vinculo} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
+                  <Input name="vinculo" value={formData.vinculo} onChange={handleInputChange} className="font-bold h-11 border-2" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label className="font-black text-primary text-[10px] uppercase tracking-widest">Oficina / Distrito</Label>
-                <Input name="oficina" value={formData.oficina} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
+                <Input name="oficina" value={formData.oficina} onChange={handleInputChange} className="font-bold h-11 border-2" />
               </div>
               <div className="space-y-2">
                 <Label className="font-black text-primary text-[10px] uppercase tracking-widest">Departamento</Label>
-                <Input name="departamento" value={formData.departamento} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
+                <Input name="departamento" value={formData.departamento} onChange={handleInputChange} className="font-bold h-11 border-2" />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Lugar de Divulgación</Label>
-                    <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
+                    <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={handleInputChange} className="font-bold h-11 border-2" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">Fecha</Label>
-                        <Input type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} readOnly={!!agendaId} className="font-bold h-11 border-2" />
+                        <Input type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} className="font-bold h-11 border-2" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">Cantidad Personas</Label>

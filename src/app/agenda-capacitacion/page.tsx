@@ -6,18 +6,15 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as CardDescriptionUI } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
-import { type SolicitudCapacitacion, type Dato, type Divulgador } from '@/lib/data';
-import { Loader2, Calendar, MapPin, ClipboardCheck, LayoutList, Building2, UserPlus, CheckCircle2, QrCode, X, Clock, Printer, Search } from 'lucide-react';
+import { collection, query, orderBy, where } from 'firebase/firestore';
+import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
+import { Loader2, Calendar, MapPin, LayoutList, Building2, QrCode, Printer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY } from '@/lib/utils';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import jsPDF from 'jspdf';
 
 export default function AgendaCapacitacionPage() {
@@ -25,12 +22,9 @@ export default function AgendaCapacitacionPage() {
   const { firestore } = useFirebase();
   const { toast } = useToast();
 
-  const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudCapacitacion | null>(null);
-  const [isAssigning, setIsAssigning] = useState(false);
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [staffSearch, setStaffSearch] = useState('');
 
   // Load institutional logo
   useEffect(() => {
@@ -51,34 +45,6 @@ export default function AgendaCapacitacionPage() {
   // Master list of departments and districts
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
-
-  // Divulgadores list for assignment (NOT users)
-  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado y el UID existe
-  const divulQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !user?.uid || !user?.profile) return null;
-    const colRef = collection(firestore, 'divulgadores');
-    const profile = user.profile;
-    
-    const canFilterAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
-    
-    if (canFilterAll) return query(colRef, orderBy('nombre'));
-    
-    if (profile.distrito) {
-        return query(colRef, where('distrito', '==', profile.distrito), orderBy('nombre'));
-    }
-    
-    return null;
-  }, [firestore, user, isUserLoading]);
-  
-  const { data: divulStaff } = useCollection<Divulgador>(divulQuery);
-
-  const filteredStaff = useMemo(() => {
-    if (!divulStaff) return [];
-    return divulStaff.filter(s => 
-      s.nombre.toLowerCase().includes(staffSearch.toLowerCase()) || 
-      s.cedula.includes(staffSearch)
-    );
-  }, [divulStaff, staffSearch]);
 
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.uid || !user?.profile) return null;
@@ -120,28 +86,6 @@ export default function AgendaCapacitacionPage() {
       .filter(d => d.districts.size > 0)
       .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [datosData, solicitudes]);
-
-  const handleAssignDivulgador = async (divulId: string) => {
-    if (!firestore || !selectedSolicitud) return;
-    const selected = divulStaff?.find(u => u.id === divulId);
-    if (!selected) return;
-    setIsAssigning(true);
-    try {
-      await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedSolicitud.id), {
-        divulgador_id: selected.id,
-        divulgador_nombre: selected.nombre,
-        divulgador_cedula: selected.cedula || '',
-        divulgador_vinculo: selected.vinculo || ''
-      });
-      toast({ title: "¡Divulgador Asignado!", description: `${selected.nombre} ha sido asignado.` });
-      setSelectedSolicitud(null);
-      setStaffSearch('');
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo realizar la asignación." });
-    } finally {
-      setIsAssigning(false);
-    }
-  };
 
   const getEncuestaUrl = (id: string) => {
       if (typeof window === 'undefined') return '';
@@ -207,8 +151,6 @@ export default function AgendaCapacitacionPage() {
     }
   };
 
-  const canAssign = user?.profile?.role === 'admin' || user?.profile?.role === 'jefe' || user?.profile?.permissions?.includes('assign_staff');
-
   if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
   }
@@ -223,7 +165,7 @@ export default function AgendaCapacitacionPage() {
             <h1 className="text-3xl font-black tracking-tight uppercase text-primary">Agenda Consolidada</h1>
             <p className="text-muted-foreground flex items-center gap-2 mt-1 text-sm">
               <LayoutList className="h-4 w-4" />
-              Gestión nacional de actividades y asignaciones del CIDEE.
+              Gestión nacional de actividades del CIDEE.
             </p>
           </div>
         </div>
@@ -263,7 +205,7 @@ export default function AgendaCapacitacionPage() {
                               <Card key={item.id} className="group relative border shadow-none hover:border-primary transition-all overflow-hidden">
                                 <div className="p-4 sm:p-6">
                                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                                    <div className="lg:col-span-3 space-y-1">
+                                    <div className="lg:col-span-4 space-y-1">
                                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">SOLICITANTE</p>
                                       <p className="font-black text-sm uppercase leading-none text-primary">{item.nombre_completo}</p>
                                       <div className="pt-2">
@@ -273,7 +215,7 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    <div className="lg:col-span-3 space-y-3">
+                                    <div className="lg:col-span-4 space-y-3">
                                       <div className="flex items-center gap-3">
                                         <MapPin className="h-4 w-4 text-muted-foreground" />
                                         <p className="text-xs font-black uppercase leading-tight">{item.lugar_local}</p>
@@ -286,21 +228,7 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    <div className="lg:col-span-3 space-y-2">
-                                      <div className="p-4 rounded-xl bg-muted/20 border-2 border-dashed border-muted transition-colors group-hover:bg-primary/5 group-hover:border-primary/20">
-                                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">DIVULGADOR ASIGNADO</p>
-                                          <p className="text-sm font-black uppercase text-primary truncate">
-                                            {item.divulgador_nombre || 'POR ASIGNAR'}
-                                          </p>
-                                      </div>
-                                      {canAssign && (
-                                          <Button variant="outline" size="sm" className="h-9 w-full text-[9px] font-black uppercase border-2 border-primary/20 hover:border-primary hover:bg-primary/5 transition-all" onClick={() => setSelectedSolicitud(item)}>
-                                              <UserPlus className="mr-2 h-3.5 w-3.5" /> ASIGNAR PERSONAL
-                                          </Button>
-                                      )}
-                                    </div>
-
-                                    <div className="lg:col-span-3 flex flex-wrap lg:flex-nowrap justify-end gap-2 items-center">
+                                    <div className="lg:col-span-4 flex flex-wrap lg:flex-nowrap justify-end gap-2 items-center">
                                       <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase border-2 flex-1 lg:flex-none" onClick={() => setQrSolicitud(item)}>
                                           <QrCode className="mr-2 h-3.5 w-3.5" /> QR ENCUESTA
                                       </Button>
@@ -358,48 +286,6 @@ export default function AgendaCapacitacionPage() {
                     <Button variant="ghost" className="w-full text-[10px] font-black uppercase" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
                   </div>
               </div>
-          </DialogContent>
-      </Dialog>
-
-      {/* Assignment Dialog - USING DIVULGADORES COLLECTION */}
-      <Dialog open={!!selectedSolicitud} onOpenChange={(o) => !o && setSelectedSolicitud(null)}>
-          <DialogContent className="max-w-md p-0 overflow-hidden">
-              <DialogHeader className="p-6 bg-primary text-white shrink-0">
-                <DialogTitle className="uppercase font-black text-xl">Asignar Divulgador</DialogTitle>
-                <DialogDescription className="text-white/70 font-bold uppercase text-[10px]">
-                  Local: {selectedSolicitud?.lugar_local}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="p-6 space-y-6">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Buscar por nombre o C.I..." 
-                      className="pl-10 font-bold h-11 border-2" 
-                      value={staffSearch}
-                      onChange={e => setStaffSearch(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                    {filteredStaff.length > 0 ? (
-                      filteredStaff.map(s => (
-                        <div key={s.id} onClick={() => handleAssignDivulgador(s.id)} className="flex items-center justify-between p-3 border-2 rounded-xl hover:border-primary hover:bg-primary/5 cursor-pointer transition-all group">
-                          <div>
-                            <p className="font-black text-xs uppercase group-hover:text-primary">{s.nombre}</p>
-                            <p className="text-[9px] font-bold text-muted-foreground">C.I. {s.cedula} | {s.vinculo}</p>
-                          </div>
-                          <CheckCircle2 className="h-5 w-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-center py-10 text-[10px] font-bold text-muted-foreground uppercase">No se encontraron divulgadores disponibles.</p>
-                    )}
-                  </div>
-              </div>
-              <DialogFooter className="p-4 bg-muted/30 border-t">
-                <Button variant="ghost" className="uppercase font-black text-[10px]" onClick={() => { setSelectedSolicitud(null); setStaffSearch(''); }}>CANCELAR</Button>
-              </DialogFooter>
           </DialogContent>
       </Dialog>
     </div>

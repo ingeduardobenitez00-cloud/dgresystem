@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, DatabaseBackup, Flag, UserPlus } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -31,12 +31,6 @@ export const dashboardMenuItems = [
     label: 'Agenda',
     icon: CalendarDays,
     description: 'Visualiza el calendario de capacitaciones agendadas.',
-  },
-  {
-    href: '/divulgadores',
-    label: 'Divulgadores',
-    icon: UserPlus,
-    description: 'Directorio de personal operativo del CIDEE para asignaciones.',
   },
   {
     href: '/control-movimiento-maquinas',
