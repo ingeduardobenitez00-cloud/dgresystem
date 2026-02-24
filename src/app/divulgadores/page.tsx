@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { UserPlus, Users, Loader2, Edit, Trash2, Search, Building2, Landmark, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Users, Loader2, Edit, Trash2, Search, Building2, Landmark, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -54,25 +54,18 @@ export default function DivulgadoresPage() {
     return [...new Set(datosData.filter(d => d.departamento === selectedDept).map(d => d.distrito))].sort();
   }, [datosData, selectedDept]);
 
-  // Divulgadores Data
-  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado y el usuario autenticado plenamente
+  // Divulgadores Data - Consulta robusta y defensiva
   const divulQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !currentUser?.uid || !currentUser?.profile) return null;
     
     const colRef = collection(firestore, 'divulgadores');
     const profile = currentUser.profile;
     
-    // Si tiene permiso de filtro nacional o es admin, permite el listado completo
+    // El administrador o usuarios con filtro nacional ven todo
     const canViewAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
     if (canViewAll) return query(colRef, orderBy('nombre'));
     
-    // Si es Jefe o Funcionario, solo ve los de su distrito asignado
-    if (profile.role === 'jefe' || profile.role === 'funcionario') {
-        const dist = profile.distrito || '';
-        if (dist) return query(colRef, where('distrito', '==', dist), orderBy('nombre'));
-    }
-    
-    // Fallback: Filtrar por distrito del perfil si existe
+    // Usuarios locales ven su distrito
     if (profile.distrito) {
         return query(colRef, where('distrito', '==', profile.distrito), orderBy('nombre'));
     }
@@ -80,7 +73,7 @@ export default function DivulgadoresPage() {
     return null;
   }, [firestore, currentUser, isUserLoading]);
 
-  const { data: divulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulQuery);
+  const { data: divulgadores, isLoading: isLoadingDivul, error: divulError } = useCollection<Divulgador>(divulQuery);
 
   const filteredDivul = useMemo(() => {
     if (!divulgadores) return [];
@@ -161,9 +154,15 @@ export default function DivulgadoresPage() {
       <Header title="Gestión de Divulgadores" />
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8">
         
+        {divulError && (
+          <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl flex items-center gap-3 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <p className="text-xs font-bold uppercase">Error de sincronización con la base de datos. Por favor, refresque la página.</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Formulario de Registro */}
           <Card className="lg:col-span-1 border-t-4 border-t-primary shadow-lg h-fit">
             <form onSubmit={handleRegister}>
               <CardHeader className="bg-muted/30 border-b">
@@ -225,7 +224,6 @@ export default function DivulgadoresPage() {
             </form>
           </Card>
 
-          {/* Listado */}
           <Card className="lg:col-span-2 shadow-lg border-none">
             <CardHeader className="flex flex-row items-center justify-between pb-4">
               <CardTitle className="uppercase font-black text-sm flex items-center gap-2">
@@ -299,7 +297,6 @@ export default function DivulgadoresPage() {
         </div>
       </main>
 
-      {/* Modal Editar */}
       <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="max-w-lg p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-primary text-white shrink-0">
