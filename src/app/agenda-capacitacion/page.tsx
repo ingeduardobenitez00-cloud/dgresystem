@@ -53,16 +53,18 @@ export default function AgendaCapacitacionPage() {
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   // Divulgadores list for assignment (NOT users)
-  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado
+  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado y el UID existe
   const divulQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !user?.profile) return null;
+    if (!firestore || isUserLoading || !user?.uid || !user?.profile) return null;
     const colRef = collection(firestore, 'divulgadores');
-    const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
+    const profile = user.profile;
+    
+    const canFilterAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
     
     if (canFilterAll) return query(colRef, orderBy('nombre'));
     
-    if (user.profile.distrito) {
-        return query(colRef, where('distrito', '==', user.profile.distrito), orderBy('nombre'));
+    if (profile.distrito) {
+        return query(colRef, where('distrito', '==', profile.distrito), orderBy('nombre'));
     }
     
     return null;
@@ -79,14 +81,16 @@ export default function AgendaCapacitacionPage() {
   }, [divulStaff, staffSearch]);
 
   const solicitudesQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !user?.profile) return null;
+    if (!firestore || isUserLoading || !user?.uid || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    const canViewAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
+    const profile = user.profile;
+    
+    const canViewAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
     
     if (canViewAll) return query(colRef, orderBy('fecha', 'asc'));
     
-    if (user.profile.departamento && user.profile.distrito) {
-        return query(colRef, where('departamento', '==', user.profile.departamento), where('distrito', '==', user.profile.distrito), orderBy('fecha', 'asc'));
+    if (profile.departamento && profile.distrito) {
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha', 'asc'));
     }
     
     return null;

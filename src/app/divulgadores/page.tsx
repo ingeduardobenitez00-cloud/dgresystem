@@ -55,24 +55,26 @@ export default function DivulgadoresPage() {
   }, [datosData, selectedDept]);
 
   // Divulgadores Data
-  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado y el usuario autenticado
+  // REFUERZO DE SEGURIDAD: Solo consultamos si el perfil está cargado y el usuario autenticado plenamente
   const divulQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !currentUser?.profile) return null;
-    const colRef = collection(firestore, 'divulgadores');
+    if (!firestore || isUserLoading || !currentUser?.uid || !currentUser?.profile) return null;
     
-    // Si es Jefe o Funcionario, solo ve los de su distrito asignado para cumplir con privacidad regional
-    if (currentUser.profile.role === 'jefe' || currentUser.profile.role === 'funcionario') {
-        const dist = currentUser.profile.distrito || '';
+    const colRef = collection(firestore, 'divulgadores');
+    const profile = currentUser.profile;
+    
+    // Si tiene permiso de filtro nacional o es admin, permite el listado completo
+    const canViewAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
+    if (canViewAll) return query(colRef, orderBy('nombre'));
+    
+    // Si es Jefe o Funcionario, solo ve los de su distrito asignado
+    if (profile.role === 'jefe' || profile.role === 'funcionario') {
+        const dist = profile.distrito || '';
         if (dist) return query(colRef, where('distrito', '==', dist), orderBy('nombre'));
     }
     
-    // Si tiene permiso de filtro nacional o es admin, permite el listado completo
-    const canViewAll = currentUser.profile.role === 'admin' || currentUser.profile.permissions?.includes('admin_filter');
-    if (canViewAll) return query(colRef, orderBy('nombre'));
-    
-    // Fallback: Filtrar por distrito del perfil si existe, sino no devuelve nada para evitar error de permisos de raíz
-    if (currentUser.profile.distrito) {
-        return query(colRef, where('distrito', '==', currentUser.profile.distrito), orderBy('nombre'));
+    // Fallback: Filtrar por distrito del perfil si existe
+    if (profile.distrito) {
+        return query(colRef, where('distrito', '==', profile.distrito), orderBy('nombre'));
     }
     
     return null;
