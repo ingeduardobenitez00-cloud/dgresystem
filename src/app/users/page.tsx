@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -291,6 +290,16 @@ export default function UsersPage() {
     } finally { setIsSubmitting(false); }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (!firestore || !currentUser) return;
+    try {
+      await deleteDoc(doc(firestore, 'users', userId));
+      toast({ title: 'Usuario eliminado exitosamente' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error al eliminar', description: error.message });
+    }
+  };
+
   const PermissionRow = ({ mod, isEdit = false }: { mod: string, isEdit?: boolean }) => {
     const prefix = isEdit ? 'edit-' : '';
     const user = editingUser;
@@ -415,7 +424,25 @@ export default function UsersPage() {
                             <TableCell className="text-right">
                                 <div className="flex justify-end gap-1">
                                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(user)}><Edit className="h-4 w-4" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteUser(user.id)}><Trash2 className="h-4 w-4" /></Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Esta acción eliminará permanentemente el perfil de <strong>{user.username}</strong> de la base de datos.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                                    Eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             </TableCell>
                         </TableRow>
