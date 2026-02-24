@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, Search, X, ShieldCheck, ShieldAlert, MapPin, Globe } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Users, Loader2, Edit, Trash2, Search, X, ShieldCheck, ShieldAlert, MapPin, Globe, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -131,6 +131,33 @@ const ACTIONS = [
 
 const GLOBAL_PERMISSIONS = ['admin_filter', 'assign_staff'];
 
+/**
+ * Plantillas de permisos por defecto para cada rol.
+ * Al seleccionar un rol, el sistema marcará estos módulos automáticamente.
+ */
+const ROLE_DEFAULTS: Record<UserProfile['role'], { modules: string[], permissions: string[] }> = {
+  admin: {
+    modules: ALL_MODULES,
+    permissions: [...GLOBAL_PERMISSIONS, ...ALL_MODULES.flatMap(m => ACTIONS.map(a => `${m}:${a.id}`))]
+  },
+  director: {
+    modules: ALL_MODULES.filter(m => !['users', 'settings'].includes(m)),
+    permissions: ['admin_filter', ...ALL_MODULES.flatMap(m => [`${m}:view`, `${m}:pdf`])]
+  },
+  jefe: {
+    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion'],
+    permissions: ['assign_staff', 'solicitud-capacitacion:view', 'solicitud-capacitacion:add', 'divulgadores:view', 'divulgadores:add', 'agenda-capacitacion:view', 'informe-divulgador:view', 'informe-divulgador:add', 'informe-semanal-puntos-fijos:view', 'informe-semanal-puntos-fijos:add', 'informe-semanal-puntos-fijos:pdf']
+  },
+  funcionario: {
+    modules: ['ficha', 'fotos', 'cargar-ficha', 'locales-votacion', 'cargar-fotos-locales', 'solicitud-capacitacion'],
+    permissions: ['ficha:view', 'ficha:edit', 'fotos:view', 'fotos:add', 'locales-votacion:view', 'solicitud-capacitacion:add']
+  },
+  viewer: {
+    modules: ['resumen', 'estadisticas-capacitacion', 'locales-votacion'],
+    permissions: ['resumen:view', 'estadisticas-capacitacion:view', 'locales-votacion:view']
+  }
+};
+
 export default function UsersPage() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
@@ -147,6 +174,8 @@ export default function UsersPage() {
   const [regDepartamento, setRegDepartamento] = useState<string>('');
   const [regDistrito, setRegDistrito] = useState<string>('');
   const [regRole, setRegRole] = useState<UserProfile['role']>('viewer');
+  const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
+  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
 
   // Editing States
   const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -154,6 +183,8 @@ export default function UsersPage() {
   const [editRole, setEditRole] = useState<UserProfile['role']>();
   const [editDepartamento, setEditDepartamento] = useState<string>('');
   const [editDistrito, setEditDistrito] = useState<string>('');
+  const [editSelectedModules, setEditSelectedModules] = useState<Set<string>>(new Set());
+  const [editSelectedPerms, setEditSelectedPerms] = useState<Set<string>>(new Set());
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -184,30 +215,84 @@ export default function UsersPage() {
     );
   }, [users, searchTerm]);
 
-  const processPermissions = (formData: FormData, isEdit: boolean = false) => {
-    const prefix = isEdit ? 'edit-' : '';
-    const modules: string[] = [];
-    const permissions: string[] = [];
+  // Aplicar sugerencias de rol automáticamente
+  const applyRoleDefaults = (role: UserProfile['role'], isEdit: boolean = false) => {
+    const defaults = ROLE_DEFAULTS[role];
+    if (!defaults) return;
 
-    ALL_MODULES.forEach(mod => {
-        if (formData.get(`${prefix}access-${mod}`)) {
-            modules.push(mod);
-            permissions.push(`${mod}:view`);
-        }
-        ACTIONS.filter(a => a.id !== 'view').forEach(action => {
-            if (formData.get(`${prefix}perm-${mod}-${action.id}`)) {
-                permissions.push(`${mod}:${action.id}`);
-            }
-        });
+    if (isEdit) {
+      setEditSelectedModules(new Set(defaults.modules));
+      setEditSelectedPerms(new Set(defaults.permissions));
+    } else {
+      setSelectedModules(new Set(defaults.modules));
+      setSelectedPerms(new Set(defaults.permissions));
+    }
+    
+    toast({
+      title: "Plantilla aplicada",
+      description: `Se han sugerido permisos para el rol de ${role.toUpperCase()}.`,
     });
+  };
 
-    GLOBAL_PERMISSIONS.forEach(perm => {
-        if (formData.get(`${prefix}global-perm-${perm}`)) {
-            permissions.push(perm);
-        }
-    });
+  const toggleModule = (mod: string, isEdit: boolean = false) => {
+    if (isEdit) {
+      const next = new Set(editSelectedModules);
+      if (next.has(mod)) {
+        next.delete(mod);
+        // Quitar también todos los permisos asociados
+        const nextPerms = new Set(editSelectedPerms);
+        ACTIONS.forEach(a => nextPerms.delete(`${mod}:${a.id}`));
+        setEditSelectedPerms(nextPerms);
+      } else {
+        next.add(mod);
+        // Por defecto añadir permiso de Ver
+        const nextPerms = new Set(editSelectedPerms);
+        nextPerms.add(`${mod}:view`);
+        setEditSelectedPerms(nextPerms);
+      }
+      setEditSelectedModules(next);
+    } else {
+      const next = new Set(selectedModules);
+      if (next.has(mod)) {
+        next.delete(mod);
+        const nextPerms = new Set(selectedPerms);
+        ACTIONS.forEach(a => nextPerms.delete(`${mod}:${a.id}`));
+        setSelectedPerms(nextPerms);
+      } else {
+        next.add(mod);
+        const nextPerms = new Set(selectedPerms);
+        nextPerms.add(`${mod}:view`);
+        setSelectedPerms(nextPerms);
+      }
+      setSelectedModules(next);
+    }
+  };
 
-    return { modules, permissions };
+  const togglePermission = (perm: string, mod: string, isEdit: boolean = false) => {
+    if (isEdit) {
+      const next = new Set(editSelectedPerms);
+      if (next.has(perm)) {
+        next.delete(perm);
+      } else {
+        next.add(perm);
+        // Si se marca un permiso específico, asegurar que el módulo esté marcado
+        const nextModules = new Set(editSelectedModules);
+        nextModules.add(mod);
+        setEditSelectedModules(nextModules);
+      }
+      setEditSelectedPerms(next);
+    } else {
+      const next = new Set(selectedPerms);
+      if (next.has(perm)) {
+        next.delete(perm);
+      } else {
+        next.add(perm);
+        const nextModules = new Set(selectedModules);
+        nextModules.add(mod);
+        setSelectedModules(nextModules);
+      }
+      setSelectedPerms(next);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -221,14 +306,12 @@ export default function UsersPage() {
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
 
-    const { modules, permissions } = processPermissions(formData);
-
     const newUserProfile: Omit<UserProfile, 'id'> = { 
       username: username.toUpperCase(), 
       email, 
       role: regRole, 
-      modules, 
-      permissions, 
+      modules: Array.from(selectedModules), 
+      permissions: Array.from(selectedPerms), 
       departamento: regDepartamento || '', 
       distrito: regDistrito || ''
     };
@@ -247,6 +330,8 @@ export default function UsersPage() {
       setRegDepartamento('');
       setRegDistrito('');
       setRegRole('viewer');
+      setSelectedModules(new Set());
+      setSelectedPerms(new Set());
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -260,6 +345,8 @@ export default function UsersPage() {
     setEditRole(user.role);
     setEditDepartamento(user.departamento || '');
     setEditDistrito(user.distrito || '');
+    setEditSelectedModules(new Set(user.modules || []));
+    setEditSelectedPerms(new Set(user.permissions || []));
     setEditModalOpen(true);
   };
 
@@ -267,14 +354,12 @@ export default function UsersPage() {
     event.preventDefault();
     if (!firestore || !editingUser) return;
     setIsSubmitting(true);
-    const formData = new FormData(event.currentTarget);
-    const { modules, permissions } = processPermissions(formData, true);
     
     const isRegionalRole = editRole !== 'admin' && editRole !== 'director';
     const updatedFields = { 
       role: editRole, 
-      modules, 
-      permissions, 
+      modules: Array.from(editSelectedModules), 
+      permissions: Array.from(editSelectedPerms), 
       departamento: isRegionalRole ? editDepartamento : editDepartamento || '', 
       distrito: isRegionalRole ? editDistrito : editDistrito || '' 
     };
@@ -299,19 +384,26 @@ export default function UsersPage() {
   };
 
   const PermissionRow = ({ mod, isEdit = false }: { mod: string, isEdit?: boolean }) => {
-    const prefix = isEdit ? 'edit-' : '';
-    const userProfile = isEdit ? editingUser : null;
+    const curModules = isEdit ? editSelectedModules : selectedModules;
+    const curPerms = isEdit ? editSelectedPerms : selectedPerms;
+
     return (
         <div className="grid grid-cols-12 gap-2 items-center py-2 px-3 border-b hover:bg-muted/30 transition-colors">
             <div className="col-span-2">
                 <p className="font-bold text-[10px] uppercase tracking-tighter truncate">{MODULE_LABELS[mod] || mod}</p>
             </div>
             <div className="col-span-2 flex justify-center">
-                <Checkbox id={`${prefix}access-${mod}`} name={`${prefix}access-${mod}`} defaultChecked={isEdit ? userProfile?.modules?.includes(mod) : false} />
+                <Checkbox 
+                  checked={curModules.has(mod)} 
+                  onCheckedChange={() => toggleModule(mod, isEdit)} 
+                />
             </div>
             {ACTIONS.filter(a => a.id !== 'view').map(action => (
                 <div key={action.id} className="col-span-2 flex justify-center">
-                    <Checkbox id={`${prefix}perm-${mod}-${action.id}`} name={`${prefix}perm-${mod}-${action.id}`} defaultChecked={isEdit ? userProfile?.permissions?.includes(`${mod}:${action.id}`) : false} />
+                    <Checkbox 
+                      checked={curPerms.has(`${mod}:${action.id}`)} 
+                      onCheckedChange={() => togglePermission(`${mod}:${action.id}`, mod, isEdit)} 
+                    />
                 </div>
             ))}
         </div>
@@ -339,7 +431,20 @@ export default function UsersPage() {
         <Card className="border-t-4 border-t-primary shadow-lg">
           <form onSubmit={handleSubmit}>
             <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="uppercase font-black text-primary text-sm">NUEVO USUARIO Y MATRIZ DE PERMISOS</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="uppercase font-black text-primary text-sm">NUEVO USUARIO Y MATRIZ DE PERMISOS</CardTitle>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[9px] font-black uppercase h-8 border-primary/20 text-primary"
+                    onClick={() => applyRoleDefaults(regRole)}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1.5" /> Sugerir permisos
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-8 pt-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -358,7 +463,15 @@ export default function UsersPage() {
                 
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase">Rol Institucional</Label>
-                    <Select name="role" required value={regRole} onValueChange={(v: any) => setRegRole(v)}>
+                    <Select 
+                      name="role" 
+                      required 
+                      value={regRole} 
+                      onValueChange={(v: any) => {
+                        setRegRole(v);
+                        applyRoleDefaults(v);
+                      }}
+                    >
                         <SelectTrigger className="font-bold h-11">
                         <SelectValue />
                         </SelectTrigger>
@@ -405,7 +518,37 @@ export default function UsersPage() {
               <Separator />
 
               <div className="space-y-6">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">ASIGNACIÓN DE MÓDULOS Y ACCIONES</Label>
+                <div className="flex justify-between items-center">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">ASIGNACIÓN DE MÓDULOS Y ACCIONES</Label>
+                  <div className="flex gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="global-perm-admin_filter" 
+                        name="global-perm-admin_filter" 
+                        checked={selectedPerms.has('admin_filter')}
+                        onCheckedChange={(checked) => {
+                          const next = new Set(selectedPerms);
+                          if(checked) next.add('admin_filter'); else next.delete('admin_filter');
+                          setSelectedPerms(next);
+                        }}
+                      />
+                      <label htmlFor="global-perm-admin_filter" className="text-[9px] font-black uppercase text-primary">Filtro Nacional</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="global-perm-assign_staff" 
+                        name="global-perm-assign_staff" 
+                        checked={selectedPerms.has('assign_staff')}
+                        onCheckedChange={(checked) => {
+                          const next = new Set(selectedPerms);
+                          if(checked) next.add('assign_staff'); else next.delete('assign_staff');
+                          setSelectedPerms(next);
+                        }}
+                      />
+                      <label htmlFor="global-perm-assign_staff" className="text-[9px] font-black uppercase text-primary">Asignar Personal</label>
+                    </div>
+                  </div>
+                </div>
                 <Accordion type="multiple" className="w-full border rounded-xl overflow-hidden bg-white">
                     {MODULE_GROUPS.map((group, idx) => (
                         <AccordionItem value={`group-${idx}`} key={group.label}>
@@ -514,8 +657,21 @@ export default function UsersPage() {
         <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
             <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl">
                 <DialogHeader className="p-6 bg-primary text-white shrink-0">
-                    <DialogTitle className="text-xl font-black uppercase">Editar Perfil: {editingUser.username}</DialogTitle>
-                    <DialogDescription className="text-white/70 font-bold uppercase text-[10px]">Actualice el rol, jurisdicción y permisos del usuario.</DialogDescription>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <DialogTitle className="text-xl font-black uppercase">Editar Perfil: {editingUser.username}</DialogTitle>
+                        <DialogDescription className="text-white/70 font-bold uppercase text-[10px]">Actualice el rol, jurisdicción y permisos del usuario.</DialogDescription>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="secondary" 
+                        size="sm" 
+                        className="text-[9px] font-black uppercase"
+                        onClick={() => applyRoleDefaults(editRole || 'viewer', true)}
+                      >
+                        <Sparkles className="h-3 w-3 mr-1.5" /> Reestablecer según rol
+                      </Button>
+                    </div>
                 </DialogHeader>
                 <form onSubmit={handleUpdateUser} className="flex-1 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-8 bg-background">
@@ -523,7 +679,15 @@ export default function UsersPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase">Rol Institucional</Label>
-                                    <Select name="role" required value={editRole} onValueChange={(v: any) => setEditRole(v)}>
+                                    <Select 
+                                      name="role" 
+                                      required 
+                                      value={editRole} 
+                                      onValueChange={(v: any) => {
+                                        setEditRole(v);
+                                        applyRoleDefaults(v, true);
+                                      }}
+                                    >
                                         <SelectTrigger className="font-bold h-11">
                                             <SelectValue />
                                         </SelectTrigger>
@@ -568,7 +732,35 @@ export default function UsersPage() {
                             <Separator />
 
                             <div className="space-y-4">
-                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">PERMISOS DE ACCESO</Label>
+                                <div className="flex justify-between items-center">
+                                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">PERMISOS DE ACCESO</Label>
+                                  <div className="flex gap-4">
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox 
+                                        id="edit-global-perm-admin_filter" 
+                                        checked={editSelectedPerms.has('admin_filter')}
+                                        onCheckedChange={(checked) => {
+                                          const next = new Set(editSelectedPerms);
+                                          if(checked) next.add('admin_filter'); else next.delete('admin_filter');
+                                          setEditSelectedPerms(next);
+                                        }}
+                                      />
+                                      <label htmlFor="edit-global-perm-admin_filter" className="text-[9px] font-black uppercase text-primary">Filtro Nacional</label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox 
+                                        id="edit-global-perm-assign_staff" 
+                                        checked={editSelectedPerms.has('assign_staff')}
+                                        onCheckedChange={(checked) => {
+                                          const next = new Set(editSelectedPerms);
+                                          if(checked) next.add('assign_staff'); else next.delete('assign_staff');
+                                          setEditSelectedPerms(next);
+                                        }}
+                                      />
+                                      <label htmlFor="edit-global-perm-assign_staff" className="text-[9px] font-black uppercase text-primary">Asignar Personal</label>
+                                    </div>
+                                  </div>
+                                </div>
                                 <Accordion type="multiple" className="w-full border rounded-xl overflow-hidden bg-white">
                                     {MODULE_GROUPS.map((group, idx) => (
                                         <AccordionItem value={`edit-group-${idx}`} key={`edit-${group.label}`}>
