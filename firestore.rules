@@ -18,14 +18,20 @@ service cloud.firestore {
       return isSignedIn() && data != null && data.role == 'admin';
     }
 
-    /** Regla para el Padrón Electoral (Solo Lectura para Personal) **/
+    function isDirector() {
+      let data = getUserData();
+      return isSignedIn() && data != null && data.role == 'director';
+    }
+
+    /** Regla para el Padrón Electoral **/
     match /padron/{document=**} {
       allow read: if isSignedIn();
     }
 
     /** Regla para Personal Operativo **/
     match /divulgadores/{document=**} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
     /** Reglas Generales **/
@@ -36,14 +42,13 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get, list: if isSignedIn();
-      // Permite que un admin cree cualquier usuario, o que un usuario nuevo cree su propio perfil con rol de jefe
       allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == 'jefe');
       allow update: if (request.auth.uid == userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /solicitudes-capacitacion/{solicitudId} {
-      allow read: if isSignedIn(); 
+      allow get, list: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
@@ -56,25 +61,25 @@ service cloud.firestore {
     }
 
     match /informes-divulgador/{informeId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /informes-semanales-anexo-iv/{informeId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /movimientos-maquinas/{movimientoId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /denuncias-lacres/{denunciaId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create, update: if isSignedIn();
       allow delete: if isAdmin();
     }

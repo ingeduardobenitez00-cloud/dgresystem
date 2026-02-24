@@ -4,25 +4,26 @@
 import { useState, useEffect } from 'react';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useToast } from '@/hooks/use-toast';
 
 /**
  * An invisible component that listens for globally emitted 'permission-error' events.
  * It handles errors gracefully to prevent application crashes for end-users.
  */
 export function FirebaseErrorListener() {
-  const [error, setError] = useState<FirestorePermissionError | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleError = (error: FirestorePermissionError) => {
-      // We only want to crash the app in development to help developers debug.
-      // In a real hosted environment, we suppress the crash to keep the app functional.
-      const isDev = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
+      // Log to system console as requested
+      console.warn('SISTEMA - Acceso Denegado:', error.message);
       
-      if (isDev) {
-        setError(error);
-      } else {
-        console.warn('Firestore Permission Error (Suppressed for Stability):', error.message);
-      }
+      // Show a graceful toast instead of crashing the app
+      toast({
+        variant: 'destructive',
+        title: 'Acceso Restringido',
+        description: 'No tienes permisos suficientes para ver esta información o realizar esta acción.',
+      });
     };
 
     errorEmitter.on('permission-error', handleError);
@@ -30,12 +31,7 @@ export function FirebaseErrorListener() {
     return () => {
       errorEmitter.off('permission-error', handleError);
     };
-  }, []);
-
-  // Throwing here will trigger the Nearest Error Boundary or Next.js App Error Screen
-  if (error) {
-    throw error;
-  }
+  }, [toast]);
 
   return null;
 }

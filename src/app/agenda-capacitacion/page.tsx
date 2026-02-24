@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador } from '@/lib/data';
-import { Loader2, Calendar, MapPin, LayoutList, Building2, QrCode, Printer, UserPlus, CheckCircle2, UserCheck, Search } from 'lucide-react';
+import { Loader2, Calendar, MapPin, LayoutList, Building2, QrCode, Printer, UserPlus, CheckCircle2, UserCheck, Search, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,6 @@ export default function AgendaCapacitacionPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [divulSearch, setDivulSearch] = useState('');
 
-  // Load institutional logo
   useEffect(() => {
     const fetchLogo = async () => {
       try {
@@ -46,7 +46,6 @@ export default function AgendaCapacitacionPage() {
     fetchLogo();
   }, []);
 
-  // Master list of departments and districts
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
@@ -55,12 +54,10 @@ export default function AgendaCapacitacionPage() {
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const profile = user.profile;
     
-    // Admins and Directors have national view
     const canViewAll = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
     
     if (canViewAll) return query(colRef, orderBy('fecha', 'asc'));
     
-    // regional users need assigned jurisdiction
     if (profile.departamento && profile.distrito) {
         return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha', 'asc'));
     }
@@ -70,7 +67,6 @@ export default function AgendaCapacitacionPage() {
 
   const { data: solicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
-  // Divulgadores Query (Filtered by jurisdiction)
   const divulgadoresQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'divulgadores');
@@ -209,6 +205,26 @@ export default function AgendaCapacitacionPage() {
 
   if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  }
+
+  // Si no hay perfil o jurisdicción y no es admin/director, mostrar advertencia amigable
+  const hasNoJurisdiction = !user?.profile?.departamento && !['admin', 'director'].includes(user?.profile?.role || '');
+
+  if (hasNoJurisdiction) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header title="Agenda de Capacitaciones" />
+        <main className="flex-1 p-8 flex items-center justify-center">
+          <Card className="max-w-md w-full text-center p-8 border-dashed">
+            <ShieldAlert className="h-16 w-16 mx-auto text-muted-foreground opacity-20 mb-4" />
+            <h2 className="text-xl font-black uppercase text-primary mb-2">Perfil Incompleto</h2>
+            <p className="text-sm text-muted-foreground font-medium">
+              No tienes una jurisdicción (Departamento/Distrito) asignada. Por favor, solicita a un administrador que complete tu perfil para visualizar la agenda.
+            </p>
+          </Card>
+        </main>
+      </div>
+    );
   }
 
   return (
