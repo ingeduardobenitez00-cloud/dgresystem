@@ -133,7 +133,6 @@ const GLOBAL_PERMISSIONS = ['admin_filter', 'assign_staff'];
 
 /**
  * Plantillas de permisos por defecto para cada rol.
- * Al seleccionar un rol, el sistema marcará estos módulos automáticamente.
  */
 const ROLE_DEFAULTS: Record<UserProfile['role'], { modules: string[], permissions: string[] }> = {
   admin: {
@@ -146,7 +145,7 @@ const ROLE_DEFAULTS: Record<UserProfile['role'], { modules: string[], permission
   },
   jefe: {
     modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion'],
-    permissions: ['assign_staff', 'solicitud-capacitacion:view', 'solicitud-capacitacion:add', 'divulgadores:view', 'divulgadores:add', 'agenda-capacitacion:view', 'informe-divulgador:view', 'informe-divulgador:add', 'informe-semanal-puntos-fijos:view', 'informe-semanal-puntos-fijos:add', 'informe-semanal-puntos-fijos:pdf']
+    permissions: ['assign_staff', 'admin_filter', 'solicitud-capacitacion:view', 'solicitud-capacitacion:add', 'divulgadores:view', 'divulgadores:add', 'agenda-capacitacion:view', 'informe-divulgador:view', 'informe-divulgador:add', 'informe-semanal-puntos-fijos:view', 'informe-semanal-puntos-fijos:add', 'informe-semanal-puntos-fijos:pdf']
   },
   funcionario: {
     modules: ['ficha', 'fotos', 'cargar-ficha', 'locales-votacion', 'cargar-fotos-locales', 'solicitud-capacitacion'],
@@ -262,6 +261,7 @@ export default function UsersPage() {
         next.add(mod);
         const nextPerms = new Set(selectedPerms);
         nextPerms.add(`${mod}:view`);
+        setSelectedModules(next);
         setSelectedPerms(nextPerms);
       }
       setSelectedModules(next);

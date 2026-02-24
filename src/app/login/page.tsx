@@ -118,7 +118,8 @@ export default function LoginPage() {
           'solicitud:add',
           'informe:add',
           'pdf:gen',
-          'assign_staff'
+          'assign_staff',
+          'admin_filter'
         ],
         fecha_registro: new Date().toISOString()
       });
@@ -175,14 +176,15 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
        <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center">
-            <Image 
-              src="/logo.png" 
-              alt="Logo Justicia Electoral" 
-              width={80} 
-              height={80} 
-              className="mb-4" 
-              priority 
-            />
+            <div className="h-20 w-20 relative mb-4">
+               <Image 
+                src="/logo.png" 
+                alt="Logo Justicia Electoral" 
+                fill 
+                className="object-contain" 
+                priority 
+              />
+            </div>
              <h1 className="text-2xl font-black tracking-tight mt-2 uppercase text-primary text-center">
                 JUSTICIA ELECTORAL
              </h1>
