@@ -38,8 +38,8 @@ export default function InformeSemanalAnexoIVPage() {
 
   const profile = user?.profile;
   const hasAdminFilter = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
-  const hasDeptFilter = profile?.permissions?.includes('department_filter');
-  const hasDistFilter = profile?.permissions?.includes('district_filter') || profile?.role === 'jefe' || profile?.role === 'funcionario';
+  const hasDeptFilter = !hasAdminFilter && profile?.permissions?.includes('department_filter');
+  const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile?.permissions?.includes('district_filter') || profile?.role === 'jefe' || profile?.role === 'funcionario');
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
@@ -74,12 +74,17 @@ export default function InformeSemanalAnexoIVPage() {
     return query(
       collection(firestore, 'informes-divulgador'),
       where('departamento', '==', selectedDepartment),
-      where('distrito', '==', selectedDistrict),
-      orderBy('fecha', 'desc')
+      where('distrito', '==', selectedDistrict)
     );
   }, [firestore, selectedDepartment, selectedDistrict]);
 
-  const { data: informesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
+  const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
+
+  // Ordenamiento en memoria
+  const informesAnexoIII = useMemo(() => {
+    if (!rawInformesAnexoIII) return null;
+    return [...rawInformesAnexoIII].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [rawInformesAnexoIII]);
 
   const consolidatedFilas = useMemo(() => {
     const emptyRows = Array(12).fill(null).map(() => ({

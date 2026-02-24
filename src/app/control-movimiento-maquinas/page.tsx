@@ -96,29 +96,35 @@ export default function ControlMovimientoMaquinasPage() {
   }, []);
 
   const agendaQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.profile) return null;
+    if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const profile = user.profile;
     
     // Jerarquía de filtros
     const hasAdminFilter = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
-    const hasDeptFilter = profile.permissions?.includes('department_filter');
-    const hasDistFilter = profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario';
+    const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
+    const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
 
-    if (hasAdminFilter) return query(colRef, orderBy('fecha', 'desc'));
+    if (hasAdminFilter) return colRef;
     
     if (hasDeptFilter && profile.departamento) {
-        return query(colRef, where('departamento', '==', profile.departamento), orderBy('fecha', 'desc'));
+        return query(colRef, where('departamento', '==', profile.departamento));
     }
 
     if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha', 'desc'));
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
     }
     
     return null;
-  }, [firestore, user]);
+  }, [firestore, user, isUserLoading]);
 
-  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
+  const { data: rawAgendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
+
+  // Ordenamiento en memoria para evitar errores de índices compuestos en Firestore
+  const agendaItems = useMemo(() => {
+    if (!rawAgendaItems) return null;
+    return [...rawAgendaItems].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [rawAgendaItems]);
 
   const movimientosQuery = useMemoFirebase(() => {
     if (!firestore || !user || !selectedSolicitudId) return null;
@@ -250,7 +256,7 @@ export default function ControlMovimientoMaquinasPage() {
     doc.save(`Proforma-${type.toUpperCase()}-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
-  if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  if (isUserLoading || isLoadingAgenda) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">

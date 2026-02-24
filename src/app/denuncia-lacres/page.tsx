@@ -66,23 +66,28 @@ function DenunciaContent() {
     const profile = user.profile;
     
     const hasAdminFilter = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
-    const hasDeptFilter = profile.permissions?.includes('department_filter');
-    const hasDistFilter = profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario';
+    const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
+    const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
 
-    if (hasAdminFilter) return query(colRef, orderBy('fecha', 'desc'));
+    if (hasAdminFilter) return colRef;
     
     if (hasDeptFilter && profile.departamento) {
-        return query(colRef, where('departamento', '==', profile.departamento), orderBy('fecha', 'desc'));
+        return query(colRef, where('departamento', '==', profile.departamento));
     }
 
     if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha', 'desc'));
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
     }
     
     return null;
   }, [firestore, user, isUserLoading]);
 
-  const { data: agendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
+  const { data: rawAgendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
+
+  const agendaItems = useMemo(() => {
+    if (!rawAgendaItems) return null;
+    return [...rawAgendaItems].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [rawAgendaItems]);
 
   const selectedSolicitud = useMemo(() => {
     return agendaItems?.find(item => item.id === selectedAgendaId);
