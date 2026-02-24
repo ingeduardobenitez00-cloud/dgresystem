@@ -76,7 +76,7 @@ export default function Home() {
   if (isUserLoading || !mounted) {
     return (
       <div className="flex min-h-screen w-full flex-col">
-        <Header title="Cargando Panel..." />
+        <Header title="" />
         <main className="flex flex-1 items-center justify-center">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </main>
@@ -86,7 +86,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/5">
-      <Header title="Sistema de Gestión" />
+      <Header title="" />
       <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="mb-6 bg-white p-5 rounded-xl border shadow-sm">
             <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl uppercase">
