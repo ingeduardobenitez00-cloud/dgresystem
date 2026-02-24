@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, Globe, MapPin, Calendar, Clock } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, Globe, MapPin, Calendar, Clock, DatabaseZap, Search, X } from 'lucide-react';
+import { useUser, useFirebase, useMemoFirebase, useDoc, useCollection } from '@/firebase';
+import { collection, addDoc, serverTimestamp, doc, query, where } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
@@ -22,9 +22,10 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function EncuestaContent() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -32,9 +33,11 @@ function EncuestaContent() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [internalSolicitudId, setInternalSolicitudId] = useState<string | null>(null);
   
   // Capturamos el ID de la solicitud desde la URL (vía QR)
   const solicitudIdFromUrl = searchParams.get('solicitudId');
+  const effectiveSolicitudId = solicitudIdFromUrl || internalSolicitudId;
 
   const [formData, setFormData] = useState({
     lugar_practica: '',
@@ -54,28 +57,55 @@ function EncuestaContent() {
     setIsMounted(true);
   }, []);
 
-  // Referencia al documento de la agenda
+  // Referencia al documento de la agenda (sea por URL o por selección interna)
   const solicitudRef = useMemoFirebase(() => 
-    firestore && solicitudIdFromUrl ? doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl) : null,
-    [firestore, solicitudIdFromUrl]
+    firestore && effectiveSolicitudId ? doc(firestore, 'solicitudes-capacitacion', effectiveSolicitudId) : null,
+    [firestore, effectiveSolicitudId]
   );
   
-  // Obtenemos los datos de la agenda en tiempo real
-  const { data: publicSolicitud, isLoading: isLoadingPublicSol } = useDoc<SolicitudCapacitacion>(solicitudRef);
+  const { data: linkedSolicitud, isLoading: isLoadingLinked } = useDoc<SolicitudCapacitacion>(solicitudRef);
 
-  // SINCRONIZACIÓN FORZADA: Inyectamos los datos de la agenda apenas lleguen de Firestore
+  // Consultar actividades para usuarios logueados (para vincular manual)
+  const agendaQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.profile) return null;
+    const profile = user.profile;
+    const colRef = collection(firestore, 'solicitudes-capacitacion');
+    
+    const hasAdminFilter = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
+    const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
+
+    if (hasAdminFilter) return colRef;
+    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
+    if (hasDistFilter && profile.departamento && profile.distrito) {
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    }
+    return null;
+  }, [firestore, user, isUserLoading]);
+
+  const { data: agendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
+
+  // Sincronización de datos vinculados
   useEffect(() => {
-    if (publicSolicitud) {
+    if (linkedSolicitud) {
       setFormData(prev => ({
         ...prev,
-        lugar_practica: publicSolicitud.lugar_local || '',
-        fecha: publicSolicitud.fecha || '',
-        hora: publicSolicitud.hora_desde || '',
-        departamento: publicSolicitud.departamento || '',
-        distrito: publicSolicitud.distrito || '',
+        lugar_practica: linkedSolicitud.lugar_local || '',
+        fecha: linkedSolicitud.fecha || '',
+        hora: linkedSolicitud.hora_desde || '',
+        departamento: linkedSolicitud.departamento || '',
+        distrito: linkedSolicitud.distrito || '',
       }));
+    } else if (!effectiveSolicitudId) {
+        // Solo limpiar si NO hay ID efectivo, permitiendo carga manual limpia
+        setFormData(prev => ({
+            ...prev,
+            lugar_practica: user?.profile?.role === 'funcionario' ? (prev.lugar_practica || '') : prev.lugar_practica,
+            departamento: user?.profile?.departamento || prev.departamento,
+            distrito: user?.profile?.distrito || prev.distrito,
+        }));
     }
-  }, [publicSolicitud]);
+  }, [linkedSolicitud, effectiveSolicitudId, user]);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -104,13 +134,14 @@ function EncuestaContent() {
   const handleSubmit = async () => {
     if (!firestore) return;
     if (!formData.lugar_practica || !formData.fecha || !formData.edad) {
-        toast({ variant: "destructive", title: "Faltan datos", description: "Por favor complete los campos obligatorios (Edad)." });
+        toast({ variant: "destructive", title: "Faltan datos", description: "Por favor complete los campos obligatorios (Lugar, Fecha, Edad)." });
         return;
     }
 
     setIsSubmitting(true);
     const encuestaData = {
       ...formData,
+      solicitud_id: effectiveSolicitudId || 'CARGA_MANUAL_OFICINA',
       usuario_id: user?.uid || 'CIUDADANO_EXTERNO',
       fecha_creacion: new Date().toISOString(),
       server_timestamp: serverTimestamp(),
@@ -118,7 +149,8 @@ function EncuestaContent() {
 
     try {
       await addDoc(collection(firestore, 'encuestas-satisfaccion'), encuestaData);
-      toast({ title: "¡Gracias!", description: "Tu feedback ha sido registrado exitosamente." });
+      toast({ title: "¡Gracias!", description: "Feedback registrado exitosamente." });
+      // Reset parcial para permitir seguir cargando documentos físicos si es funcionario
       setFormData(p => ({ 
         ...p, 
         edad: '', 
@@ -196,25 +228,71 @@ function EncuestaContent() {
             </div>
             {solicitudIdFromUrl && (
                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1.5 px-3 py-1 font-black text-[9px] uppercase">
-                    {isLoadingPublicSol ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                    {isLoadingPublicSol ? 'Sincronizando...' : 'Conexión Segura'}
+                    {isLoadingLinked ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                    {isLoadingLinked ? 'Sincronizando...' : 'Sesión Vinculada'}
                 </Badge>
             )}
         </header>
       )}
       <main className="flex-1 p-4 md:p-8">
         
-        {solicitudIdFromUrl && publicSolicitud && (
+        {user && (
+            <div className="mx-auto max-w-3xl mb-6 space-y-4">
+                <Card className="border-primary/20 shadow-md">
+                    <CardHeader className="py-4 bg-primary/5">
+                        <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-primary">
+                            <DatabaseZap className="h-4 w-4" /> CARGA INSTITUCIONAL (OFICINA)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                        <div className="space-y-4">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground">Vincular a Actividad de Agenda (Opcional)</Label>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <Select 
+                                        onValueChange={setInternalSolicitudId} 
+                                        value={internalSolicitudId || undefined}
+                                    >
+                                        <SelectTrigger className="h-11 font-bold">
+                                            <SelectValue placeholder="Seleccione actividad para auto-completar..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {agendaItems?.map(item => (
+                                                <SelectItem key={item.id} value={item.id}>
+                                                    {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                {internalSolicitudId && (
+                                    <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => setInternalSolicitudId(null)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                            {!internalSolicitudId && !solicitudIdFromUrl && (
+                                <p className="text-[9px] font-bold text-amber-600 uppercase italic">
+                                    * Carga manual habilitada para documentos físicos sin conexión previa.
+                                </p>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )}
+
+        {(solicitudIdFromUrl || internalSolicitudId) && linkedSolicitud && (
             <div className="mx-auto max-w-3xl mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="bg-primary text-white p-5 rounded-2xl shadow-xl flex items-center gap-5 border-4 border-white">
                     <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
                         <Globe className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[9px] font-black uppercase opacity-70 tracking-widest mb-1">Sesión Identificada en:</p>
-                        <p className="text-xl font-black uppercase leading-tight truncate">{publicSolicitud.lugar_local}</p>
+                        <p className="text-[9px] font-black uppercase opacity-70 tracking-widest mb-1">Actividad Detectada:</p>
+                        <p className="text-xl font-black uppercase leading-tight truncate">{linkedSolicitud.lugar_local}</p>
                         <div className="flex items-center gap-3 mt-1.5 opacity-80">
-                            <span className="text-[10px] font-bold uppercase">{publicSolicitud.distrito} - {publicSolicitud.departamento}</span>
+                            <span className="text-[10px] font-bold uppercase">{linkedSolicitud.distrito} - {linkedSolicitud.departamento}</span>
                         </div>
                     </div>
                 </div>
@@ -243,11 +321,11 @@ function EncuestaContent() {
                     name="lugar_practica" 
                     value={formData.lugar_practica} 
                     onChange={handleInputChange} 
-                    readOnly={!!solicitudIdFromUrl}
-                    placeholder={solicitudIdFromUrl ? "Cargando lugar..." : "Nombre del local o institución"}
+                    readOnly={!!effectiveSolicitudId}
+                    placeholder={effectiveSolicitudId ? "Cargando lugar..." : "Nombre del local o institución"}
                     className={cn(
-                        "h-14 font-black text-lg border-2 transition-all", 
-                        solicitudIdFromUrl ? "bg-muted/50 border-primary/20 text-primary cursor-not-allowed" : "border-muted group-hover:border-primary/40"
+                        "h-14 font-black text-lg border-2 transition-all uppercase", 
+                        effectiveSolicitudId ? "bg-muted/50 border-primary/20 text-primary cursor-not-allowed" : "border-muted group-hover:border-primary/40"
                     )} 
                   />
                   {formData.lugar_practica && <CheckCircle2 className="absolute right-4 top-4 h-6 w-6 text-green-500" />}
@@ -264,10 +342,10 @@ function EncuestaContent() {
                     type="date" 
                     value={formData.fecha} 
                     onChange={handleInputChange} 
-                    readOnly={!!solicitudIdFromUrl} 
+                    readOnly={!!effectiveSolicitudId} 
                     className={cn(
                         "h-12 font-bold border-2",
-                        solicitudIdFromUrl ? "bg-muted/50 border-primary/10 cursor-not-allowed" : ""
+                        effectiveSolicitudId ? "bg-muted/50 border-primary/10 cursor-not-allowed" : ""
                     )}
                   />
                 </div>
@@ -280,10 +358,10 @@ function EncuestaContent() {
                     type="time" 
                     value={formData.hora} 
                     onChange={handleInputChange} 
-                    readOnly={!!solicitudIdFromUrl} 
+                    readOnly={!!effectiveSolicitudId} 
                     className={cn(
                         "h-12 font-bold border-2",
-                        solicitudIdFromUrl ? "bg-muted/50 border-primary/10 cursor-not-allowed" : ""
+                        effectiveSolicitudId ? "bg-muted/50 border-primary/10 cursor-not-allowed" : ""
                     )}
                   />
                 </div>
