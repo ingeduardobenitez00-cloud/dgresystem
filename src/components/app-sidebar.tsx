@@ -33,7 +33,8 @@ import {
   PieChart,
   TableProperties,
   ArrowLeftRight,
-  Flag
+  Flag,
+  FileUp
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
