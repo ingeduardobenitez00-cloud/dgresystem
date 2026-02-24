@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -5,16 +6,18 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as CardDescriptionUI } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, where } from 'firebase/firestore';
-import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
-import { Loader2, Calendar, MapPin, LayoutList, Building2, QrCode, Printer } from 'lucide-react';
+import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
+import { type SolicitudCapacitacion, type Dato, type Divulgador } from '@/lib/data';
+import { Loader2, Calendar, MapPin, LayoutList, Building2, QrCode, Printer, UserPlus, CheckCircle2, UserCheck, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY } from '@/lib/utils';
 import jsPDF from 'jspdf';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -22,8 +25,11 @@ export default function AgendaCapacitacionPage() {
   const { toast } = useToast();
 
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [divulSearch, setDivulSearch] = useState('');
 
   // Load institutional logo
   useEffect(() => {
@@ -63,6 +69,35 @@ export default function AgendaCapacitacionPage() {
 
   const { data: solicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
+  // Divulgadores Query (Filtered by Jefe's Jurisdiction)
+  const divulgadoresQuery = useMemoFirebase(() => {
+    if (!firestore || isUserLoading || !user?.profile) return null;
+    const colRef = collection(firestore, 'divulgadores');
+    const profile = user.profile;
+
+    if (profile.role === 'admin') return query(colRef, orderBy('nombre'));
+
+    if (profile.departamento && profile.distrito) {
+      return query(
+        colRef, 
+        where('departamento', '==', profile.departamento), 
+        where('distrito', '==', profile.distrito),
+        orderBy('nombre')
+      );
+    }
+    return null;
+  }, [firestore, user, isUserLoading]);
+
+  const { data: divulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
+
+  const filteredDivul = useMemo(() => {
+    if (!divulgadores) return [];
+    const term = divulSearch.toLowerCase().trim();
+    return divulgadores.filter(d => 
+      d.nombre.toLowerCase().includes(term) || d.cedula.includes(term)
+    );
+  }, [divulgadores, divulSearch]);
+
   const structuredAgenda = useMemo(() => {
     if (!datosData || !solicitudes) return [];
     const deptsMap: Map<string, { code: string, name: string, districts: Map<string, SolicitudCapacitacion[]> }> = new Map();
@@ -85,6 +120,26 @@ export default function AgendaCapacitacionPage() {
       .filter(d => d.districts.size > 0)
       .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [datosData, solicitudes]);
+
+  const handleAssignDivulgador = async (divulgador: Divulgador) => {
+    if (!assigningSolicitud || !firestore) return;
+    setIsUpdating(true);
+    try {
+      const docRef = doc(firestore, 'solicitudes-capacitacion', assigningSolicitud.id);
+      await updateDoc(docRef, {
+        divulgador_id: divulgador.id,
+        divulgador_nombre: divulgador.nombre,
+        divulgador_cedula: divulgador.cedula,
+        divulgador_vinculo: divulgador.vinculo
+      });
+      toast({ title: "Personal Asignado", description: `${divulgador.nombre} ha sido asignado a la actividad.` });
+      setAssigningSolicitud(null);
+    } catch (error) {
+      toast({ variant: 'destructive', title: "Error al asignar" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const getEncuestaUrl = (id: string) => {
       if (typeof window === 'undefined') return '';
@@ -204,7 +259,7 @@ export default function AgendaCapacitacionPage() {
                               <Card key={item.id} className="group relative border shadow-none hover:border-primary transition-all overflow-hidden">
                                 <div className="p-4 sm:p-6">
                                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                                    <div className="lg:col-span-4 space-y-1">
+                                    <div className="lg:col-span-3 space-y-1">
                                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">SOLICITANTE</p>
                                       <p className="font-black text-sm uppercase leading-none text-primary">{item.nombre_completo}</p>
                                       <div className="pt-2">
@@ -214,7 +269,7 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    <div className="lg:col-span-4 space-y-3">
+                                    <div className="lg:col-span-3 space-y-3">
                                       <div className="flex items-center gap-3">
                                         <MapPin className="h-4 w-4 text-muted-foreground" />
                                         <p className="text-xs font-black uppercase leading-tight">{item.lugar_local}</p>
@@ -227,13 +282,36 @@ export default function AgendaCapacitacionPage() {
                                       </div>
                                     </div>
 
-                                    <div className="lg:col-span-4 flex flex-wrap lg:flex-nowrap justify-end gap-2 items-center">
-                                      <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase border-2 flex-1 lg:flex-none" onClick={() => setQrSolicitud(item)}>
-                                          <QrCode className="mr-2 h-3.5 w-3.5" /> QR ENCUESTA
+                                    <div className="lg:col-span-3">
+                                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">DIVULGADOR ASIGNADO</p>
+                                      {item.divulgador_nombre ? (
+                                        <div className="flex items-center gap-2 text-green-700">
+                                          <UserCheck className="h-4 w-4" />
+                                          <p className="text-xs font-black uppercase leading-tight">{item.divulgador_nombre}</p>
+                                        </div>
+                                      ) : (
+                                        <p className="text-[10px] font-bold text-destructive uppercase italic">Sin asignar</p>
+                                      )}
+                                    </div>
+
+                                    <div className="lg:col-span-3 flex flex-wrap lg:flex-nowrap justify-end gap-2 items-center">
+                                      {(user?.profile?.role === 'admin' || user?.profile?.role === 'jefe' || user?.profile?.permissions?.includes('assign_staff')) && (
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          className="h-9 text-[9px] font-black uppercase border-2 border-primary/20 text-primary hover:bg-primary hover:text-white transition-all flex-1 lg:flex-none"
+                                          onClick={() => setAssigningSolicitud(item)}
+                                        >
+                                          <UserPlus className="mr-1.5 h-3 w-3" /> {item.divulgador_id ? 'REASIGNAR' : 'ASIGNAR'}
+                                        </Button>
+                                      )}
+
+                                      <Button variant="outline" size="sm" className="h-9 text-[9px] font-black uppercase border-2 flex-1 lg:flex-none" onClick={() => setQrSolicitud(item)}>
+                                          <QrCode className="mr-1.5 h-3 w-3" /> QR ENCUESTA
                                       </Button>
                                       
                                       <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex-1 lg:flex-none">
-                                        <Button variant="default" size="sm" className="h-10 w-full text-[10px] font-black uppercase shadow-lg px-8">
+                                        <Button variant="default" size="sm" className="h-9 w-full text-[9px] font-black uppercase shadow-lg px-6">
                                           INFORME
                                         </Button>
                                       </Link>
@@ -253,6 +331,61 @@ export default function AgendaCapacitacionPage() {
           </div>
         )}
       </main>
+
+      {/* Assignment Dialog */}
+      <Dialog open={!!assigningSolicitud} onOpenChange={(o) => !o && setAssigningSolicitud(null)}>
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-3xl">
+          <DialogHeader className="p-6 bg-primary text-white">
+            <DialogTitle className="uppercase font-black text-xl flex items-center gap-2">
+              <UserPlus className="h-6 w-6" /> ASIGNAR PERSONAL
+            </DialogTitle>
+            <DialogDescription className="text-white/70 font-bold uppercase text-[10px]">
+              {assigningSolicitud?.lugar_local} | {assigningSolicitud?.distrito}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-6 space-y-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar por nombre o cédula..." 
+                className="pl-10 h-12 font-bold"
+                value={divulSearch}
+                onChange={(e) => setDivulSearch(e.target.value)}
+              />
+            </div>
+
+            <ScrollArea className="h-[300px] border rounded-xl bg-muted/10 p-2">
+              {isLoadingDivul ? (
+                <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-primary" /></div>
+              ) : filteredDivul.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredDivul.map(divul => (
+                    <div 
+                      key={divul.id} 
+                      className="p-4 bg-white rounded-lg border-2 hover:border-primary cursor-pointer transition-all flex items-center justify-between group"
+                      onClick={() => handleAssignDivulgador(divul)}
+                    >
+                      <div>
+                        <p className="font-black text-xs uppercase text-primary">{divul.nombre}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase">C.I. {divul.cedula} • {divul.vinculo}</p>
+                      </div>
+                      <UserCheck className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-2">
+                  <UserPlus className="h-8 w-8 opacity-20" />
+                  <p className="text-[10px] font-black uppercase">No se encontró personal disponible.</p>
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+          <DialogFooter className="p-6 bg-muted/30 border-t">
+            <Button variant="ghost" className="w-full font-black uppercase text-[10px]" onClick={() => setAssigningSolicitud(null)}>CANCELAR</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* QR Dialog */}
       <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
