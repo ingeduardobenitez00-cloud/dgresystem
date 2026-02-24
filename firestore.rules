@@ -58,13 +58,12 @@ service cloud.firestore {
 
     /** Main Data Collections **/
     
-    // Regla para Divulgadores: Acceso robusto desglosado para v1.0.3
-    // Garantiza que tanto el listado de la colección como el acceso a docs funcionen
+    // Regla para Divulgadores: Acceso robusto v1.0.5
     match /divulgadores/{divulId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
     match /divulgadores {
-      allow list: if request.auth != null;
+      allow list: if isSignedIn();
     }
 
     match /locales-votacion/{localId} {

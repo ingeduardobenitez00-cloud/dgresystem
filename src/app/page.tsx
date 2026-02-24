@@ -62,6 +62,7 @@ export default function Home() {
     return MODULE_GROUPS.map(group => {
       const accessibleInGroup = dashboardMenuItems.filter(item => {
         const moduleName = item.href.substring(1);
+        if (user.profile?.role === 'admin') return group.modules.includes(moduleName);
         const hasAccess = user.profile?.modules?.includes(moduleName);
         return group.modules.includes(moduleName) && hasAccess;
       });

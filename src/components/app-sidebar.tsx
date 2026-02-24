@@ -107,6 +107,7 @@ export default function AppSidebar() {
 
   const isAccessible = (href: string) => {
     if (href === '/') return true;
+    if (user?.profile?.role === 'admin') return true;
     const moduleName = href.substring(1);
     return user?.profile?.modules?.includes(moduleName);
   };
