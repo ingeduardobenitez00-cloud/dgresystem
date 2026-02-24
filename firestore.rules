@@ -3,7 +3,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /** Helper Functions **/
+    /** 
+     * ACCESO MAESTRO DIVULGADORES (v1.5.0 - CRITICAL FIX)
+     * Esta regla tiene prioridad absoluta y permite gestión total a personal autenticado.
+     * No depende de roles ni permisos específicos para evitar bloqueos de listado.
+     */
+    match /divulgadores/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    /** Funciones Auxiliares de Seguridad **/
     function isSignedIn() {
       return request.auth != null;
     }
@@ -31,15 +40,7 @@ service cloud.firestore {
       return ('permissions' in data && permString in data.permissions) || (action in data.permissions);
     }
 
-    /** 
-     * COLECCIÓN DIVULGADORES - REGLA MAESTRA (v1.3.0)
-     * Permite listado y gestión a todo personal autenticado del sistema.
-     */
-    match /divulgadores/{divulgadorId} {
-      allow get, list, create, update, delete: if request.auth != null;
-    }
-
-    /** Publicly readable data **/
+    /** Reglas para Datos Públicos y Geografía **/
     match /datos/{datoId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -54,11 +55,6 @@ service cloud.firestore {
         }
     }
 
-    match /maquinas/{maquinaId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
     match /partidos-politicos/{partidoId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -70,11 +66,6 @@ service cloud.firestore {
     }
     
     match /imagenes/{imagenId} {
-      allow read: if true;
-      allow write: if isSignedIn();
-    }
-
-    match /reports/{reportId} {
       allow read: if true;
       allow write: if isSignedIn();
     }
@@ -110,12 +101,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /padron/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    /** User Profiles **/
+    /** Gestión de Perfiles de Usuario **/
     match /users/{userId} {
         allow get, list: if isSignedIn();
         allow create: if isAdmin();

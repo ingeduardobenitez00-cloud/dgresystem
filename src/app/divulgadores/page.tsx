@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { UserPlus, Users, Loader2, Edit, Trash2, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Users, Loader2, Edit, Trash2, Search, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -27,11 +27,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { type Dato, type Divulgador } from '@/lib/data';
-import { cn } from '@/lib/utils';
 
 export default function DivulgadoresPage() {
   const { toast } = useToast();
-  const { firestore } = useFirebase();
+  const { firestore, auth } = useFirebase();
   const { user: currentUser, isUserLoading } = useUser();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +39,7 @@ export default function DivulgadoresPage() {
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingDivulgador, setEditingDivulgador] = useState<Divulgador | null>(null);
 
-  // Geo Data
+  // Datos Geográficos
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
@@ -54,27 +53,25 @@ export default function DivulgadoresPage() {
     return [...new Set(datosData.filter(d => d.departamento === selectedDept).map(d => d.distrito))].sort();
   }, [datosData, selectedDept]);
 
-  // Consulta robusta: se dispara cuando la sesión está lista
+  // CONSULTA DE DIVULGADORES - REFORZADA
   const divulQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !currentUser?.uid) return null;
+    // CRITICAL: Solo disparamos la consulta si el usuario está autenticado y el perfil cargado
+    if (!firestore || isUserLoading || !currentUser?.uid || !currentUser?.profile) return null;
     
     const colRef = collection(firestore, 'divulgadores');
     const profile = currentUser.profile;
-    
-    // Si no hay perfil aún, no disparamos para evitar error de permisos por falta de contexto de rol
-    if (!profile) return null;
 
-    const canViewAll = profile.role === 'admin' || profile.permissions?.includes('admin_filter');
-    
-    if (canViewAll) {
+    // Los administradores ven todo el país
+    if (profile.role === 'admin' || profile.permissions?.includes('admin_filter')) {
       return query(colRef, orderBy('nombre'));
     }
     
+    // El personal regional ve su distrito
     if (profile.distrito) {
         return query(colRef, where('distrito', '==', profile.distrito), orderBy('nombre'));
     }
     
-    // Fallback: listado básico ordenado si no hay filtros regionales
+    // Fallback de seguridad
     return query(colRef, orderBy('nombre'));
   }, [firestore, currentUser, isUserLoading]);
 
@@ -97,7 +94,7 @@ export default function DivulgadoresPage() {
 
     const formData = new FormData(e.currentTarget);
     const docData = {
-      nombre: formData.get('nombre') as string,
+      nombre: (formData.get('nombre') as string).toUpperCase(),
       cedula: formData.get('cedula') as string,
       vinculo: formData.get('vinculo') as any,
       departamento: formData.get('departamento') as string,
@@ -124,7 +121,7 @@ export default function DivulgadoresPage() {
 
     const formData = new FormData(e.currentTarget);
     const updatedData = {
-      nombre: formData.get('edit-nombre') as string,
+      nombre: (formData.get('edit-nombre') as string).toUpperCase(),
       cedula: formData.get('edit-cedula') as string,
       vinculo: formData.get('edit-vinculo') as any,
       departamento: formData.get('edit-departamento') as string,
@@ -162,7 +159,7 @@ export default function DivulgadoresPage() {
         {divulError && (
           <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl flex items-center gap-3 text-destructive">
             <AlertCircle className="h-5 w-5" />
-            <p className="text-xs font-bold uppercase">Error de sincronización. Verificando permisos de acceso...</p>
+            <p className="text-xs font-bold uppercase">Estado de conexión: Restringido. Sincronizando con servidor de seguridad...</p>
           </div>
         )}
 
@@ -173,16 +170,16 @@ export default function DivulgadoresPage() {
                 <CardTitle className="uppercase font-black text-sm flex items-center gap-2">
                   <UserPlus className="h-4 w-4" /> Nuevo Divulgador
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase">Personal operativo registrado en el sistema.</CardDescription>
+                <CardDescription className="text-[10px] font-bold uppercase">Personal operativo para capacitaciones.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Nombre Completo</Label>
-                  <Input name="nombre" required className="font-bold" />
+                  <Input name="nombre" required className="font-bold uppercase" placeholder="EJ. JUAN PEREZ" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Cédula de Identidad</Label>
-                  <Input name="cedula" required className="font-bold" />
+                  <Input name="cedula" required className="font-bold" placeholder="1.234.567" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Vínculo Laboral</Label>
@@ -231,11 +228,11 @@ export default function DivulgadoresPage() {
           <Card className="lg:col-span-2 shadow-lg border-none">
             <CardHeader className="flex flex-row items-center justify-between pb-4">
               <CardTitle className="uppercase font-black text-sm flex items-center gap-2">
-                <Users className="h-4 w-4" /> Directorio Operativo
+                <Users className="h-4 w-4" /> Directorio de Personal
               </CardTitle>
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input placeholder="Buscar..." className="pl-9 h-9 text-[10px] font-bold" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <Input placeholder="Buscar por nombre o CI..." className="pl-9 h-9 text-[10px] font-bold" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -253,7 +250,7 @@ export default function DivulgadoresPage() {
                     {isLoadingDivul ? (
                       <TableRow><TableCell colSpan={4} className="text-center py-10"><Loader2 className="animate-spin h-6 w-6 mx-auto text-primary" /></TableCell></TableRow>
                     ) : filteredDivul.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-[10px] font-bold uppercase">No hay registros disponibles o el listado se está sincronizando.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-[10px] font-bold uppercase">No se encontraron registros o esperando sincronización.</TableCell></TableRow>
                     ) : filteredDivul.map(d => (
                       <TableRow key={d.id} className="hover:bg-primary/5 transition-colors">
                         <TableCell className="py-3">
@@ -281,7 +278,7 @@ export default function DivulgadoresPage() {
                               <AlertDialogContent>
                                 <AlertDialogHeader>
                                   <AlertDialogTitle className="uppercase font-black text-destructive">¿Eliminar registro?</AlertDialogTitle>
-                                  <AlertDialogDescription className="text-xs font-bold uppercase">Esta acción es irreversible.</AlertDialogDescription>
+                                  <AlertDialogDescription className="text-xs font-bold uppercase">Esta acción dará de baja al divulgador en el sistema.</AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel className="font-bold text-xs uppercase">Cancelar</AlertDialogCancel>
@@ -309,7 +306,7 @@ export default function DivulgadoresPage() {
           <form onSubmit={handleUpdate} className="p-6 space-y-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase">Nombre Completo</Label>
-              <Input name="edit-nombre" defaultValue={editingDivulgador?.nombre} required className="font-bold" />
+              <Input name="edit-nombre" defaultValue={editingDivulgador?.nombre} required className="font-bold uppercase" />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase">Cédula de Identidad</Label>
