@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from 'next/image';
@@ -19,8 +20,8 @@ export default function Header({ title }: { title?: string }) {
     if (!auth) return;
     try {
       await auth.signOut();
-      toast({ title: "Sesión cerrada" });
-      router.push('/login');
+      // Redirección directa al login sin toast según solicitud del usuario
+      router.replace('/login');
     } catch (error) {
       toast({ variant: 'destructive', title: "Error al cerrar sesión" });
     }

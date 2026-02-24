@@ -207,8 +207,9 @@ export default function AgendaCapacitacionPage() {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
   }
 
-  // Si no hay perfil o jurisdicción y no es admin/director, mostrar advertencia amigable
-  const hasNoJurisdiction = !user?.profile?.departamento && !['admin', 'director'].includes(user?.profile?.role || '');
+  // Lógica de visibilidad corregida: permitir acceso si tiene admin_filter o jurisdicción completa
+  const canViewAll = ['admin', 'director'].includes(user?.profile?.role || '') || user?.profile?.permissions?.includes('admin_filter');
+  const hasNoJurisdiction = user && !user.profile?.departamento && !canViewAll;
 
   if (hasNoJurisdiction) {
     return (
