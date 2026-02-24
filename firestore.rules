@@ -31,7 +31,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin();
+      // Permite que un admin cree cualquier usuario, o que un usuario nuevo cree su propio perfil con rol de jefe
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == 'jefe');
       allow update: if (request.auth.uid == userId) || isAdmin();
       allow delete: if isAdmin();
     }
