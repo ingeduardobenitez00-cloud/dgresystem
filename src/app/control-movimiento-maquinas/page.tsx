@@ -24,7 +24,8 @@ import {
   Printer,
   ShieldAlert,
   AlertTriangle,
-  FileWarning
+  FileWarning,
+  ExternalLink
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, orderBy } from 'firebase/firestore';
@@ -37,6 +38,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import Link from 'next/link';
 
 export default function ControlMovimientoMaquinasPage() {
   const { user, isUserLoading } = useUser();
@@ -49,10 +51,6 @@ export default function ControlMovimientoMaquinasPage() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
   // States for forms
-  const [salidaFotoDoc, setSalidaFotoDoc] = useState<string | null>(null);
-  const [devolucionFotoDoc, setDevolucionFotoDoc] = useState<string | null>(null);
-  const [denunciaFoto, setDenunciaFoto] = useState<string | null>(null);
-
   const [salidaData, setSalidaData] = useState({
     codigo_maquina: '',
     fecha: '',
@@ -64,11 +62,6 @@ export default function ControlMovimientoMaquinasPage() {
     fecha: '',
     hora: '',
     lacre_estado: 'correcto' as 'correcto' | 'violentado',
-  });
-
-  const [denunciaData, setDenunciaData] = useState({
-    detalles: '',
-    nro_acta: '',
   });
 
   // Handle Hydration: Set initial dates on client mount
@@ -132,19 +125,6 @@ export default function ControlMovimientoMaquinasPage() {
     return true; 
   }, [selectedSolicitud, currentMovimiento]);
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>, type: 'salida' | 'devolucion' | 'denuncia') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (type === 'salida') setSalidaFotoDoc(reader.result as string);
-        else if (type === 'devolucion') setDevolucionFotoDoc(reader.result as string);
-        else setDenunciaFoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSaveSalida = async () => {
     if (!firestore || !user || !selectedSolicitud) return;
     if (!salidaData.codigo_maquina) {
@@ -161,7 +141,7 @@ export default function ControlMovimientoMaquinasPage() {
       hora: salidaData.hora,
       codigo_maquina: salidaData.codigo_maquina,
       lugar: selectedSolicitud.lugar_local,
-      firma: salidaFotoDoc || '',
+      firma: '',
       lacre_estado: 'correcto'
     };
 
@@ -192,10 +172,8 @@ export default function ControlMovimientoMaquinasPage() {
       hora: devolucionData.hora,
       codigo_maquina: currentMovimiento.salida?.codigo_maquina || '',
       lugar: selectedSolicitud.lugar_local,
-      firma: devolucionFotoDoc || '',
+      firma: '',
       lacre_estado: devolucionData.lacre_estado,
-      denuncia: devolucionData.lacre_estado === 'violentado' ? denunciaData : null,
-      denuncia_foto: denunciaFoto || null
     };
 
     try {
@@ -256,16 +234,6 @@ export default function ControlMovimientoMaquinasPage() {
     y += 40; doc.line(margin, y, margin + 60, y); doc.text("FIRMA JEFE", margin, y + 5);
     doc.line(pageWidth - margin - 60, y, pageWidth - margin, y); doc.text("FIRMA JEFE", pageWidth - margin - 60, y + 5);
     y += 20; doc.line(105 - 30, y, 105 + 30, y); doc.text("FIRMA DEL DIVULGADOR", 105, y + 5, { align: 'center' });
-
-    if (type === 'devolucion' && data.lacre_estado === 'violentado' && denunciaData.detalles) {
-        doc.addPage(); doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
-        doc.text("FORMULARIO DE DENUNCIA DE ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", 105, 20, { align: 'center' });
-        doc.setFontSize(11); doc.setFont('helvetica', 'normal');
-        doc.text(`NRO. ACTA: ${denunciaData.nro_acta}`, margin, 40);
-        doc.text("DETALLES DE LA IRREGULARIDAD:", margin, 50);
-        doc.roundedRect(margin, 55, 170, 60, 2, 2); doc.text(doc.splitTextToSize(denunciaData.detalles, 160), margin + 5, 62);
-        if (denunciaFoto) doc.addImage(denunciaFoto, 'JPEG', margin, 120, 170, 100);
-    }
 
     doc.save(`Proforma-${type.toUpperCase()}-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
@@ -421,54 +389,21 @@ export default function ControlMovimientoMaquinasPage() {
                             </div>
                         </div>
 
-                        {/* FORMULARIO DE DENUNCIA (SI ES VIOLENTADO) */}
+                        {/* ACCIÓN DE DENUNCIA SI ES VIOLENTADO */}
                         {(devolucionData.lacre_estado === 'violentado' || currentMovimiento?.devolucion?.lacre_estado === 'violentado') && (
                             <Card className="border-4 border-destructive/20 bg-destructive/5 animate-in slide-in-from-bottom-4">
                                 <CardHeader className="bg-destructive/10 border-b border-destructive/20">
                                     <CardTitle className="text-destructive font-black uppercase text-sm flex items-center gap-2">
-                                        <FileWarning className="h-5 w-5" /> DENUNCIA POR LACRES VIOLENTADOS
+                                        <FileWarning className="h-5 w-5" /> LACRES VIOLENTADOS DETECTADOS
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="p-6 space-y-6">
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase">Nº de Acta de Irregularidad</Label>
-                                        <Input 
-                                            value={currentMovimiento?.devolucion?.denuncia?.nro_acta || denunciaData.nro_acta} 
-                                            onChange={(e) => setDenunciaData(p => ({...p, nro_acta: e.target.value}))}
-                                            disabled={!!currentMovimiento?.devolucion}
-                                            placeholder="EJ: ACTA CIDEE 001/2026"
-                                            className="font-black uppercase border-destructive/30"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase">Detalles de la Adulteración</Label>
-                                        <Textarea 
-                                            value={currentMovimiento?.devolucion?.denuncia?.detalles || denunciaData.detalles} 
-                                            onChange={(e) => setDenunciaData(p => ({...p, detalles: e.target.value}))}
-                                            disabled={!!currentMovimiento?.devolucion}
-                                            placeholder="Describa el estado en que se encontró el lacre..."
-                                            className="min-h-[100px] font-medium border-destructive/30"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase">Evidencia Fotográfica</Label>
-                                        {(currentMovimiento?.devolucion?.denuncia_foto || denunciaFoto) ? (
-                                            <div className="relative aspect-video w-full max-w-sm rounded-xl overflow-hidden border-4 border-white shadow-lg">
-                                                <Image src={currentMovimiento?.devolucion?.denuncia_foto || denunciaFoto!} alt="Denuncia" fill className="object-cover" />
-                                                {!currentMovimiento?.devolucion && (
-                                                    <Button variant="destructive" size="icon" className="absolute top-2 right-2 rounded-full" onClick={() => setDenunciaFoto(null)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <label className="flex flex-col items-center justify-center h-32 border-4 border-dashed rounded-2xl border-destructive/20 cursor-pointer hover:bg-destructive/10 transition-all">
-                                                <Camera className="h-8 w-8 text-destructive opacity-40 mb-2" />
-                                                <span className="font-black uppercase text-[10px] text-destructive">Capturar Lacre Dañado</span>
-                                                <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoCapture(e, 'denuncia')} />
-                                            </label>
-                                        )}
-                                    </div>
+                                <CardContent className="p-6 text-center space-y-4">
+                                    <p className="text-xs font-bold uppercase text-destructive">Se ha detectado una irregularidad en los lacres de seguridad. Es obligatorio completar el formulario de denuncia.</p>
+                                    <Link href={`/denuncia-lacres?solicitudId=${selectedSolicitudId}`}>
+                                        <Button className="bg-destructive hover:bg-destructive/90 text-white font-black uppercase text-xs h-12 px-8 shadow-lg">
+                                            <ShieldAlert className="mr-2 h-4 w-4" /> IR AL MÓDULO DE DENUNCIA
+                                        </Button>
+                                    </Link>
                                 </CardContent>
                             </Card>
                         )}

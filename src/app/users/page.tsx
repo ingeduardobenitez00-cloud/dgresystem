@@ -50,11 +50,12 @@ const ALL_MODULES = [
   'solicitud-capacitacion',
   'divulgadores',
   'agenda-capacitacion',
+  'control-movimiento-maquinas',
+  'denuncia-lacres',
   'encuesta-satisfaccion',
   'informe-divulgador',
   'informe-semanal-puntos-fijos',
   'estadisticas-capacitacion',
-  'control-movimiento-maquinas',
   'ficha',
   'fotos',
   'cargar-ficha',
@@ -73,11 +74,12 @@ const MODULE_LABELS: { [key: string]: string } = {
   'solicitud-capacitacion': 'Anexo V - Solicitud',
   'divulgadores': 'Directorio Divulgadores',
   'agenda-capacitacion': 'Agenda de Actividades',
+  'control-movimiento-maquinas': 'Movimiento de Máquinas',
+  'denuncia-lacres': 'Denuncia de Lacres',
   'encuesta-satisfaccion': 'Encuesta Satisfacción',
   'informe-divulgador': 'Anexo III - Informe Div.',
   'informe-semanal-puntos-fijos': 'Anexo IV - Inf. Semanal',
   'estadisticas-capacitacion': 'Estadísticas CIDEE',
-  'control-movimiento-maquinas': 'Movimiento de Máquinas',
   'ficha': 'Vista de Ficha',
   'fotos': 'Imágenes',
   'cargar-ficha': 'Cargar Ficha',
@@ -95,7 +97,7 @@ const MODULE_LABELS: { [key: string]: string } = {
 const MODULE_GROUPS = [
   {
     label: "CIDEE - CAPACITACIONES",
-    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
+    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
   },
   {
     label: "REGISTROS ELECTORALES",
@@ -134,7 +136,6 @@ const GLOBAL_PERMISSION_LABELS: { [key: string]: string } = {
 };
 
 export default function UsersPage() {
-  const [passwordVisible, setPasswordVisible] = useState(false);
   const { toast } = useToast();
   const { firestore } = useFirebase();
   const { user: currentUser, isUserLoading } = useUser();
@@ -154,8 +155,6 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
 
   const [editRole, setEditRole] = useState<UserProfile['role']>();
-  const [editDept, setEditDept] = useState<string | undefined>('');
-  const [editDist, setEditDist] = useState<string | undefined>('');
 
   useEffect(() => {
     if (datosData) {
@@ -259,8 +258,6 @@ export default function UsersPage() {
   const handleOpenEditModal = (user: UserProfile) => {
     setEditingUser(user);
     setEditRole(user.role);
-    setEditDept(user.departamento || '');
-    setEditDist(user.distrito || '');
     setSelectedDepartment(user.departamento || '');
     setEditModalOpen(true);
   };

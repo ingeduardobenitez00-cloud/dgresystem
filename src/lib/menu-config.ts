@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -37,6 +37,12 @@ export const dashboardMenuItems = [
     label: 'Control de Movimiento de Máquinas',
     icon: ArrowLeftRight,
     description: 'Registro de salida y devolución de equipos de votación.',
+  },
+  {
+    href: '/denuncia-lacres',
+    label: 'Denuncia de Lacres',
+    icon: ShieldAlert,
+    description: 'Reporte de adulteración de los lacres de seguridad.',
   },
   {
     href: '/encuesta-satisfaccion',
