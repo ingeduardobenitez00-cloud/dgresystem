@@ -32,115 +32,19 @@
         "distrito"
       ]
     },
-    "Departamento": {
-      "title": "Departamento",
+    "Divulgador": {
+      "title": "Divulgador",
       "type": "object",
-      "description": "Represents a department in Paraguay.",
+      "description": "Personal operativo que realiza las capacitaciones, no tiene acceso al sistema.",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the department."
-        }
+        "nombre": { "type": "string" },
+        "cedula": { "type": "string" },
+        "vinculo": { "type": "string", "enum": ["PERMANENTE", "CONTRATADO", "COMISIONADO"] },
+        "departamento": { "type": "string" },
+        "distrito": { "type": "string" },
+        "fecha_registro": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "name"
-      ]
-    },
-    "Distrito": {
-      "title": "Distrito",
-      "type": "object",
-      "description": "Represents a district within a department.",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the district."
-        },
-        "departmentId": {
-          "type": "string",
-          "description": "The ID of the department this district belongs to."
-        }
-      },
-      "required": [
-        "name",
-        "departmentId"
-      ]
-    },
-    "MaquinaVotacion": {
-      "title": "Máquina de Votación",
-      "type": "object",
-      "description": "Representa una máquina de votación en el inventario oficial.",
-      "properties": {
-        "codigo": {
-          "type": "string",
-          "description": "El número de serie o código único de la máquina."
-        },
-        "departamento": {
-          "type": "string",
-          "description": "Departamento donde está asignada físicamente."
-        },
-        "distrito": {
-          "type": "string",
-          "description": "Distrito donde está asignada físicamente."
-        },
-        "fecha_registro": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "codigo",
-        "departamento",
-        "distrito"
-      ]
-    },
-    "Imagen": {
-      "title": "Imagen",
-      "type": "object",
-      "description": "Represents an image uploaded by a user.",
-      "properties": {
-        "src": {
-          "type": "string",
-          "description": "URL of the uploaded image (data URI)."
-        },
-        "alt": {
-          "type": "string",
-          "description": "Alt text for the image."
-        },
-        "tags": {
-          "type": "array",
-          "description": "Tags associated with the image.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "date": {
-          "type": "string",
-          "format": "date",
-          "description": "Date associated with the image."
-        },
-        "category": {
-          "type": "string",
-          "description": "Category of the image."
-        },
-        "hint": {
-          "type": "string",
-          "description": "AI hint for the image."
-        },
-        "departamento": {
-          "type": "string",
-          "description": "The department the image belongs to."
-        },
-        "distrito": {
-          "type": "string",
-          "description": "The district the image belongs to."
-        }
-      },
-      "required": [
-        "src",
-        "alt",
-        "departamento",
-        "distrito"
-      ]
+      "required": ["nombre", "cedula", "departamento", "distrito"]
     },
     "UserProfile": {
       "title": "User Profile",
@@ -161,7 +65,6 @@
             "director",
             "jefe",
             "funcionario",
-            "divulgador",
             "viewer"
           ]
         },
@@ -178,21 +81,10 @@
           }
         },
         "departamento": {
-          "type": "string",
-          "description": "The department assigned to the user."
+          "type": "string"
         },
         "distrito": {
-          "type": "string",
-          "description": "The district assigned to the user."
-        },
-        "cedula": {
-          "type": "string",
-          "description": "Número de cédula del divulgador."
-        },
-        "vinculo": {
-          "type": "string",
-          "enum": ["PERMANENTE", "CONTRATADO", "COMISIONADO"],
-          "description": "Tipo de vínculo laboral."
+          "type": "string"
         }
       },
       "required": [
@@ -201,401 +93,25 @@
         "role"
       ]
     },
-    "Reporte": {
-      "title": "Reporte",
-      "type": "object",
-      "description": "Represents a report with detailed information.",
-      "properties": {
-        "departamento": {
-          "type": "string"
-        },
-        "distrito": {
-          "type": "string"
-        },
-        "estado-fisico": {
-          "type": "string"
-        },
-        "descripcion-situacion": {
-          "type": "string"
-        },
-        "cantidad-habitaciones": {
-          "type": "string"
-        },
-        "habitacion-segura": {
-          "type": "string"
-        },
-        "caracteristicas-habitacion": {
-          "type": "string"
-        },
-        "dimensiones-habitacion": {
-          "type": "string"
-        },
-        "cantidad-maquinas": {
-          "type": "string"
-        },
-        "lugar-resguardo": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "departamento",
-        "distrito"
-      ]
-    },
-    "LocalVotacion": {
-      "title": "Local de Votacion",
-      "type": "object",
-      "description": "Represents a polling station.",
-      "properties": {
-        "codigo_local": {
-          "type": "string",
-          "description": "The code for the polling station."
-        },
-        "departamento": {
-          "type": "string",
-          "description": "The name of the department."
-        },
-        "distrito": {
-          "type": "string",
-          "description": "The name of the district."
-        },
-        "zona": {
-          "type": "string",
-          "description": "The zone of the polling station."
-        },
-        "local": {
-          "type": "string",
-          "description": "The name of the polling station."
-        },
-        "direccion": {
-          "type": "string",
-          "description": "The address of the polling station."
-        },
-        "gps": {
-          "type": "string",
-          "description": "GPS coordinates of the polling station."
-        }
-      },
-      "required": [
-        "departamento",
-        "distrito",
-        "local"
-      ]
-    },
     "SolicitudCapacitacion": {
       "title": "Solicitud de Capacitación",
       "type": "object",
-      "description": "Formulario de solicitud de capacitación oficial.",
       "properties": {
-        "solicitante_entidad": {
-          "type": "string",
-          "description": "Partido o Movimiento Político"
-        },
-        "tipo_solicitud": {
-          "type": "string",
-          "enum": [
-            "divulgacion",
-            "capacitacion"
-          ]
-        },
-        "fecha": {
-          "type": "string",
-          "format": "date"
-        },
-        "hora_desde": {
-          "type": "string"
-        },
-        "hora_hasta": {
-          "type": "string"
-        },
-        "lugar_local": {
-          "type": "string"
-        },
-        "direccion_calle": {
-          "type": "string"
-        },
-        "barrio_compania": {
-          "type": "string"
-        },
-        "departamento": {
-          "type": "string"
-        },
-        "distrito": {
-          "type": "string"
-        },
-        "rol_solicitante": {
-          "type": "string",
-          "enum": [
-            "apoderado",
-            "otro"
-          ]
-        },
-        "nombre_completo": {
-          "type": "string"
-        },
-        "cedula": {
-          "type": "string"
-        },
-        "telefono": {
-          "type": "string"
-        },
-        "gps": {
-          "type": "string"
-        },
-        "foto_firma": {
-          "type": "string",
-          "description": "Data URI de la solicitud firmada."
-        },
-        "usuario_id": {
-          "type": "string"
-        },
-        "divulgador_id": {
-          "type": "string",
-          "description": "ID del usuario asignado como divulgador."
-        },
-        "divulgador_nombre": {
-          "type": "string",
-          "description": "Nombre del usuario asignado como divulgador."
-        },
-        "divulgador_cedula": {
-          "type": "string",
-          "description": "Cédula del usuario asignado como divulgador."
-        },
-        "divulgador_vinculo": {
-          "type": "string",
-          "description": "Vínculo laboral del usuario asignado como divulgador."
-        },
-        "fecha_creacion": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "solicitante_entidad",
-        "tipo_solicitud",
-        "fecha",
-        "hora_desde",
-        "hora_hasta",
-        "direccion_calle",
-        "nombre_completo",
-        "cedula",
-        "departamento",
-        "distrito"
-      ]
-    },
-    "EncuestaSatisfaccion": {
-      "title": "Encuesta de Satisfacción",
-      "type": "object",
-      "description": "Encuesta de satisfacción del uso de la máquina de votación.",
-      "properties": {
-        "lugar_practica": {
-          "type": "string"
-        },
-        "fecha": {
-          "type": "string",
-          "format": "date"
-        },
-        "hora": {
-          "type": "string"
-        },
-        "edad": {
-          "type": "string"
-        },
-        "genero": {
-          "type": "string",
-          "enum": [
-            "hombre",
-            "mujer"
-          ]
-        },
-        "pueblo_originario": {
-          "type": "boolean",
-          "description": "Si el ciudadano pertenece a un pueblo originario."
-        },
-        "utilidad_maquina": {
-          "type": "string",
-          "enum": [
-            "muy_util",
-            "util",
-            "poco_util",
-            "nada_util"
-          ]
-        },
-        "facilidad_maquina": {
-          "type": "string",
-          "enum": [
-            "muy_facil",
-            "facil",
-            "poco_facil",
-            "nada_facil"
-          ]
-        },
-        "seguridad_maquina": {
-          "type": "string",
-          "enum": [
-            "muy_seguro",
-            "seguro",
-            "poco_seguro",
-            "nada_seguro"
-          ]
-        },
-        "departamento": {
-          "type": "string"
-        },
-        "distrito": {
-          "type": "string"
-        },
-        "usuario_id": {
-          "type": "string"
-        },
-        "fecha_creacion": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "lugar_practica",
-        "fecha",
-        "hora",
-        "edad",
-        "genero",
-        "utilidad_maquina",
-        "facilidad_maquina",
-        "seguridad_maquina",
-        "departamento",
-        "distrito"
-      ]
-    },
-    "InformeDivulgador": {
-      "title": "Informe del Divulgador (Anexo III)",
-      "type": "object",
-      "description": "Control individual del divulgador con marcaciones.",
-      "properties": {
-        "lugar_divulgacion": { "type": "string" },
-        "fecha": { "type": "string", "format": "date" },
+        "solicitante_entidad": { "type": "string" },
+        "tipo_solicitud": { "type": "string" },
+        "fecha": { "type": "string" },
         "hora_desde": { "type": "string" },
         "hora_hasta": { "type": "string" },
-        "nombre_divulgador": { "type": "string" },
-        "cedula_divulgador": { "type": "string" },
-        "vinculo": { "type": "string" },
-        "oficina": { "type": "string" },
+        "lugar_local": { "type": "string" },
         "departamento": { "type": "string" },
         "distrito": { "type": "string" },
-        "total_personas": { "type": "number" },
-        "marcaciones": {
-          "type": "array",
-          "items": { "type": "number" }
-        },
-        "fotos": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Data URIs of the event photos."
-        },
-        "usuario_id": { "type": "string" },
-        "fecha_creacion": { "type": "string", "format": "date-time" }
-      },
-      "required": [
-        "lugar_divulgacion",
-        "fecha",
-        "nombre_divulgador",
-        "cedula_divulgador",
-        "departamento",
-        "distrito"
-      ]
-    },
-    "InformeSemanalPuntosFijos": {
-      "title": "Informe Semanal Puntos Fijos (Anexo IV)",
-      "type": "object",
-      "description": "Resumen semanal de actividades en puntos fijos de divulgación.",
-      "properties": {
-        "semana_desde": { "type": "string", "format": "date" },
-        "semana_hasta": { "type": "string", "format": "date" },
-        "departamento": { "type": "string" },
-        "distrito": { "type": "string" },
-        "filas": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "lugar": { "type": "string" },
-              "fecha": { "type": "string", "format": "date" },
-              "hora_desde": { "type": "string" },
-              "hora_hasta": { "type": "string" },
-              "nombre_divulgador": { "type": "string" },
-              "cedula": { "type": "string" },
-              "vinculo": { "type": "string" },
-              "cantidad_personas": { "type": "number" }
-            }
-          }
-        },
-        "usuario_id": { "type": "string" },
-        "fecha_creacion": { "type": "string", "format": "date-time" }
-      },
-      "required": [
-        "semana_desde",
-        "semana_hasta",
-        "departamento",
-        "distrito"
-      ]
-    },
-    "MovimientoMaquina": {
-      "title": "Control de Movimiento de Máquinas",
-      "type": "object",
-      "description": "Registro de salida y devolución de máquinas de votación.",
-      "properties": {
-        "solicitud_id": { "type": "string" },
-        "departamento": { "type": "string" },
-        "distrito": { "type": "string" },
-        "salida": {
-          "type": "object",
-          "properties": {
-            "nombre": { "type": "string" },
-            "cedula": { "type": "string" },
-            "vinculo": { "type": "string" },
-            "fecha": { "type": "string", "format": "date" },
-            "hora": { "type": "string" },
-            "codigo_maquina": { "type": "string" },
-            "lugar": { "type": "string" },
-            "firma": { "type": "string" }
-          }
-        },
-        "devolucion": {
-          "type": "object",
-          "properties": {
-            "nombre": { "type": "string" },
-            "cedula": { "type": "string" },
-            "vinculo": { "type": "string" },
-            "fecha": { "type": "string", "format": "date" },
-            "hora": { "type": "string" },
-            "codigo_maquina": { "type": "string" },
-            "lugar": { "type": "string" },
-            "firma": { "type": "string" }
-          }
-        }
-      }
-    },
-    "Padron": {
-      "title": "Padrón Electoral",
-      "type": "object",
-      "description": "Registro de ciudadano en el padrón nacional.",
-      "properties": {
+        "nombre_completo": { "type": "string" },
         "cedula": { "type": "string" },
-        "nombre": { "type": "string" },
-        "apellido": { "type": "string" },
-        "departamento": { "type": "string" },
-        "distrito": { "type": "string" },
-        "local": { "type": "string" }
-      },
-      "required": ["cedula", "nombre"]
-    },
-    "PartidoPolitico": {
-      "title": "Partido Político",
-      "type": "object",
-      "properties": {
-        "nombre": { "type": "string" },
-        "siglas": { "type": "string" }
-      },
-      "required": ["nombre"]
+        "divulgador_id": { "type": "string" },
+        "divulgador_nombre": { "type": "string" },
+        "divulgador_cedula": { "type": "string" },
+        "divulgador_vinculo": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -604,35 +120,9 @@
     ]
   },
   "firestore": {
-    "/datos/{datoId}": {
-      "schema": {
-        "$ref": "#/entities/Dato"
-      },
-      "description": "Stores imported department and district data."
-    },
-    "/departamentos/{departamentoId}": {
-      "schema": {
-        "$ref": "#/entities/Departamento"
-      },
-      "description": "Stores department information."
-    },
-    "/departamentos/{departamentoId}/distritos/{distritoId}": {
-      "schema": {
-        "$ref": "#/entities/Distrito"
-      },
-      "description": "Stores district information for a specific department."
-    },
-    "/maquinas/{maquinaId}": {
-      "schema": {
-        "$ref": "#/entities/MaquinaVotacion"
-      },
-      "description": "Stores official voting machine serial codes and their assigned location."
-    },
-    "/imagenes/{imagenId}": {
-      "schema": {
-        "$ref": "#/entities/Imagen"
-      },
-      "description": "Stores image information, linked by department and district name."
+    "/divulgadores/{divulgadorId}": {
+      "schema": { "$ref": "#/entities/Divulgador" },
+      "description": "Directorio de personal operativo para capacitaciones."
     },
     "/users/{userId}": {
       "schema": {
@@ -640,59 +130,11 @@
       },
       "description": "Stores user profile information."
     },
-    "/reports/{reportId}": {
-      "schema": {
-        "$ref": "#/entities/Reporte"
-      },
-      "description": "Stores detailed report information."
-    },
-    "/locales-votacion/{localId}": {
-      "schema": {
-        "$ref": "#/entities/LocalVotacion"
-      },
-      "description": "Stores polling station information."
-    },
     "/solicitudes-capacitacion/{solicitudId}": {
       "schema": {
         "$ref": "#/entities/SolicitudCapacitacion"
       },
       "description": "Stores training requests."
-    },
-    "/encuestas-satisfaccion/{encuestaId}": {
-      "schema": {
-        "$ref": "#/entities/EncuestaSatisfaccion"
-      },
-      "description": "Stores satisfaction surveys."
-    },
-    "/informes-divulgador/{informeId}": {
-      "schema": {
-        "$ref": "#/entities/InformeDivulgador"
-      },
-      "description": "Stores individual divulgador reports (Anexo III)."
-    },
-    "/informes-semanales-anexo-iv/{informeId}": {
-      "schema": {
-        "$ref": "#/entities/InformeSemanalPuntosFijos"
-      },
-      "description": "Stores weekly reports for fixed disclosure points (Anexo IV)."
-    },
-    "/movimientos-maquinas/{movimientoId}": {
-      "schema": {
-        "$ref": "#/entities/MovimientoMaquina"
-      },
-      "description": "Stores machine movement logs."
-    },
-    "/padron/{padronId}": {
-      "schema": {
-        "$ref": "#/entities/Padron"
-      },
-      "description": "Base de datos nacional de ciudadanos."
-    },
-    "/partidos-politicos/{partidoId}": {
-      "schema": {
-        "$ref": "#/entities/PartidoPolitico"
-      },
-      "description": "Directorio oficial de partidos y movimientos políticos."
     }
   }
 }

@@ -75,6 +75,16 @@ export type LocalVotacion = {
   foto10?: string;
 }
 
+export type Divulgador = {
+  id: string;
+  nombre: string;
+  cedula: string;
+  vinculo: 'PERMANENTE' | 'CONTRATADO' | 'COMISIONADO';
+  departamento: string;
+  distrito: string;
+  fecha_registro: string;
+}
+
 export type SolicitudCapacitacion = {
   id: string;
   solicitante_entidad: string;

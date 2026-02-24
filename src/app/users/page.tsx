@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -38,13 +39,11 @@ type UserProfile = {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'director' | 'jefe' | 'funcionario' | 'divulgador' | 'viewer';
+  role: 'admin' | 'director' | 'jefe' | 'funcionario' | 'viewer';
   modules: string[];
   permissions: string[];
   departamento?: string;
   distrito?: string;
-  cedula?: string;
-  vinculo?: string;
 };
 
 const ALL_MODULES = [
@@ -61,6 +60,7 @@ const ALL_MODULES = [
   'cargar-fotos-locales',
   'solicitud-capacitacion',
   'agenda-capacitacion',
+  'divulgadores',
   'encuesta-satisfaccion',
   'informe-divulgador',
   'informe-semanal-puntos-fijos',
@@ -83,6 +83,7 @@ const MODULE_LABELS: { [key: string]: string } = {
   'cargar-fotos-locales': 'Carga Masiva Fotos',
   'solicitud-capacitacion': 'Anexo V - Solicitud',
   'agenda-capacitacion': 'Agenda de Actividades',
+  'divulgadores': 'Directorio Divulgadores',
   'encuesta-satisfaccion': 'Encuesta Satisfacción',
   'informe-divulgador': 'Anexo III - Informe Div.',
   'informe-semanal-puntos-fijos': 'Anexo IV - Inf. Semanal',
@@ -94,7 +95,7 @@ const MODULE_LABELS: { [key: string]: string } = {
 const MODULE_GROUPS = [
   {
     label: "CIDEE - CAPACITACIONES",
-    modules: ['solicitud-capacitacion', 'agenda-capacitacion', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
+    modules: ['solicitud-capacitacion', 'agenda-capacitacion', 'divulgadores', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion']
   },
   {
     label: "DGRE",
@@ -187,8 +188,7 @@ export default function UsersPage() {
       u.email.toLowerCase().includes(term) ||
       u.role.toLowerCase().includes(term) ||
       (u.departamento?.toLowerCase().includes(term)) ||
-      (u.distrito?.toLowerCase().includes(term)) ||
-      (u.cedula?.toLowerCase().includes(term))
+      (u.distrito?.toLowerCase().includes(term))
     );
   }, [users, searchTerm]);
 
@@ -235,8 +235,6 @@ export default function UsersPage() {
     const role = formData.get('role') as UserProfile['role'];
     const departamento = formData.get('departamento') as string;
     const distrito = formData.get('distrito') as string;
-    const cedula = formData.get('cedula') as string;
-    const vinculo = formData.get('vinculo') as string;
 
     const { modules, permissions } = processPermissions(formData);
 
@@ -247,8 +245,7 @@ export default function UsersPage() {
       modules, 
       permissions, 
       departamento, 
-      distrito,
-      ...(role === 'divulgador' ? { cedula, vinculo } : {})
+      distrito
     };
 
     const tempAppName = 'temp-user-creation-' + Math.random().toString(36).substring(7);
@@ -294,8 +291,6 @@ export default function UsersPage() {
     const role = formData.get('role') as UserProfile['role'];
     const departamento = formData.get('departamento') as string;
     const distrito = formData.get('distrito') as string;
-    const cedula = formData.get('cedula') as string;
-    const vinculo = formData.get('vinculo') as string;
     
     const { modules, permissions } = processPermissions(formData, true);
     
@@ -304,8 +299,7 @@ export default function UsersPage() {
       modules, 
       permissions, 
       departamento, 
-      distrito,
-      ...(role === 'divulgador' ? { cedula, vinculo } : { cedula: '', vinculo: '' })
+      distrito
     };
 
     try {
@@ -391,7 +385,7 @@ export default function UsersPage() {
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="flex items-center gap-2 uppercase font-black text-primary">
                 <UserPlus className="h-5 w-5" />
-                Crear Nuevo Funcionario
+                Crear Nuevo Usuario Sistema
               </CardTitle>
               <CardDescription className="text-[10px] font-bold uppercase">
                 Defina los datos básicos y la matriz de permisos para el nuevo ingreso.
@@ -436,35 +430,12 @@ export default function UsersPage() {
                             <SelectItem value="director">Director</SelectItem>
                             <SelectItem value="jefe">Jefe de Oficina</SelectItem>
                             <SelectItem value="funcionario">Funcionario Operativo</SelectItem>
-                            <SelectItem value="divulgador">Divulgador (CIDEE)</SelectItem>
                             <SelectItem value="viewer">Visualizador / Observador</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
               </div>
 
-              {selectedRole === 'divulgador' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 bg-primary/5 border-2 border-dashed border-primary/20 rounded-xl">
-                  <div className="space-y-2">
-                    <Label htmlFor="cedula" className="text-primary font-black text-[10px] uppercase">C.I.C. N.º</Label>
-                    <Input id="cedula" name="cedula" placeholder="Ej: 1.234.567" required className="font-black h-12 text-lg" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="vinculo" className="text-primary font-black text-[10px] uppercase">Vínculo Laboral</Label>
-                    <Select name="vinculo" required defaultValue="CONTRATADO">
-                      <SelectTrigger id="vinculo" className="h-12 font-bold">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PERMANENTE">PERMANENTE</SelectItem>
-                        <SelectItem value="CONTRATADO">CONTRATADO</SelectItem>
-                        <SelectItem value="COMISIONADO">COMISIONADO</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-              
               <Separator />
 
               <div className="space-y-4">
@@ -551,14 +522,14 @@ export default function UsersPage() {
                 <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 uppercase font-black text-primary">
                         <Users className="h-5 w-5" />
-                        Nómina de Personal Activo
+                        Nómina de Usuarios Activos
                     </CardTitle>
                     <Badge variant="outline" className="text-[9px] font-black uppercase">{filteredUsers.length} Usuarios Registrados</Badge>
                 </div>
                 <div className="relative w-full md:w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input 
-                        placeholder="Buscar funcionario o C.I..." 
+                        placeholder="Buscar usuario o departamento..." 
                         className="pl-10 h-11 text-xs font-bold border-2"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -574,7 +545,7 @@ export default function UsersPage() {
                     <Table>
                         <TableHeader className="bg-muted/50">
                         <TableRow>
-                            <TableHead className="text-[10px] font-black uppercase">Funcionario</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase">Usuario</TableHead>
                             <TableHead className="text-[10px] font-black uppercase">Correo Acceso</TableHead>
                             <TableHead className="text-[10px] font-black uppercase">Jurisdicción</TableHead>
                             <TableHead className="text-[10px] font-black uppercase">Rol</TableHead>
@@ -587,7 +558,6 @@ export default function UsersPage() {
                             <TableRow key={user.id} className="group/row hover:bg-muted/20 transition-colors">
                                 <TableCell className="font-black text-xs uppercase leading-tight">
                                     {user.username}
-                                    {user.cedula && <p className="text-[9px] text-muted-foreground font-normal">C.I. {user.cedula}</p>}
                                 </TableCell>
                                 <TableCell className="text-xs font-medium">{user.email}</TableCell>
                                 <TableCell className="text-[9px] font-bold uppercase leading-tight">
@@ -630,7 +600,7 @@ export default function UsersPage() {
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={5} className="h-32 text-center text-xs font-bold uppercase text-muted-foreground border-dashed">
-                                    No se encontraron funcionarios registrados.
+                                    No se encontraron usuarios registrados.
                                 </TableCell>
                             </TableRow>
                         )}
@@ -647,7 +617,7 @@ export default function UsersPage() {
         <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
             <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
                 <DialogHeader className="p-6 bg-primary text-white shrink-0">
-                    <DialogTitle className="text-2xl font-black uppercase tracking-tight">Editar Perfil de Funcionario</DialogTitle>
+                    <DialogTitle className="text-2xl font-black uppercase tracking-tight">Editar Perfil de Usuario</DialogTitle>
                     <DialogDescription className="text-white/70 font-bold uppercase text-[10px]">
                         ID de Sistema: {editingUser.id} | Correo: {editingUser.email}
                     </DialogDescription>
@@ -674,32 +644,10 @@ export default function UsersPage() {
                                             <SelectItem value="director">Director</SelectItem>
                                             <SelectItem value="jefe">Jefe de Oficina</SelectItem>
                                             <SelectItem value="funcionario">Funcionario</SelectItem>
-                                            <SelectItem value="divulgador">Divulgador</SelectItem>
                                             <SelectItem value="viewer">Visualizador</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                {editRole === 'divulgador' && (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="cedula-edit" className="text-[10px] font-black uppercase text-primary">C.I.C.</Label>
-                                            <Input id="cedula-edit" name="cedula" defaultValue={editingUser.cedula} required className="font-black h-12 border-2" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="vinculo-edit" className="text-[10px] font-black uppercase text-primary">Vínculo</Label>
-                                            <Select name="vinculo" required defaultValue={editingUser.vinculo || 'CONTRATADO'}>
-                                                <SelectTrigger id="vinculo-edit" className="font-bold border-2 h-12">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="PERMANENTE">PERMANENTE</SelectItem>
-                                                    <SelectItem value="CONTRATADO">CONTRATADO</SelectItem>
-                                                    <SelectItem value="COMISIONADO">COMISIONADO</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             <Separator />

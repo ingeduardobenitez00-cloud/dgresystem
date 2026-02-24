@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription as CardDescri
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where, doc, updateDoc } from 'firebase/firestore';
-import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
-import { Loader2, Calendar, MapPin, ClipboardCheck, LayoutList, Building2, UserPlus, CheckCircle2, QrCode, X, Clock, Printer } from 'lucide-react';
+import { type SolicitudCapacitacion, type Dato, type Divulgador } from '@/lib/data';
+import { Loader2, Calendar, MapPin, ClipboardCheck, LayoutList, Building2, UserPlus, CheckCircle2, QrCode, X, Clock, Printer, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import jsPDF from 'jspdf';
 
 export default function AgendaCapacitacionPage() {
@@ -29,6 +30,7 @@ export default function AgendaCapacitacionPage() {
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [staffSearch, setStaffSearch] = useState('');
 
   // Load institutional logo
   useEffect(() => {
@@ -50,15 +52,24 @@ export default function AgendaCapacitacionPage() {
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
-  // User list for assignment
-  const usersQuery = useMemoFirebase(() => {
+  // Divulgadores list for assignment (NOT users)
+  const divulQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile) return null;
+    const colRef = collection(firestore, 'divulgadores');
     const canFilterAll = user.profile.role === 'admin' || user.profile.permissions?.includes('admin_filter');
-    if (canFilterAll) return collection(firestore, 'users');
-    return query(collection(firestore, 'users'), where('distrito', '==', user.profile.distrito || ''));
+    if (canFilterAll) return query(colRef, orderBy('nombre'));
+    return query(colRef, where('distrito', '==', user.profile.distrito || ''), orderBy('nombre'));
   }, [firestore, user]);
   
-  const { data: staffUsers } = useCollection(usersQuery);
+  const { data: divulStaff } = useCollection<Divulgador>(divulQuery);
+
+  const filteredStaff = useMemo(() => {
+    if (!divulStaff) return [];
+    return divulStaff.filter(s => 
+      s.nombre.toLowerCase().includes(staffSearch.toLowerCase()) || 
+      s.cedula.includes(staffSearch)
+    );
+  }, [divulStaff, staffSearch]);
 
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || !user?.profile) return null;
@@ -93,20 +104,21 @@ export default function AgendaCapacitacionPage() {
       .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [datosData, solicitudes]);
 
-  const handleAssignDivulgador = async (userId: string) => {
+  const handleAssignDivulgador = async (divulId: string) => {
     if (!firestore || !selectedSolicitud) return;
-    const selectedUser = staffUsers?.find(u => u.id === userId);
-    if (!selectedUser) return;
+    const selected = divulStaff?.find(u => u.id === divulId);
+    if (!selected) return;
     setIsAssigning(true);
     try {
       await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedSolicitud.id), {
-        divulgador_id: selectedUser.id,
-        divulgador_nombre: selectedUser.username,
-        divulgador_cedula: selectedUser.cedula || '',
-        divulgador_vinculo: selectedUser.vinculo || ''
+        divulgador_id: selected.id,
+        divulgador_nombre: selected.nombre,
+        divulgador_cedula: selected.cedula || '',
+        divulgador_vinculo: selected.vinculo || ''
       });
-      toast({ title: "¡Divulgador Asignado!", description: `${selectedUser.username} ha sido asignado.` });
+      toast({ title: "¡Divulgador Asignado!", description: `${selected.nombre} ha sido asignado.` });
       setSelectedSolicitud(null);
+      setStaffSearch('');
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo realizar la asignación." });
     } finally {
@@ -116,7 +128,6 @@ export default function AgendaCapacitacionPage() {
 
   const getEncuestaUrl = (id: string) => {
       if (typeof window === 'undefined') return '';
-      // Garantizamos que el ID sea parte fundamental de la URL pública
       const baseUrl = window.location.origin;
       return `${baseUrl}/encuesta-satisfaccion?solicitudId=${id}`;
   }
@@ -129,7 +140,6 @@ export default function AgendaCapacitacionPage() {
       const url = getEncuestaUrl(qrSolicitud.id);
       const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(url)}`;
       
-      // Fetch QR image and convert to base64
       const response = await fetch(qrApiUrl);
       const blob = await response.blob();
       const qrBase64 = await new Promise<string>((resolve) => {
@@ -138,75 +148,49 @@ export default function AgendaCapacitacionPage() {
         reader.readAsDataURL(blob);
       });
 
-      const doc = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: 'a4'
-      });
-
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 20;
 
-      // Header Letterhead
       doc.addImage(logoBase64, 'PNG', margin, 15, 25, 25);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18); doc.setFont('helvetica', 'bold');
       doc.text("JUSTICIA ELECTORAL", 50, 25);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
       doc.text("Dirección General del Registro Electoral", 50, 31);
       doc.text("Centro de Información, Documentación y Educación Electoral (CIDEE)", 50, 36);
-
-      doc.setDrawColor(0);
-      doc.setLineWidth(0.5);
       doc.line(margin, 45, pageWidth - margin, 45);
 
-      // Body
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22); doc.setFont('helvetica', 'bold');
       doc.text("ENCUESTA DE SATISFACCIÓN", pageWidth / 2, 70, { align: 'center' });
-      
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(14); doc.setFont('helvetica', 'normal');
       doc.text("Uso de la Máquina de Votación Electrónica", pageWidth / 2, 80, { align: 'center' });
 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16); doc.setFont('helvetica', 'bold');
       doc.text(`LOCAL: ${qrSolicitud.lugar_local.toUpperCase()}`, pageWidth / 2, 100, { align: 'center' });
       doc.setFontSize(12);
       doc.text(`${qrSolicitud.distrito} - ${qrSolicitud.departamento}`, pageWidth / 2, 108, { align: 'center' });
 
-      // QR Code
       const qrSize = 100;
       doc.addImage(qrBase64, 'PNG', (pageWidth - qrSize) / 2, 120, qrSize, qrSize);
 
-      // Instructions
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12); doc.setFont('helvetica', 'bold');
       doc.text("ESCANEE EL CÓDIGO QR PARA COMPLETAR LA ENCUESTA", pageWidth / 2, 235, { align: 'center' });
       
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
       doc.text("Link de acceso directo:", pageWidth / 2, 245, { align: 'center' });
       doc.text(url, pageWidth / 2, 250, { align: 'center', maxWidth: 150 });
 
-      // Footer
-      doc.setTextColor(0);
-      doc.setFontSize(8);
-      doc.text(`Generado el: ${new Date().toLocaleString('es-PY')}`, margin, 280);
-
       doc.save(`QR-Encuesta-${qrSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
-      toast({ title: "PDF Generado", description: "El documento está listo para imprimir." });
+      toast({ title: "PDF Generado" });
     } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF del QR." });
+      toast({ variant: "destructive", title: "Error" });
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  const canAssign = user?.profile?.role === 'admin' || user?.profile?.permissions?.includes('assign_staff');
+  const canAssign = user?.profile?.role === 'admin' || user?.profile?.role === 'jefe' || user?.profile?.permissions?.includes('assign_staff');
 
   if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -274,15 +258,11 @@ export default function AgendaCapacitacionPage() {
 
                                     <div className="lg:col-span-3 space-y-3">
                                       <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                                        </div>
+                                        <MapPin className="h-4 w-4 text-muted-foreground" />
                                         <p className="text-xs font-black uppercase leading-tight">{item.lugar_local}</p>
                                       </div>
                                       <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                                        </div>
+                                        <Calendar className="h-4 w-4 text-muted-foreground" />
                                         <p className="text-[10px] font-black uppercase tracking-tight">
                                           {formatDateToDDMMYYYY(item.fecha)} <span className="text-muted-foreground mx-1">|</span> {item.hora_desde} HS
                                         </p>
@@ -364,34 +344,44 @@ export default function AgendaCapacitacionPage() {
           </DialogContent>
       </Dialog>
 
-      {/* Assignment Dialog */}
+      {/* Assignment Dialog - USING DIVULGADORES COLLECTION */}
       <Dialog open={!!selectedSolicitud} onOpenChange={(o) => !o && setSelectedSolicitud(null)}>
-          <DialogContent className="max-w-md p-8">
-              <DialogHeader>
-                <DialogTitle className="uppercase font-black text-xl mb-2">Asignar Personal</DialogTitle>
-                <DialogDescription className="text-xs font-bold uppercase">
-                  Seleccione el funcionario que realizará la divulgación en {selectedSolicitud?.lugar_local}.
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+              <DialogHeader className="p-6 bg-primary text-white shrink-0">
+                <DialogTitle className="uppercase font-black text-xl">Asignar Divulgador</DialogTitle>
+                <DialogDescription className="text-white/70 font-bold uppercase text-[10px]">
+                  Local: {selectedSolicitud?.lugar_local}
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-6 space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-primary">FUNCIONARIO DISPONIBLE</Label>
-                    <Select onValueChange={handleAssignDivulgador} disabled={isAssigning}>
-                        <SelectTrigger className="h-12 border-2 font-bold text-sm">
-                          <SelectValue placeholder="Buscar por nombre..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {staffUsers?.map(u => (
-                              <SelectItem key={u.id} value={u.id} className="font-bold uppercase text-[10px]">
-                                {u.username} <span className="text-muted-foreground font-normal ml-2">({u.role})</span>
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+              <div className="p-6 space-y-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="Buscar por nombre o C.I..." 
+                      className="pl-10 font-bold h-11 border-2" 
+                      value={staffSearch}
+                      onChange={e => setStaffSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                    {filteredStaff.length > 0 ? (
+                      filteredStaff.map(s => (
+                        <div key={s.id} onClick={() => handleAssignDivulgador(s.id)} className="flex items-center justify-between p-3 border-2 rounded-xl hover:border-primary hover:bg-primary/5 cursor-pointer transition-all group">
+                          <div>
+                            <p className="font-black text-xs uppercase group-hover:text-primary">{s.nombre}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground">C.I. {s.cedula} | {s.vinculo}</p>
+                          </div>
+                          <CheckCircle2 className="h-5 w-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center py-10 text-[10px] font-bold text-muted-foreground uppercase">No se encontraron divulgadores disponibles.</p>
+                    )}
                   </div>
               </div>
-              <DialogFooter>
-                <Button variant="ghost" className="uppercase font-black text-[10px]" onClick={() => setSelectedSolicitud(null)}>CANCELAR</Button>
+              <DialogFooter className="p-4 bg-muted/30 border-t">
+                <Button variant="ghost" className="uppercase font-black text-[10px]" onClick={() => { setSelectedSolicitud(null); setStaffSearch(''); }}>CANCELAR</Button>
               </DialogFooter>
           </DialogContent>
       </Dialog>
