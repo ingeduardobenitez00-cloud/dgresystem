@@ -44,9 +44,13 @@ export default function InformeSemanalAnexoIVPage() {
   const [semanaHasta, setSemanaHasta] = useState('');
 
   const profile = user?.profile;
+  
+  // Lógica de permisos corregida para honrar la restricción distrital incluso en Jefes
   const isAdminView = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
-  const isJefeView = profile?.role === 'jefe' || profile?.permissions?.includes('department_filter');
-  const isDistView = !isAdminView && !isJefeView && (profile?.permissions?.includes('district_filter') || profile?.role === 'funcionario');
+  
+  const isDistView = !isAdminView && (profile?.permissions?.includes('district_filter') || profile?.role === 'funcionario');
+  
+  const isJefeView = !isAdminView && !isDistView && (profile?.role === 'jefe' || profile?.permissions?.includes('department_filter'));
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
@@ -65,6 +69,7 @@ export default function InformeSemanalAnexoIVPage() {
     if (!isUserLoading && profile) {
       if (!isAdminView) {
         if (profile.departamento) setSelectedDepartment(profile.departamento);
+        // Si es vista distrital (incluyendo jefes con esa restricción), fijamos el distrito
         if (isDistView && profile.distrito) setSelectedDistrict(profile.distrito);
       }
     }
@@ -83,7 +88,6 @@ export default function InformeSemanalAnexoIVPage() {
     fetchLogo();
   }, [isUserLoading, profile, isAdminView, isJefeView, isDistView]);
 
-  // FIX: Se utiliza el campo 'oficina' para la consulta, ya que es donde se guarda el distrito en Anexo III
   const informesQuery = useMemoFirebase(() => {
     if (!firestore || !selectedDepartment || !selectedDistrict) return null;
     return query(
@@ -116,7 +120,6 @@ export default function InformeSemanalAnexoIVPage() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header
     doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
@@ -125,7 +128,6 @@ export default function InformeSemanalAnexoIVPage() {
     doc.setFontSize(12);
     doc.text("Custodio de la Voluntad Popular", pageWidth / 2, 22, { align: "center" });
 
-    // Flag stripes (Right)
     const barW = 4; const barH = 15; const barX = pageWidth - margin - (barW * 3);
     doc.setFillColor(200, 0, 0); doc.rect(barX, 10, barW, barH, 'F');
     doc.setFillColor(255, 255, 255); doc.rect(barX + barW, 10, barW, barH, 'F');
@@ -136,7 +138,6 @@ export default function InformeSemanalAnexoIVPage() {
     doc.text("ANEXO IV", pageWidth / 2, 35, { align: "center" });
     doc.text("INFORME SEMANAL PUNTOS FIJOS DE DIVULGACIÓN 2026", pageWidth / 2, 40, { align: "center" });
 
-    // Semana y Jurisdicción
     doc.setFontSize(9);
     const d1 = semanaDesde ? semanaDesde.split('-').reverse().join('/') : '__/__';
     const d2 = semanaHasta ? semanaHasta.split('-').reverse().join('/') : '__/__';
@@ -144,7 +145,6 @@ export default function InformeSemanalAnexoIVPage() {
     doc.text(`DISTRITO:  ${(selectedDistrict || '').toUpperCase()}`, margin, 55);
     doc.text(`DEPARTAMENTO:  ${(selectedDepartment || '').toUpperCase()}`, pageWidth / 2 - 20, 55);
 
-    // Table
     const tableBody = informesAnexoIII.map((inf, idx) => [
         idx + 1,
         inf.lugar_divulgacion.toUpperCase(),
@@ -156,7 +156,6 @@ export default function InformeSemanalAnexoIVPage() {
         inf.total_personas
     ]);
 
-    // Fill with empty rows if less than 12
     while (tableBody.length < 12) {
         tableBody.push([tableBody.length + 1, '', '', 'DE:    A:    HS.', '', '', '', '']);
     }
