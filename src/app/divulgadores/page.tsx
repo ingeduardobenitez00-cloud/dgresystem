@@ -14,7 +14,8 @@ import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase
 import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,6 @@ export default function DivulgadoresPage() {
 
   const profile = currentUser?.profile;
 
-  // Permisos jerárquicos
   const hasAdminFilter = useMemo(() => 
     ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter'),
     [profile]
@@ -57,15 +57,10 @@ export default function DivulgadoresPage() {
     [profile, hasAdminFilter, hasDeptFilter]
   );
 
-  // Sincronizar jurisdicción del perfil al cargar
   useEffect(() => {
     if (profile) {
-      if (hasDeptFilter || hasDistFilter) {
-        setSelectedDept(profile.departamento || '');
-      }
-      if (hasDistFilter) {
-        setSelectedDist(profile.distrito || '');
-      }
+      if (hasDeptFilter || hasDistFilter) setSelectedDept(profile.departamento || '');
+      if (hasDistFilter) setSelectedDist(profile.distrito || '');
     }
   }, [profile, hasDeptFilter, hasDistFilter]);
 
@@ -86,20 +81,11 @@ export default function DivulgadoresPage() {
     if (!firestore || isUserLoading || !currentUser?.uid || !profile) return null;
     const colRef = collection(firestore, 'divulgadores');
     
-    if (hasAdminFilter) return colRef; // Listado total para admins/directores
-    
-    if (hasDeptFilter && profile.departamento) {
-        return query(colRef, where('departamento', '==', profile.departamento));
-    }
-
+    if (hasAdminFilter) return colRef;
+    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
     if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(
-          colRef, 
-          where('departamento', '==', profile.departamento), 
-          where('distrito', '==', profile.distrito)
-        );
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
     }
-    
     return null;
   }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
@@ -113,13 +99,10 @@ export default function DivulgadoresPage() {
   const filteredDivul = useMemo(() => {
     if (!divulgadores) return [];
     const term = searchTerm.toLowerCase().trim();
-    return divulgadores.filter(d => 
-      d.nombre.toLowerCase().includes(term) || 
-      d.cedula.includes(term)
-    );
+    return divulgadores.filter(d => d.nombre.toLowerCase().includes(term) || d.cedula.includes(term));
   }, [divulgadores, searchTerm]);
 
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleRegister = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!firestore || !profile) return;
     
@@ -127,7 +110,7 @@ export default function DivulgadoresPage() {
     const finalDist = (hasAdminFilter || hasDeptFilter) ? selectedDist : (profile.distrito || '');
 
     if (!finalDept || !finalDist) {
-      toast({ variant: 'destructive', title: "Faltan datos", description: "Seleccione la jurisdicción correspondiente." });
+      toast({ variant: 'destructive', title: "Faltan datos" });
       return;
     }
 
@@ -142,29 +125,28 @@ export default function DivulgadoresPage() {
       fecha_registro: new Date().toISOString()
     };
 
-    try {
-      await addDoc(collection(firestore, 'divulgadores'), docData);
-      toast({ title: "¡Registrado!", description: `${docData.nombre} ha sido añadido al directorio.` });
-      (e.target as HTMLFormElement).reset();
-      if (hasAdminFilter) {
-        setSelectedDept('');
-        setSelectedDist('');
-      } else if (hasDeptFilter) {
-        setSelectedDist('');
-      }
-    } catch (err) {
-      toast({ variant: 'destructive', title: "Error", description: "No se pudo registrar al divulgador." });
-    } finally { setIsSubmitting(false); }
+    addDoc(collection(firestore, 'divulgadores'), docData)
+      .then(() => {
+        toast({ title: "¡Registrado!" });
+        (e.target as HTMLFormElement).reset();
+        setIsSubmitting(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'divulgadores',
+          operation: 'create',
+          requestResourceData: docData
+        }));
+        setIsSubmitting(false);
+      });
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!firestore) return;
-    try {
-      await deleteDoc(doc(firestore, 'divulgadores', id));
-      toast({ title: "Eliminado", description: "El registro ha sido removido." });
-    } catch (err) {
-      toast({ variant: 'destructive', title: "Error" });
-    }
+    const docRef = doc(firestore, 'divulgadores', id);
+    deleteDoc(docRef).catch(async () => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
+    });
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>;
@@ -173,17 +155,6 @@ export default function DivulgadoresPage() {
     <div className="flex min-h-screen flex-col bg-muted/5">
       <Header title="Directorio de Divulgadores" />
       <main className="flex-1 p-4 md:p-8 max-7xl mx-auto w-full space-y-8">
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight uppercase text-primary">Personal Operativo</h1>
-            <p className="text-muted-foreground flex items-center gap-2 mt-1 text-sm font-medium">
-              <UserCircle className="h-4 w-4" />
-              Gestión de divulgadores para capacitaciones del CIDEE.
-            </p>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <Card className="lg:col-span-1 border-t-4 border-t-primary shadow-lg h-fit">
             <form onSubmit={handleRegister}>
@@ -194,55 +165,43 @@ export default function DivulgadoresPage() {
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Nombre Completo</Label>
-                  <Input name="nombre" required className="font-bold uppercase h-11 border-2" placeholder="EJ: JUAN PEREZ" />
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Nombre Completo</Label>
+                  <Input name="nombre" required className="font-bold uppercase h-11 border-2" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cédula de Identidad</Label>
-                  <Input name="cedula" required className="font-black h-11 border-2" placeholder="Sin puntos" />
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Cédula</Label>
+                  <Input name="cedula" required className="font-black h-11 border-2" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Vínculo Laboral</Label>
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Vínculo</Label>
                   <Select name="vinculo" required defaultValue="CONTRATADO">
-                    <SelectTrigger className="font-bold h-11 border-2">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="font-bold h-11 border-2"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PERMANENTE" className="font-bold">PERMANENTE</SelectItem>
-                      <SelectItem value="CONTRATADO" className="font-bold">CONTRATADO</SelectItem>
-                      <SelectItem value="COMISIONADO" className="font-bold">COMISIONADO</SelectItem>
+                      <SelectItem value="PERMANENTE">PERMANENTE</SelectItem>
+                      <SelectItem value="CONTRATADO">CONTRATADO</SelectItem>
+                      <SelectItem value="COMISIONADO">COMISIONADO</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                
                 <div className="grid grid-cols-1 gap-4 pt-2">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase flex items-center gap-1.5 text-primary">
-                      <Landmark className="h-3 w-3"/> Departamento {(!hasAdminFilter) && "(Fijo)"}
-                    </Label>
+                    <Label className="text-[10px] font-black uppercase text-primary">Departamento</Label>
                     {hasAdminFilter ? (
                       <Select name="departamento" required onValueChange={setSelectedDept} value={selectedDept}>
-                        <SelectTrigger className="font-bold h-11 border-2"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                        <SelectTrigger className="font-bold h-11"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                         <SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                       </Select>
                     ) : (
-                      <div className="h-11 flex items-center px-3 font-black uppercase text-sm bg-muted/50 border-2 rounded-md text-primary/70">
-                        {profile?.departamento}
-                      </div>
+                      <div className="h-11 flex items-center px-3 font-black uppercase text-sm bg-muted/50 border-2 rounded-md">{profile?.departamento}</div>
                     )}
                   </div>
-                  
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase flex items-center gap-1.5 text-primary">
-                      <Navigation className="h-3 w-3"/> Distrito {hasDistFilter && "(Fijo)"}
-                    </Label>
+                    <Label className="text-[10px] font-black uppercase text-primary">Distrito</Label>
                     {hasDistFilter ? (
-                      <div className="h-11 flex items-center px-3 font-black uppercase text-sm bg-muted/50 border-2 rounded-md text-primary/70">
-                        {profile?.distrito}
-                      </div>
+                      <div className="h-11 flex items-center px-3 font-black uppercase text-sm bg-muted/50 border-2 rounded-md">{profile?.distrito}</div>
                     ) : (
                       <Select name="distrito" required onValueChange={setSelectedDist} value={selectedDist} disabled={!selectedDept && hasAdminFilter}>
-                        <SelectTrigger className="font-bold h-11 border-2"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                        <SelectTrigger className="font-bold h-11"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                         <SelectContent>{districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                       </Select>
                     )}
@@ -250,7 +209,7 @@ export default function DivulgadoresPage() {
                 </div>
               </CardContent>
               <CardFooter className="bg-muted/30 border-t p-4">
-                <Button type="submit" className="w-full font-black uppercase h-12 shadow-lg text-xs" disabled={isSubmitting}>
+                <Button type="submit" className="w-full font-black uppercase h-12" disabled={isSubmitting}>
                   {isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : "GUARDAR PERSONAL"}
                 </Button>
               </CardFooter>
@@ -258,71 +217,30 @@ export default function DivulgadoresPage() {
           </Card>
 
           <Card className="lg:col-span-2 shadow-lg overflow-hidden border-none">
-            <CardHeader className="flex flex-row items-center justify-between bg-primary px-6 py-4">
-              <CardTitle className="uppercase font-black text-xs flex items-center gap-2 text-white tracking-widest">
-                <Users className="h-4 w-4" /> LISTA DE PERSONAL ({filteredDivul.length})
-              </CardTitle>
-              <div className="relative w-64 group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50 group-focus-within:text-white" />
-                <Input 
-                  placeholder="Buscar por nombre o CI..." 
-                  className="pl-9 h-9 text-[10px] font-bold bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:bg-white focus:text-primary transition-all" 
-                  value={searchTerm} 
-                  onChange={e => setSearchTerm(e.target.value)} 
-                />
-              </div>
+            <CardHeader className="bg-primary px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="uppercase font-black text-xs text-white">LISTA DE PERSONAL ({filteredDivul.length})</CardTitle>
+              <Input 
+                placeholder="Buscar..." 
+                className="max-w-[200px] h-8 text-[10px] bg-white/10 border-white/20 text-white placeholder:text-white/40" 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+              />
             </CardHeader>
             <CardContent className="p-0 bg-white">
                 <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow className="hover:bg-transparent border-b-2">
-                      <TableHead className="text-[9px] font-black uppercase tracking-widest px-6 py-4">Divulgador</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase tracking-widest px-6 py-4">Jurisdicción</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase tracking-widest px-6 py-4">Vínculo</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase tracking-widest px-6 py-4">Acción</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader className="bg-muted/50"><TableRow><TableHead className="text-[9px] font-black uppercase">Divulgador</TableHead><TableHead className="text-[9px] font-black uppercase">Jurisdicción</TableHead><TableHead className="text-[9px] font-black uppercase">Vínculo</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Acción</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {isLoadingDivul ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin h-10 w-10 mx-auto text-primary opacity-20" /></TableCell></TableRow>
-                    ) : filteredUsers.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-24">
-                          <Users className="h-12 w-12 mx-auto text-muted-foreground opacity-10 mb-4" />
-                          <p className="text-muted-foreground font-black uppercase text-[10px] tracking-widest">No hay personal registrado en esta zona.</p>
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredDivul.map(d => (
-                      <TableRow key={d.id} className="hover:bg-primary/5 transition-colors border-b">
-                        <TableCell className="py-4 px-6">
-                          <p className="font-black text-xs uppercase text-primary leading-none mb-1">{d.nombre}</p>
-                          <p className="text-[9px] text-muted-foreground font-black tracking-tighter">C.I. {d.cedula}</p>
-                        </TableCell>
-                        <TableCell className="py-4 px-6">
-                          <p className="text-[10px] font-black uppercase text-primary leading-tight">{d.departamento}</p>
-                          <p className="text-[9px] font-bold text-muted-foreground uppercase">{d.distrito}</p>
-                        </TableCell>
-                        <TableCell className="py-4 px-6">
-                          <Badge variant="secondary" className="text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full bg-primary/5 text-primary border-none">{d.vinculo}</Badge>
-                        </TableCell>
+                    {filteredDivul.map(d => (
+                      <TableRow key={d.id} className="border-b">
+                        <TableCell className="py-4 px-6"><p className="font-black text-xs uppercase text-primary">{d.nombre}</p><p className="text-[9px] text-muted-foreground">C.I. {d.cedula}</p></TableCell>
+                        <TableCell className="py-4 px-6"><p className="text-[10px] font-black uppercase">{d.departamento}</p><p className="text-[9px] font-bold text-muted-foreground">{d.distrito}</p></TableCell>
+                        <TableCell className="py-4 px-6"><Badge variant="secondary" className="text-[8px] font-black uppercase">{d.vinculo}</Badge></TableCell>
                         <TableCell className="text-right px-6">
                           <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/40 hover:text-destructive hover:bg-destructive/10 rounded-full transition-all">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent className="rounded-3xl border-none shadow-2xl">
-                              <AlertDialogHeader>
-                                <AlertDialogTitle className="font-black uppercase text-primary">¿Eliminar registro?</AlertDialogTitle>
-                                <AlertDialogDescription className="font-medium text-xs">
-                                  Esta acción removerá a <strong className="text-primary">{d.nombre}</strong> del directorio institucional de forma permanente.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter className="mt-4">
-                                <AlertDialogCancel className="font-bold text-[10px] uppercase rounded-xl">Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(d.id)} className="bg-destructive text-white font-black text-[10px] uppercase rounded-xl shadow-lg">Eliminar Permanente</AlertDialogAction>
-                              </AlertDialogFooter>
+                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/40 hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader><AlertDialogTitle className="font-black uppercase">¿Eliminar registro?</AlertDialogTitle><AlertDialogDescription className="text-xs">Esta acción es permanente.</AlertDialogDescription></AlertDialogHeader>
+                              <AlertDialogFooter><AlertDialogCancel className="font-bold text-[10px] uppercase">Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDelete(d.id)} className="bg-destructive text-white font-black text-[10px] uppercase">Eliminar</AlertDialogAction></AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
                         </TableCell>

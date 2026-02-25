@@ -34,7 +34,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-// Import CSS for Leaflet and Geosearch
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-geosearch/dist/geosearch.css';
 
@@ -102,11 +101,8 @@ export default function SolicitudCapacitacionPage() {
 
   useEffect(() => {
     let map: any = null;
-    let resizeObserver: ResizeObserver | null = null;
-
     const initMap = async () => {
       if (typeof window === 'undefined' || !mapContainerRef.current || mapInstanceRef.current) return;
-
       try {
         const LeafletModule = await import('leaflet');
         const L = LeafletModule.default || LeafletModule;
@@ -122,262 +118,63 @@ export default function SolicitudCapacitacionPage() {
         }
 
         const initialPos: [number, number] = [-25.311549, -57.653496];
-        map = L.map(mapContainerRef.current, {
-          center: initialPos,
-          zoom: 13,
-          doubleClickZoom: false,
-          zoomControl: true,
-          scrollWheelZoom: true
-        });
-
+        map = L.map(mapContainerRef.current, { center: initialPos, zoom: 13, doubleClickZoom: false });
         mapInstanceRef.current = map;
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '© OpenStreetMap'
-        }).addTo(map);
-
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const provider = new OpenStreetMapProvider();
-        const searchControl = new (GeoSearchControl as any)({
-          provider,
-          style: 'bar',
-          showMarker: true,
-          autoClose: true,
-          searchLabel: 'Buscar dirección...',
-          keepResult: true,
-          animateZoom: true,
-        });
+        const searchControl = new (GeoSearchControl as any)({ provider, style: 'bar', showMarker: true });
         map.addControl(searchControl);
 
         map.on('geosearch/showlocation', (result: any) => {
           const { x, y } = result.location;
-          const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
-          setFormData(prev => ({ ...prev, gps: coords }));
+          setFormData(prev => ({ ...prev, gps: `${y.toFixed(6)}, ${x.toFixed(6)}` }));
           if (markerRef.current) map.removeLayer(markerRef.current);
           markerRef.current = L.marker([y, x]).addTo(map);
         });
 
         map.on('dblclick', (e: any) => {
           const { lat, lng } = e.latlng;
-          const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-          setFormData(prev => ({ ...prev, gps: coords }));
+          setFormData(prev => ({ ...prev, gps: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
           if (markerRef.current) map.removeLayer(markerRef.current);
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
-
-        const forceRefresh = () => {
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.invalidateSize();
-          }
-        };
-
-        forceRefresh();
-        setTimeout(forceRefresh, 100);
-        setTimeout(forceRefresh, 500);
-        setTimeout(forceRefresh, 1000);
-
-        resizeObserver = new ResizeObserver(() => {
-          forceRefresh();
-        });
-        resizeObserver.observe(mapContainerRef.current);
-
-      } catch (err) {
-        console.error("Error al inicializar el mapa:", err);
-      }
+        setTimeout(() => map.invalidateSize(), 500);
+      } catch (err) { console.error(err); }
     };
-
-    const timer = setTimeout(initMap, 800);
-
-    return () => {
-      clearTimeout(timer);
-      if (resizeObserver) resizeObserver.disconnect();
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.off();
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
+    initMap();
+    return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
   }, []);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
-    const term = (cedulaInput || '').trim();
-    const cleanTerm = term.replace(/\D/g, ''); 
-    
-    if (!firestore || cleanTerm.length < 4) {
-      setPadronFound(false);
-      if (cleanTerm.length > 0) {
-        toast({ variant: 'destructive', title: 'Cédula muy corta', description: 'Ingrese al menos 4 dígitos.' });
-      }
-      return;
-    }
-
+    const cleanTerm = (cedulaInput || '').trim().replace(/\D/g, ''); 
+    if (!firestore || cleanTerm.length < 4) return;
     setIsSearchingCedula(true);
     try {
-      const padronRef = collection(firestore, 'padron');
-      const q = query(padronRef, where('cedula', '==', cleanTerm), limit(1));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        const foundDoc = querySnapshot.docs[0].data();
-        const fullName = `${foundDoc.nombre || ''} ${foundDoc.apellido || ''}`.trim().toUpperCase();
-        setFormData(prev => ({ ...prev, nombre_completo: fullName }));
+      const q = query(collection(firestore, 'padron'), where('cedula', '==', cleanTerm), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const found = snap.docs[0].data();
+        setFormData(prev => ({ ...prev, nombre_completo: `${found.nombre} ${found.apellido}`.toUpperCase() }));
         setPadronFound(true);
-        toast({ title: "Ciudadano Encontrado", description: `Datos de ${fullName} cargados.` });
-      } else { 
-        setPadronFound(false); 
-        toast({ variant: 'destructive', title: "No encontrado", description: "No se encontró el ciudadano en el padrón." });
-      }
-    } catch (error) { 
-      console.error("Error searching cedula:", error); 
-      setPadronFound(false); 
-      toast({ variant: 'destructive', title: "Error", description: "Ocurrió un problema en la búsqueda." });
-    } finally { 
-      setIsSearchingCedula(false); 
-    }
-  }, [firestore, toast]);
+      } else { setPadronFound(false); }
+    } catch (error) { setPadronFound(false); } finally { setIsSearchingCedula(false); }
+  }, [firestore]);
 
   const handleCedulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-    setFormData(prev => ({ ...prev, cedula: value, nombre_completo: '' }));
+    setFormData(prev => ({ ...prev, cedula: e.target.value, nombre_completo: '' }));
     setPadronFound(false);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleTypeSelection = (value: 'divulgacion' | 'capacitacion') => {
-    setFormData(prev => ({ ...prev, tipo_solicitud: value }));
-  };
-
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setPhotoDataUri(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-    e.target.value = '';
-  };
-
-  const partidosQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'partidos-politicos'), orderBy('nombre'));
-  }, [firestore, user]);
-  
-  const { data: partidosData } = useCollection<PartidoPolitico>(partidosQuery);
-
-  const handlePreviewPDF = () => {
-    if (!logoBase64) {
-      toast({ variant: 'destructive', title: 'Error', description: 'El logo institucional aún no ha cargado.' });
-      return;
-    }
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 20;
-
-    doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'normal');
-    doc.text("Justicia Electoral", 105, 20, { align: "center" });
-    doc.setFontSize(12);
-    doc.text("Custodio de la Voluntad Popular", 105, 26, { align: "center" });
-
-    const barX = pageWidth - margin - 15;
-    const barY_red = 10;
-    const barW = 4;
-    doc.setFillColor(255, 0, 0); doc.rect(barX, barY_red, barW, 15, 'F');
-    doc.setFillColor(255, 255, 255); doc.rect(barX + 4, barY_red, barW, 15, 'F');
-    doc.setFillColor(0, 0, 255); doc.rect(barX + 8, barY_red, barW, 15, 'F');
-    doc.setDrawColor(200, 200, 200); doc.rect(barX, barY_red, 12, 15, 'S');
-
-    doc.setFillColor(235, 235, 220);
-    doc.rect(margin, 35, pageWidth - (margin * 2), 8, 'F');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text("ANEXO V – PROFORMA DE SOLICITUD", 105, 40.5, { align: "center" });
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const today = new Date();
-    doc.text(`_________________, : ${today.getDate()} de ${today.toLocaleString('es-PY', { month: 'long' })} de ${today.getFullYear()}`, pageWidth - margin, 50, { align: 'right' });
-
-    doc.setFont('helvetica', 'bold'); doc.text("Señor/a", margin, 60); doc.line(margin, 66, 100, 66);
-    doc.text("Presente:", margin, 75);
-    doc.setFont('helvetica', 'normal');
-    const bodyText = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas del 07 de junio del 2026, a los efectos de solicitar:";
-    doc.text(doc.splitTextToSize(bodyText, pageWidth - (margin * 2) - 10), margin + 10, 82);
-
-    let checkY = 95;
-    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud === 'divulgacion') doc.text("X", margin + 11.5, checkY + 4);
-    doc.text("Divulgación sobre el uso de la Máquina de Votación Electrónica.", margin + 20, checkY + 4);
-    checkY += 8;
-    doc.rect(margin + 10, checkY, 5, 5); if (formData.tipo_solicitud === 'capacitacion') doc.text("X", margin + 11.5, checkY + 4);
-    doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", margin + 20, checkY + 4);
-
-    let tableY = 115;
-    const drawCell = (x: number, y: number, w: number, h: number, label: string, value: string) => {
-      doc.rect(x, y, w, h); doc.setFont('helvetica', 'bold'); doc.text(label, x + 2, y + 5);
-      doc.setFont('helvetica', 'normal'); doc.text(`: ${String(value || '').toUpperCase()}`, x + 40, y + 5);
-    };
-    
-    const solicitanteIdentidad = formData.otra_entidad || formData.solicitante_entidad || 'ORGANIZACIÓN NO ESPECIFICADA';
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "SOLICITANTE", solicitanteIdentidad); tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "FECHA", formatDateToDDMMYYYY(formData.fecha)); tableY += 8;
-    doc.rect(margin, tableY, pageWidth - (margin * 2), 8);
-    doc.setFont('helvetica', 'bold'); doc.text("HORARIO", margin + 2, tableY + 5);
-    doc.text("DESDE:", margin + 40, tableY + 5); doc.setFont('helvetica', 'normal'); doc.text(`${formData.hora_desde} hs`, margin + 55, tableY + 5);
-    doc.setFont('helvetica', 'bold'); doc.text("HASTA:", margin + 85, tableY + 5); doc.setFont('helvetica', 'normal'); doc.text(`${formData.hora_hasta} hs`, margin + 100, tableY + 5);
-    tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "LUGAR Y/O LOCAL", formData.lugar_local); tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "DIRECCIÓN", `CALLE: ${formData.direccion_calle}`); tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "BARRIO - COMPAÑÍA", formData.barrio_compania); tableY += 8;
-    drawCell(margin, tableY, pageWidth - (margin * 2), 8, "DISTRITO", user?.profile?.distrito || ''); tableY += 8;
-    if (formData.gps) { drawCell(margin, tableY, pageWidth - (margin * 2), 8, "COORDENADAS GPS", formData.gps); tableY += 8; }
-
-    tableY += 4; doc.setFont('helvetica', 'bold'); doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, tableY);
-    doc.rect(margin + 75, tableY - 4, 5, 5); if (formData.rol_solicitante === 'apoderado') doc.text("X", margin + 76.5, tableY);
-    doc.text("OTRO", margin + 85, tableY); doc.rect(margin + 98, tableY - 4, 5, 5); if (formData.rol_solicitante === 'otro') doc.text("X", margin + 99.5, tableY);
-    tableY += 4; drawCell(margin, tableY, pageWidth - (margin * 2), 8, "NOMBRE COMPLETO", formData.nombre_completo);
-    tableY += 8; drawCell(margin, tableY, pageWidth - (margin * 2), 8, "C.I.C. N.º", formData.cedula);
-    tableY += 8; doc.rect(margin, tableY, pageWidth - (margin * 2), 10);
-    doc.setFontSize(8); doc.text("NUMERO DE CONTACTO", margin + 2, tableY + 4); doc.text("(CELULAR – LÍNEA BAJA)", margin + 2, tableY + 8);
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.text(`: ${formData.telefono}`, margin + 40, tableY + 6);
-
-    tableY += 10; doc.setFillColor(235, 235, 220); doc.rect(margin, tableY, pageWidth - (margin * 2), 6, 'F');
-    doc.setFont('helvetica', 'bold'); doc.text("OBSERVACIÓN", 105, tableY + 4.5, { align: "center" });
-    tableY += 6; doc.rect(margin, tableY, pageWidth - (margin * 2), 12); doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
-    doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", 105, tableY + 5, { align: "center" });
-    doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", 105, tableY + 10, { align: "center" });
-
-    tableY += 30; doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text("Firma del Solicitante: ________________________________________________", margin + 20, tableY);
-    if (photoDataUri) doc.addImage(photoDataUri, 'JPEG', margin + 60, tableY - 15, 40, 30);
-
-    tableY += 10; doc.rect(margin, tableY, pageWidth - (margin * 2), 50); doc.setFont('helvetica', 'bold');
-    doc.text("ESPACIO PARA USO INTERNO DE LA JUSTICIA ELECTORAL", 105, tableY + 6, { align: "center" });
-    doc.setFont('helvetica', 'normal');
-    doc.text("Divulgador designado: _______________________________________ C.I.C. N.º: __________________", margin + 5, tableY + 15);
-    doc.text("Código de la Máquina de Votación asignada: __________________________________________________", margin + 5, tableY + 25);
-    doc.text("__________________________________________", 105, tableY + 38, { align: "center" });
-    doc.text("Firma y sello del Jefe del Registro Electoral:", 105, tableY + 43, { align: "center" });
-
-    const fileName = formData.otra_entidad || formData.solicitante_entidad || 'Solicitud';
-    doc.save(`AnexoV-${fileName}.pdf`);
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
-    if (!entidadFinal || !formData.lugar_local || !formData.nombre_completo || !formData.tipo_solicitud) {
+    if (!entidadFinal || !formData.lugar_local || !formData.nombre_completo) {
       toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
     }
     setIsSubmitting(true);
     const docData = { 
       ...formData, 
-      solicitante_entidad: formData.solicitante_entidad || 'OTRO',
       departamento: user.profile?.departamento || '', 
       distrito: user.profile?.distrito || '', 
       foto_firma: photoDataUri || '', 
@@ -385,19 +182,24 @@ export default function SolicitudCapacitacionPage() {
       fecha_creacion: new Date().toISOString(), 
       server_timestamp: serverTimestamp() 
     };
-    try {
-      await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
-      toast({ title: "¡Solicitud Registrada!" });
-      setFormData({ solicitante_entidad: '', otra_entidad: '', tipo_solicitud: 'divulgacion', fecha: new Date().toISOString().split('T')[0], hora_desde: '08:00', hora_hasta: '12:00', lugar_local: '', direccion_calle: '', barrio_compania: '', rol_solicitante: 'apoderado', nombre_completo: '', cedula: '', telefono: '', gps: '' });
-      setPhotoDataUri(null);
-    } catch (error) { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData })); }
-    finally { setIsSubmitting(false); }
+    
+    addDoc(collection(firestore, 'solicitudes-capacitacion'), docData)
+      .then(() => {
+        toast({ title: "¡Solicitud Registrada!" });
+        setFormData(p => ({ ...p, solicitante_entidad: '', otra_entidad: '', lugar_local: '', nombre_completo: '', cedula: '', gps: '' }));
+        setPhotoDataUri(null);
+        setIsSubmitting(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData }));
+        setIsSubmitting(false);
+      });
   };
 
-  const selectedParty = useMemo(() => 
-    partidosData?.find(p => p.nombre === formData.solicitante_entidad), 
-    [partidosData, formData.solicitante_entidad]
-  );
+  const partidosQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'partidos-politicos'), orderBy('nombre')) : null, [firestore]);
+  const { data: partidosData } = useCollection<PartidoPolitico>(partidosQuery);
+
+  const selectedParty = useMemo(() => partidosData?.find(p => p.nombre === formData.solicitante_entidad), [partidosData, formData.solicitante_entidad]);
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
 
@@ -405,310 +207,57 @@ export default function SolicitudCapacitacionPage() {
     <div className="min-h-screen bg-muted/10">
       <Header title="Nueva Solicitud - Anexo V" />
       <main className="p-4 md:p-8 max-w-7xl mx-auto w-full">
-        <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 bg-white p-6 rounded-xl border shadow-sm">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Nueva Solicitud</h1>
-            <p className="text-muted-foreground font-medium flex items-center gap-2 mt-1">
-              <FileText className="h-4 w-4" /> Proforma oficial de solicitud de capacitación (Anexo V).
-            </p>
-          </div>
-          <Button onClick={handlePreviewPDF} variant="outline" className="font-bold border-primary text-primary hover:bg-primary/5">
-            <FileText className="mr-2 h-4 w-4" /> VISTA PREVIA PDF
-          </Button>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8"> 
+          <div className="lg:col-span-2">
             <Card className="shadow-lg border-none overflow-hidden">
               <CardHeader className="bg-primary px-6 py-4">
-                <CardTitle className="flex items-center text-sm font-black uppercase text-white tracking-widest">
-                  <Building className="mr-2 h-4 w-4"/> DATOS DE LA ACTIVIDAD
-                </CardTitle>
+                <CardTitle className="text-sm font-black uppercase text-white">DATOS DE LA ACTIVIDAD</CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-8 bg-white">
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-xl border border-dashed mb-4">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
-                      <Landmark className="h-3 w-3" /> Departamento Asignado
-                    </Label>
-                    <p className="font-black text-sm uppercase px-3 py-2 bg-white rounded-lg border border-primary/10 shadow-sm truncate">
-                      {userJurisdiction?.departamento_codigo 
-                        ? `${userJurisdiction.departamento_codigo} - ${userJurisdiction.departamento}` 
-                        : user?.profile?.departamento || 'Sin asignar'}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
-                      <Navigation className="h-3 w-3" /> Distrito / Oficina
-                    </Label>
-                    <p className="font-black text-sm uppercase px-3 py-2 bg-white rounded-lg border border-primary/10 shadow-sm truncate">
-                      {userJurisdiction?.distrito_codigo 
-                        ? `${userJurisdiction.departamento_codigo} - ${userJurisdiction.distrito_codigo} - ${userJurisdiction.distrito}` 
-                        : user?.profile?.distrito || 'Sin asignar'}
-                    </p>
-                  </div>
-                </div>
-
                 <div className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tighter">GRUPO POLÍTICO SOLICITANTE</Label>
-                    <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
-                        <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between mt-1 h-12 font-bold text-lg border-2">
-                            <span className="truncate flex items-center gap-2">
-                              {selectedParty ? (
-                                <>
-                                  {selectedParty.nombre}
-                                  {selectedParty.siglas && (
-                                    <Badge variant="secondary" className="bg-primary/5 text-primary border-none font-black text-[10px]">
-                                      {selectedParty.siglas}
-                                    </Badge>
-                                  )}
-                                </>
-                              ) : "Seleccionar de la lista..."}
-                            </span>
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                          <Command>
-                            <CommandInput placeholder="Buscar partido o siglas..." />
-                            <CommandList className="max-h-[400px]">
-                              <CommandEmpty>No encontrado.</CommandEmpty>
-                              <CommandGroup>
-                                {partidosData?.map((p) => (
-                                  <CommandItem 
-                                    key={p.id} 
-                                    value={`${p.nombre} ${p.siglas}`} 
-                                    onSelect={() => { 
-                                      setFormData(prev => ({...prev, solicitante_entidad: p.nombre, otra_entidad: ''})); 
-                                      setIsPartyPopoverOpen(false); 
-                                    }} 
-                                    className="flex items-center justify-between font-bold uppercase text-[10px] py-3 cursor-pointer"
-                                  >
-                                    <div className="flex flex-col gap-0.5">
-                                      <span className="leading-tight">{p.nombre}</span>
-                                      {p.siglas && (
-                                        <span className="text-[9px] text-primary/60 font-black tracking-widest">
-                                          {p.siglas}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-primary tracking-widest">OTRA ENTIDAD (UNIVERSIDADES, COOPERATIVAS, ETC.)</Label>
-                    <Input 
-                      name="otra_entidad" 
-                      placeholder="Especifique si no pertenece a un partido..." 
-                      value={formData.otra_entidad} 
-                      onChange={(e) => {
-                        handleInputChange(e);
-                        if (e.target.value) {
-                          setFormData(prev => ({ ...prev, solicitante_entidad: '' }));
-                        }
-                      }} 
-                      className="h-11 font-bold border-2" 
-                    />
-                  </div>
+                  <Label className="text-[10px] font-black uppercase">Grupo Político</Label>
+                  <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between h-12 font-bold text-lg border-2">
+                        {selectedParty ? selectedParty.nombre : "Seleccionar de la lista..."}<Search className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command><CommandInput placeholder="Buscar..." /><CommandList><CommandEmpty>No encontrado.</CommandEmpty><CommandGroup>
+                        {partidosData?.map(p => (
+                          <CommandItem key={p.id} value={p.nombre} onSelect={() => { setFormData(prev => ({...prev, solicitante_entidad: p.nombre, otra_entidad: ''})); setIsPartyPopoverOpen(false); }}>{p.nombre}</CommandItem>
+                        ))}
+                      </CommandGroup></CommandList></Command>
+                    </PopoverContent>
+                  </Popover>
+                  <Input name="otra_entidad" placeholder="Otra entidad..." value={formData.otra_entidad} onChange={(e) => { setFormData(prev => ({ ...prev, otra_entidad: e.target.value, solicitante_entidad: '' })); }} className="h-11 font-bold border-2" />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                  <div className="border-2 border-dashed rounded-xl p-5 bg-muted/20">
-                      <Label className="text-[10px] font-black uppercase text-primary tracking-widest">TIPO DE SOLICITUD (SELECCIÓN EXCLUSIVA)</Label>
-                      <div className="mt-4 space-y-3">
-                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                            <Checkbox id="c1" checked={formData.tipo_solicitud === 'divulgacion'} onCheckedChange={() => handleTypeSelection('divulgacion')} />
-                            <label htmlFor="c1" className="text-xs font-bold uppercase cursor-pointer flex-1">Divulgación (Máquina)</label>
-                          </div>
-                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
-                            <Checkbox id="c2" checked={formData.tipo_solicitud === 'capacitacion'} onCheckedChange={() => handleTypeSelection('capacitacion')} />
-                            <label htmlFor="c2" className="text-xs font-bold uppercase cursor-pointer flex-1">Capacitación (Mesa)</label>
-                          </div>
-                      </div>
-                  </div>
-                  <div className="space-y-6">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">FECHA PROPUESTA</Label>
-                        <Input type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4"> 
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">DESDE</Label>
-                            <Input type="time" name="hora_desde" value={formData.hora_desde} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">HASTA</Label>
-                            <Input type="time" name="hora_hasta" value={formData.hora_hasta} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                          </div>
-                      </div>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">LUGAR Y/O LOCAL</Label>
-                    <Input name="lugar_local" placeholder="Nombre del local" value={formData.lugar_local} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">DIRECCIÓN (CALLE)</Label>
-                    <Input name="direccion_calle" placeholder="Nombre de la calle" value={formData.direccion_calle} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">BARRIO - COMPAÑÍA</Label>
-                    <Input name="barrio_compania" placeholder="Nombre del barrio" value={formData.barrio_compania} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                  </div>
+                  <Input name="lugar_local" placeholder="Lugar/Local" value={formData.lugar_local} onChange={(e) => setFormData(p => ({...p, lugar_local: e.target.value}))} className="h-11 font-bold border-2" />
+                  <Input name="fecha" type="date" value={formData.fecha} onChange={(e) => setFormData(p => ({...p, fecha: e.target.value}))} className="h-11 font-bold border-2" />
                 </div>
-
                 <Separator />
-
-                <div className="space-y-6">
-                  <Label className="text-sm font-black uppercase tracking-tight text-primary block">DATOS DEL SOLICITANTE RESPONSABLE</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">NOMBRE COMPLETO</Label>
-                        <div className="relative">
-                          <Input 
-                            name="nombre_completo" 
-                            placeholder="Nombre y Apellido" 
-                            value={formData.nombre_completo} 
-                            onChange={handleInputChange} 
-                            readOnly={padronFound} 
-                            className={cn("h-11 font-bold border-2", padronFound && "bg-green-50 border-green-200 text-green-900")} 
-                          />
-                          {padronFound && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="absolute right-1 top-1 h-9 w-9" 
-                              onClick={() => { setFormData(p => ({...p, nombre_completo: '', cedula: ''})); setPadronFound(false); }}
-                            >
-                              <X className="h-4 w-4"/>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-muted-foreground">C.I.C. N.º</Label>
-                        <div className="relative flex gap-2">
-                          <Input 
-                            name="cedula" 
-                            placeholder="Ej: 5630148" 
-                            value={formData.cedula} 
-                            onChange={handleCedulaChange} 
-                            className="h-11 font-black border-2" 
-                          />
-                          <Button 
-                            type="button"
-                            variant="secondary"
-                            size="icon"
-                            className="h-11 w-11 shrink-0 border-2"
-                            onClick={() => searchCedulaInPadron(formData.cedula)}
-                            disabled={isSearchingCedula}
-                          >
-                            {isSearchingCedula ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                      </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex gap-2">
+                    <Input name="cedula" placeholder="Cédula" value={formData.cedula} onChange={handleCedulaChange} className="h-11 font-black border-2" />
+                    <Button type="button" variant="secondary" className="h-11" onClick={() => searchCedulaInPadron(formData.cedula)} disabled={isSearchingCedula}><Search className="h-4 w-4" /></Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">NÚMERO DE CONTACTO</Label>
-                    <Input name="telefono" placeholder="Celular o Línea Baja" value={formData.telefono} onChange={handleInputChange} className="h-11 font-bold border-2" />
-                  </div>
+                  <Input name="nombre_completo" placeholder="Nombre completo" value={formData.nombre_completo} readOnly={padronFound} className={cn("h-11 font-bold border-2", padronFound && "bg-green-50")} />
                 </div>
-
               </CardContent>
               <CardFooter className="bg-primary p-0">
-                  <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-primary text-white hover:bg-primary/90 text-xl font-black uppercase rounded-none shadow-2xl">
-                      {isSubmitting ? <><Loader2 className="animate-spin mr-3 h-6 w-6" /> GUARDANDO...</> : "GUARDAR Y AGENDAR ACTIVIDAD"}
+                  <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-primary text-white text-xl font-black uppercase rounded-none">
+                      {isSubmitting ? <Loader2 className="animate-spin mr-3" /> : "GUARDAR SOLICITUD"}
                   </Button>
               </CardFooter>
             </Card>
           </div>
-
           <div className="space-y-8">
-              <Card className="shadow-lg border-none overflow-hidden">
-                  <CardHeader className="bg-muted/50 border-b">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-primary">
-                      <MapPin className="h-4 w-4" /> GEORREFERENCIACIÓN DEL EVENTO
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="bg-primary/5 text-primary text-[10px] font-black uppercase px-4 py-2 rounded-lg border border-primary/10 text-center">
-                      Doble clic en el mapa para capturar coordenadas exactas
-                    </div>
-                    <div className="rounded-xl overflow-hidden border-4 border-muted shadow-inner bg-muted/20 relative">
-                      <div 
-                        ref={mapContainerRef} 
-                        className="h-[350px] w-full bg-white relative z-10" 
-                        style={{ height: '350px', minHeight: '350px', zIndex: 10, position: 'relative' }} 
-                      />
-                    </div>
-                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 flex flex-col items-center justify-between gap-4">
-                      <div className="flex items-center gap-3 w-full">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <Navigation className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase text-muted-foreground leading-none mb-1">COORDENADAS GPS</p>
-                          <p className="font-black text-xs text-primary tracking-tight truncate">
-                            {formData.gps || 'PENDIENTE DE CAPTURA'}
-                          </p>
-                        </div>
-                      </div>
-                      {formData.gps && (
-                        <Badge className="bg-green-100 text-green-700 border-none shadow-sm font-black text-[9px] uppercase px-3 py-1 w-full justify-center">
-                          UBICACIÓN FIJADA
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border-none overflow-hidden">
-                  <CardHeader className="bg-muted/50 border-b">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-primary">
-                      <Camera className="h-4 w-4" /> RESPALDO DOCUMENTAL
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6 bg-white">
-                  {photoDataUri ? (
-                      <div className="relative group">
-                        <div className="relative aspect-[4/3] rounded-xl overflow-hidden border-4 border-muted">
-                          <Image src={photoDataUri} alt="Firma" fill className="object-cover" />
-                        </div>
-                        <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-lg opacity-0 group-hover/image-card:opacity-100 transition-opacity" onClick={() => setPhotoDataUri(null)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                  ) : (
-                      <div className="grid grid-cols-1 gap-4">
-                          <Button asChild variant="secondary" className="w-full bg-muted text-primary hover:bg-muted/80 h-20 rounded-xl border-2 border-dashed border-primary/20">
-                            <label className="cursor-pointer flex flex-col items-center justify-center">
-                              <Camera className="h-6 w-6 mb-1" />
-                              <span className="text-[10px] font-black uppercase">CÁMARA EN VIVO</span>
-                              <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
-                            </label>
-                          </Button>
-                          <Button asChild variant="outline" className="w-full h-20 rounded-xl border-2 border-dashed">
-                            <label className="cursor-pointer flex flex-col items-center justify-center text-muted-foreground">
-                              <FileUp className="h-6 w-6 mb-1" />
-                              <span className="text-[10px] font-black uppercase">GALERÍA / ARCHIVO</span>
-                              <Input type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
-                            </label>
-                          </Button>
-                      </div>
-                  )}
-                  </CardContent>
-              </Card>
+              <Card className="shadow-lg"><CardHeader className="bg-muted/50 border-b"><CardTitle className="text-xs font-black uppercase">UBICACIÓN GPS</CardTitle></CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <div ref={mapContainerRef} className="h-[300px] w-full bg-white rounded-xl border-4" />
+                <p className="text-[10px] font-black text-primary text-center">{formData.gps || 'PENDIENTE'}</p>
+              </CardContent></Card>
           </div>
         </div>
       </main>

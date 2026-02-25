@@ -48,7 +48,6 @@ export default function ControlMovimientoMaquinasPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
   const [salidaData, setSalidaData] = useState({
     codigo_maquina: '',
@@ -75,9 +74,6 @@ export default function ControlMovimientoMaquinasPage() {
       fecha: now.toISOString().split('T')[0],
       hora: now.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false })
     }));
-
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -100,7 +96,6 @@ export default function ControlMovimientoMaquinasPage() {
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const profile = user.profile;
     
-    // Jerarquía de filtros
     const hasAdminFilter = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
     const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
     const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
@@ -120,7 +115,6 @@ export default function ControlMovimientoMaquinasPage() {
 
   const { data: rawAgendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
 
-  // Ordenamiento en memoria para evitar errores de índices compuestos en Firestore
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems) return null;
     return [...rawAgendaItems].sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -131,7 +125,7 @@ export default function ControlMovimientoMaquinasPage() {
     return query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', '==', selectedSolicitudId));
   }, [firestore, user, selectedSolicitudId]);
 
-  const { data: movimientosData, isLoading: isLoadingMovimientos } = useCollection<MovimientoMaquina>(movimientosQuery);
+  const { data: movimientosData } = useCollection<MovimientoMaquina>(movimientosQuery);
   const currentMovimiento = movimientosData && movimientosData.length > 0 ? movimientosData[0] : null;
 
   const selectedSolicitud = useMemo(() => {
@@ -139,70 +133,82 @@ export default function ControlMovimientoMaquinasPage() {
   }, [agendaItems, selectedSolicitudId]);
 
   const isDevolucionEnabled = useMemo(() => {
-    if (!selectedSolicitud || !currentMovimiento) return false;
-    return true; 
+    return !!(selectedSolicitud && currentMovimiento);
   }, [selectedSolicitud, currentMovimiento]);
 
-  const handleSaveSalida = async () => {
+  const handleSaveSalida = () => {
     if (!firestore || !user || !selectedSolicitud) return;
     if (!salidaData.codigo_maquina) {
-      toast({ variant: 'destructive', title: 'Código faltante', description: 'Ingrese el número de serie de la máquina.' });
+      toast({ variant: 'destructive', title: 'Código faltante' });
       return;
     }
 
     setIsSubmitting(true);
-    const registro = {
-      nombre: selectedSolicitud.divulgador_nombre || user.profile?.username || '',
-      cedula: selectedSolicitud.divulgador_cedula || user.profile?.cedula || '',
-      vinculo: selectedSolicitud.divulgador_vinculo || user.profile?.vinculo || '',
-      fecha: salidaData.fecha,
-      hora: salidaData.hora,
-      codigo_maquina: salidaData.codigo_maquina,
-      lugar: selectedSolicitud.lugar_local,
-      firma: '',
-      lacre_estado: 'correcto'
-    };
-
     const docData = {
       solicitud_id: selectedSolicitudId!,
       departamento: selectedSolicitud.departamento || user.profile?.departamento || '',
       distrito: selectedSolicitud.distrito || user.profile?.distrito || '',
-      salida: registro,
+      salida: {
+        nombre: selectedSolicitud.divulgador_nombre || user.profile?.username || '',
+        cedula: selectedSolicitud.divulgador_cedula || user.profile?.cedula || '',
+        vinculo: selectedSolicitud.divulgador_vinculo || user.profile?.vinculo || '',
+        fecha: salidaData.fecha,
+        hora: salidaData.hora,
+        codigo_maquina: salidaData.codigo_maquina,
+        lugar: selectedSolicitud.lugar_local,
+        lacre_estado: 'correcto'
+      },
       fecha_creacion: new Date().toISOString(),
     };
 
-    try {
-      await addDoc(collection(firestore, 'movimientos-maquinas'), docData);
-      toast({ title: '¡Salida Registrada!', description: 'Se ha habilitado la sección de devolución.' });
-    } catch (error) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'movimientos-maquinas', operation: 'create', requestResourceData: docData }));
-    } finally { setIsSubmitting(false); }
+    addDoc(collection(firestore, 'movimientos-maquinas'), docData)
+      .then(() => {
+        toast({ title: '¡Salida Registrada!' });
+        setIsSubmitting(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+          path: 'movimientos-maquinas', 
+          operation: 'create', 
+          requestResourceData: docData 
+        }));
+        setIsSubmitting(false);
+      });
   };
 
-  const handleSaveDevolucion = async () => {
+  const handleSaveDevolucion = () => {
     if (!firestore || !user || !selectedSolicitud || !currentMovimiento) return;
     setIsSubmitting(true);
-    const registro = {
-      nombre: selectedSolicitud.divulgador_nombre || user.profile?.username || '',
-      cedula: selectedSolicitud.divulgador_cedula || user.profile?.cedula || '',
-      vinculo: selectedSolicitud.divulgador_vinculo || user.profile?.vinculo || '',
-      fecha: devolucionData.fecha,
-      hora: devolucionData.hora,
-      codigo_maquina: currentMovimiento.salida?.codigo_maquina || '',
-      lugar: selectedSolicitud.lugar_local,
-      firma: '',
-      lacre_estado: devolucionData.lacre_estado,
+    const updateData = {
+      devolucion: {
+        nombre: selectedSolicitud.divulgador_nombre || user.profile?.username || '',
+        cedula: selectedSolicitud.divulgador_cedula || user.profile?.cedula || '',
+        vinculo: selectedSolicitud.divulgador_vinculo || user.profile?.vinculo || '',
+        fecha: devolucionData.fecha,
+        hora: devolucionData.hora,
+        codigo_maquina: currentMovimiento.salida?.codigo_maquina || '',
+        lugar: selectedSolicitud.lugar_local,
+        lacre_estado: devolucionData.lacre_estado,
+      }
     };
 
-    try {
-      await updateDoc(doc(firestore, 'movimientos-maquinas', currentMovimiento.id), { devolucion: registro });
-      toast({ title: '¡Devolución Registrada!' });
-    } catch (error) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `movimientos-maquinas/${currentMovimiento.id}`, operation: 'update', requestResourceData: { devolucion: registro } }));
-    } finally { setIsSubmitting(false); }
+    const docRef = doc(firestore, 'movimientos-maquinas', currentMovimiento.id);
+    updateDoc(docRef, updateData)
+      .then(() => {
+        toast({ title: '¡Devolución Registrada!' });
+        setIsSubmitting(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+          path: docRef.path, 
+          operation: 'update', 
+          requestResourceData: updateData 
+        }));
+        setIsSubmitting(false);
+      });
   };
 
-  const generatePDF = (type: 'salida' | 'devolucion', isProforma: boolean = false) => {
+  const generatePDF = (type: 'salida' | 'devolucion') => {
     if (!selectedSolicitud || !logoBase64) return;
     const doc = new jsPDF();
     const margin = 20;
@@ -253,7 +259,7 @@ export default function ControlMovimientoMaquinasPage() {
     doc.line(pageWidth - margin - 60, y, pageWidth - margin, y); doc.text("FIRMA JEFE", pageWidth - margin - 60, y + 5);
     y += 20; doc.line(105 - 30, y, 105 + 30, y); doc.text("FIRMA DEL DIVULGADOR", 105, y + 5, { align: 'center' });
 
-    doc.save(`Proforma-${type.toUpperCase()}-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
+    doc.save(`F-${type === 'salida' ? '01' : '02'}-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
   if (isUserLoading || isLoadingAgenda) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -262,7 +268,6 @@ export default function ControlMovimientoMaquinasPage() {
     <div className="flex min-h-screen flex-col bg-muted/20">
       <Header title="Control de Movimiento de Máquinas" />
       <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full">
-        
         <Card className="mb-8 border-primary/20 shadow-lg">
           <CardHeader className="bg-primary/5">
             <CardTitle className="text-sm font-black flex items-center gap-2 uppercase tracking-widest text-primary">
@@ -283,7 +288,6 @@ export default function ControlMovimientoMaquinasPage() {
 
         {selectedSolicitudId && (
           <div className="space-y-8 animate-in fade-in duration-500">
-            {/* SECCIÓN A: SALIDA */}
             <Card className={cn("border-t-8 shadow-xl", currentMovimiento ? "border-t-green-500" : "border-t-primary")}>
               <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
                 <div>
@@ -294,7 +298,7 @@ export default function ControlMovimientoMaquinasPage() {
                   <CardDescription className="font-bold text-[10px] uppercase ml-11">Formulario 01 - Registro de Retiro</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="font-black uppercase text-[10px]" onClick={() => generatePDF('salida', true)}>
+                    <Button variant="outline" size="sm" className="font-black uppercase text-[10px]" onClick={() => generatePDF('salida')}>
                         <Printer className="mr-1.5 h-3.5 w-3.5" /> Proforma 01
                     </Button>
                     {currentMovimiento && <CheckCircle2 className="h-8 w-8 text-green-600" />}
@@ -337,10 +341,6 @@ export default function ControlMovimientoMaquinasPage() {
                         <Input value={currentMovimiento?.salida?.hora || salidaData.hora} readOnly className="bg-muted/30 font-bold" />
                     </div>
                 </div>
-                <div className="p-4 bg-muted/20 border-2 rounded-xl border-dashed">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Lugar de Divulgación</Label>
-                    <p className="font-black uppercase text-sm mt-1">{selectedSolicitud?.lugar_local}</p>
-                </div>
               </CardContent>
               {!currentMovimiento && (
                 <CardFooter className="bg-muted/30 p-6 border-t">
@@ -352,7 +352,6 @@ export default function ControlMovimientoMaquinasPage() {
               )}
             </Card>
 
-            {/* SECCIÓN B: DEVOLUCIÓN */}
             <Card className={cn("border-t-8 shadow-xl transition-all", !isDevolucionEnabled && "opacity-50 grayscale", currentMovimiento?.devolucion ? "border-t-green-500" : "border-t-orange-500")}>
               <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/10">
                 <div>
@@ -363,7 +362,7 @@ export default function ControlMovimientoMaquinasPage() {
                   <CardDescription className="font-bold text-[10px] uppercase ml-11">Formulario 02 - Registro de Retorno</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="font-black uppercase text-[10px] border-orange-200 text-orange-700" onClick={() => generatePDF('devolucion', true)}>
+                    <Button variant="outline" size="sm" className="font-black uppercase text-[10px] border-orange-200 text-orange-700" onClick={() => generatePDF('devolucion')}>
                         <Printer className="mr-1.5 h-3.5 w-3.5" /> Proforma 02
                     </Button>
                     {currentMovimiento?.devolucion && <CheckCircle2 className="h-8 w-8 text-green-600" />}

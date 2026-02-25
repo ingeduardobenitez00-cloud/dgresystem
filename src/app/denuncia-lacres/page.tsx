@@ -18,6 +18,8 @@ import { type SolicitudCapacitacion } from '@/lib/data';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 function DenunciaContent() {
   const { user, isUserLoading } = useUser();
@@ -70,15 +72,10 @@ function DenunciaContent() {
     const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
 
     if (hasAdminFilter) return colRef;
-    
-    if (hasDeptFilter && profile.departamento) {
-        return query(colRef, where('departamento', '==', profile.departamento));
-    }
-
+    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
     if (hasDistFilter && profile.departamento && profile.distrito) {
         return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
     }
-    
     return null;
   }, [firestore, user, isUserLoading]);
 
@@ -107,10 +104,10 @@ function DenunciaContent() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!firestore || !user || !selectedSolicitud) return;
     if (!formData.nro_acta || !formData.detalles) {
-        toast({ variant: "destructive", title: "Faltan datos", description: "El número de acta y los detalles son obligatorios." });
+        toast({ variant: "destructive", title: "Faltan datos" });
         return;
     }
 
@@ -128,14 +125,21 @@ function DenunciaContent() {
       server_timestamp: serverTimestamp(),
     };
 
-    try {
-      await addDoc(collection(firestore, 'denuncias-lacres'), docData);
-      toast({ title: "¡Denuncia Registrada!", description: "Se ha guardado el reporte de adulteración." });
-      setFormData(p => ({ ...p, nro_acta: '', detalles: '' }));
-      setDenunciaFoto(null);
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'Error al guardar' });
-    } finally { setIsSubmitting(false); }
+    addDoc(collection(firestore, 'denuncias-lacres'), docData)
+      .then(() => {
+        toast({ title: "¡Denuncia Registrada!" });
+        setFormData(p => ({ ...p, nro_acta: '', detalles: '' }));
+        setDenunciaFoto(null);
+        setIsSubmitting(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+          path: 'denuncias-lacres', 
+          operation: 'create', 
+          requestResourceData: docData 
+        }));
+        setIsSubmitting(false);
+      });
   };
 
   const generatePDF = () => {
@@ -174,11 +178,9 @@ function DenunciaContent() {
         y += 110;
     }
 
-    if (y > 250) doc.addPage();
     const finalY = doc.internal.pageSize.getHeight() - 40;
     doc.line(margin, finalY, margin + 60, finalY);
     doc.text("Firma del Responsable", margin, finalY + 5);
-    
     doc.line(pageWidth - margin - 60, finalY, pageWidth - margin, finalY);
     doc.text("Sello de la Oficina", pageWidth - margin - 60, finalY + 5);
 
@@ -191,7 +193,6 @@ function DenunciaContent() {
     <div className="flex min-h-screen flex-col bg-muted/20">
       <Header title="Denuncia de Lacres" />
       <main className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
-        
         <div className="flex items-center justify-between mb-8">
             <div>
                 <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Denuncia de Adulteración</h1>
@@ -217,7 +218,7 @@ function DenunciaContent() {
                 <Label className="text-[10px] font-black uppercase text-muted-foreground">Vincular a Actividad de Agenda</Label>
                 <Select onValueChange={setSelectedAgendaId} value={selectedAgendaId || undefined}>
                     <SelectTrigger className="h-12 border-2">
-                        <SelectValue placeholder="Seleccione la actividad donde se detectó el daño..." />
+                        <SelectValue placeholder="Seleccione la actividad..." />
                     </SelectTrigger>
                     <SelectContent>
                         {agendaItems?.map(item => (
@@ -257,7 +258,6 @@ function DenunciaContent() {
                             name="detalles"
                             value={formData.detalles} 
                             onChange={handleInputChange}
-                            placeholder="Describa el estado en que se encontró el lacre, posibles causas y responsables si se conocen..."
                             className="min-h-[150px] font-medium border-2"
                         />
                     </div>
@@ -278,13 +278,6 @@ function DenunciaContent() {
                             </label>
                         )}
                     </div>
-                </div>
-            )}
-
-            {!selectedAgendaId && (
-                <div className="py-20 text-center bg-muted/10 rounded-3xl border-2 border-dashed">
-                    <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
-                    <p className="font-black uppercase text-muted-foreground tracking-widest">Seleccione una actividad programada</p>
                 </div>
             )}
           </CardContent>
