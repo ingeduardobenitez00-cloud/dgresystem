@@ -1,12 +1,17 @@
-
 "use client";
 
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { BookOpen, ShieldCheck, Cpu, Users, FileText, Globe, MapPin, Navigation } from 'lucide-react';
+import { BookOpen, ShieldCheck, Cpu, Users, FileText, Globe, MapPin, Navigation, Landmark } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+
+// Utilidad local para clases condicionales
+const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' ');
+
+// Componente Separador local
+const Separator = ({ className }: { className?: string }) => <div className={cn("h-px w-full bg-border", className)} />;
 
 export default function DocumentacionPage() {
   return (
@@ -240,6 +245,3 @@ export default function DocumentacionPage() {
     </div>
   );
 }
-
-const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' ');
-const Separator = ({ className }: { className?: string }) => <div className={cn("h-px w-full bg-border", className)} />;
