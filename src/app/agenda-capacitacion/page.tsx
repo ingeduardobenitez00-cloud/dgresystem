@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -25,7 +24,6 @@ export default function AgendaCapacitacionPage() {
   const { firestore } = useFirebase();
   const { toast } = useToast();
 
-  const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [divulSearch, setDivulSearch] = useState('');
@@ -46,9 +44,6 @@ export default function AgendaCapacitacionPage() {
     !hasAdminFilter && !hasDeptFilter && (profile?.permissions?.includes('district_filter') || profile?.role === 'jefe' || profile?.role === 'funcionario'),
     [profile, hasAdminFilter, hasDeptFilter]
   );
-
-  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.uid || !profile) return null;
@@ -79,7 +74,7 @@ export default function AgendaCapacitacionPage() {
     return null;
   }, [firestore, user, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divuladoresQuery);
+  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
 
   const divulgadores = useMemo(() => {
     if (!rawDivulgadores) return null;
@@ -115,12 +110,7 @@ export default function AgendaCapacitacionPage() {
       });
   };
 
-  const getEncuestaUrl = (id: string) => {
-      if (typeof window === 'undefined') return '';
-      return `${window.location.origin}/encuesta-satisfaccion?solicitudId=${id}`;
-  };
-
-  if (isUserLoading || isLoadingSolicitudes || isLoadingDatos) {
+  if (isUserLoading || isLoadingSolicitudes || isLoadingDivul) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
   }
 
@@ -147,10 +137,17 @@ export default function AgendaCapacitacionPage() {
                   <div>
                     <p className="font-black text-sm uppercase text-primary">{item.lugar_local}</p>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase">{formatDateToDDMMYYYY(item.fecha)} | {item.hora_desde} HS</p>
+                    {item.divulgador_nombre && (
+                      <p className="text-[9px] font-black text-green-600 uppercase mt-1">Asignado: {item.divulgador_nombre}</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setAssigningSolicitud(item)} className="text-[10px] font-black">{item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}</Button>
-                    <Link href={`/informe-divulgador?solicitudId=${item.id}`}><Button size="sm" className="text-[10px] font-black">INFORME</Button></Link>
+                    <Button variant="outline" size="sm" onClick={() => setAssigningSolicitud(item)} className="text-[10px] font-black">
+                      {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
+                    </Button>
+                    <Link href={`/informe-divulgador?solicitudId=${item.id}`}>
+                      <Button size="sm" className="text-[10px] font-black">INFORME</Button>
+                    </Link>
                   </div>
                 </div>
               </Card>
@@ -164,13 +161,17 @@ export default function AgendaCapacitacionPage() {
           <DialogHeader><DialogTitle className="font-black uppercase">ASIGNAR PERSONAL</DialogTitle></DialogHeader>
           <div className="p-4 space-y-4">
             <Input placeholder="Buscar..." value={divulSearch} onChange={e => setDivulSearch(e.target.value)} />
-            <ScrollArea className="h-[200px] border rounded-lg p-2">
-              {filteredDivul.map(d => (
-                <div key={d.id} className="p-2 border-b cursor-pointer hover:bg-muted" onClick={() => handleAssignDivulgador(d)}>
-                  <p className="font-bold text-xs uppercase">{d.nombre}</p>
-                  <p className="text-[9px] text-muted-foreground">{d.cedula} • {d.vinculo}</p>
-                </div>
-              ))}
+            <ScrollArea className="h-[300px] border rounded-lg p-2">
+              {filteredDivul.length === 0 ? (
+                <p className="text-center text-[10px] font-bold text-muted-foreground uppercase py-10">No se encontró personal</p>
+              ) : (
+                filteredDivul.map(d => (
+                  <div key={d.id} className="p-3 border-b cursor-pointer hover:bg-muted transition-colors rounded-md" onClick={() => handleAssignDivulgador(d)}>
+                    <p className="font-black text-xs uppercase">{d.nombre}</p>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{d.cedula} • {d.vinculo}</p>
+                  </div>
+                ))
+              )}
             </ScrollArea>
           </div>
         </DialogContent>

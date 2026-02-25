@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -12,7 +11,6 @@ import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmar
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -91,7 +89,6 @@ export default function SolicitudCapacitacionPage() {
   const profile = user?.profile;
 
   useEffect(() => {
-    let map: any = null;
     const initMap = async () => {
       if (typeof window === 'undefined' || !mapContainerRef.current || mapInstanceRef.current) return;
       try {
@@ -109,7 +106,7 @@ export default function SolicitudCapacitacionPage() {
         }
 
         const initialPos: [number, number] = [-25.311549, -57.653496];
-        map = L.map(mapContainerRef.current, { center: initialPos, zoom: 13, doubleClickZoom: false });
+        const map = L.map(mapContainerRef.current, { center: initialPos, zoom: 13, doubleClickZoom: false });
         mapInstanceRef.current = map;
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -148,9 +145,12 @@ export default function SolicitudCapacitacionPage() {
         const found = snap.docs[0].data();
         setFormData(prev => ({ ...prev, nombre_completo: `${found.nombre} ${found.apellido}`.toUpperCase() }));
         setPadronFound(true);
-      } else { setPadronFound(false); }
+      } else { 
+        setPadronFound(false);
+        toast({ variant: "destructive", title: "No encontrado", description: "La cédula no figura en el padrón." });
+      }
     } catch (error) { setPadronFound(false); } finally { setIsSearchingCedula(false); }
-  }, [firestore]);
+  }, [firestore, toast]);
 
   const handleCedulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, cedula: e.target.value, nombre_completo: '' }));
@@ -250,7 +250,7 @@ export default function SolicitudCapacitacionPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border-2 border-dashed rounded-2xl bg-muted/5">
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Landmark className="h-3 w-3"/> Departamento Asignado</Label>
-                    <Input value={profile?.departamento || '00 - ASUNCION'} readOnly className="font-black bg-white uppercase border-2 h-11" />
+                    <Input value={profile?.departamento || 'SIN ASIGNAR'} readOnly className="font-black bg-white uppercase border-2 h-11" />
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Navigation className="h-3 w-3"/> Distrito / Oficina</Label>
@@ -298,7 +298,6 @@ export default function SolicitudCapacitacionPage() {
                 </div>
               </div>
 
-              {/* MEJORADO: Sección de Tipo de Solicitud y Fecha/Hora según imagen */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div className="p-8 border-2 border-dashed rounded-[2rem] bg-white space-y-6">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">TIPO DE SOLICITUD (SELECCIÓN EXCLUSIVA)</Label>
