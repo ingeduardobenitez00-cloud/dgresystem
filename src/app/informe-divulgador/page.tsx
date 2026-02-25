@@ -1,21 +1,20 @@
 
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserCheck, FileDown, Camera, Trash2, CheckCircle2, Globe, X } from 'lucide-react';
+import { Loader2, FileDown, CheckCircle2, Printer, X, UserCircle, MapPin, Building2, Clock, Calendar } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, limit, doc } from 'firebase/firestore';
-import { Separator } from '@/components/ui/separator';
+import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
-import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -29,7 +28,7 @@ function InformeContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [markedCells, setMarcaciones] = useState<number[]>([]);
-  const [eventPhotos, setEventPhotos] = useState<string[]>([]);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     lugar_divulgacion: '',
@@ -41,8 +40,22 @@ function InformeContent() {
     vinculo: '',
     oficina: '',
     departamento: '',
-    distrito: '',
   });
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const response = await fetch('/logo.png');
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => setLogoBase64(reader.result as string);
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error fetching logo:", error);
+      }
+    };
+    fetchLogo();
+  }, []);
 
   useEffect(() => {
     if (!isUserLoading && user?.profile && !agendaId) {
@@ -53,7 +66,6 @@ function InformeContent() {
         vinculo: user.profile?.vinculo || '',
         oficina: user.profile?.distrito || '',
         departamento: user.profile?.departamento || '',
-        distrito: user.profile?.distrito || '',
       }));
     }
   }, [user, isUserLoading, agendaId]);
@@ -63,36 +75,112 @@ function InformeContent() {
 
   useEffect(() => {
     if (agendaDoc) {
-      setFormData(prev => ({
-        ...prev,
-        lugar_divulgacion: agendaDoc.lugar_local,
-        fecha: agendaDoc.fecha,
-        hora_desde: agendaDoc.hora_desde,
-        hora_hasta: agendaDoc.hora_hasta,
+      setFormData({
+        lugar_divulgacion: agendaDoc.lugar_local || '',
+        fecha: agendaDoc.fecha || '',
+        hora_desde: agendaDoc.hora_desde || '',
+        hora_hasta: agendaDoc.hora_hasta || '',
+        nombre_divulgador: agendaDoc.divulgador_nombre || user?.profile?.username || '',
+        cedula_divulgador: agendaDoc.divulgador_cedula || user?.profile?.cedula || '',
+        vinculo: agendaDoc.divulgador_vinculo || user?.profile?.vinculo || '',
         oficina: agendaDoc.distrito || '',
         departamento: agendaDoc.departamento || '',
-        distrito: agendaDoc.distrito || '',
-      }));
+      });
     }
-  }, [agendaDoc]);
+  }, [agendaDoc, user]);
 
   const toggleCell = (num: number) => {
     setMarcaciones(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
   };
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setEventPhotos(prev => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
+  const generatePDF = () => {
+    if (!logoBase64) return;
+    const doc = new jsPDF();
+    const margin = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text("ANEXO III", 40, 18);
+    doc.text("INFORME DEL DIVULGADOR", 40, 24);
+
+    let y = 35;
+    const drawBox = (height: number) => {
+        doc.setDrawColor(0);
+        doc.rect(margin, y, pageWidth - (margin * 2), height);
+    };
+
+    // Box 1
+    drawBox(18);
+    doc.setFontSize(10);
+    doc.text(`LUGAR DE DIVULGACIÓN: ${formData.lugar_divulgacion.toUpperCase()}`, margin + 3, y + 7);
+    const dateObj = new Date(formData.fecha || new Date());
+    doc.text(`FECHA:   ${dateObj.getDate()}   /   ${dateObj.getMonth() + 1}   / 2026`, margin + 3, y + 14);
+    doc.text(`HORARIO DE:   ${formData.hora_desde}   A   ${formData.hora_hasta}   HS.`, margin + 100, y + 14);
+    
+    y += 22;
+    // Box 2
+    drawBox(12);
+    doc.text(`NOMBRE COMPLETO DIVULGADOR: ${formData.nombre_divulgador.toUpperCase()}`, margin + 3, y + 5);
+    doc.text(`C.I.C. N.º: ${formData.cedula_divulgador}`, margin + 3, y + 10);
+    doc.text(`VÍNCULO: ${formData.vinculo.toUpperCase()}`, margin + 100, y + 10);
+
+    y += 16;
+    // Box 3
+    drawBox(12);
+    doc.text(`OFICINA: ${formData.oficina.toUpperCase()}`, margin + 3, y + 5);
+    doc.text(`DEPARTAMENTO: ${formData.departamento.toUpperCase()}`, margin + 3, y + 10);
+
+    y += 18;
+    // Table Header
+    doc.rect(margin + 10, y, 170, 8);
+    doc.setFontSize(11);
+    doc.text("MARCA CON UNA \"X\" POR CADA CIUDADANO QUE PRACTICÓ", pageWidth / 2, y + 5.5, { align: 'center' });
+    
+    y += 8;
+    // Grid 13 columns x 8 rows = 104
+    const cellW = 170 / 13;
+    const cellH = 8;
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 13; col++) {
+            const num = (row * 13) + col + 1;
+            const x = margin + 10 + (col * cellW);
+            const curY = y + (row * cellH);
+            doc.rect(x, curY, cellW, cellH);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.text(num.toString(), x + 2, curY + 5.5);
+            if (markedCells.includes(num)) {
+                doc.setFont('helvetica', 'bold');
+                doc.text("X", x + (cellW/2) + 1, curY + 5.5, { align: 'center' });
+            }
+        }
     }
+
+    y += 75;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`TOTAL DE PERSONAS: ________${markedCells.length}________ ciudadanos.`, pageWidth / 2, y, { align: 'center' });
+
+    y += 25;
+    doc.text("Firma y aclaración Divulgador", margin + 10, y);
+    doc.text("Firma, aclaración y sello Jefes", pageWidth - margin - 60, y);
+
+    y = doc.internal.pageSize.getHeight() - 20;
+    doc.setFontSize(8);
+    doc.text("-", margin, y);
+    doc.text("Control individual del divulgador con cantidad de ciudadanos que practicaron con la MV para", margin + 5, y);
+    doc.text("informe semanal de divulgación de la oficina.", margin + 5, y + 4);
+
+    doc.save(`AnexoIII-${formData.oficina || 'Informe'}.pdf`);
   };
 
   const handleSubmit = () => {
     if (!firestore || !user) return;
     if (!formData.lugar_divulgacion || !formData.fecha) {
-        toast({ variant: "destructive", title: "Faltan datos" }); return;
+        toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
     }
 
     setIsSubmitting(true);
@@ -100,7 +188,6 @@ function InformeContent() {
       ...formData,
       total_personas: markedCells.length,
       marcaciones: markedCells,
-      fotos: eventPhotos,
       usuario_id: user.uid,
       fecha_creacion: new Date().toISOString(),
       server_timestamp: serverTimestamp(),
@@ -108,8 +195,9 @@ function InformeContent() {
 
     addDoc(collection(firestore, 'informes-divulgador'), docData)
       .then(() => {
-        toast({ title: "¡Informe Guardado!" });
-        setMarcaciones([]); setEventPhotos([]); setIsSubmitting(false);
+        toast({ title: "¡Informe Guardado con éxito!" });
+        setMarcaciones([]); 
+        setIsSubmitting(false);
       })
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ 
@@ -124,34 +212,174 @@ function InformeContent() {
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/20">
-      <Header title="Anexo III" />
-      <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full">
-        <Card className="shadow-xl border-t-4 border-t-primary">
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="uppercase font-black text-primary">Anexo III - Control Individual</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-8 pt-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input name="lugar_divulgacion" value={formData.lugar_divulgacion} onChange={e => setFormData(p => ({...p, lugar_divulgacion: e.target.value}))} placeholder="Lugar" className="font-bold h-11 border-2" />
-                <Input type="date" name="fecha" value={formData.fecha} onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} className="font-bold h-11 border-2" />
+    <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
+      <Header title="Carga de Anexo III" />
+      <main className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full space-y-6">
+        
+        <div className="flex justify-between items-center px-2">
+            <div className="flex items-center gap-4">
+                <Image src="/logo.png" alt="Logo" width={50} height={50} className="object-contain" />
+                <div>
+                    <h1 className="text-xl font-black uppercase leading-tight text-primary">ANEXO III</h1>
+                    <h2 className="text-lg font-black uppercase leading-tight">INFORME DEL DIVULGADOR</h2>
+                </div>
             </div>
-            <Separator />
-            <div className="grid grid-cols-10 gap-1 border p-2 rounded-xl">
-                {Array.from({ length: 104 }, (_, i) => i + 1).map(num => (
-                    <div key={num} onClick={() => toggleCell(num)} className={cn("aspect-square border flex items-center justify-center cursor-pointer", markedCells.includes(num) ? "bg-primary text-white" : "hover:bg-muted")}>
-                        <span className="text-[10px] font-black">{markedCells.includes(num) ? "X" : num}</span>
+            <Button variant="outline" className="font-black uppercase text-[10px] border-2 gap-2 h-10 shadow-sm" onClick={generatePDF}>
+                <Printer className="h-4 w-4" /> PDF OFICIAL
+            </Button>
+        </div>
+
+        <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
+          <CardContent className="p-8 space-y-6">
+            
+            {/* Box 1: Lugar, Fecha, Horario */}
+            <div className="border-2 border-black p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <Label className="font-black uppercase text-xs shrink-0">LUGAR DE DIVULGACIÓN:</Label>
+                    <Input 
+                        value={formData.lugar_divulgacion} 
+                        onChange={e => setFormData(p => ({...p, lugar_divulgacion: e.target.value}))} 
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="flex items-center gap-3">
+                        <Label className="font-black uppercase text-xs shrink-0">FECHA:</Label>
+                        <Input 
+                            type="date"
+                            value={formData.fecha} 
+                            onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} 
+                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0" 
+                        />
                     </div>
-                ))}
+                    <div className="flex items-center gap-3">
+                        <Label className="font-black uppercase text-xs shrink-0">HORARIO DE:</Label>
+                        <Input 
+                            type="time"
+                            value={formData.hora_desde} 
+                            onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} 
+                            className="border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center" 
+                        />
+                        <Label className="font-black uppercase text-xs">A</Label>
+                        <Input 
+                            type="time"
+                            value={formData.hora_hasta} 
+                            onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} 
+                            className="border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center" 
+                        />
+                        <Label className="font-black uppercase text-xs">HS.</Label>
+                    </div>
+                </div>
             </div>
+
+            {/* Box 2: Divulgador */}
+            <div className="border-2 border-black p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <Label className="font-black uppercase text-xs shrink-0">NOMBRE COMPLETO DIVULGADOR:</Label>
+                    <Input 
+                        value={formData.nombre_divulgador} 
+                        onChange={e => setFormData(p => ({...p, nombre_divulgador: e.target.value}))} 
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="flex items-center gap-3">
+                        <Label className="font-black uppercase text-xs shrink-0">C.I.C. N.º:</Label>
+                        <Input 
+                            value={formData.cedula_divulgador} 
+                            onChange={e => setFormData(p => ({...p, cedula_divulgador: e.target.value}))} 
+                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0" 
+                        />
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Label className="font-black uppercase text-xs shrink-0">VÍNCULO:</Label>
+                        <Input 
+                            value={formData.vinculo} 
+                            onChange={e => setFormData(p => ({...p, vinculo: e.target.value}))} 
+                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Box 3: Oficina */}
+            <div className="border-2 border-black p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <Label className="font-black uppercase text-xs shrink-0">OFICINA:</Label>
+                    <Input 
+                        value={formData.oficina} 
+                        readOnly
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                    />
+                </div>
+                <div className="flex items-center gap-3">
+                    <Label className="font-black uppercase text-xs shrink-0">DEPARTAMENTO:</Label>
+                    <Input 
+                        value={formData.departamento} 
+                        readOnly
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                    />
+                </div>
+            </div>
+
+            {/* Grid de Marcaciones */}
+            <div className="border-2 border-black rounded-sm overflow-hidden">
+                <div className="bg-[#F8F9FA] border-b-2 border-black p-2 text-center">
+                    <p className="font-black uppercase text-sm tracking-tight">MARCA CON UNA "X" POR CADA CIUDADANO QUE PRACTICÓ</p>
+                </div>
+                <div className="grid grid-cols-13 border-collapse">
+                    {Array.from({ length: 104 }, (_, i) => i + 1).map(num => (
+                        <div 
+                            key={num} 
+                            onClick={() => toggleCell(num)} 
+                            className={cn(
+                                "aspect-square border border-black flex flex-col items-center justify-center cursor-pointer transition-colors relative group",
+                                markedCells.includes(num) ? "bg-black text-white" : "hover:bg-muted bg-white"
+                            )}
+                        >
+                            <span className={cn("text-[8px] font-bold absolute top-0.5 left-1", markedCells.includes(num) ? "text-white/40" : "text-black/30")}>
+                                {num}
+                            </span>
+                            {markedCells.includes(num) && (
+                                <span className="text-xl font-black leading-none">X</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex justify-center py-4">
+                <p className="font-black uppercase text-sm flex items-center gap-4">
+                    TOTAL DE PERSONAS: 
+                    <span className="inline-block border-b-2 border-black w-32 text-center text-xl text-primary">{markedCells.length}</span> 
+                    ciudadanos.
+                </p>
+            </div>
+
           </CardContent>
-          <CardFooter className="p-6 border-t bg-muted/30">
-            <Button onClick={handleSubmit} disabled={isSubmitting || markedCells.length === 0} className="w-full h-14 text-xl font-black uppercase shadow-2xl">
-              {isSubmitting ? <Loader2 className="animate-spin mr-3" /> : "GUARDAR INFORME"}
+          <CardFooter className="p-0 border-t bg-black overflow-hidden">
+            <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || markedCells.length === 0} 
+                className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-widest"
+            >
+              {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />}
+              GUARDAR REPORTE OFICIAL
             </Button>
           </CardFooter>
         </Card>
+
+        <div className="px-4 text-[10px] font-medium text-muted-foreground italic leading-tight space-y-1">
+            <p>- Control individual del divulgador con cantidad de ciudadanos que practicaron con la MV para informe semanal de divulgación de la oficina.</p>
+        </div>
       </main>
+
+      <style jsx global>{`
+        .grid-cols-13 {
+            display: grid;
+            grid-template-columns: repeat(13, minmax(0, 1fr));
+        }
+      `}</style>
     </div>
   );
 }
