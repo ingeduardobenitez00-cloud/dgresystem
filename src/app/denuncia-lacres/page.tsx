@@ -9,12 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, Globe, FileText, Printer } from 'lucide-react';
+import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, Globe, FileText, Printer, X } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
-import { type SolicitudCapacitacion } from '@/lib/data';
+import { type SolicitudCapacitacion, type MovimientoMaquina } from '@/lib/data';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -82,13 +82,21 @@ function DenunciaContent() {
   const { data: rawAgendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
 
   const agendaItems = useMemo(() => {
-    if (!rawAgendaItems) return null;
+    if (!rawAgendaItems) return [];
     return [...rawAgendaItems].sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [rawAgendaItems]);
 
   const selectedSolicitud = useMemo(() => {
     return agendaItems?.find(item => item.id === selectedAgendaId);
   }, [agendaItems, selectedAgendaId]);
+
+  // Buscar el movimiento para obtener el número de serie de la máquina
+  const movQuery = useMemoFirebase(() => {
+    if (!firestore || !selectedAgendaId) return null;
+    return query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', '==', selectedAgendaId));
+  }, [firestore, selectedAgendaId]);
+  const { data: movs } = useCollection<MovimientoMaquina>(movQuery);
+  const currentMov = movs && movs.length > 0 ? movs[0] : null;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -148,41 +156,99 @@ function DenunciaContent() {
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
-    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-    doc.text("FORMULARIO DE DENUNCIA DE ADULTERACIÓN", 105, 20, { align: "center" });
-    doc.text("DE LOS LACRES DE SEGURIDAD", 105, 26, { align: "center" });
-
-    let y = 45;
-    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-    doc.text("DATOS DE LA ACTIVIDAD:", margin, y);
-    y += 8;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`LOCAL: ${selectedSolicitud.lugar_local.toUpperCase()}`, margin + 5, y); y += 6;
-    doc.text(`UBICACIÓN: ${selectedSolicitud.distrito} - ${selectedSolicitud.departamento}`, margin + 5, y); y += 10;
-
-    doc.setFont('helvetica', 'bold');
-    doc.text(`NRO. ACTA: ${formData.nro_acta}`, margin, y); y += 10;
+    // Logos Superiores
+    doc.addImage(logoBase64, 'PNG', margin, 5, 20, 20);
     
-    doc.text("DETALLES DE LA IRREGULARIDAD:", margin, y); y += 6;
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.text("FORMULARIO DE DENUNCIA DE ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, 35, { align: "center" });
+
+    // Cuadro Principal
+    const boxY = 40;
+    const boxH = 230;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin - 5, boxY, pageWidth - (margin * 2) + 10, boxH, 5, 5);
+
+    let y = boxY + 10;
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text("ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, y, { align: 'center' });
+
+    y += 15;
+    doc.setFontSize(10);
+    doc.text("Señores:", margin, y);
+    y += 6; doc.text("Lic. Benjamín Díaz, Director", margin, y);
+    y += 5; doc.text("Director Gral. del Registro Electoral", margin, y);
+    y += 6; doc.text("Ing. Adalberto Morinigo, Vicedirector", margin, y);
+    y += 5; doc.text("Vicedirector del Registro Electoral", margin, y);
+    y += 6; doc.text("Abg. Francisco Olmedo, Director", margin, y);
+    y += 5; doc.text("Dirección de Recursos Electorales", margin, y);
+    y += 6; doc.text("Abg. Victorina Fretes, Directora", margin, y);
+    y += 5; doc.text("Dirección de Logística", margin, y);
+
+    y += 10;
+    doc.setFont('helvetica', 'bold'); doc.text("Presente", margin, y);
+    doc.line(margin, y + 1, margin + 15, y + 1);
+
+    y += 15;
     doc.setFont('helvetica', 'normal');
-    const splitText = doc.splitTextToSize(formData.detalles, 170);
-    doc.text(splitText, margin + 5, y);
-    y += (splitText.length * 6) + 10;
+    const introText = `Los Jefes / Encargados del Registro Electoral de ${selectedSolicitud.distrito.toUpperCase()}, del departamento de ${selectedSolicitud.departamento.toUpperCase()}, se dirigen a Uds, y a donde corresponda, a fin de informar la manipulación de la máquina de votación (adulteración de los 3 (tres) lacres), con los datos que a continuación se detalla:`;
+    const splitIntro = doc.splitTextToSize(introText, pageWidth - (margin * 2));
+    doc.text(splitIntro, margin, y);
 
-    if (denunciaFoto) {
-        doc.setFont('helvetica', 'bold');
-        doc.text("EVIDENCIA FOTOGRÁFICA:", margin, y);
-        y += 6;
-        doc.addImage(denunciaFoto, 'JPEG', margin, y, 170, 100);
-        y += 110;
-    }
+    y += 20;
+    doc.setFont('helvetica', 'bold');
+    const todayParts = formData.fecha_denuncia.split('-');
+    doc.text(`FECHA ${todayParts[2]} / ${todayParts[1]} / 2026`, pageWidth - margin - 10, y, { align: 'right' });
 
-    const finalY = doc.internal.pageSize.getHeight() - 40;
-    doc.line(margin, finalY, margin + 60, finalY);
-    doc.text("Firma del Responsable", margin, finalY + 5);
-    doc.line(pageWidth - margin - 60, finalY, pageWidth - margin, finalY);
-    doc.text("Sello de la Oficina", pageWidth - margin - 60, finalY + 5);
+    y += 10;
+    doc.setFontSize(9);
+    doc.text("NOMBRE Y APELLIDO DEL JEFE/ENCARGADO RESPONSABLE", margin, y);
+    y += 4;
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 10, 5, 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text((user?.profile?.username || '').toUpperCase(), margin + 5, y + 6.5);
+
+    y += 18;
+    doc.setFont('helvetica', 'bold');
+    doc.text("Nº C.I:", margin, y);
+    doc.roundedRect(margin + 12, y - 6, 50, 10, 5, 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(user?.profile?.cedula || '', margin + 18, y + 0.5);
+
+    y += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.text("VÍNCULO:", margin, y);
+    const v = (user?.profile?.vinculo || '').toUpperCase();
+    doc.rect(margin + 20, y - 4, 5, 5); doc.text("PERMANENTE", margin + 28, y); if(v === 'PERMANENTE') doc.text("X", margin + 21, y - 0.5);
+    doc.rect(margin + 65, y - 4, 5, 5); doc.text("CONTRATADO", margin + 73, y); if(v === 'CONTRATADO') doc.text("X", margin + 66, y - 0.5);
+
+    y += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.text("NÚMERO DE SERIE DE LA MÁQUINA DE VOTACIÓN", margin, y);
+    doc.roundedRect(margin + 85, y - 6, 75, 10, 5, 5);
+    doc.setFont('helvetica', 'normal');
+    const nroSerie = currentMov?.salida?.codigo_maquina || 'S/N';
+    doc.text(nroSerie.toUpperCase(), margin + 90, y + 0.5);
+
+    y += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text("MOTIVO DEL DESLACRE (FORMULARIO DE DENUNCIA DE ADULTERANCIÓN DEL LACRE DE SEGURIDAD)", margin, y);
+    y += 4;
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 15, 5, 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const splitDetalles = doc.splitTextToSize(formData.detalles.toUpperCase(), pageWidth - (margin * 2) - 10);
+    doc.text(splitDetalles, margin + 5, y + 6);
+
+    y += 40;
+    doc.line(margin + 10, y, margin + 70, y);
+    doc.text("FIRMA JEFE", margin + 25, y + 5);
+    doc.text("ACLARACIÓN:", margin + 25, y + 10);
+
+    doc.line(pageWidth - margin - 70, y, pageWidth - margin - 10, y);
+    doc.text("FIRMA JEFE", pageWidth - margin - 55, y + 5);
+    doc.text("ACLARACIÓN:", pageWidth - margin - 55, y + 10);
 
     doc.save(`Denuncia-Lacre-${formData.nro_acta || 'Reporte'}.pdf`);
   };
@@ -216,18 +282,25 @@ function DenunciaContent() {
           <CardContent className="space-y-8 pt-8">
             <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground">Vincular a Actividad de Agenda</Label>
-                <Select onValueChange={setSelectedAgendaId} value={selectedAgendaId || undefined}>
-                    <SelectTrigger className="h-12 border-2">
-                        <SelectValue placeholder="Seleccione la actividad..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agendaItems?.map(item => (
-                            <SelectItem key={item.id} value={item.id}>
-                                {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                    <Select onValueChange={setSelectedAgendaId} value={selectedAgendaId || undefined}>
+                        <SelectTrigger className="h-12 border-2">
+                            <SelectValue placeholder="Seleccione la actividad..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {agendaItems?.map(item => (
+                                <SelectItem key={item.id} value={item.id}>
+                                    {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {selectedAgendaId && (
+                        <Button variant="ghost" size="icon" onClick={() => setSelectedAgendaId(null)}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {selectedSolicitud && (
@@ -253,12 +326,13 @@ function DenunciaContent() {
                         </div>
                     </div>
                     <div className="md:col-span-2 space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-primary">Detalles de la Adulteración</Label>
+                        <Label className="text-[10px] font-black uppercase text-primary">Detalles de la Adulteración (MOTIVO DEL DESLACRE)</Label>
                         <Textarea 
                             name="detalles"
                             value={formData.detalles} 
                             onChange={handleInputChange}
-                            className="min-h-[150px] font-medium border-2"
+                            placeholder="Describa aquí la irregularidad detectada. Este texto aparecerá en la proforma PDF..."
+                            className="min-h-[150px] font-medium border-2 uppercase"
                         />
                     </div>
                     <div className="md:col-span-2 space-y-4">
