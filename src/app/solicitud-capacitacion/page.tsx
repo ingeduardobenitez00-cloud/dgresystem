@@ -131,11 +131,11 @@ export default function SolicitudCapacitacionPage() {
           });
         }
 
-        // Punto de partida fijo en ASUNCIÓN, PARAGUAY
-        const initialPos: [number, number] = [-25.30066, -57.63591];
+        // Centro en la Justicia Electoral - Asunción
+        const initialPos: [number, number] = [-25.29916, -57.58916];
         map = L.map(mapContainerRef.current, { 
           center: initialPos, 
-          zoom: 13, 
+          zoom: 15, 
           doubleClickZoom: false 
         });
         mapInstanceRef.current = map;
@@ -171,7 +171,7 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // ResizeObserver para solucionar el problema del "cuadro gris"
+        // ResizeObserver para corregir el renderizado de azulejos
         observer = new ResizeObserver(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
@@ -286,9 +286,7 @@ export default function SolicitudCapacitacionPage() {
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // 1. Header: Logo, Title and Flag
     doc.addImage(logoBase64, 'PNG', margin, 5, 22, 22);
-    
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text("Justicia Electoral", pageWidth / 2, 15, { align: "center" });
@@ -296,7 +294,6 @@ export default function SolicitudCapacitacionPage() {
     doc.setFontSize(12);
     doc.text("Custodio de la Voluntad Popular", pageWidth / 2, 22, { align: "center" });
 
-    // Flag stripes
     const barW = 5;
     const barH = 20;
     const barX = pageWidth - margin - (barW * 3);
@@ -304,7 +301,6 @@ export default function SolicitudCapacitacionPage() {
     doc.setFillColor(255, 255, 255); doc.rect(barX + barW, 5, barW, barH, 'F');
     doc.setFillColor(0, 0, 200); doc.rect(barX + (barW * 2), 5, barW, barH, 'F');
 
-    // 2. Title Bar (Anexo V) - Background color #dad4bb
     const tanColor = [218, 212, 187];
     doc.setFillColor(tanColor[0], tanColor[1], tanColor[2]);
     doc.rect(margin, 30, pageWidth - (margin * 2), 8, 'F');
@@ -312,7 +308,6 @@ export default function SolicitudCapacitacionPage() {
     doc.setFontSize(11);
     doc.text("ANEXO V – PROFORMA DE SOLICITUD", pageWidth / 2, 35.5, { align: "center" });
 
-    // 3. Date line
     const today = new Date(formData.fecha || new Date());
     const day = today.getDate();
     const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -324,7 +319,6 @@ export default function SolicitudCapacitacionPage() {
     doc.text(dateText, pageWidth - margin, 48, { align: "right" });
     doc.text(profile?.distrito || 'Asunción', pageWidth - margin - 60, 47.5, { align: "center" });
 
-    // 4. Salutation
     doc.text("Señor/a", margin, 60);
     doc.setFont('helvetica', 'bold');
     const entity = (formData.solicitante_entidad || formData.otra_entidad || "").toUpperCase();
@@ -333,13 +327,11 @@ export default function SolicitudCapacitacionPage() {
     doc.setFont('helvetica', 'bold');
     doc.text("Presente:", margin, 76);
 
-    // 5. Opening Text
     doc.setFont('helvetica', 'normal');
     const introText = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas del 07 de junio del 2026, a los efectos de solicitar:";
     const splitIntro = doc.splitTextToSize(introText, pageWidth - (margin * 2) - 5);
     doc.text(splitIntro, margin + 5, 84);
 
-    // 6. Checkboxes (Selection)
     let y = 98;
     const drawCheck = (label: string, checked: boolean, currentY: number) => {
         doc.rect(margin + 15, currentY - 4, 5, 5);
@@ -355,7 +347,6 @@ export default function SolicitudCapacitacionPage() {
     y += 8;
     drawCheck("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", formData.tipo_solicitud === 'capacitacion', y);
 
-    // 7. Main Table
     y += 10;
     autoTable(doc, {
         startY: y,
@@ -373,18 +364,15 @@ export default function SolicitudCapacitacionPage() {
         ],
     });
 
-    // 8. Applicant Section with Inline Checkboxes
     y = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, y + 4);
     
-    // Checkbox Apoderado
     doc.rect(margin + 75, y, 5, 5);
     if(formData.rol_solicitante === 'apoderado') doc.text("X", margin + 76, y + 4);
     
     doc.text("OTRO", margin + 85, y + 4);
     
-    // Checkbox Otro
     doc.rect(margin + 100, y, 5, 5);
     if(formData.rol_solicitante === 'otro') doc.text("X", margin + 101, y + 4);
 
@@ -402,7 +390,6 @@ export default function SolicitudCapacitacionPage() {
         ],
     });
 
-    // 9. Observation Bar
     y = (doc as any).lastAutoTable.finalY + 2;
     doc.setFillColor(tanColor[0], tanColor[1], tanColor[2]);
     doc.rect(margin, y, pageWidth - (margin * 2), 6, 'F');
@@ -415,7 +402,6 @@ export default function SolicitudCapacitacionPage() {
     doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", pageWidth / 2, y, { align: "center" });
     doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", pageWidth / 2, y + 5, { align: "center" });
 
-    // 10. Closing and Signature
     y += 15;
     doc.setFont('helvetica', 'normal');
     doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, y);
@@ -423,7 +409,6 @@ export default function SolicitudCapacitacionPage() {
     y += 20;
     doc.text("Firma del Solicitante: ___________________________________________", margin + 30, y);
 
-    // 11. Internal Use Box (Bottom)
     y += 10;
     const boxH = 50;
     doc.rect(margin, y, pageWidth - (margin * 2), boxH);
@@ -689,7 +674,7 @@ export default function SolicitudCapacitacionPage() {
           </Card>
 
           <div className="space-y-8">
-            <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
+            <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] bg-white">
               <CardHeader className="bg-white border-b py-6 px-8">
                 <CardTitle className="text-lg font-black uppercase text-primary flex items-center gap-3">
                     <MapPin className="h-5 w-5" /> GEORREFERENCIACIÓN DEL EVENTO
@@ -697,18 +682,18 @@ export default function SolicitudCapacitacionPage() {
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <div className="bg-muted/10 p-4 rounded-xl border-2 border-dashed text-center">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight tracking-wider">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
                 </div>
-                <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-muted">
+                <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-[#F0F0F0]">
                     <div ref={mapContainerRef} className="h-full w-full z-0" />
                 </div>
-                <div className="flex items-center gap-5 bg-white p-6 rounded-2xl border-2 shadow-sm">
-                    <div className="h-12 w-12 bg-muted/10 rounded-full flex items-center justify-center">
-                        <Navigation className={cn("h-6 w-6", formData.gps ? "text-primary" : "text-muted-foreground/30")} />
+                <div className="flex items-center gap-5 bg-white p-6 rounded-[1.5rem] border-2 shadow-inner">
+                    <div className="h-12 w-12 bg-muted/20 rounded-full flex items-center justify-center shadow-sm">
+                        <Navigation className={cn("h-6 w-6 transition-colors", formData.gps ? "text-primary" : "text-muted-foreground/30")} />
                     </div>
-                    <div>
-                        <p className="text-[9px] font-black uppercase text-muted-foreground leading-none mb-1 tracking-widest">Coordenadas GPS</p>
-                        <p className={cn("text-sm font-black uppercase", !formData.gps && "text-muted-foreground opacity-60")}>
+                    <div className="flex-1">
+                        <p className="text-[9px] font-black uppercase text-muted-foreground leading-none mb-1.5 tracking-[0.15em]">COORDENADAS GPS</p>
+                        <p className={cn("text-sm font-black uppercase tracking-tight", !formData.gps ? "text-muted-foreground/40 italic" : "text-primary")}>
                             {formData.gps || 'PENDIENTE DE CAPTURA'}
                         </p>
                     </div>
