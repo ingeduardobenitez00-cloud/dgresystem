@@ -28,6 +28,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { DateRange } from "react-day-picker";
 
 export default function InformeSemanalAnexoIVPage() {
   const { user, isUserLoading } = useUser();
@@ -40,16 +41,16 @@ export default function InformeSemanalAnexoIVPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   
-  const [semanaDesde, setSemanaDesde] = useState('');
-  const [semanaHasta, setSemanaHasta] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: undefined,
+    to: undefined,
+  });
 
   const profile = user?.profile;
   
   // Lógica de permisos corregida para honrar la restricción distrital incluso en Jefes
   const isAdminView = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
-  
   const isDistView = !isAdminView && (profile?.permissions?.includes('district_filter') || profile?.role === 'funcionario');
-  
   const isJefeView = !isAdminView && !isDistView && (profile?.role === 'jefe' || profile?.permissions?.includes('department_filter'));
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
@@ -69,7 +70,6 @@ export default function InformeSemanalAnexoIVPage() {
     if (!isUserLoading && profile) {
       if (!isAdminView) {
         if (profile.departamento) setSelectedDepartment(profile.departamento);
-        // Si es vista distrital (incluyendo jefes con esa restricción), fijamos el distrito
         if (isDistView && profile.distrito) setSelectedDistrict(profile.distrito);
       }
     }
@@ -86,7 +86,7 @@ export default function InformeSemanalAnexoIVPage() {
       }
     };
     fetchLogo();
-  }, [isUserLoading, profile, isAdminView, isJefeView, isDistView]);
+  }, [isUserLoading, profile, isAdminView, isDistView]);
 
   const informesQuery = useMemoFirebase(() => {
     if (!firestore || !selectedDepartment || !selectedDistrict) return null;
@@ -103,12 +103,14 @@ export default function InformeSemanalAnexoIVPage() {
     if (!rawInformesAnexoIII) return [];
     let filtered = [...rawInformesAnexoIII];
     
-    if (semanaDesde && semanaHasta) {
-        filtered = filtered.filter(inf => inf.fecha >= semanaDesde && inf.fecha <= semanaHasta);
+    if (dateRange?.from && dateRange?.to) {
+        const fromStr = format(dateRange.from, "yyyy-MM-dd");
+        const toStr = format(dateRange.to, "yyyy-MM-dd");
+        filtered = filtered.filter(inf => inf.fecha >= fromStr && inf.fecha <= toStr);
     }
     
     return filtered.sort((a, b) => a.fecha.localeCompare(b.fecha));
-  }, [rawInformesAnexoIII, semanaDesde, semanaHasta]);
+  }, [rawInformesAnexoIII, dateRange]);
 
   const totalCapacitados = useMemo(() => {
     return informesAnexoIII.reduce((acc, curr) => acc + (curr.total_personas || 0), 0);
@@ -139,9 +141,9 @@ export default function InformeSemanalAnexoIVPage() {
     doc.text("INFORME SEMANAL PUNTOS FIJOS DE DIVULGACIÓN 2026", pageWidth / 2, 40, { align: "center" });
 
     doc.setFontSize(9);
-    const d1 = semanaDesde ? semanaDesde.split('-').reverse().join('/') : '__/__';
-    const d2 = semanaHasta ? semanaHasta.split('-').reverse().join('/') : '__/__';
-    doc.text(`SEMANA DEL LUNES:  ${d1}  /  2026   AL DOMINGO:  ${d2}  /  2026`, margin, 50);
+    const d1 = dateRange?.from ? format(dateRange.from, "dd/MM/yyyy") : '__/__/____';
+    const d2 = dateRange?.to ? format(dateRange.to, "dd/MM/yyyy") : '__/__/____';
+    doc.text(`SEMANA DEL LUNES:  ${d1}   AL DOMINGO:  ${d2}`, margin, 50);
     doc.text(`DISTRITO:  ${(selectedDistrict || '').toUpperCase()}`, margin, 55);
     doc.text(`DEPARTAMENTO:  ${(selectedDepartment || '').toUpperCase()}`, pageWidth / 2 - 20, 55);
 
@@ -202,8 +204,8 @@ export default function InformeSemanalAnexoIVPage() {
     const docData = {
       departamento: selectedDepartment || '',
       distrito: selectedDistrict || '',
-      semana_desde: semanaDesde,
-      semana_hasta: semanaHasta,
+      semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
+      semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
       filas: informesAnexoIII.map(inf => ({
         lugar: inf.lugar_divulgacion,
         fecha: inf.fecha,
@@ -281,45 +283,38 @@ export default function InformeSemanalAnexoIVPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-[11px] font-black uppercase text-black tracking-tight">DESDE (LUNES)</Label>
+                        <Label className="text-[11px] font-black uppercase text-black tracking-tight">RANGO SEMANAL (DESDE - HASTA)</Label>
                         <Popover>
                           <PopoverTrigger asChild>
                             <div className="relative group cursor-pointer">
-                                <div className="h-14 w-full flex items-center px-5 font-black text-xl border-2 rounded-xl bg-white group-hover:border-primary transition-all">
-                                  {semanaDesde ? format(parseISO(semanaDesde), "dd/MM/yyyy") : "__/__/____"}
+                                <div className={cn(
+                                    "h-14 w-full flex items-center px-5 font-black text-xs border-2 rounded-xl bg-white group-hover:border-primary transition-all",
+                                    !dateRange?.from && "text-muted-foreground/40"
+                                )}>
+                                  {dateRange?.from ? (
+                                    dateRange.to ? (
+                                      <>
+                                        {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
+                                      </>
+                                    ) : (
+                                      format(dateRange.from, "dd/MM/yyyy")
+                                    )
+                                  ) : (
+                                    <span className="tracking-widest">__/__/____ - __/__/____</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-30" />
                                 </div>
                             </div>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0 shadow-2xl rounded-2xl border-none overflow-hidden" align="center">
                             <Calendar
-                              mode="single"
-                              selected={semanaDesde ? parseISO(semanaDesde) : undefined}
-                              onSelect={(date) => setSemanaDesde(date ? format(date, "yyyy-MM-dd") : '')}
-                              locale={es}
                               initialFocus
-                              className="bg-white"
-                            />
-                          </PopoverContent>
-                        </Popover>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label className="text-[11px] font-black uppercase text-black tracking-tight">HASTA (DOMINGO)</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <div className="relative group cursor-pointer">
-                                <div className="h-14 w-full flex items-center px-5 font-black text-xl border-2 rounded-xl bg-white group-hover:border-primary transition-all">
-                                  {semanaHasta ? format(parseISO(semanaHasta), "dd/MM/yyyy") : "__/__/____"}
-                                </div>
-                            </div>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 shadow-2xl rounded-2xl border-none overflow-hidden" align="center">
-                            <Calendar
-                              mode="single"
-                              selected={semanaHasta ? parseISO(semanaHasta) : undefined}
-                              onSelect={(date) => setSemanaHasta(date ? format(date, "yyyy-MM-dd") : '')}
+                              mode="range"
+                              defaultMonth={dateRange?.from}
+                              selected={dateRange}
+                              onSelect={setDateRange}
+                              numberOfMonths={1}
                               locale={es}
-                              initialFocus
                               className="bg-white"
                             />
                           </PopoverContent>
