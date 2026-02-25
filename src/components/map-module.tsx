@@ -10,6 +10,17 @@ import 'leaflet/dist/leaflet.css';
 import { GeoSearchControl, OpenStreetMapProvider } from 'leaflet-geosearch';
 import 'leaflet-geosearch/dist/geosearch.css';
 
+// FIX CRÍTICO: Soluciona el problema de los iconos de marcador rotos en Next.js
+if (typeof window !== 'undefined') {
+  // @ts-ignore
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+  });
+}
+
 interface MapModuleProps {
   onLocationSelect: (lat: number, lng: number) => void;
 }
@@ -29,12 +40,13 @@ export default function MapModule({ onLocationSelect }: MapModuleProps) {
       mapRef.current = null;
     }
 
-    // 2. Inicializar Mapa
+    // 2. Inicializar Mapa con DoubleClickZoom DESACTIVADO para permitir marcación
     const map = L.map(containerRef.current, {
       center: [-25.3006, -57.6359], // Justicia Electoral Asunción
       zoom: 13,
       zoomControl: true,
-      attributionControl: false
+      attributionControl: false,
+      doubleClickZoom: false // Importante: evita que el mapa haga zoom al intentar marcar
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -51,18 +63,29 @@ export default function MapModule({ onLocationSelect }: MapModuleProps) {
     });
     map.addControl(searchControl);
 
-    // 4. Captura por Doble Clic
+    // 4. Captura por Doble Clic REFORZADA
     map.on('dblclick', (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
-      if (markerRef.current) map.removeLayer(markerRef.current);
+      
+      // Remover marcador anterior
+      if (markerRef.current) {
+        map.removeLayer(markerRef.current);
+      }
+      
+      // Crear nuevo marcador con icono oficial corregido
       markerRef.current = L.marker([lat, lng]).addTo(map);
+      
+      // Notificar al padre y actualizar UI local
       onLocationSelect(lat, lng);
       setIsLocationFixed(true);
+      
+      // Centrar levemente para confirmar acción visual
+      map.panTo([lat, lng]);
     });
 
     mapRef.current = map;
 
-    // 5. CICLO DE SINCRONIZACIÓN AGRESIVA (Solución al Cuadro Gris)
+    // 5. CICLO DE SINCRONIZACIÓN AGRESIVA
     const syncIntervals = [100, 500, 1000, 2000];
     syncIntervals.forEach(delay => {
       setTimeout(() => {
