@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -72,9 +73,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   // Logic to determine if we should show the full app shell (with sidebar)
-  // We show sidebar if: 
-  // 1. User is logged in AND it's not the login page.
-  // 2. Even on "public" pages like encuesta, if logged in, we want the sidebar for navigation.
   const isLoginPage = pathname === '/login';
   const isEncuestaPage = pathname.startsWith('/encuesta-satisfaccion');
   const isPublicView = isEncuestaPage && !user;
@@ -82,14 +80,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const showSimpleLayout = isLoginPage || isPublicView;
 
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider defaultOpen={false}>
       {showSimpleLayout ? (
         <div className="flex flex-1 flex-col animate-in fade-in duration-500">
           {children}
         </div>
       ) : (
         <>
-          <Sidebar collapsible="icon">
+          <Sidebar collapsible="offcanvas">
             <AppSidebar />
           </Sidebar>
           <SidebarInset>

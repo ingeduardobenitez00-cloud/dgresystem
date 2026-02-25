@@ -6,7 +6,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useFirebase, useUser } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, User, Menu } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
 
@@ -31,7 +31,7 @@ export default function Header({ title }: { title?: string }) {
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-4">
           {/* BOTÓN PLEGABLE - ESTILO CIRCULAR SEGÚN REFERENCIA */}
-          <SidebarTrigger className="h-10 w-10 rounded-full border border-muted-foreground/20 hover:bg-muted hover:text-primary transition-all shadow-sm" />
+          <SidebarTrigger className="h-11 w-11 rounded-full border border-gray-200 bg-white hover:bg-muted text-foreground transition-all shadow-sm flex items-center justify-center [&_svg]:size-5" />
           
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 relative">
@@ -44,10 +44,10 @@ export default function Header({ title }: { title?: string }) {
               />
             </div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-foreground uppercase leading-tight tracking-tighter">
+              <span className="text-[10px] font-black text-foreground uppercase leading-none tracking-tighter">
                   JUSTICIA
               </span>
-              <span className="text-[10px] font-black text-primary uppercase leading-tight tracking-tighter">
+              <span className="text-[10px] font-black text-primary uppercase leading-none tracking-tighter mt-0.5">
                   ELECTORAL
               </span>
             </div>
