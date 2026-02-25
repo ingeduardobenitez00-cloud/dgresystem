@@ -8,15 +8,30 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmark, Navigation, MapPin, CheckCircle2, Globe, Clock, Calendar as CalendarIcon, Printer, Image as ImageIcon, Check } from 'lucide-react';
+import { 
+  Loader2, 
+  FileText, 
+  Search, 
+  Building, 
+  Camera, 
+  Trash2, 
+  FileUp, 
+  Landmark, 
+  Navigation, 
+  MapPin, 
+  CheckCircle2, 
+  Clock, 
+  Calendar as CalendarIcon, 
+  Printer, 
+  Check 
+} from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
-import { type PartidoPolitico, type Dato } from '@/lib/data';
+import { type PartidoPolitico } from '@/lib/data';
 import Image from 'next/image';
 import jsPDF from 'jspdf';
 import {
@@ -95,7 +110,6 @@ export default function SolicitudCapacitacionPage() {
         const L = (await import('leaflet')).default;
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
-        // Fix for marker icons in Next.js/Leaflet
         if (L.Icon.Default) {
           delete (L.Icon.Default.prototype as any)._getIconUrl;
           L.Icon.Default.mergeOptions({
@@ -105,7 +119,7 @@ export default function SolicitudCapacitacionPage() {
           });
         }
 
-        const initialPos: [number, number] = [-25.311549, -57.653496]; // Asunción
+        const initialPos: [number, number] = [-25.311549, -57.653496];
         map = L.map(mapContainerRef.current, { 
           center: initialPos, 
           zoom: 13, 
@@ -126,7 +140,6 @@ export default function SolicitudCapacitacionPage() {
             placeholder: 'Buscar dirección...',
             autoClose: true,
             keepResult: true,
-            retainZoomLevel: false,
             animateZoom: true,
         });
         map.addControl(searchControl);
@@ -135,7 +148,6 @@ export default function SolicitudCapacitacionPage() {
           const { x, y } = result.location;
           const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
           setFormData(prev => ({ ...prev, gps: coords }));
-          
           if (markerRef.current) map.removeLayer(markerRef.current);
           markerRef.current = L.marker([y, x]).addTo(map);
         });
@@ -144,18 +156,15 @@ export default function SolicitudCapacitacionPage() {
           const { lat, lng } = e.latlng;
           const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
           setFormData(prev => ({ ...prev, gps: coords }));
-          
           if (markerRef.current) map.removeLayer(markerRef.current);
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // CRITICAL FIX: Invalidate size after a short delay to fix the "gray map" issue
-        // This ensures Leaflet recalculates dimensions once the container is fully ready.
         setTimeout(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
-        }, 200);
+        }, 250);
 
       } catch (err) { 
         console.error("Leaflet initialization failed:", err); 
@@ -241,14 +250,6 @@ export default function SolicitudCapacitacionPage() {
     doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
     doc.setFontSize(14); doc.setFont('helvetica', 'bold');
     doc.text("ANEXO V - SOLICITUD DE CAPACITACIÓN", 105, 20, { align: "center" });
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-    doc.text(`Departamento: ${profile?.departamento || ''}`, margin, 40);
-    doc.text(`Distrito: ${profile?.distrito || ''}`, 120, 40);
-    doc.text(`Entidad: ${formData.solicitante_entidad || formData.otra_entidad}`, margin, 50);
-    doc.text(`Lugar: ${formData.lugar_local}`, margin, 60);
-    doc.text(`Fecha: ${formatDateToDDMMYYYY(formData.fecha)}`, margin, 70);
-    doc.text(`Solicitante: ${formData.nombre_completo}`, margin, 80);
-    doc.text(`C.I.: ${formData.cedula}`, margin, 90);
     doc.save(`Solicitud-${formData.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
@@ -285,10 +286,10 @@ export default function SolicitudCapacitacionPage() {
             </CardHeader>
             <CardContent className="p-8 space-y-10">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border-2 border-dashed rounded-2xl bg-muted/5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Landmark className="h-3 w-3"/> Departamento Asignado</Label>
-                    <Input value={profile?.departamento || 'SIN ASIGNAR'} readOnly className="font-black bg-white uppercase border-2 h-11" />
+                    <Input value={profile?.departamento || '00 - ASUNCION'} readOnly className="font-black bg-white uppercase border-2 h-11" />
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Navigation className="h-3 w-3"/> Distrito / Oficina</Label>
@@ -327,12 +328,7 @@ export default function SolicitudCapacitacionPage() {
 
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground">Otra Entidad (Universidades, Cooperativas, etc.)</Label>
-                    <Input 
-                        placeholder="Especifique si no pertenece a un partido..." 
-                        value={formData.otra_entidad} 
-                        onChange={(e) => setFormData(prev => ({ ...prev, otra_entidad: e.target.value, solicitante_entidad: '' }))} 
-                        className="h-11 font-bold border-2" 
-                    />
+                    <Input placeholder="Especifique si no pertenece a un partido..." value={formData.otra_entidad} onChange={(e) => setFormData(prev => ({ ...prev, otra_entidad: e.target.value, solicitante_entidad: '' }))} className="h-11 font-bold border-2" />
                 </div>
               </div>
 
@@ -342,7 +338,7 @@ export default function SolicitudCapacitacionPage() {
                     <div className="space-y-4">
                         <div 
                           className={cn(
-                            "flex items-center space-x-4 p-5 rounded-2xl border-2 transition-all cursor-pointer group",
+                            "flex items-center space-x-4 p-5 rounded-2xl border-2 transition-all cursor-pointer",
                             formData.tipo_solicitud === 'divulgacion' ? "bg-muted/5 border-black ring-1 ring-black" : "bg-white border-muted"
                           )} 
                           onClick={() => setFormData(p => ({...p, tipo_solicitud: 'divulgacion'}))}
@@ -357,7 +353,7 @@ export default function SolicitudCapacitacionPage() {
                         </div>
                         <div 
                           className={cn(
-                            "flex items-center space-x-4 p-5 rounded-2xl border-2 transition-all cursor-pointer group",
+                            "flex items-center space-x-4 p-5 rounded-2xl border-2 transition-all cursor-pointer",
                             formData.tipo_solicitud === 'capacitacion' ? "bg-muted/5 border-black ring-1 ring-black" : "bg-white border-muted"
                           )} 
                           onClick={() => setFormData(p => ({...p, tipo_solicitud: 'capacitacion'}))}
@@ -378,7 +374,7 @@ export default function SolicitudCapacitacionPage() {
                         <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">FECHA PROPUESTA</Label>
                         <div className="relative">
                             <CalendarIcon className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                            <Input type="date" value={formData.fecha} onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12 block w-full" />
+                            <Input type="date" value={formData.fecha} onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
@@ -386,14 +382,14 @@ export default function SolicitudCapacitacionPage() {
                             <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">DESDE</Label>
                             <div className="relative">
                                 <Clock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                                <Input type="time" value={formData.hora_desde} onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12 block w-full" />
+                                <Input type="time" value={formData.hora_desde} onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12" />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">HASTA</Label>
                             <div className="relative">
                                 <Clock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                                <Input type="time" value={formData.hora_hasta} onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12 block w-full" />
+                                <Input type="time" value={formData.hora_hasta} onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12" />
                             </div>
                         </div>
                     </div>
@@ -420,7 +416,6 @@ export default function SolicitudCapacitacionPage() {
                     <h3 className="font-black uppercase text-xs shrink-0">Datos del Solicitante Responsable</h3>
                     <Separator className="flex-1" />
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-2">
                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Nombre Completo</Label>
@@ -441,7 +436,6 @@ export default function SolicitudCapacitacionPage() {
                     </div>
                 </div>
               </div>
-
             </CardContent>
             <CardFooter className="p-0 border-t bg-black overflow-hidden">
               <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-widest">
@@ -460,7 +454,7 @@ export default function SolicitudCapacitacionPage() {
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <div className="bg-muted/10 p-4 rounded-xl border-2 border-dashed text-center">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight">Doble clic en el mapa para capturar coordenadas exactas</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
                 </div>
                 <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-muted">
                     <div ref={mapContainerRef} className="h-full w-full z-0" />
@@ -489,7 +483,7 @@ export default function SolicitudCapacitacionPage() {
                 {photoDataUri ? (
                     <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
                         <Image src={photoDataUri} alt="Respaldo" fill className="object-cover" />
-                        <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setPhotoDataUri(null)}>
+                        <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setPhotoDataUri(null)}>
                             <Trash2 className="h-5 w-5" />
                         </Button>
                     </div>
@@ -497,12 +491,12 @@ export default function SolicitudCapacitacionPage() {
                     <div className="space-y-4">
                         <label className="flex flex-col items-center justify-center gap-3 h-32 border-2 border-dashed rounded-[1.5rem] cursor-pointer hover:bg-muted/10 transition-all bg-muted/5 group">
                             <Camera className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Cámara en vivo</span>
+                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-center">CÁMARA EN VIVO</span>
                             <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
                         </label>
                         <label className="flex flex-col items-center justify-center gap-3 h-32 border-2 border-dashed rounded-[1.5rem] cursor-pointer hover:bg-muted/10 transition-all bg-muted/5 group">
                             <FileUp className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Galería / Archivo</span>
+                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-center">GALERÍA / ARCHIVO</span>
                             <Input type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
                         </label>
                     </div>
