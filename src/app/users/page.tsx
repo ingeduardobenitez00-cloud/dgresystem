@@ -274,6 +274,7 @@ export default function UsersPage() {
     setIsSubmitting(true);
     
     const updateData = { 
+      username: editingUser.username.toUpperCase(),
       role: editingUser.role, 
       modules: editingUser.modules || [], 
       permissions: editingUser.permissions || [],
@@ -561,7 +562,15 @@ export default function UsersPage() {
               
               <ScrollArea className="flex-1">
                 <div className="p-8 space-y-10">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Nombre y Apellido</Label>
+                            <Input 
+                                value={editingUser.username} 
+                                onChange={(e) => setEditingUser({...editingUser, username: e.target.value.toUpperCase()})}
+                                className="font-bold uppercase h-12 border-2" 
+                            />
+                        </div>
                         <div className="space-y-3">
                             <Label className="text-[10px] font-black uppercase text-primary">Rol</Label>
                             <Select onValueChange={(v: any) => setEditingUser({...editingUser, role: v})} value={editingUser.role}>
