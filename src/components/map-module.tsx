@@ -30,6 +30,7 @@ export default function MapModule({ onLocationSelect }: MapModuleProps) {
   const markerRef = useRef<L.Marker | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLocationFixed, setIsLocationFixed] = useState(false);
+  const [coords, setCoords] = useState<string>('');
 
   useEffect(() => {
     if (typeof window === 'undefined' || !containerRef.current) return;
@@ -78,6 +79,7 @@ export default function MapModule({ onLocationSelect }: MapModuleProps) {
       // Notificar al padre y actualizar UI local
       onLocationSelect(lat, lng);
       setIsLocationFixed(true);
+      setCoords(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       
       // Centrar levemente para confirmar acción visual
       map.panTo([lat, lng]);
@@ -140,7 +142,7 @@ export default function MapModule({ onLocationSelect }: MapModuleProps) {
             "text-sm font-black uppercase tracking-tighter",
             isLocationFixed ? "text-green-600" : "text-[#1A1A1A]"
           )}>
-            {isLocationFixed ? "UBICACIÓN FIJADA CORRECTAMENTE" : "PENDIENTE DE CAPTURA"}
+            {isLocationFixed ? coords : "PENDIENTE DE CAPTURA"}
           </span>
         </div>
       </div>
