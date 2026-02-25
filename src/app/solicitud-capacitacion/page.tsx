@@ -9,9 +9,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Loader2, 
-  FileText, 
-  Search, 
   Building, 
+  Search, 
   Camera, 
   Trash2, 
   FileUp, 
@@ -22,7 +21,8 @@ import {
   Clock, 
   Calendar as CalendarIcon, 
   Printer, 
-  Check 
+  Check,
+  FileText
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
@@ -80,7 +80,6 @@ export default function SolicitudCapacitacionPage() {
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   
-  // Refs para inputs de hora
   const horaDesdeRef = useRef<HTMLInputElement>(null);
   const horaHastaRef = useRef<HTMLInputElement>(null);
 
@@ -104,7 +103,6 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // Inicialización Robusta del Mapa con ResizeObserver
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -118,7 +116,6 @@ export default function SolicitudCapacitacionPage() {
         const L = (await import('leaflet')).default;
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
-        // Fix de iconos Leaflet
         if (L.Icon.Default) {
           delete (L.Icon.Default.prototype as any)._getIconUrl;
           L.Icon.Default.mergeOptions({
@@ -180,7 +177,7 @@ export default function SolicitudCapacitacionPage() {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
-        }, 1000);
+        }, 500);
 
       } catch (err) { 
         console.error("Leaflet initialization failed:", err); 
@@ -230,6 +227,20 @@ export default function SolicitudCapacitacionPage() {
     }
   };
 
+  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
+    if (ref.current) {
+      try {
+        if ('showPicker' in ref.current) {
+          ref.current.showPicker();
+        } else {
+          ref.current.focus();
+        }
+      } catch (error) {
+        ref.current.focus();
+      }
+    }
+  };
+
   const handleSubmit = () => {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
@@ -268,18 +279,6 @@ export default function SolicitudCapacitacionPage() {
     doc.setFontSize(14); doc.setFont('helvetica', 'bold');
     doc.text("ANEXO V - SOLICITUD DE CAPACITACIÓN", 105, 20, { align: "center" });
     doc.save(`Solicitud-${formData.lugar_local.replace(/\s+/g, '-')}.pdf`);
-  };
-
-  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
-    if (ref.current && 'showPicker' in ref.current) {
-      try {
-        ref.current.showPicker();
-      } catch (error) {
-        ref.current.focus();
-      }
-    } else {
-      ref.current?.focus();
-    }
   };
 
   const partidosQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'partidos-politicos'), orderBy('nombre')) : null, [firestore]);
