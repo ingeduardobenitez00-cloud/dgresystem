@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -79,6 +80,7 @@ export default function SolicitudCapacitacionPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const mapInitializing = useRef(false);
   
   const fechaInputRef = useRef<HTMLInputElement>(null);
   const horaDesdeRef = useRef<HTMLInputElement>(null);
@@ -104,20 +106,20 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // INICIALIZACIÓN DEL MAPA CON SOLUCIÓN DEFINITIVA MEDIANTE RESIZEOBSERVER
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || mapInitializing.current) return;
     
     let map: any;
+    let observer: ResizeObserver;
 
     const initMap = async () => {
       if (!mapContainerRef.current || mapInstanceRef.current) return;
+      mapInitializing.current = true;
       
       try {
         const L = (await import('leaflet')).default;
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
-        // Configuración de iconos nativos
         if (L.Icon.Default) {
           delete (L.Icon.Default.prototype as any)._getIconUrl;
           L.Icon.Default.mergeOptions({
@@ -139,7 +141,6 @@ export default function SolicitudCapacitacionPage() {
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Buscador de direcciones estilo barra
         const provider = new OpenStreetMapProvider();
         const searchControl = new (GeoSearchControl as any)({ 
             provider, 
@@ -151,7 +152,6 @@ export default function SolicitudCapacitacionPage() {
         });
         map.addControl(searchControl);
 
-        // Captura por buscador
         map.on('geosearch/showlocation', (result: any) => {
           const { x, y } = result.location;
           const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
@@ -160,7 +160,6 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([y, x]).addTo(map);
         });
 
-        // Captura por doble clic (Requerimiento de la instrucción visual)
         map.on('dblclick', (e: any) => {
           const { lat, lng } = e.latlng;
           const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -169,29 +168,31 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // SOLUCIÓN INDUSTRIAL AL CUADRO GRIS: ResizeObserver
-        const resizeObserver = new ResizeObserver(() => {
+        observer = new ResizeObserver(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
         });
-        resizeObserver.observe(mapContainerRef.current);
+        observer.observe(mapContainerRef.current);
 
-        // Forzado inicial tras montaje
-        setTimeout(() => {
-          if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-        }, 500);
+        setTimeout(() => map?.invalidateSize(), 500);
+        setTimeout(() => map?.invalidateSize(), 2000);
 
-      } catch (err) { console.error("Error al inicializar mapa:", err); }
+      } catch (err) { 
+        console.error("Error al inicializar mapa:", err); 
+        mapInitializing.current = false;
+      }
     };
 
     initMap();
 
     return () => { 
+      if (observer) observer.disconnect();
       if (mapInstanceRef.current) { 
         mapInstanceRef.current.remove(); 
         mapInstanceRef.current = null; 
       } 
+      mapInitializing.current = false;
     };
   }, []);
 
@@ -513,7 +514,7 @@ export default function SolicitudCapacitacionPage() {
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <div className="bg-muted/10 p-4 rounded-xl border-2 border-dashed text-center">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight">QUE PASA CON EL MAPA NO SE VE</p>
                 </div>
                 <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-muted">
                     <div ref={mapContainerRef} className="h-full w-full z-0" />
