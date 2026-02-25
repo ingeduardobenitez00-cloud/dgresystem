@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -23,8 +24,7 @@ import {
   Printer, 
   Check,
   FileText,
-  X,
-  CalendarDays
+  X
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
@@ -52,6 +52,85 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+// Componente Interno para Selector de Hora Profesional
+function TimePickerInput({ 
+  label, 
+  value, 
+  onChange 
+}: { 
+  label: string, 
+  value: string, 
+  onChange: (val: string) => void 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+  const minutes = ["00", "15", "30", "45"];
+
+  const currentHour = value.split(':')[0] || '08';
+  const currentMinute = value.split(':')[1] || '00';
+
+  const handleSelect = (h: string, m: string) => {
+    onChange(`${h}:${m}`);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">{label}</Label>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <div className="relative group cursor-pointer">
+            <div className={cn(
+              "h-14 w-full flex items-center justify-between px-5 font-black text-xl border-2 rounded-[1.2rem] bg-white transition-all",
+              isOpen ? "border-black shadow-md" : "border-muted group-hover:border-primary/40"
+            )}>
+              <span className="tracking-tighter">{value || "00:00"}</span>
+              <Clock className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-0 shadow-2xl rounded-2xl border-none overflow-hidden" align="center">
+          <div className="flex h-64">
+            <ScrollArea className="flex-1 border-r">
+              <div className="p-2 space-y-1">
+                <p className="text-[8px] font-black text-center text-muted-foreground uppercase mb-2">Hora</p>
+                {hours.map(h => (
+                  <Button 
+                    key={h} 
+                    variant={currentHour === h ? "default" : "ghost"} 
+                    className="w-full h-8 font-black text-xs rounded-lg"
+                    onClick={() => handleSelect(h, currentMinute)}
+                  >
+                    {h}
+                  </Button>
+                ))}
+              </div>
+            </ScrollArea>
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-1">
+                <p className="text-[8px] font-black text-center text-muted-foreground uppercase mb-2">Min</p>
+                {minutes.map(m => (
+                  <Button 
+                    key={m} 
+                    variant={currentMinute === m ? "default" : "ghost"} 
+                    className="w-full h-8 font-black text-xs rounded-lg"
+                    onClick={() => {
+                      handleSelect(currentHour, m);
+                      setIsOpen(false);
+                    }}
+                  >
+                    {m}
+                  </Button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 export default function SolicitudCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -86,9 +165,6 @@ export default function SolicitudCapacitacionPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
-  
-  const horaDesdeRef = useRef<HTMLInputElement>(null);
-  const horaHastaRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMapReady(true);
@@ -124,13 +200,11 @@ export default function SolicitudCapacitacionPage() {
 
         if (!mounted || !mapContainerRef.current) return;
 
-        // Limpiar instancia previa
         if (mapInstanceRef.current) {
           mapInstanceRef.current.remove();
           mapInstanceRef.current = null;
         }
 
-        // Solución de iconos de Leaflet
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -138,7 +212,6 @@ export default function SolicitudCapacitacionPage() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
-        // Crear mapa
         const map = L.map(mapContainerRef.current, { 
           center: [-25.29916, -57.58916], 
           zoom: 15, 
@@ -148,13 +221,11 @@ export default function SolicitudCapacitacionPage() {
         
         mapInstanceRef.current = map;
 
-        // Capa de mosaicos (Tiles)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '&copy; OpenStreetMap contributors',
           maxZoom: 19
         }).addTo(map);
 
-        // Control de búsqueda
         const provider = new OpenStreetMapProvider();
         const searchControl = new (GeoSearchControl as any)({ 
             provider, 
@@ -165,7 +236,6 @@ export default function SolicitudCapacitacionPage() {
         });
         map.addControl(searchControl);
 
-        // Eventos
         map.on('geosearch/showlocation', (result: any) => {
           const { x, y } = result.location;
           setFormData(prev => ({ ...prev, gps: `${y.toFixed(6)}, ${x.toFixed(6)}` }));
@@ -180,14 +250,12 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // RE-SINCRONIZACIÓN DE TAMAÑO (CRÍTICO PARA ELIMINAR EL CUADRO GRIS)
         const invalidate = () => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
         };
 
-        // Ejecutar en intervalos para asegurar carga de tiles
         setTimeout(invalidate, 100);
         setTimeout(invalidate, 500);
         setTimeout(invalidate, 1500);
@@ -237,20 +305,6 @@ export default function SolicitudCapacitacionPage() {
       const reader = new FileReader();
       reader.onloadend = () => setPhotoDataUri(reader.result as string);
       reader.readAsDataURL(file);
-    }
-  };
-
-  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
-    if (ref.current) {
-      try {
-        if ('showPicker' in ref.current) {
-          ref.current.showPicker();
-        } else {
-          ref.current.focus();
-        }
-      } catch (error) {
-        ref.current.focus();
-      }
     }
   };
 
@@ -596,40 +650,16 @@ export default function SolicitudCapacitacionPage() {
                         </Popover>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">DESDE</Label>
-                            <div className="relative">
-                                <Clock 
-                                  className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground cursor-pointer z-10" 
-                                  onClick={() => openPicker(horaDesdeRef)}
-                                />
-                                <Input 
-                                  ref={horaDesdeRef}
-                                  type="time" 
-                                  step="60"
-                                  value={formData.hora_desde} 
-                                  onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} 
-                                  className="h-14 font-black text-lg border-2 rounded-xl pr-12 cursor-pointer" 
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">HASTA</Label>
-                            <div className="relative">
-                                <Clock 
-                                  className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground cursor-pointer z-10" 
-                                  onClick={() => openPicker(horaHastaRef)}
-                                />
-                                <Input 
-                                  ref={horaHastaRef}
-                                  type="time" 
-                                  step="60"
-                                  value={formData.hora_hasta} 
-                                  onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} 
-                                  className="h-14 font-black text-lg border-2 rounded-xl pr-12 cursor-pointer" 
-                                />
-                            </div>
-                        </div>
+                        <TimePickerInput 
+                          label="DESDE" 
+                          value={formData.hora_desde} 
+                          onChange={(val) => setFormData(p => ({ ...p, hora_desde: val }))} 
+                        />
+                        <TimePickerInput 
+                          label="HASTA" 
+                          value={formData.hora_hasta} 
+                          onChange={(val) => setFormData(p => ({ ...p, hora_hasta: val }))} 
+                        />
                     </div>
                 </div>
               </div>
