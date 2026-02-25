@@ -129,6 +129,7 @@ export default function SolicitudCapacitacionPage() {
           });
         }
 
+        // Punto de partida fijo en ASUNCIÓN, PARAGUAY
         const initialPos: [number, number] = [-25.30066, -57.63591];
         map = L.map(mapContainerRef.current, { 
           center: initialPos, 
@@ -168,6 +169,7 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
+        // ResizeObserver para solucionar el problema del "cuadro gris"
         observer = new ResizeObserver(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
@@ -282,7 +284,7 @@ export default function SolicitudCapacitacionPage() {
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // 1. Header: Logos and Title
+    // 1. Header: Logo, Title and Flag
     doc.addImage(logoBase64, 'PNG', margin, 5, 22, 22);
     
     doc.setFont('helvetica', 'bold');
@@ -294,11 +296,13 @@ export default function SolicitudCapacitacionPage() {
 
     // Flag stripes
     const barW = 5;
-    doc.setFillColor(200, 0, 0); doc.rect(pageWidth - margin - (barW * 3), 5, barW, 20, 'F');
-    doc.setFillColor(255, 255, 255); doc.rect(pageWidth - margin - (barW * 2), 5, barW, 20, 'F');
-    doc.setFillColor(0, 0, 200); doc.rect(pageWidth - margin - barW, 5, barW, 20, 'F');
+    const barH = 20;
+    const barX = pageWidth - margin - (barW * 3);
+    doc.setFillColor(200, 0, 0); doc.rect(barX, 5, barW, barH, 'F');
+    doc.setFillColor(255, 255, 255); doc.rect(barX + barW, 5, barW, barH, 'F');
+    doc.setFillColor(0, 0, 200); doc.rect(barX + (barW * 2), 5, barW, barH, 'F');
 
-    // 2. Title Bar (Anexo V)
+    // 2. Title Bar (Anexo V) - Background color #dad4bb
     const tanColor = [218, 212, 187];
     doc.setFillColor(tanColor[0], tanColor[1], tanColor[2]);
     doc.rect(margin, 30, pageWidth - (margin * 2), 8, 'F');
@@ -306,7 +310,7 @@ export default function SolicitudCapacitacionPage() {
     doc.setFontSize(11);
     doc.text("ANEXO V – PROFORMA DE SOLICITUD", pageWidth / 2, 35.5, { align: "center" });
 
-    // 3. Date and Destination
+    // 3. Date line
     const today = new Date(formData.fecha || new Date());
     const day = today.getDate();
     const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -314,30 +318,32 @@ export default function SolicitudCapacitacionPage() {
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    const dateText = `${profile?.distrito || 'Asunción'}, ${day} de ${month} de 2026`;
+    const dateText = `_______________________, ${day} de ${month} de 2026`;
     doc.text(dateText, pageWidth - margin, 48, { align: "right" });
+    doc.text(profile?.distrito || 'Asunción', pageWidth - margin - 60, 47.5, { align: "center" });
 
+    // 4. Salutation
     doc.text("Señor/a", margin, 60);
     doc.setFont('helvetica', 'bold');
-    const entity = formData.solicitante_entidad || formData.otra_entidad || "___________________________________________";
-    doc.text(entity.toUpperCase(), margin, 68);
+    const entity = (formData.solicitante_entidad || formData.otra_entidad || "").toUpperCase();
+    doc.text(entity, margin, 68);
     doc.line(margin, 69, margin + 100, 69);
     doc.setFont('helvetica', 'bold');
     doc.text("Presente:", margin, 76);
 
-    // 4. Opening Paragraph
+    // 5. Opening Text
     doc.setFont('helvetica', 'normal');
     const introText = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas del 07 de junio del 2026, a los efectos de solicitar:";
-    const splitIntro = doc.splitTextToSize(introText, pageWidth - (margin * 2) - 10);
-    doc.text(splitIntro, margin + 10, 84);
+    const splitIntro = doc.splitTextToSize(introText, pageWidth - (margin * 2) - 5);
+    doc.text(splitIntro, margin + 5, 84);
 
-    // 5. Checkboxes (Request Type)
+    // 6. Checkboxes (Selection)
     let y = 98;
     const drawCheck = (label: string, checked: boolean, currentY: number) => {
         doc.rect(margin + 15, currentY - 4, 5, 5);
         if (checked) {
-            doc.setFont('zapfdingbats');
-            doc.text("4", margin + 16, currentY - 0.5); // Checkmark char
+            doc.setFont('helvetica', 'bold');
+            doc.text("X", margin + 16, currentY - 0.5);
             doc.setFont('helvetica', 'normal');
         }
         doc.text(label, margin + 25, currentY);
@@ -347,7 +353,7 @@ export default function SolicitudCapacitacionPage() {
     y += 8;
     drawCheck("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", formData.tipo_solicitud === 'capacitacion', y);
 
-    // 6. Main Table
+    // 7. Main Table
     y += 10;
     autoTable(doc, {
         startY: y,
@@ -365,15 +371,20 @@ export default function SolicitudCapacitacionPage() {
         ],
     });
 
-    // 7. Applicant Data Table
+    // 8. Applicant Section with Inline Checkboxes
     y = (doc as any).lastAutoTable.finalY + 5;
-    
-    // Custom header for applicant table with checkboxes
     doc.setFont('helvetica', 'bold');
     doc.text("DATOS DEL SOLICITANTE – APODERADO", margin, y + 4);
-    doc.rect(margin + 75, y, 5, 5); if(formData.rol_solicitante === 'apoderado') doc.text("X", margin + 76, y + 4);
+    
+    // Checkbox Apoderado
+    doc.rect(margin + 75, y, 5, 5);
+    if(formData.rol_solicitante === 'apoderado') doc.text("X", margin + 76, y + 4);
+    
     doc.text("OTRO", margin + 85, y + 4);
-    doc.rect(margin + 100, y, 5, 5); if(formData.rol_solicitante === 'otro') doc.text("X", margin + 101, y + 4);
+    
+    // Checkbox Otro
+    doc.rect(margin + 100, y, 5, 5);
+    if(formData.rol_solicitante === 'otro') doc.text("X", margin + 101, y + 4);
 
     y += 7;
     autoTable(doc, {
@@ -389,7 +400,7 @@ export default function SolicitudCapacitacionPage() {
         ],
     });
 
-    // 8. Observation Bar
+    // 9. Observation Bar
     y = (doc as any).lastAutoTable.finalY + 2;
     doc.setFillColor(tanColor[0], tanColor[1], tanColor[2]);
     doc.rect(margin, y, pageWidth - (margin * 2), 6, 'F');
@@ -402,7 +413,7 @@ export default function SolicitudCapacitacionPage() {
     doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", pageWidth / 2, y, { align: "center" });
     doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", pageWidth / 2, y + 5, { align: "center" });
 
-    // 9. Closing and Signature
+    // 10. Closing and Signature
     y += 15;
     doc.setFont('helvetica', 'normal');
     doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, y);
@@ -410,7 +421,7 @@ export default function SolicitudCapacitacionPage() {
     y += 20;
     doc.text("Firma del Solicitante: ___________________________________________", margin + 30, y);
 
-    // 10. Internal Use Box
+    // 11. Internal Use Box (Bottom)
     y += 10;
     const boxH = 50;
     doc.rect(margin, y, pageWidth - (margin * 2), boxH);
