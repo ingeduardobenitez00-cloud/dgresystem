@@ -89,6 +89,14 @@ body {
   textarea:disabled, input:disabled {
     @apply !opacity-100 !cursor-default;
   }
+  
+  /* Hide native date/time picker icons for a cleaner look */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    background: none;
+    display: none;
+    -webkit-appearance: none;
+  }
 }
 
 /* Custom Scrollbar for Sidebar */

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -349,7 +348,7 @@ export default function SolicitudCapacitacionPage() {
                         <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">FECHA PROPUESTA</Label>
                         <div className="relative">
                             <CalendarIcon className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                            <Input type="date" value={formData.fecha} onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12" />
+                            <Input type="date" value={formData.fecha} onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12 block w-full" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
@@ -357,14 +356,14 @@ export default function SolicitudCapacitacionPage() {
                             <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">DESDE</Label>
                             <div className="relative">
                                 <Clock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                                <Input type="time" value={formData.hora_desde} onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12" />
+                                <Input type="time" value={formData.hora_desde} onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12 block w-full" />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">HASTA</Label>
                             <div className="relative">
                                 <Clock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                                <Input type="time" value={formData.hora_hasta} onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12" />
+                                <Input type="time" value={formData.hora_hasta} onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} className="h-14 font-black text-lg border-2 rounded-xl pr-12 block w-full" />
                             </div>
                         </div>
                     </div>
@@ -416,7 +415,8 @@ export default function SolicitudCapacitacionPage() {
             </CardContent>
             <CardFooter className="p-0 border-t bg-black overflow-hidden">
               <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-widest">
-                {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : "GUARDAR Y AGENDAR ACTIVIDAD"}
+                {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />}
+                GUARDAR Y AGENDAR ACTIVIDAD
               </Button>
             </CardFooter>
           </Card>
