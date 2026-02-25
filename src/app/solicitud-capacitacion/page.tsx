@@ -105,7 +105,7 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // SOLUCIÓN DEFINITIVA DE MAPA: ResizeObserver + Re-inicialización controlada
+  // SOLUCIÓN DEFINITIVA DE MAPA: PUNTO DE PARTIDA ASUNCIÓN + AUTO-RENDERIZADO
   useEffect(() => {
     if (typeof window === 'undefined' || mapInitializing.current) return;
     
@@ -130,7 +130,7 @@ export default function SolicitudCapacitacionPage() {
           });
         }
 
-        // COORDENADAS ASUNCIÓN, PARAGUAY
+        // COORDENADAS ASUNCIÓN, PARAGUAY (Punto de partida solicitado)
         const initialPos: [number, number] = [-25.30066, -57.63591];
         map = L.map(mapContainerRef.current, { 
           center: initialPos, 
@@ -170,7 +170,7 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // SOLUCIÓN AL CUADRO GRIS: Forzar redimensionado cuando el contenedor sea real
+        // SOLUCIÓN AL CUADRO GRIS: ResizeObserver para recalcular tamaño al pintar
         observer = new ResizeObserver(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
@@ -180,8 +180,10 @@ export default function SolicitudCapacitacionPage() {
 
         // Disparar evento de resize global para asegurar carga de tiles
         setTimeout(() => {
-            map?.invalidateSize();
-            window.dispatchEvent(new Event('resize'));
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.invalidateSize();
+                window.dispatchEvent(new Event('resize'));
+            }
         }, 500);
 
       } catch (err) { 
@@ -525,8 +527,8 @@ export default function SolicitudCapacitacionPage() {
                 <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-muted">
                     <div ref={mapContainerRef} className="h-full w-full z-0" />
                 </div>
-                <div className="flex items-center gap-5 bg-muted/20 p-6 rounded-2xl border-2">
-                    <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                <div className="flex items-center gap-5 bg-white p-6 rounded-2xl border-2 shadow-sm">
+                    <div className="h-12 w-12 bg-muted/10 rounded-full flex items-center justify-center">
                         <Navigation className={cn("h-6 w-6", formData.gps ? "text-primary" : "text-muted-foreground/30")} />
                     </div>
                     <div>
