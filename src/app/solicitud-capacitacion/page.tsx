@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -159,14 +158,12 @@ export default function SolicitudCapacitacionPage() {
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const [mapReady, setMapReady] = useState(false);
-
+  
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
   useEffect(() => {
-    setMapReady(true);
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
 
@@ -186,8 +183,9 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
+  // LÓGICA DE INICIALIZACIÓN DE MAPA ULTRA-ROBUSTA
   useEffect(() => {
-    if (!mapReady || typeof window === 'undefined' || !mapContainerRef.current) return;
+    if (typeof window === 'undefined' || !mapContainerRef.current) return;
 
     let mounted = true;
 
@@ -198,11 +196,13 @@ export default function SolicitudCapacitacionPage() {
 
         if (!mounted || !mapContainerRef.current) return;
 
+        // Limpiar instancia previa para evitar errores de contenedor
         if (mapInstanceRef.current) {
           mapInstanceRef.current.remove();
           mapInstanceRef.current = null;
         }
 
+        // Configuración de iconos de Leaflet
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -210,11 +210,13 @@ export default function SolicitudCapacitacionPage() {
           shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
         });
 
+        // Crear el mapa con opciones de redibujado
         const map = L.map(mapContainerRef.current, { 
           center: [-25.29916, -57.58916], 
           zoom: 15, 
           doubleClickZoom: false,
           zoomControl: true,
+          fadeAnimation: true,
         });
         
         mapInstanceRef.current = map;
@@ -248,17 +250,20 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // RE-SINCRO ULTRA-ROBUSTA
+        // CICLO DE RE-SINCRONIZACIÓN CRÍTICO PARA EVITAR CUADROS GRISES
         const invalidate = () => {
-          if (mapInstanceRef.current) {
+          if (mapInstanceRef.current && mounted) {
             mapInstanceRef.current.invalidateSize();
           }
         };
 
-        const intervals = [100, 500, 1500, 3000];
-        intervals.forEach(ms => setTimeout(invalidate, ms));
+        // Forzar múltiples recalculos para asegurar que el mapa se pinte tras las animaciones de NextJS
+        setTimeout(invalidate, 100);
+        setTimeout(invalidate, 500);
+        setTimeout(invalidate, 1000);
+        setTimeout(invalidate, 2000);
 
-        if (typeof ResizeObserver !== 'undefined') {
+        if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
             const observer = new ResizeObserver(() => invalidate());
             observer.observe(mapContainerRef.current);
         }
@@ -277,7 +282,7 @@ export default function SolicitudCapacitacionPage() {
         mapInstanceRef.current = null; 
       } 
     };
-  }, [mapReady]);
+  }, []);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
     const cleanTerm = (cedulaInput || '').trim().replace(/\D/g, ''); 
@@ -724,11 +729,11 @@ export default function SolicitudCapacitacionPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
-                <div className="bg-[#F3F4F6] p-3 rounded-lg border border-gray-200 text-center">
+                <div className="bg-[#F3F4F6] p-4 rounded-xl border border-gray-200 text-center">
                     <p className="text-[11px] font-black uppercase text-black leading-tight tracking-tighter">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
                 </div>
                 
-                <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 shadow-md bg-[#F0F0F0] z-0">
+                <div className="relative w-full rounded-3xl overflow-hidden border border-gray-200 shadow-md bg-[#f3f4f6] z-0">
                     <div 
                       ref={mapContainerRef} 
                       className="map-view-container" 
@@ -736,22 +741,22 @@ export default function SolicitudCapacitacionPage() {
                     />
                 </div>
 
-                <div className="bg-[#F3F4F6] p-6 rounded-[2rem] border border-gray-200 space-y-4">
-                    <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 bg-gray-300/50 rounded-full flex items-center justify-center">
-                            <Navigation className={cn("h-6 w-6 fill-current transition-colors", formData.gps ? "text-black" : "text-gray-400")} />
+                <div className="bg-[#F3F4F6] p-8 rounded-[2.5rem] border border-gray-200 space-y-4">
+                    <div className="flex items-center gap-5">
+                        <div className="h-14 w-14 bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <Navigation className={cn("h-7 w-7 fill-current transition-colors", formData.gps ? "text-primary" : "text-gray-300")} />
                         </div>
                         <div>
                             <p className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">COORDENADAS GPS</p>
-                            <p className="text-sm font-black uppercase text-black tracking-tight">
+                            <p className="text-base font-black uppercase text-black tracking-tight">
                                 {formData.gps || '-25.308339, -57.622344'}
                             </p>
                         </div>
                     </div>
                     
                     {formData.gps && (
-                        <div className="bg-[#E1F9EB] py-2.5 rounded-full text-center animate-in fade-in zoom-in duration-300">
-                            <span className="text-[10px] font-black text-[#10B981] uppercase tracking-widest">UBICACIÓN FIJADA</span>
+                        <div className="bg-[#E1F9EB] py-3 rounded-full text-center animate-in fade-in zoom-in duration-300 border border-[#10B981]/20">
+                            <span className="text-[10px] font-black text-[#10B981] uppercase tracking-widest">UBICACIÓN FIJADA CON ÉXITO</span>
                         </div>
                     )}
                 </div>
