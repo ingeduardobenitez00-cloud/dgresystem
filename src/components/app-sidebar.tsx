@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -145,7 +144,7 @@ export default function AppSidebar() {
               <SidebarGroup className="py-0">
                 <SidebarGroupLabel asChild>
                   <CollapsibleTrigger className="flex w-full items-center justify-between hover:opacity-70 transition-all mb-4 px-2">
-                    <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[#1A1A1A]/60 group-data-[collapsible=icon]:hidden text-center flex-1 pr-4">
+                    <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-[#1A1A1A]/60 group-data-[collapsible=icon]:hidden text-center flex-1 pr-4 whitespace-nowrap">
                       {group.label}
                     </span>
                     <ChevronDown className="h-3 w-3 opacity-30 transition-transform group-data-[state=open]/collapsible:rotate-180 group-data-[collapsible=icon]:hidden" />
@@ -164,7 +163,7 @@ export default function AppSidebar() {
                               className={cn(
                                 "min-h-10 h-auto px-4 rounded-xl transition-all duration-200 border-transparent",
                                 isActive 
-                                  ? "bg-muted/30 shadow-sm font-semibold text-[#1A1A1A]" 
+                                  ? "bg-muted/30 shadow-sm text-[#1A1A1A]" 
                                   : "hover:bg-muted/20 text-[#1A1A1A]/60 hover:translate-x-1"
                               )}
                               tooltip={item.label}
