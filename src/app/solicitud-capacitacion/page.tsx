@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmark, Navigation, MapPin, CheckCircle2 } from 'lucide-react';
+import { Loader2, FileText, Search, Building, Camera, Trash2, FileUp, X, Landmark, Navigation, MapPin, CheckCircle2, Globe, Clock, Calendar as CalendarIcon, Printer, Image as ImageIcon } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
@@ -71,6 +71,7 @@ export default function SolicitudCapacitacionPage() {
   const markerRef = useRef<any>(null);
 
   useEffect(() => {
+    // Evitar errores de hidratación inicializando la fecha en el cliente
     const now = new Date();
     setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
 
@@ -88,16 +89,7 @@ export default function SolicitudCapacitacionPage() {
     fetchLogo();
   }, []);
 
-  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
-
-  const userJurisdiction = useMemo(() => {
-    if (!user?.profile || !datosData) return null;
-    return datosData.find(d => 
-      d.departamento === user.profile?.departamento && 
-      d.distrito === user.profile?.distrito
-    );
-  }, [user, datosData]);
+  const profile = user?.profile;
 
   useEffect(() => {
     let map: any = null;
@@ -166,6 +158,15 @@ export default function SolicitudCapacitacionPage() {
     setPadronFound(false);
   };
 
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setPhotoDataUri(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = () => {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
@@ -175,8 +176,8 @@ export default function SolicitudCapacitacionPage() {
     setIsSubmitting(true);
     const docData = { 
       ...formData, 
-      departamento: user.profile?.departamento || '', 
-      distrito: user.profile?.distrito || '', 
+      departamento: profile?.departamento || '', 
+      distrito: profile?.distrito || '', 
       foto_firma: photoDataUri || '', 
       usuario_id: user.uid, 
       fecha_creacion: new Date().toISOString(), 
@@ -196,6 +197,24 @@ export default function SolicitudCapacitacionPage() {
       });
   };
 
+  const generatePDF = () => {
+    if (!logoBase64) return;
+    const doc = new jsPDF();
+    const margin = 20;
+    doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text("ANEXO V - SOLICITUD DE CAPACITACIÓN", 105, 20, { align: "center" });
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Departamento: ${profile?.departamento || ''}`, margin, 40);
+    doc.text(`Distrito: ${profile?.distrito || ''}`, 120, 40);
+    doc.text(`Entidad: ${formData.solicitante_entidad || formData.otra_entidad}`, margin, 50);
+    doc.text(`Lugar: ${formData.lugar_local}`, margin, 60);
+    doc.text(`Fecha: ${formatDateToDDMMYYYY(formData.fecha)}`, margin, 70);
+    doc.text(`Solicitante: ${formData.nombre_completo}`, margin, 80);
+    doc.text(`C.I.: ${formData.cedula}`, margin, 90);
+    doc.save(`Solicitud-${formData.lugar_local.replace(/\s+/g, '-')}.pdf`);
+  };
+
   const partidosQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'partidos-politicos'), orderBy('nombre')) : null, [firestore]);
   const { data: partidosData } = useCollection<PartidoPolitico>(partidosQuery);
 
@@ -204,60 +223,230 @@ export default function SolicitudCapacitacionPage() {
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
 
   return (
-    <div className="min-h-screen bg-muted/10">
-      <Header title="Nueva Solicitud - Anexo V" />
-      <main className="p-4 md:p-8 max-w-7xl mx-auto w-full">
+    <div className="flex min-h-screen flex-col bg-muted/10">
+      <Header title="Nueva Solicitud" />
+      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+        
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Nueva Solicitud</h1>
+                <p className="text-muted-foreground text-xs font-bold uppercase flex items-center gap-2 mt-1">
+                    <FileText className="h-3.5 w-3.5" /> Proforma oficial de solicitud de capacitación (Anexo V).
+                </p>
+            </div>
+            <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-10" onClick={generatePDF}>
+                <Printer className="mr-2 h-3.5 w-3.5" /> VISTA PREVIA PDF
+            </Button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <Card className="shadow-lg border-none overflow-hidden">
-              <CardHeader className="bg-primary px-6 py-4">
-                <CardTitle className="text-sm font-black uppercase text-white">DATOS DE LA ACTIVIDAD</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 space-y-8 bg-white">
+          <Card className="lg:col-span-2 shadow-2xl border-none overflow-hidden rounded-xl bg-white">
+            <CardHeader className="bg-black py-4 px-6">
+              <CardTitle className="text-sm font-black uppercase text-white flex items-center gap-2">
+                <Building className="h-4 w-4" /> DATOS DE LA ACTIVIDAD
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-10">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border-2 border-dashed rounded-2xl bg-muted/5">
+                <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Landmark className="h-3 w-3"/> Departamento Asignado</Label>
+                    <Input value={profile?.departamento || '00 - ASUNCION'} readOnly className="font-black bg-white uppercase border-2 h-11" />
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Navigation className="h-3 w-3"/> Distrito / Oficina</Label>
+                    <Input value={profile?.distrito || 'SIN ASIGNAR'} readOnly className="font-black bg-white uppercase border-2 h-11" />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Grupo Político Solicitante</Label>
+                    <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between h-12 font-bold text-lg border-2">
+                                {selectedParty ? selectedParty.nombre : "Seleccionar de la lista..."}
+                                <Search className="ml-2 h-5 w-5 opacity-30" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl">
+                            <Command>
+                                <CommandInput placeholder="Buscar partido..." />
+                                <CommandList>
+                                    <CommandEmpty>No encontrado.</CommandEmpty>
+                                    <CommandGroup>
+                                        {partidosData?.map(p => (
+                                            <CommandItem key={p.id} value={p.nombre} onSelect={() => { 
+                                                setFormData(prev => ({...prev, solicitante_entidad: p.nombre, otra_entidad: ''})); 
+                                                setIsPartyPopoverOpen(false); 
+                                            }} className="font-bold text-sm uppercase">{p.nombre}</CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Otra Entidad (Universidades, Cooperativas, etc.)</Label>
+                    <Input 
+                        placeholder="Especifique si no pertenece a un partido..." 
+                        value={formData.otra_entidad} 
+                        onChange={(e) => setFormData(prev => ({ ...prev, otra_entidad: e.target.value, solicitante_entidad: '' }))} 
+                        className="h-11 font-bold border-2" 
+                    />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="p-6 border-2 border-dashed rounded-2xl space-y-4">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo de Solicitud (Selección Exclusiva)</Label>
+                    <div className="space-y-3">
+                        <div className={cn("flex items-center space-x-3 p-4 rounded-xl border-2 transition-all cursor-pointer", formData.tipo_solicitud === 'divulgacion' ? "bg-primary/5 border-primary" : "bg-white")} onClick={() => setFormData(p => ({...p, tipo_solicitud: 'divulgacion'}))}>
+                            <Checkbox checked={formData.tipo_solicitud === 'divulgacion'} />
+                            <Label className="font-black uppercase text-xs cursor-pointer">Divulgación (Máquina)</Label>
+                        </div>
+                        <div className={cn("flex items-center space-x-3 p-4 rounded-xl border-2 transition-all cursor-pointer", formData.tipo_solicitud === 'capacitacion' ? "bg-primary/5 border-primary" : "bg-white")} onClick={() => setFormData(p => ({...p, tipo_solicitud: 'capacitacion'}))}>
+                            <Checkbox checked={formData.tipo_solicitud === 'capacitacion'} />
+                            <Label className="font-black uppercase text-xs cursor-pointer">Capacitación (Mesa)</Label>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="space-y-6">
-                  <Label className="text-[10px] font-black uppercase">Grupo Político</Label>
-                  <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between h-12 font-bold text-lg border-2">
-                        {selectedParty ? selectedParty.nombre : "Seleccionar de la lista..."}<Search className="ml-2 h-4 w-4 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command><CommandInput placeholder="Buscar..." /><CommandList><CommandEmpty>No encontrado.</CommandEmpty><CommandGroup>
-                        {partidosData?.map(p => (
-                          <CommandItem key={p.id} value={p.nombre} onSelect={() => { setFormData(prev => ({...prev, solicitante_entidad: p.nombre, otra_entidad: ''})); setIsPartyPopoverOpen(false); }}>{p.nombre}</CommandItem>
-                        ))}
-                      </CommandGroup></CommandList></Command>
-                    </PopoverContent>
-                  </Popover>
-                  <Input name="otra_entidad" placeholder="Otra entidad..." value={formData.otra_entidad} onChange={(e) => { setFormData(prev => ({ ...prev, otra_entidad: e.target.value, solicitante_entidad: '' })); }} className="h-11 font-bold border-2" />
+                    <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Fecha Propuesta</Label>
+                        <div className="relative">
+                            <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input type="date" value={formData.fecha} onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} className="h-11 font-black border-2" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground">Desde</Label>
+                            <div className="relative">
+                                <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input type="time" value={formData.hora_desde} onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} className="h-11 font-black border-2" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground">Hasta</Label>
+                            <div className="relative">
+                                <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input type="time" value={formData.hora_hasta} onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} className="h-11 font-black border-2" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Input name="lugar_local" placeholder="Lugar/Local" value={formData.lugar_local} onChange={(e) => setFormData(p => ({...p, lugar_local: e.target.value}))} className="h-11 font-bold border-2" />
-                  <Input name="fecha" type="date" value={formData.fecha} onChange={(e) => setFormData(p => ({...p, fecha: e.target.value}))} className="h-11 font-bold border-2" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Lugar y/o Local</Label>
+                    <Input placeholder="Nombre del local" value={formData.lugar_local} onChange={e => setFormData(p => ({...p, lugar_local: e.target.value}))} className="h-11 font-bold border-2" />
                 </div>
-                <Separator />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex gap-2">
-                    <Input name="cedula" placeholder="Cédula" value={formData.cedula} onChange={handleCedulaChange} className="h-11 font-black border-2" />
-                    <Button type="button" variant="secondary" className="h-11" onClick={() => searchCedulaInPadron(formData.cedula)} disabled={isSearchingCedula}><Search className="h-4 w-4" /></Button>
-                  </div>
-                  <Input name="nombre_completo" placeholder="Nombre completo" value={formData.nombre_completo} readOnly={padronFound} className={cn("h-11 font-bold border-2", padronFound && "bg-green-50")} />
+                <div className="space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Dirección (Calle)</Label>
+                    <Input placeholder="Nombre de la calle" value={formData.direccion_calle} onChange={e => setFormData(p => ({...p, direccion_calle: e.target.value}))} className="h-11 font-bold border-2" />
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Barrio - Compañía</Label>
+                    <Input placeholder="Nombre del barrio" value={formData.barrio_compania} onChange={e => setFormData(p => ({...p, barrio_compania: e.target.value}))} className="h-11 font-bold border-2" />
+                </div>
+              </div>
+
+              <div className="space-y-8 pt-4">
+                <div className="flex items-center gap-4">
+                    <h3 className="font-black uppercase text-xs shrink-0">Datos del Solicitante Responsable</h3>
+                    <Separator className="flex-1" />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Nombre Completo</Label>
+                        <Input placeholder="Nombre y Apellido" value={formData.nombre_completo} readOnly={padronFound} className={cn("h-11 font-bold uppercase border-2", padronFound && "bg-green-50")} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">C.I.C. N°</Label>
+                        <div className="flex gap-2">
+                            <Input placeholder="Ej: 5630148" value={formData.cedula} onChange={handleCedulaChange} className="h-11 font-black border-2" />
+                            <Button variant="secondary" size="icon" className="h-11 w-11 shrink-0" onClick={() => searchCedulaInPadron(formData.cedula)} disabled={isSearchingCedula}>
+                                {isSearchingCedula ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="md:col-span-3 space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Número de Contacto</Label>
+                        <Input placeholder="Celular o Línea Baja" value={formData.telefono} onChange={e => setFormData(p => ({...p, telefono: e.target.value}))} className="h-11 font-bold border-2" />
+                    </div>
+                </div>
+              </div>
+
+            </CardContent>
+            <CardFooter className="p-0 border-t bg-black overflow-hidden">
+              <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-widest">
+                {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : "GUARDAR Y AGENDAR ACTIVIDAD"}
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <div className="space-y-8">
+            <Card className="shadow-xl border-none overflow-hidden rounded-xl bg-white">
+              <CardHeader className="bg-muted/30 border-b py-4">
+                <CardTitle className="text-[10px] font-black uppercase flex items-center gap-2">
+                    <Globe className="h-4 w-4" /> GEORREFERENCIACIÓN DEL EVENTO
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="bg-muted/10 p-3 rounded-lg border-2 border-dashed text-center">
+                    <p className="text-[8px] font-black uppercase text-muted-foreground leading-tight">Doble clic en el mapa para capturar coordenadas exactas</p>
+                </div>
+                <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-lg">
+                    <div ref={mapContainerRef} className="h-full w-full bg-muted" />
+                </div>
+                <div className="flex items-center gap-4 bg-muted/20 p-4 rounded-xl border-2">
+                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                        <Navigation className={cn("h-5 w-5", formData.gps ? "text-primary" : "text-muted-foreground/30")} />
+                    </div>
+                    <div>
+                        <p className="text-[8px] font-black uppercase text-muted-foreground leading-none mb-1">Coordenadas GPS</p>
+                        <p className="text-xs font-black uppercase">{formData.gps || 'PENDIENTE DE CAPTURA'}</p>
+                    </div>
                 </div>
               </CardContent>
-              <CardFooter className="bg-primary p-0">
-                  <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-16 bg-primary text-white text-xl font-black uppercase rounded-none">
-                      {isSubmitting ? <Loader2 className="animate-spin mr-3" /> : "GUARDAR SOLICITUD"}
-                  </Button>
-              </CardFooter>
             </Card>
-          </div>
-          <div className="space-y-8">
-              <Card className="shadow-lg"><CardHeader className="bg-muted/50 border-b"><CardTitle className="text-xs font-black uppercase">UBICACIÓN GPS</CardTitle></CardHeader>
+
+            <Card className="shadow-xl border-none overflow-hidden rounded-xl bg-white">
+              <CardHeader className="bg-muted/30 border-b py-4">
+                <CardTitle className="text-[10px] font-black uppercase flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" /> RESPALDO DOCUMENTAL
+                </CardTitle>
+              </CardHeader>
               <CardContent className="p-6 space-y-4">
-                <div ref={mapContainerRef} className="h-[300px] w-full bg-white rounded-xl border-4" />
-                <p className="text-[10px] font-black text-primary text-center">{formData.gps || 'PENDIENTE'}</p>
-              </CardContent></Card>
+                {photoDataUri ? (
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden border-4 border-white shadow-lg group">
+                        <Image src={photoDataUri} alt="Respaldo" fill className="object-cover" />
+                        <Button variant="destructive" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setPhotoDataUri(null)}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ) : (
+                    <>
+                        <label className="flex flex-col items-center justify-center gap-2 h-24 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-all">
+                            <Camera className="h-6 w-6 text-muted-foreground" />
+                            <span className="text-[9px] font-black uppercase text-muted-foreground">Cámara en vivo</span>
+                            <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
+                        </label>
+                        <label className="flex flex-col items-center justify-center gap-2 h-24 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-all">
+                            <FileUp className="h-6 w-6 text-muted-foreground" />
+                            <span className="text-[9px] font-black uppercase text-muted-foreground">Galería / Archivo</span>
+                            <Input type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
+                        </label>
+                    </>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
