@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search } from 'lucide-react';
+import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
@@ -29,6 +29,7 @@ function InformeContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [markedCells, setMarcaciones] = useState<number[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(agendaIdFromUrl);
   
@@ -45,7 +46,6 @@ function InformeContent() {
     departamento: '',
   });
 
-  // Fetch Logo for PDF
   useEffect(() => {
     const fetchLogo = async () => {
       try {
@@ -61,7 +61,6 @@ function InformeContent() {
     fetchLogo();
   }, []);
 
-  // Query para obtener actividades de la agenda (filtrado por jurisdicción)
   const agendaQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
@@ -81,7 +80,6 @@ function InformeContent() {
 
   const { data: rawAgendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
 
-  // Query para obtener informes ya realizados para filtrar el selector
   const informesRealizadosQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.profile) return null;
     return collection(firestore, 'informes-divulgador');
@@ -89,25 +87,20 @@ function InformeContent() {
 
   const { data: rawInformesRealizados } = useCollection<InformeDivulgador>(informesRealizadosQuery);
 
-  // Filtrar agenda: SOLO mostrar los que NO tienen informe realizado (Cierre de ciclo)
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems) return [];
-    
     const usedSolicitudIds = new Set(rawInformesRealizados?.map(inf => inf.solicitud_id) || []);
-    
     return rawAgendaItems
-      .filter(item => !usedSolicitudIds.has(item.id) || item.id === selectedAgendaId) // Permitir la seleccionada actualmente
+      .filter(item => !usedSolicitudIds.has(item.id) || item.id === selectedAgendaId)
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [rawAgendaItems, rawInformesRealizados, selectedAgendaId]);
 
-  // Obtener documento seleccionado específicamente
   const solicitudRef = useMemoFirebase(() => 
     firestore && selectedAgendaId ? doc(firestore, 'solicitudes-capacitacion', selectedAgendaId) : null, 
     [firestore, selectedAgendaId]
   );
   const { data: agendaDoc } = useDoc<SolicitudCapacitacion>(solicitudRef);
 
-  // Auto-completar formulario al seleccionar actividad
   useEffect(() => {
     if (agendaDoc) {
       setFormData({
@@ -139,6 +132,23 @@ function InformeContent() {
     }
   }, [agendaDoc, selectedAgendaId, user]);
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotos(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
   const toggleCell = (num: number) => {
     setMarcaciones(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
   };
@@ -149,7 +159,6 @@ function InformeContent() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header
     doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -236,6 +245,7 @@ function InformeContent() {
       solicitud_id: selectedAgendaId || '',
       total_personas: markedCells.length,
       marcaciones: markedCells,
+      fotos: photos,
       usuario_id: user.uid,
       fecha_creacion: new Date().toISOString(),
       server_timestamp: serverTimestamp(),
@@ -243,8 +253,9 @@ function InformeContent() {
 
     addDoc(collection(firestore, 'informes-divulgador'), docData)
       .then(() => {
-        toast({ title: "¡Informe Guardado con éxito!", description: "La actividad ha cerrado su ciclo en la agenda." });
+        toast({ title: "¡Informe Guardado!", description: "Se ha registrado el informe con sus evidencias." });
         setMarcaciones([]); 
+        setPhotos([]);
         setSelectedAgendaId(null);
         setIsSubmitting(false);
       })
@@ -312,7 +323,7 @@ function InformeContent() {
         </div>
 
         <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
-          <CardContent className="p-8 space-y-6">
+          <CardContent className="p-8 space-y-8">
             
             <div className="border-2 border-black p-6 space-y-4">
                 <div className="flex items-center gap-3">
@@ -389,28 +400,9 @@ function InformeContent() {
                 </div>
             </div>
 
-            <div className="border-2 border-black p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                    <Label className="font-black uppercase text-xs shrink-0">OFICINA:</Label>
-                    <Input 
-                        value={formData.oficina} 
-                        readOnly
-                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0 opacity-70" 
-                    />
-                </div>
-                <div className="flex items-center gap-3">
-                    <Label className="font-black uppercase text-xs shrink-0">DEPARTAMENTO:</Label>
-                    <Input 
-                        value={formData.departamento} 
-                        readOnly
-                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0 opacity-70" 
-                    />
-                </div>
-            </div>
-
             <div className="border-2 border-black rounded-sm overflow-hidden">
                 <div className="bg-[#F8F9FA] border-b-2 border-black p-2 text-center">
-                    <p className="font-black uppercase text-sm tracking-tight">MARCA CON UNA "X" POR CADA CIUDADANO QUE PRACTICÓ</p>
+                    <p className="font-black uppercase text-sm tracking-tight">TABLERO DE MARCACIONES (MÁX. 104)</p>
                 </div>
                 <div className="grid grid-cols-13 border-collapse">
                     {Array.from({ length: 104 }, (_, i) => i + 1).map(num => (
@@ -430,6 +422,33 @@ function InformeContent() {
                             )}
                         </div>
                     ))}
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-3 px-2">
+                    <Camera className="h-5 w-5 text-primary" />
+                    <Label className="font-black uppercase text-xs">Fotografías de Respaldo del Evento</Label>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {photos.map((photo, idx) => (
+                        <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border-2 border-black/10 group">
+                            <Image src={photo} alt={`Evidencia ${idx}`} fill className="object-cover" />
+                            <Button 
+                                variant="destructive" 
+                                size="icon" 
+                                className="absolute top-2 right-2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                onClick={() => removePhoto(idx)}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                    <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-black/20 rounded-xl cursor-pointer hover:bg-muted/50 transition-all">
+                        <ImageIcon className="h-8 w-8 text-black/20 mb-1" />
+                        <span className="text-[10px] font-black uppercase text-black/40">Adjuntar Foto</span>
+                        <Input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+                    </label>
                 </div>
             </div>
 
@@ -453,10 +472,6 @@ function InformeContent() {
             </Button>
           </CardFooter>
         </Card>
-
-        <div className="px-4 text-[10px] font-medium text-muted-foreground italic leading-tight space-y-1">
-            <p>- Control individual del divulgador con cantidad de ciudadanos que practicaron con la MV para informe semanal de divulgación de la oficina.</p>
-        </div>
       </main>
 
       <style jsx global>{`

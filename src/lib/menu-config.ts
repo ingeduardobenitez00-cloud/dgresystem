@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -31,6 +31,12 @@ export const dashboardMenuItems = [
     label: 'Informe del Divulgador',
     icon: UserCheck,
     description: 'Control individual de marcaciones por ciudadano (Anexo III).',
+  },
+  {
+    href: '/galeria-capacitaciones',
+    label: 'Galería de Evidencias',
+    icon: Images,
+    description: 'Visualiza las fotografías de respaldo de las capacitaciones.',
   },
   {
     href: '/informe-semanal-puntos-fijos',

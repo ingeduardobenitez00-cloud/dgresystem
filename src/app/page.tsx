@@ -19,7 +19,7 @@ const MODULE_GROUPS = [
   {
     label: "CIDEE - CAPACITACIONES",
     description: "Gestión de solicitudes, agendas, movimientos de equipos, denuncias de lacres e informes de capacitación nacional.",
-    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'encuesta-satisfaccion', 'informe-divulgador', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion', 'archivo-capacitaciones']
+    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'encuesta-satisfaccion', 'informe-divulgador', 'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion', 'archivo-capacitaciones']
   },
   {
     label: "Registros Electorales",
@@ -116,7 +116,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <div className="flex items-center gap-2 pr-4">
-                      <span className="text-[8px] font-black bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-widest group-data-[state=closed]:bg-muted group-data-[state=closed]:text-muted-foreground">
+                      <span className="text-[8px] font-black bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-widest group-data-[state=closed]:bg-muted group-data--------------[state=closed]:text-muted-foreground">
                         {group.items.length} Módulos
                       </span>
                     </div>
