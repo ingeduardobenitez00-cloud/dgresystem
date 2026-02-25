@@ -23,7 +23,8 @@ import {
   Printer, 
   Check,
   FileText,
-  X
+  X,
+  CalendarDays
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
@@ -48,6 +49,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function SolicitudCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -83,7 +87,6 @@ export default function SolicitudCapacitacionPage() {
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   
-  const fechaInputRef = useRef<HTMLInputElement>(null);
   const horaDesdeRef = useRef<HTMLInputElement>(null);
   const horaHastaRef = useRef<HTMLInputElement>(null);
 
@@ -571,19 +574,26 @@ export default function SolicitudCapacitacionPage() {
                 <div className="flex flex-col justify-center space-y-8">
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">FECHA PROPUESTA</Label>
-                        <div className="relative">
-                            <CalendarIcon 
-                              className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground cursor-pointer z-10" 
-                              onClick={() => openPicker(fechaInputRef)}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <div className="relative group cursor-pointer">
+                                <CalendarIcon className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                <div className="h-14 w-full flex items-center px-4 font-black text-lg border-2 rounded-xl bg-white group-hover:border-primary transition-all">
+                                  {formData.fecha ? format(parseISO(formData.fecha), "dd/MM/yyyy") : "SELECCIONAR FECHA"}
+                                </div>
+                            </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 shadow-2xl rounded-2xl border-none overflow-hidden" align="end">
+                            <Calendar
+                              mode="single"
+                              selected={formData.fecha ? parseISO(formData.fecha) : undefined}
+                              onSelect={(date) => setFormData(p => ({ ...p, fecha: date ? format(date, "yyyy-MM-dd") : '' }))}
+                              locale={es}
+                              initialFocus
+                              className="bg-white"
                             />
-                            <Input 
-                              ref={fechaInputRef}
-                              type="date" 
-                              value={formData.fecha} 
-                              onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} 
-                              className="h-14 font-black text-lg border-2 rounded-xl pr-12 cursor-pointer" 
-                            />
-                        </div>
+                          </PopoverContent>
+                        </Popover>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
