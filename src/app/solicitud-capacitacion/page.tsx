@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -106,6 +105,7 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
+  // SOLUCIÓN DEFINITIVA DE MAPA: ResizeObserver + Re-inicialización controlada
   useEffect(() => {
     if (typeof window === 'undefined' || mapInitializing.current) return;
     
@@ -120,6 +120,7 @@ export default function SolicitudCapacitacionPage() {
         const L = (await import('leaflet')).default;
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
+        // Fix para iconos de Leaflet en Webpack/Next.js
         if (L.Icon.Default) {
           delete (L.Icon.Default.prototype as any)._getIconUrl;
           L.Icon.Default.mergeOptions({
@@ -168,6 +169,7 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
+        // SOLUCIÓN AL CUADRO GRIS: Forzar redimensionado cuando el contenedor sea real
         observer = new ResizeObserver(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
@@ -175,8 +177,11 @@ export default function SolicitudCapacitacionPage() {
         });
         observer.observe(mapContainerRef.current);
 
-        setTimeout(() => map?.invalidateSize(), 500);
-        setTimeout(() => map?.invalidateSize(), 2000);
+        // Disparar evento de resize global para asegurar carga de tiles
+        setTimeout(() => {
+            map?.invalidateSize();
+            window.dispatchEvent(new Event('resize'));
+        }, 500);
 
       } catch (err) { 
         console.error("Error al inicializar mapa:", err); 

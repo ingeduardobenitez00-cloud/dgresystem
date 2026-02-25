@@ -42,7 +42,7 @@ body {
 
 /* 
  * LIMPIEZA TOTAL DE CONTROLES NATIVOS DE FECHA Y HORA
- * Elimina segundos, AM/PM y flechas nativas que ensucian la visualización
+ * Oculta los iconos y selectores nativos para usar el diseño personalizado
  */
 input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-inner-spin-button,
@@ -54,16 +54,11 @@ input[type="date"]::-webkit-clear-button {
   -webkit-appearance: none !important;
 }
 
+/* Elimina segundos y AM/PM para dejar formato HH:mm limpio */
 input[type="time"]::-webkit-datetime-edit-ampm-field,
 input[type="time"]::-webkit-datetime-edit-second-field {
   display: none !important;
   width: 0 !important;
-}
-
-input[type="time"]::-webkit-datetime-edit-hour-field,
-input[type="time"]::-webkit-datetime-edit-minute-field,
-input[type="time"]::-webkit-datetime-edit-text {
-  padding: 0;
 }
 
 /* Leaflet Container Fix - Soluciona el problema de los azulejos grises */

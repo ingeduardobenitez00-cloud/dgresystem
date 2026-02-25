@@ -1,10 +1,10 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
+import { useFirebase } from '@/firebase';
 
 /**
  * An invisible component that listens for globally emitted 'permission-error' events.
@@ -12,10 +12,15 @@ import { useToast } from '@/hooks/use-toast';
  */
 export function FirebaseErrorListener() {
   const { toast } = useToast();
+  const { auth } = useFirebase();
 
   useEffect(() => {
     const handleError = (error: FirestorePermissionError) => {
-      // Log to system console as requested
+      // CRITICAL FIX: If there's no current user, it's likely a logout transition.
+      // We don't want to show "Acceso Restringido" when the user is simply leaving the app.
+      if (!auth?.currentUser) return;
+
+      // Log to system console for debugging
       console.warn('SISTEMA - Acceso Denegado:', error.message);
       
       // Show a graceful toast instead of crashing the app
@@ -31,7 +36,7 @@ export function FirebaseErrorListener() {
     return () => {
       errorEmitter.off('permission-error', handleError);
     };
-  }, [toast]);
+  }, [toast, auth]);
 
   return null;
 }
