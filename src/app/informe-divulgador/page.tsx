@@ -4,31 +4,33 @@
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileDown, CheckCircle2, Printer, X, UserCircle, MapPin, Building2, Clock, Calendar } from 'lucide-react';
-import { useUser, useFirebase, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search } from 'lucide-react';
+import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { collection, addDoc, serverTimestamp, doc, query, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion } from '@/lib/data';
-import { cn } from '@/lib/utils';
+import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function InformeContent() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const agendaId = searchParams.get('solicitudId');
+  const agendaIdFromUrl = searchParams.get('solicitudId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [markedCells, setMarcaciones] = useState<number[]>([]);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(agendaIdFromUrl);
   
   const [formData, setFormData] = useState({
     lugar_divulgacion: '',
@@ -42,6 +44,7 @@ function InformeContent() {
     departamento: '',
   });
 
+  // Fetch Logo for PDF
   useEffect(() => {
     const fetchLogo = async () => {
       try {
@@ -57,22 +60,39 @@ function InformeContent() {
     fetchLogo();
   }, []);
 
-  useEffect(() => {
-    if (!isUserLoading && user?.profile && !agendaId) {
-      setFormData(prev => ({
-        ...prev,
-        nombre_divulgador: user.profile?.username || '',
-        cedula_divulgador: user.profile?.cedula || '',
-        vinculo: user.profile?.vinculo || '',
-        oficina: user.profile?.distrito || '',
-        departamento: user.profile?.departamento || '',
-      }));
-    }
-  }, [user, isUserLoading, agendaId]);
+  // Query para obtener actividades de la agenda (filtrado por jurisdicción)
+  const agendaQuery = useMemoFirebase(() => {
+    if (!firestore || isUserLoading || !user?.profile) return null;
+    const colRef = collection(firestore, 'solicitudes-capacitacion');
+    const profile = user.profile;
+    
+    const hasAdminFilter = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
+    const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
 
-  const solicitudRef = useMemoFirebase(() => firestore && agendaId ? doc(firestore, 'solicitudes-capacitacion', agendaId) : null, [firestore, agendaId]);
+    if (hasAdminFilter) return colRef;
+    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
+    if (hasDistFilter && profile.departamento && profile.distrito) {
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    }
+    return null;
+  }, [firestore, user, isUserLoading]);
+
+  const { data: rawAgendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
+
+  const agendaItems = useMemo(() => {
+    if (!rawAgendaItems) return [];
+    return [...rawAgendaItems].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [rawAgendaItems]);
+
+  // Obtener documento seleccionado específicamente
+  const solicitudRef = useMemoFirebase(() => 
+    firestore && selectedAgendaId ? doc(firestore, 'solicitudes-capacitacion', selectedAgendaId) : null, 
+    [firestore, selectedAgendaId]
+  );
   const { data: agendaDoc } = useDoc<SolicitudCapacitacion>(solicitudRef);
 
+  // Auto-completar formulario al seleccionar actividad
   useEffect(() => {
     if (agendaDoc) {
       setFormData({
@@ -86,8 +106,18 @@ function InformeContent() {
         oficina: agendaDoc.distrito || '',
         departamento: agendaDoc.departamento || '',
       });
+    } else if (!selectedAgendaId && user?.profile) {
+        // Valores por defecto si no hay selección
+        setFormData(prev => ({
+            ...prev,
+            nombre_divulgador: user.profile?.username || '',
+            cedula_divulgador: user.profile?.cedula || '',
+            vinculo: user.profile?.vinculo || '',
+            oficina: user.profile?.distrito || '',
+            departamento: user.profile?.departamento || '',
+        }));
     }
-  }, [agendaDoc, user]);
+  }, [agendaDoc, selectedAgendaId, user]);
 
   const toggleCell = (num: number) => {
     setMarcaciones(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
@@ -186,6 +216,7 @@ function InformeContent() {
     setIsSubmitting(true);
     const docData = {
       ...formData,
+      solicitud_id: selectedAgendaId || '',
       total_personas: markedCells.length,
       marcaciones: markedCells,
       usuario_id: user.uid,
@@ -216,6 +247,36 @@ function InformeContent() {
       <Header title="Carga de Anexo III" />
       <main className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full space-y-6">
         
+        {/* Panel de Vinculación con Agenda */}
+        <Card className="border-primary/20 shadow-md">
+            <CardHeader className="py-4 bg-primary/5">
+                <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-primary">
+                    <DatabaseZap className="h-4 w-4" /> VINCULAR CON ACTIVIDAD DE LA AGENDA
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+                <div className="flex gap-2">
+                    <Select onValueChange={setSelectedAgendaId} value={selectedAgendaId || undefined}>
+                        <SelectTrigger className="h-11 font-bold">
+                            <SelectValue placeholder="Seleccione actividad agendada..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {agendaItems.map(item => (
+                                <SelectItem key={item.id} value={item.id}>
+                                    {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {selectedAgendaId && (
+                        <Button variant="ghost" size="icon" onClick={() => setSelectedAgendaId(null)}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+
         <div className="flex justify-between items-center px-2">
             <div className="flex items-center gap-4">
                 <Image src="/logo.png" alt="Logo" width={50} height={50} className="object-contain" />
@@ -239,7 +300,8 @@ function InformeContent() {
                     <Input 
                         value={formData.lugar_divulgacion} 
                         onChange={e => setFormData(p => ({...p, lugar_divulgacion: e.target.value}))} 
-                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                        readOnly={!!selectedAgendaId}
+                        className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
                     />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -249,7 +311,8 @@ function InformeContent() {
                             type="date"
                             value={formData.fecha} 
                             onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} 
-                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0" 
+                            readOnly={!!selectedAgendaId}
+                            className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
                         />
                     </div>
                     <div className="flex items-center gap-3">
@@ -258,14 +321,16 @@ function InformeContent() {
                             type="time"
                             value={formData.hora_desde} 
                             onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} 
-                            className="border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center" 
+                            readOnly={!!selectedAgendaId}
+                            className={cn("border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center", !!selectedAgendaId && "opacity-70")} 
                         />
                         <Label className="font-black uppercase text-xs">A</Label>
                         <Input 
                             type="time"
                             value={formData.hora_hasta} 
                             onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} 
-                            className="border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center" 
+                            readOnly={!!selectedAgendaId}
+                            className={cn("border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center", !!selectedAgendaId && "opacity-70")} 
                         />
                         <Label className="font-black uppercase text-xs">HS.</Label>
                     </div>
@@ -279,7 +344,8 @@ function InformeContent() {
                     <Input 
                         value={formData.nombre_divulgador} 
                         onChange={e => setFormData(p => ({...p, nombre_divulgador: e.target.value}))} 
-                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                        readOnly={!!selectedAgendaId}
+                        className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
                     />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -288,7 +354,8 @@ function InformeContent() {
                         <Input 
                             value={formData.cedula_divulgador} 
                             onChange={e => setFormData(p => ({...p, cedula_divulgador: e.target.value}))} 
-                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0" 
+                            readOnly={!!selectedAgendaId}
+                            className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
                         />
                     </div>
                     <div className="flex items-center gap-3">
@@ -296,7 +363,8 @@ function InformeContent() {
                         <Input 
                             value={formData.vinculo} 
                             onChange={e => setFormData(p => ({...p, vinculo: e.target.value}))} 
-                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                            readOnly={!!selectedAgendaId}
+                            className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
                         />
                     </div>
                 </div>
@@ -309,7 +377,7 @@ function InformeContent() {
                     <Input 
                         value={formData.oficina} 
                         readOnly
-                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0 opacity-70" 
                     />
                 </div>
                 <div className="flex items-center gap-3">
@@ -317,7 +385,7 @@ function InformeContent() {
                     <Input 
                         value={formData.departamento} 
                         readOnly
-                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0 opacity-70" 
                     />
                 </div>
             </div>
