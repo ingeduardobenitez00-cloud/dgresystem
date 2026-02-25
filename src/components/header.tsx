@@ -30,9 +30,9 @@ export default function Header({ title }: { title?: string }) {
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-4">
-          <SidebarTrigger className="flex h-10 w-10 rounded-full border border-muted-foreground/20 hover:bg-muted transition-all text-muted-foreground">
-            <Menu className="h-5 w-5" />
-          </SidebarTrigger>
+          {/* BOTÓN PLEGABLE - ESTILO CIRCULAR SEGÚN REFERENCIA */}
+          <SidebarTrigger className="h-10 w-10 rounded-full border border-muted-foreground/20 hover:bg-muted hover:text-primary transition-all shadow-sm" />
+          
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 relative">
                <Image 
@@ -54,7 +54,7 @@ export default function Header({ title }: { title?: string }) {
           </div>
           {title && (
             <div className="hidden lg:flex items-center ml-4 pl-4 border-l h-6">
-              <h1 className="text-sm font-bold truncate text-muted-foreground">{title}</h1>
+              <h1 className="text-sm font-bold truncate text-muted-foreground uppercase tracking-tight">{title}</h1>
             </div>
           )}
         </div>

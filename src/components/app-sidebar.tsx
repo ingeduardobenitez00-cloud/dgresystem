@@ -36,7 +36,8 @@ import {
   Flag,
   FileUp,
   UserCircle,
-  BookOpen
+  BookOpen,
+  ShieldAlert
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -60,6 +61,7 @@ export default function AppSidebar() {
         { href: "/divulgadores", label: "Directorio Divulgadores", icon: UserCircle },
         { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
         { href: "/control-movimiento-maquinas", label: "Movimiento de Máquinas", icon: ArrowLeftRight },
+        { href: "/denuncia-lacres", label: "Denuncia de Lacres", icon: ShieldAlert },
         { href: "/encuesta-satisfaccion", label: "Encuesta Satisfacción", icon: MessageSquareHeart },
         { href: "/informe-divulgador", label: "Informe del Divulgador", icon: UserCheck },
         { href: "/informe-semanal-puntos-fijos", label: "Informe Semanal (Anexo IV)", icon: TableProperties },
@@ -116,33 +118,33 @@ export default function AppSidebar() {
 
   return (
     <div className="flex h-full flex-col bg-sidebar border-r">
-      <SidebarHeader className="py-6 px-4">
-        <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm border">
-              <Image src="/logo.png" alt="Logo" width={30} height={30} className="object-contain" priority />
+      <SidebarHeader className="py-8 px-6">
+        <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-md border-2 border-muted">
+              <Image src="/logo.png" alt="Logo" width={32} height={32} className="object-contain" priority />
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-[11px] font-black uppercase leading-none tracking-tight">JUSTICIA</span>
-              <span className="text-[11px] font-black text-primary uppercase leading-none tracking-tight mt-0.5">ELECTORAL</span>
+              <span className="text-[12px] font-black uppercase leading-none tracking-tight">JUSTICIA</span>
+              <span className="text-[12px] font-black text-primary uppercase leading-none tracking-tight mt-0.5">ELECTORAL</span>
             </div>
         </div>
       </SidebarHeader>
       
-      <SidebarContent className="scrollbar-sidebar overflow-y-auto px-2">
+      <SidebarContent className="scrollbar-sidebar overflow-y-auto px-3">
         {menuGroups.map((group) => {
           const accessibleItems = group.items.filter(item => isAccessible(item.href));
           if (accessibleItems.length === 0) return null;
 
           return (
-            <Collapsible key={group.label} className="group/collapsible mb-2" defaultOpen={false}>
+            <Collapsible key={group.label} className="group/collapsible mb-4" defaultOpen={true}>
               <SidebarGroup className="py-0">
                 <SidebarGroupLabel asChild>
-                  <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 px-3 py-2 rounded-lg transition-all">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">{group.label}</span>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between hover:bg-sidebar-accent/50 px-3 py-2 rounded-lg transition-all mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-[0.1em] text-primary/60 group-data-[collapsible=icon]:hidden">{group.label}</span>
                     <ChevronDown className="h-3 w-3 opacity-30 transition-transform group-data-[state=open]/collapsible:rotate-180 group-data-[collapsible=icon]:hidden" />
                   </CollapsibleTrigger>
                 </SidebarGroupLabel>
-                <CollapsibleContent className="space-y-1 mt-1">
+                <CollapsibleContent className="space-y-1">
                   <SidebarGroupContent>
                     <SidebarMenu>
                       {accessibleItems.map((item) => {
@@ -153,14 +155,16 @@ export default function AppSidebar() {
                               asChild
                               isActive={isActive}
                               className={cn(
-                                "min-h-10 h-auto px-3 rounded-lg transition-all",
-                                isActive ? "bg-primary text-primary-foreground shadow-sm font-bold" : "hover:bg-sidebar-accent text-sidebar-foreground/80"
+                                "min-h-10 h-auto px-3 rounded-xl transition-all duration-200",
+                                isActive 
+                                  ? "bg-primary text-primary-foreground shadow-lg font-bold" 
+                                  : "hover:bg-sidebar-accent text-sidebar-foreground/80 hover:translate-x-1"
                               )}
                               tooltip={item.label}
                             >
                               <Link href={item.href} className="flex items-center gap-3 w-full py-2">
                                 <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary-foreground" : "text-sidebar-foreground/60")} />
-                                <span className="text-xs leading-none group-data-[collapsible=icon]:hidden">{item.label}</span>
+                                <span className="text-[11px] font-black uppercase leading-none group-data-[collapsible=icon]:hidden tracking-tight">{item.label}</span>
                               </Link>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
