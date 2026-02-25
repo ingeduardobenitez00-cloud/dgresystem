@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
-import { Loader2, History, Archive, Search, CheckCircle2, Calendar, MapPin, BadgeCheck } from 'lucide-react';
+import { Loader2, History, Archive, Search, CheckCircle2, Calendar, MapPin, BadgeCheck, XCircle, FileX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { formatDateToDDMMYYYY } from '@/lib/utils';
+import { formatDateToDDMMYYYY, cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
@@ -52,10 +52,13 @@ export default function ArchivoCapacitacionesPage() {
     const today = new Date().toISOString().split('T')[0];
     
     return rawSolicitudes.filter(sol => {
+        // CRITERIO 1: CANCELADA (Se archiva inmediatamente)
+        if (sol.cancelada) return true;
+
         const movimiento = movimientosData?.find(m => m.solicitud_id === sol.id);
         const informe = informesData?.find(inf => inf.solicitud_id === sol.id);
         
-        // CRITERIO DE ARCHIVO: Movimiento devuelto Y Informe cargado Y Fecha pasada
+        // CRITERIO 2: Movimiento devuelto Y Informe cargado Y Fecha pasada
         const isFinished = movimiento?.devolucion && informe;
         const isPast = sol.fecha < today;
         
@@ -103,7 +106,7 @@ export default function ArchivoCapacitacionesPage() {
         <Card className="shadow-2xl border-none overflow-hidden rounded-[2rem] bg-white">
             <CardHeader className="bg-black text-white p-6">
                 <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3">
-                    <Archive className="h-4 w-4" /> REGISTRO DE ACTIVIDADES FINALIZADAS ({filteredArchived.length})
+                    <Archive className="h-4 w-4" /> REGISTRO DE ACTIVIDADES ARCHIVADAS ({filteredArchived.length})
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -120,18 +123,20 @@ export default function ArchivoCapacitacionesPage() {
                                     <TableHead className="text-[10px] font-black uppercase tracking-widest px-8">Fecha / Local</TableHead>
                                     <TableHead className="text-[10px] font-black uppercase tracking-widest">Solicitante</TableHead>
                                     <TableHead className="text-[10px] font-black uppercase tracking-widest">Divulgador</TableHead>
-                                    <TableHead className="text-[10px] font-black uppercase tracking-widest">Estado Logístico</TableHead>
+                                    <TableHead className="text-[10px] font-black uppercase tracking-widest">Estado Final</TableHead>
                                     <TableHead className="text-right text-[10px] font-black uppercase tracking-widest px-8">Resultado</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {filteredArchived.map(item => {
                                     const informe = informesData?.find(inf => inf.solicitud_id === item.id);
+                                    const isCancelled = item.cancelada;
+
                                     return (
-                                        <TableRow key={item.id} className="hover:bg-muted/30 transition-colors border-b">
+                                        <TableRow key={item.id} className={cn("hover:bg-muted/30 transition-colors border-b", isCancelled && "bg-destructive/[0.02]")}>
                                             <TableCell className="py-6 px-8">
                                                 <div className="space-y-1">
-                                                    <p className="font-black text-xs text-primary flex items-center gap-2">
+                                                    <p className={cn("font-black text-xs flex items-center gap-2", isCancelled ? "text-destructive" : "text-primary")}>
                                                         <Calendar className="h-3 w-3 opacity-40" /> {formatDateToDDMMYYYY(item.fecha)}
                                                     </p>
                                                     <p className="font-black text-[11px] uppercase flex items-center gap-2">
@@ -150,21 +155,38 @@ export default function ArchivoCapacitacionesPage() {
                                                 <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.divulgador_vinculo}</p>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                                        <span className="text-[9px] font-black uppercase text-green-600">EQUIPO DEVUELTO</span>
+                                                {isCancelled ? (
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-2 text-destructive">
+                                                            <XCircle className="h-3.5 w-3.5" />
+                                                            <span className="text-[9px] font-black uppercase">ACTIVIDAD ANULADA</span>
+                                                        </div>
+                                                        <div className="max-w-[200px] bg-destructive/10 p-2 rounded-lg border border-destructive/20">
+                                                            <p className="text-[8px] font-black uppercase text-destructive opacity-70 mb-1 flex items-center gap-1"><FileX className="h-2 w-2"/> Motivo:</p>
+                                                            <p className="text-[9px] font-bold uppercase leading-tight italic">{item.motivo_cancelacion}</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                                        <span className="text-[9px] font-black uppercase text-green-600">INFORME CERRADO</span>
+                                                ) : (
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                                            <span className="text-[9px] font-black uppercase text-green-600">EQUIPO DEVUELTO</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                                            <span className="text-[9px] font-black uppercase text-green-600">INFORME CERRADO</span>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right px-8">
                                                 <div className="flex flex-col items-end">
-                                                    <p className="font-black text-xl leading-none text-primary">{informe?.total_personas || 0}</p>
-                                                    <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Capacitados</p>
+                                                    <p className={cn("font-black text-xl leading-none", isCancelled ? "text-muted-foreground opacity-30" : "text-primary")}>
+                                                        {isCancelled ? '---' : (informe?.total_personas || 0)}
+                                                    </p>
+                                                    <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                                                        {isCancelled ? 'SIN EJECUCIÓN' : 'Capacitados'}
+                                                    </p>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -179,7 +201,7 @@ export default function ArchivoCapacitacionesPage() {
 
         <div className="text-center pb-10">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 italic">
-                * Los registros se archivan automáticamente una vez finalizado el ciclo logístico y pasada la fecha del evento.
+                * Los registros se archivan automáticamente una vez finalizado el ciclo logístico o por anulación justificada.
             </p>
         </div>
       </main>

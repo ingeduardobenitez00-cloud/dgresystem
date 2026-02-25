@@ -7,9 +7,9 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
-import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch } from 'lucide-react';
+import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Image from 'next/image';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -27,6 +28,9 @@ export default function AgendaCapacitacionPage() {
 
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [cancellingSolicitud, setCancellingSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  
   const [isUpdating, setIsUpdating] = useState(false);
   const [divulSearch, setDivulSearch] = useState('');
   const [copied, setCopied] = useState(false);
@@ -92,7 +96,10 @@ export default function AgendaCapacitacionPage() {
     const today = new Date().toISOString().split('T')[0];
 
     // LÓGICA: Mostrar si es futura O si es pasada pero le falta algo (Devolución o Informe)
+    // EXCLUIR CANCELADAS
     const activeSolicitudes = rawSolicitudes.filter(sol => {
+        if (sol.cancelada) return false;
+
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
         
@@ -153,6 +160,32 @@ export default function AgendaCapacitacionPage() {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData }));
         setIsUpdating(false);
       });
+  };
+
+  const handleConfirmCancel = () => {
+    if (!cancellingSolicitud || !firestore || !cancelReason.trim()) return;
+    setIsUpdating(true);
+    
+    const updateData = {
+        cancelada: true,
+        motivo_cancelacion: cancelReason.toUpperCase(),
+        fecha_cancelacion: new Date().toISOString(),
+        usuario_cancelacion: user?.profile?.username || ''
+    };
+
+    const docRef = doc(firestore, 'solicitudes-capacitacion', cancellingSolicitud.id);
+    
+    updateDoc(docRef, updateData)
+        .then(() => {
+            toast({ title: "Actividad Cancelada", description: "El registro se ha movido al archivo." });
+            setCancellingSolicitud(null);
+            setCancelReason('');
+            setIsUpdating(false);
+        })
+        .catch(async (error) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData }));
+            setIsUpdating(false);
+        });
   };
 
   const surveyUrl = useMemo(() => {
@@ -248,7 +281,7 @@ export default function AgendaCapacitacionPage() {
                                     <Card 
                                         key={item.id} 
                                         className={cn(
-                                            "border-2 shadow-sm rounded-2xl transition-all",
+                                            "border-2 shadow-sm rounded-2xl transition-all relative overflow-hidden",
                                             hasAlert ? "border-destructive/40 bg-destructive/[0.02] ring-1 ring-destructive/20" : "border-muted/20 bg-white"
                                         )}
                                     >
@@ -310,14 +343,25 @@ export default function AgendaCapacitacionPage() {
 
                                                 {/* Columna 4: Acciones */}
                                                 <div className="lg:col-span-3 flex flex-col items-end gap-3">
-                                                    <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        className="h-11 px-6 rounded-xl font-black uppercase text-[11px] border-2 gap-2 w-full max-w-[180px] bg-white hover:bg-muted/10"
-                                                        onClick={() => setAssigningSolicitud(item)}
-                                                    >
-                                                        <UserPlus className="h-4 w-4" /> {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
-                                                    </Button>
+                                                    <div className="flex gap-2 w-full max-w-[180px]">
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2 gap-2 bg-white hover:bg-muted/10"
+                                                            onClick={() => setAssigningSolicitud(item)}
+                                                        >
+                                                            <UserPlus className="h-4 w-4" /> {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="icon" 
+                                                            className="h-11 w-11 rounded-xl border-2 border-destructive/20 text-destructive hover:bg-destructive hover:text-white transition-all"
+                                                            onClick={() => setCancellingSolicitud(item)}
+                                                            title="Anular Actividad"
+                                                        >
+                                                            <CalendarX className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                     
                                                     <div className="flex gap-2 w-full max-w-[180px]">
                                                         <Button 
@@ -397,6 +441,39 @@ export default function AgendaCapacitacionPage() {
                 </div>
               )}
             </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialogo para Cancelar Actividad */}
+      <Dialog open={!!cancellingSolicitud} onOpenChange={(o) => !o && setCancellingSolicitud(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="bg-destructive text-white p-8">
+            <DialogTitle className="font-black uppercase tracking-widest text-center text-sm flex items-center justify-center gap-3">
+                <CalendarX className="h-5 w-5" /> ANULAR ACTIVIDAD DE AGENDA
+            </DialogTitle>
+            <DialogDescription className="text-white/60 text-[10px] font-bold text-center uppercase mt-2">Esta acción moverá el registro al archivo con estado suspendido</DialogDescription>
+          </DialogHeader>
+          <div className="p-8 space-y-6 bg-white">
+            <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">MOTIVO DE LA ANULACIÓN (OBLIGATORIO)</Label>
+                <Textarea 
+                    placeholder="Ej: Suspensión por inclemencia del tiempo, pedido del apoderado, etc..." 
+                    className="min-h-[120px] font-bold border-2 rounded-xl uppercase"
+                    value={cancelReason}
+                    onChange={e => setCancelReason(e.target.value)}
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setCancellingSolicitud(null)}>CANCELAR</Button>
+                <Button 
+                    className="h-12 rounded-xl font-black uppercase text-[10px] bg-destructive hover:bg-destructive/90 shadow-lg" 
+                    disabled={!cancelReason.trim() || isUpdating}
+                    onClick={handleConfirmCancel}
+                >
+                    {isUpdating ? <Loader2 className="animate-spin h-4 w-4" /> : "CONFIRMAR ANULACIÓN"}
+                </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
