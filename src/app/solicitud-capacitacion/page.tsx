@@ -54,7 +54,6 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Componente Interno para Selector de Hora Profesional
 function TimePickerInput({ 
   label, 
   value, 
@@ -187,7 +186,6 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // INICIALIZACIÓN DE MAPA ULTRA-ROBUSTA
   useEffect(() => {
     if (!mapReady || typeof window === 'undefined' || !mapContainerRef.current) return;
 
@@ -250,15 +248,20 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
+        // RE-SINCRO ULTRA-ROBUSTA
         const invalidate = () => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
         };
 
-        setTimeout(invalidate, 100);
-        setTimeout(invalidate, 500);
-        setTimeout(invalidate, 1500);
+        const intervals = [100, 500, 1500, 3000];
+        intervals.forEach(ms => setTimeout(invalidate, ms));
+
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => invalidate());
+            observer.observe(mapContainerRef.current);
+        }
 
       } catch (err) { 
         console.error("Error al inicializar el mapa:", err); 
@@ -716,30 +719,41 @@ export default function SolicitudCapacitacionPage() {
           <div className="space-y-8">
             <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] bg-white">
               <CardHeader className="bg-white border-b py-6 px-8">
-                <CardTitle className="text-lg font-black uppercase text-primary flex items-center gap-3">
+                <CardTitle className="text-xl font-black uppercase text-black flex items-center gap-3">
                     <MapPin className="h-5 w-5" /> GEORREFERENCIACIÓN DEL EVENTO
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
-                <div className="bg-muted/10 p-4 rounded-xl border-2 border-dashed text-center">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground leading-tight tracking-wider">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
+                <div className="bg-[#F3F4F6] p-3 rounded-lg border border-gray-200 text-center">
+                    <p className="text-[11px] font-black uppercase text-black leading-tight tracking-tighter">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
                 </div>
-                <div className="relative aspect-square w-full rounded-2xl overflow-hidden border-4 border-white shadow-2xl bg-[#F0F0F0] z-0">
+                
+                <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 shadow-md bg-[#F0F0F0] z-0">
                     <div 
                       ref={mapContainerRef} 
                       className="map-view-container" 
+                      style={{ height: '400px', width: '100%' }}
                     />
                 </div>
-                <div className="flex items-center gap-5 bg-white p-6 rounded-[1.5rem] border-2 shadow-inner">
-                    <div className="h-12 w-12 bg-muted/20 rounded-full flex items-center justify-center shadow-sm">
-                        <Navigation className={cn("h-6 w-6 transition-colors", formData.gps ? "text-primary" : "text-muted-foreground/30")} />
+
+                <div className="bg-[#F3F4F6] p-6 rounded-[2rem] border border-gray-200 space-y-4">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-gray-300/50 rounded-full flex items-center justify-center">
+                            <Navigation className={cn("h-6 w-6 fill-current transition-colors", formData.gps ? "text-black" : "text-gray-400")} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">COORDENADAS GPS</p>
+                            <p className="text-sm font-black uppercase text-black tracking-tight">
+                                {formData.gps || '-25.308339, -57.622344'}
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex-1">
-                        <p className="text-[9px] font-black uppercase text-muted-foreground leading-none mb-1.5 tracking-[0.15em]">COORDENADAS GPS</p>
-                        <p className={cn("text-sm font-black uppercase tracking-tight", !formData.gps ? "text-muted-foreground/40 italic" : "text-primary")}>
-                            {formData.gps || 'PENDIENTE DE CAPTURA'}
-                        </p>
-                    </div>
+                    
+                    {formData.gps && (
+                        <div className="bg-[#E1F9EB] py-2.5 rounded-full text-center animate-in fade-in zoom-in duration-300">
+                            <span className="text-[10px] font-black text-[#10B981] uppercase tracking-widest">UBICACIÓN FIJADA</span>
+                        </div>
+                    )}
                 </div>
               </CardContent>
             </Card>
