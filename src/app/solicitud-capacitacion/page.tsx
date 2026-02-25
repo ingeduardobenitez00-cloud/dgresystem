@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -16,7 +16,6 @@ import {
   FileUp, 
   Landmark, 
   Navigation, 
-  MapPin, 
   CheckCircle2, 
   Clock, 
   Calendar as CalendarIcon, 
@@ -30,7 +29,7 @@ import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, li
 import { Separator } from '@/components/ui/separator';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { type PartidoPolitico } from '@/lib/data';
 import Image from 'next/image';
 import jsPDF from 'jspdf';
@@ -159,10 +158,6 @@ export default function SolicitudCapacitacionPage() {
   const [padronFound, setPadronFound] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -184,110 +179,6 @@ export default function SolicitudCapacitacionPage() {
   }, []);
 
   const profile = user?.profile;
-
-  // NUEVA LÓGICA DE MAPA: MODO "HYDRATION DELAY"
-  useEffect(() => {
-    if (!isMounted || !mapContainerRef.current) return;
-
-    let mounted = true;
-    let syncIntervals: NodeJS.Timeout[] = [];
-
-    const initLeaflet = async () => {
-      try {
-        const L = (await import('leaflet')).default;
-        const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
-
-        if (!mounted || !mapContainerRef.current) return;
-
-        // Limpieza de seguridad
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.remove();
-          mapInstanceRef.current = null;
-        }
-
-        // Configuración de marcadores oficiales
-        delete (L.Icon.Default.prototype as any)._getIconUrl;
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        });
-
-        // Crear instancia centrada en Paraguay
-        const map = L.map(mapContainerRef.current, { 
-          center: [-25.29916, -57.58916], 
-          zoom: 15,
-          zoomControl: false,
-          doubleClickZoom: false,
-          fadeAnimation: true
-        });
-        
-        mapInstanceRef.current = map;
-
-        // Cargar Capas
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19
-        }).addTo(map);
-
-        // Añadir Buscador
-        const provider = new OpenStreetMapProvider();
-        const searchControl = new (GeoSearchControl as any)({ 
-            provider, 
-            style: 'bar', 
-            showMarker: true,
-            autoClose: true,
-            placeholder: 'Buscar dirección...',
-        });
-        map.addControl(searchControl);
-
-        // Eventos
-        map.on('geosearch/showlocation', (result: any) => {
-          const { x, y } = result.location;
-          setFormData(prev => ({ ...prev, gps: `${y.toFixed(6)}, ${x.toFixed(6)}` }));
-          if (markerRef.current) map.removeLayer(markerRef.current);
-          markerRef.current = L.marker([y, x]).addTo(map);
-        });
-
-        map.on('dblclick', (e: any) => {
-          const { lat, lng } = e.latlng;
-          setFormData(prev => ({ ...prev, gps: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
-          if (markerRef.current) map.removeLayer(markerRef.current);
-          markerRef.current = L.marker([lat, lng]).addTo(map);
-        });
-
-        // CICLO DE VISIBILIDAD FORZADA (Elimina el cuadro gris)
-        const forceRefresh = () => {
-          if (mapInstanceRef.current && mounted) {
-            mapInstanceRef.current.invalidateSize({ animate: false });
-          }
-        };
-
-        // Disparar ráfaga de redibujado
-        syncIntervals.push(setTimeout(forceRefresh, 100));
-        syncIntervals.push(setTimeout(forceRefresh, 300));
-        syncIntervals.push(setTimeout(forceRefresh, 600));
-        syncIntervals.push(setTimeout(forceRefresh, 1200));
-        syncIntervals.push(setTimeout(forceRefresh, 2500));
-
-      } catch (err) {
-        console.error("Leaflet Init Error:", err);
-      }
-    };
-
-    // Delay inicial para asegurar que el contenedor tiene tamaño real en el DOM
-    const startDelay = setTimeout(initLeaflet, 400);
-
-    return () => {
-      mounted = false;
-      clearTimeout(startDelay);
-      syncIntervals.forEach(i => clearTimeout(i));
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [isMounted]);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
     const cleanTerm = (cedulaInput || '').trim().replace(/\D/g, ''); 
@@ -727,49 +618,6 @@ export default function SolicitudCapacitacionPage() {
           </Card>
 
           <div className="space-y-8">
-            <Card className="shadow-2xl border-none overflow-hidden rounded-[2.5rem] bg-white">
-              <CardHeader className="bg-white border-b py-6 px-8">
-                <CardTitle className="text-xl font-black uppercase text-black flex items-center gap-3">
-                    <MapPin className="h-5 w-5" /> GEORREFERENCIACIÓN DEL EVENTO
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-8 space-y-6">
-                <div className="bg-[#F3F4F6] p-4 rounded-xl border border-gray-200 border-dashed text-center">
-                    <p className="text-[11px] font-black uppercase text-black leading-tight">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
-                </div>
-                
-                {/* CONTENEDOR DEL MAPA REFORZADO */}
-                <div className="relative w-full aspect-square rounded-[2.5rem] overflow-hidden border border-gray-200 shadow-md z-0 bg-[#F3F4F6]">
-                    <div 
-                      ref={mapContainerRef} 
-                      className="w-full h-full" 
-                      style={{ height: '100%', width: '100%', minHeight: '400px' }}
-                    />
-                </div>
-
-                {/* PANEL INFERIOR DE COORDENADAS (RÉPLICA EXACTA) */}
-                <div className="bg-[#F3F4F6] p-8 rounded-[2.5rem] border border-gray-200 space-y-4">
-                    <div className="flex items-center gap-5">
-                        <div className="h-14 w-14 bg-white rounded-full flex items-center justify-center shadow-sm">
-                            <Navigation className={cn("h-7 w-7 transition-colors", formData.gps ? "text-primary fill-current" : "text-gray-300")} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">COORDENADAS GPS</p>
-                            <p className={cn("text-base font-black uppercase tracking-tight", !formData.gps && "text-muted-foreground/60")}>
-                                {formData.gps || 'PENDIENTE DE CAPTURA'}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    {formData.gps && (
-                        <div className="bg-[#E1F9EB] py-3 rounded-full text-center animate-in fade-in zoom-in duration-300 border border-[#10B981]/20">
-                            <span className="text-[10px] font-black text-[#10B981] uppercase tracking-widest">UBICACIÓN FIJADA CON ÉXITO</span>
-                        </div>
-                    )}
-                </div>
-              </CardContent>
-            </Card>
-
             <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
               <CardHeader className="bg-white border-b py-6 px-8">
                 <CardTitle className="text-lg font-black uppercase text-primary flex items-center gap-3">
