@@ -728,11 +728,11 @@ export default function SolicitudCapacitacionPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
-                <div className="bg-[#F3F4F6] p-4 rounded-xl border border-gray-200 text-center border-dashed">
-                    <p className="text-[11px] font-black uppercase text-black leading-tight tracking-tighter">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
+                <div className="bg-[#F3F4F6] p-4 rounded-xl border border-gray-200 border-dashed text-center">
+                    <p className="text-[11px] font-black uppercase text-black leading-tight">DOBLE CLIC EN EL MAPA PARA CAPTURAR COORDENADAS EXACTAS</p>
                 </div>
                 
-                <div className="relative w-full rounded-3xl overflow-hidden border border-gray-200 shadow-md z-0 bg-white">
+                <div className="relative w-full rounded-[2.5rem] overflow-hidden border border-gray-200 shadow-md z-0 bg-white">
                     <div 
                       ref={mapContainerRef} 
                       className="map-view-container" 
@@ -747,7 +747,7 @@ export default function SolicitudCapacitacionPage() {
                         </div>
                         <div>
                             <p className="text-[10px] font-bold uppercase text-gray-500 tracking-wider">COORDENADAS GPS</p>
-                            <p className={cn("text-base font-black uppercase tracking-tight", !formData.gps && "text-muted-foreground")}>
+                            <p className={cn("text-base font-black uppercase tracking-tight", !formData.gps && "text-muted-foreground/60")}>
                                 {formData.gps || 'PENDIENTE DE CAPTURA'}
                             </p>
                         </div>
