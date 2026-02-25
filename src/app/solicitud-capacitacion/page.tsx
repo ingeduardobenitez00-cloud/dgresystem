@@ -100,11 +100,13 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // Inicialización Robusta del Mapa
+  // Inicialización Robusta del Mapa con ResizeObserver para evitar el cuadro gris
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
     let map: any;
+    let resizeObserver: ResizeObserver | null = null;
+
     const initMap = async () => {
       if (!mapContainerRef.current || mapInstanceRef.current) return;
       
@@ -112,7 +114,7 @@ export default function SolicitudCapacitacionPage() {
         const L = (await import('leaflet')).default;
         const { OpenStreetMapProvider, GeoSearchControl } = await import('leaflet-geosearch');
 
-        // Fix de iconos Leaflet para evitar pins rotos
+        // Fix de iconos Leaflet
         if (L.Icon.Default) {
           delete (L.Icon.Default.prototype as any)._getIconUrl;
           L.Icon.Default.mergeOptions({
@@ -148,7 +150,7 @@ export default function SolicitudCapacitacionPage() {
         });
         map.addControl(searchControl);
 
-        // Evento de búsqueda exitosa
+        // Captura por búsqueda
         map.on('geosearch/showlocation', (result: any) => {
           const { x, y } = result.location;
           const coords = `${y.toFixed(6)}, ${x.toFixed(6)}`;
@@ -157,7 +159,7 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([y, x]).addTo(map);
         });
 
-        // Evento de doble clic para capturar
+        // Captura por doble clic
         map.on('dblclick', (e: any) => {
           const { lat, lng } = e.latlng;
           const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -166,12 +168,20 @@ export default function SolicitudCapacitacionPage() {
           markerRef.current = L.marker([lat, lng]).addTo(map);
         });
 
-        // SOLUCIÓN AL CUADRO GRIS: Forzar redimensionado después de un breve delay
+        // SOLUCIÓN DEFINITIVA: ResizeObserver para invalidar tamaño cuando el contenedor esté listo
+        resizeObserver = new ResizeObserver(() => {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+          }
+        });
+        resizeObserver.observe(mapContainerRef.current);
+
+        // Backup delay
         setTimeout(() => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
-        }, 500);
+        }, 1000);
 
       } catch (err) { 
         console.error("Leaflet initialization failed:", err); 
@@ -181,6 +191,7 @@ export default function SolicitudCapacitacionPage() {
     initMap();
 
     return () => { 
+      if (resizeObserver) resizeObserver.disconnect();
       if (mapInstanceRef.current) { 
         mapInstanceRef.current.remove(); 
         mapInstanceRef.current = null; 
@@ -268,7 +279,7 @@ export default function SolicitudCapacitacionPage() {
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/10">
+    <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
       <Header title="Nueva Solicitud" />
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-6">
         
@@ -296,11 +307,11 @@ export default function SolicitudCapacitacionPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Landmark className="h-3 w-3"/> Departamento Asignado</Label>
-                    <Input value={profile?.departamento || '00 - ASUNCION'} readOnly className="font-black bg-white uppercase border-2 h-11" />
+                    <Input value={profile?.departamento || '00 - ASUNCION'} readOnly className="font-black bg-[#F8F9FA] uppercase border-2 h-11" />
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Navigation className="h-3 w-3"/> Distrito / Oficina</Label>
-                    <Input value={profile?.distrito || 'SIN ASIGNAR'} readOnly className="font-black bg-white uppercase border-2 h-11" />
+                    <Input value={profile?.distrito || 'SIN ASIGNAR'} readOnly className="font-black bg-[#F8F9FA] uppercase border-2 h-11" />
                 </div>
               </div>
 
@@ -340,13 +351,13 @@ export default function SolicitudCapacitacionPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div className="p-8 border-2 border-dashed rounded-[2rem] bg-white space-y-6">
+                <div className="p-8 border-2 border-dashed rounded-[2rem] bg-[#F8F9FA] space-y-6">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">TIPO DE SOLICITUD (SELECCIÓN EXCLUSIVA)</Label>
                     <div className="space-y-4">
                         <div 
                           className={cn(
                             "flex items-center space-x-4 p-5 rounded-2xl border-2 transition-all cursor-pointer",
-                            formData.tipo_solicitud === 'divulgacion' ? "bg-muted/5 border-black ring-1 ring-black" : "bg-white border-muted"
+                            formData.tipo_solicitud === 'divulgacion' ? "bg-white border-black ring-1 ring-black" : "bg-[#F8F9FA] border-muted"
                           )} 
                           onClick={() => setFormData(p => ({...p, tipo_solicitud: 'divulgacion'}))}
                         >
@@ -361,7 +372,7 @@ export default function SolicitudCapacitacionPage() {
                         <div 
                           className={cn(
                             "flex items-center space-x-4 p-5 rounded-2xl border-2 transition-all cursor-pointer",
-                            formData.tipo_solicitud === 'capacitacion' ? "bg-muted/5 border-black ring-1 ring-black" : "bg-white border-muted"
+                            formData.tipo_solicitud === 'capacitacion' ? "bg-white border-black ring-1 ring-black" : "bg-[#F8F9FA] border-muted"
                           )} 
                           onClick={() => setFormData(p => ({...p, tipo_solicitud: 'capacitacion'}))}
                         >
