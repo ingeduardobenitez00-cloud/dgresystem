@@ -9,16 +9,27 @@ import { useToast } from "@/hooks/use-toast";
 import { LogOut, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
+import { recordAuditLog } from '@/lib/audit';
 
 export default function Header({ title }: { title?: string }) {
-  const { auth } = useFirebase();
+  const { auth, firestore } = useFirebase();
   const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = async () => {
-    if (!auth) return;
+    if (!auth || !firestore || !user) return;
     try {
+      // Registrar cierre de sesión en auditoría
+      recordAuditLog(firestore, {
+        usuario_id: user.uid,
+        usuario_nombre: user.profile?.username || user.email || 'Usuario',
+        usuario_rol: user.profile?.role || 'funcionario',
+        accion: 'LOGOUT',
+        modulo: 'seguridad',
+        detalles: `Cierre de sesión manual finalizado.`
+      });
+
       await auth.signOut();
       router.replace('/login');
     } catch (error) {

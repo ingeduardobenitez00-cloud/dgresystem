@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -67,6 +67,12 @@ export const dashboardMenuItems = [
     label: 'Encuesta Satisfacción',
     icon: MessageSquareHeart,
     description: 'Formulario de encuesta sobre el uso de la máquina.',
+  },
+  {
+    href: '/conexiones',
+    label: 'Monitoreo de Conexiones',
+    icon: Activity,
+    description: 'Seguimiento en tiempo real de usuarios activos en el sistema.',
   },
   {
     href: '/ficha',

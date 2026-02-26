@@ -4,13 +4,15 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { useUser } from '@/firebase';
+import { useUser, useFirebase } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/app-sidebar';
 import { Button } from './ui/button';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading, userError } = useUser();
+  const { firestore } = useFirebase();
   const pathname = usePathname();
   const router = useRouter();
   
@@ -19,6 +21,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // SISTEMA DE PRESENCIA (HEARTBEAT)
+  useEffect(() => {
+    if (!user || !firestore || !mounted) return;
+
+    const updatePresence = async () => {
+      const presenceRef = doc(firestore, 'presencia', user.uid);
+      await setDoc(presenceRef, {
+        usuario_id: user.uid,
+        username: user.profile?.username || user.email,
+        email: user.email,
+        role: user.profile?.role,
+        departamento: user.profile?.departamento || '',
+        distrito: user.profile?.distrito || '',
+        ultima_actividad: serverTimestamp(),
+        ruta_actual: pathname
+      }, { merge: true }).catch(() => {});
+    };
+
+    // Actualizar inmediatamente al cargar/cambiar ruta
+    updatePresence();
+
+    // Actualizar cada 2 minutos mientras la pestaña esté abierta
+    const interval = setInterval(updatePresence, 120000);
+    return () => clearInterval(interval);
+  }, [user, firestore, mounted, pathname]);
 
   useEffect(() => {
     if (!mounted || isUserLoading) return;

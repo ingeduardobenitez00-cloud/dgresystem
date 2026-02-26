@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -26,6 +27,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2, UserPlus, LogIn, MapPin } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Dato } from '@/lib/data';
+import { recordAuditLog } from '@/lib/audit';
 
 export default function LoginPage() {
   const { auth, firestore } = useFirebase();
@@ -65,10 +67,21 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      
+      // Registrar inicio de sesión en auditoría
+      recordAuditLog(firestore, {
+        usuario_id: userCredential.user.uid,
+        usuario_nombre: loginEmail,
+        usuario_rol: 'desconocido', // Se actualizará tras cargar el perfil
+        accion: 'LOGIN',
+        modulo: 'seguridad',
+        detalles: `Inicio de sesión exitoso desde el portal principal.`
+      });
+
       toast({ title: 'Inicio de sesión exitoso' });
       router.push('/');
     } catch (error: any) {
@@ -126,6 +139,16 @@ export default function LoginPage() {
         modules: jefeModules,
         permissions: jefePermissions,
         fecha_registro: new Date().toISOString()
+      });
+
+      // Auditoría de nuevo registro
+      recordAuditLog(firestore, {
+        usuario_id: user.uid,
+        usuario_nombre: regData.username,
+        usuario_rol: 'jefe',
+        accion: 'CREAR',
+        modulo: 'seguridad',
+        detalles: `Auto-registro de Jefe para ${regData.distrito}`
       });
 
       await signOut(auth);
