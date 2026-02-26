@@ -503,8 +503,14 @@ export default function SolicitudCapacitacionPage() {
                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Número de Celular</Label>
                         <Input 
                             value={formData.telefono} 
-                            onChange={(e) => setFormData(prev => ({ ...prev, telefono: e.target.value }))} 
-                            placeholder="EJ: 09xx 123 456"
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                let formatted = val;
+                                if (val.length > 4) formatted = `${val.slice(0, 4)}-${val.slice(4)}`;
+                                if (val.length > 7) formatted = `${val.slice(0, 4)}-${val.slice(4, 7)}-${val.slice(7)}`;
+                                setFormData(prev => ({ ...prev, telefono: formatted }));
+                            }} 
+                            placeholder="09XX-XXX-XXX"
                             className="h-11 font-bold border-2" 
                         />
                     </div>
