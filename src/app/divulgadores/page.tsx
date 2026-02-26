@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { UserPlus, Users, Loader2, Edit, Trash2, Search, AlertCircle, UserCircle, MapPin, Landmark, Navigation, FileUp, CheckCircle2, TableIcon, X } from 'lucide-react';
+import { UserPlus, Users, Loader2, Edit, Trash2, Search, AlertCircle, UserCircle, MapPin, Landmark, Navigation, FileUp, CheckCircle2, TableIcon, X, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -55,6 +55,7 @@ export default function DivulgadoresPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [importPreview, setImportPreview] = useState<Omit<Divulgador, 'id' | 'fecha_registro'>[]>([]);
   const [importFileName, setImportFileName] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   const profile = currentUser?.profile;
 
@@ -165,40 +166,86 @@ export default function DivulgadoresPage() {
     });
   };
 
-  // Lógica de Importación
+  // Lógica de Importación Reforzada
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
     setIsParsing(true);
+    setImportErrors([]);
     setImportFileName(file.name);
+    
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const data = event.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
+        
+        if (workbook.SheetNames.length === 0) {
+            throw new Error("El archivo Excel no contiene hojas de trabajo.");
+        }
+
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const json: any[] = XLSX.utils.sheet_to_json(sheet);
 
-        const mappedData: Omit<Divulgador, 'id' | 'fecha_registro'>[] = json.map(row => {
-          // Normalización de Vínculo
+        if (json.length === 0) {
+            throw new Error("El archivo Excel parece estar vacío.");
+        }
+
+        // Validación de encabezados
+        const firstRow = json[0];
+        const headers = Object.keys(firstRow).map(h => h.toUpperCase().trim());
+        const requiredColumns = ['CEDULA', 'DISTRITO', 'DEPARTAMENTO'];
+        const hasNameHeader = headers.includes('NOMBRES Y APELLIDOS') || headers.includes('NOMBRE');
+        
+        const missing = requiredColumns.filter(col => !headers.includes(col));
+        if (!hasNameHeader) missing.push('NOMBRES Y APELLIDOS');
+
+        if (missing.length > 0) {
+            setImportErrors([`Estructura incorrecta. Faltan las siguientes columnas obligatorias: ${missing.join(', ')}`]);
+            setIsParsing(false);
+            return;
+        }
+
+        let skippedRows = 0;
+        const mappedData: Omit<Divulgador, 'id' | 'fecha_registro'>[] = json.map((row, index) => {
+          const cedulaRaw = String(row.CEDULA || '').trim();
+          const nombreRaw = String(row['NOMBRES Y APELLIDOS'] || row.NOMBRE || '').trim();
+          
+          if (!cedulaRaw || !nombreRaw) {
+            skippedRows++;
+            return null;
+          }
+
           let vinculo: any = String(row.VINCULO || '').toUpperCase();
           if (!['PERMANENTE', 'CONTRATADO', 'COMISIONADO'].includes(vinculo)) {
-            vinculo = 'CONTRATADO'; // Fallback seguro
+            vinculo = 'CONTRATADO'; 
           }
 
           return {
-            cedula: String(row.CEDULA || '').trim(),
-            nombre: String(row['NOMBRES Y APELLIDOS'] || row.NOMBRE || '').trim().toUpperCase(),
+            cedula: cedulaRaw,
+            nombre: nombreRaw.toUpperCase(),
             vinculo: vinculo,
             distrito: String(row.DISTRITO || '').trim().toUpperCase(),
             departamento: String(row.DEPARTAMENTO || '').trim().toUpperCase(),
           };
-        }).filter(d => d.cedula && d.nombre);
+        }).filter(d => d !== null) as Omit<Divulgador, 'id' | 'fecha_registro'>[];
+
+        if (mappedData.length === 0) {
+            throw new Error("No se encontraron registros válidos en el archivo. Verifique que el nombre y la cédula no estén vacíos.");
+        }
+
+        if (skippedRows > 0) {
+            toast({ 
+                variant: "warning", 
+                title: "Registros incompletos", 
+                description: `Se ignoraron ${skippedRows} filas porque les faltaba información básica.` 
+            });
+        }
 
         setImportPreview(mappedData);
-        toast({ title: "Archivo Procesado", description: `Se detectaron ${mappedData.length} registros.` });
-      } catch (err) {
-        toast({ variant: 'destructive', title: "Error al leer archivo" });
+      } catch (err: any) {
+        setImportErrors([err.message || "Error desconocido al procesar el Excel."]);
       } finally {
         setIsParsing(false);
       }
@@ -232,11 +279,18 @@ export default function DivulgadoresPage() {
       setIsImportModalOpen(false);
       setImportPreview([]);
       setImportFileName(null);
+      setImportErrors([]);
     } catch (err) {
       toast({ variant: 'destructive', title: "Error al guardar en la nube" });
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const resetImport = () => {
+    setImportPreview([]);
+    setImportFileName(null);
+    setImportErrors([]);
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>;
@@ -317,7 +371,7 @@ export default function DivulgadoresPage() {
                   variant="outline" 
                   size="sm" 
                   className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-black uppercase text-[10px] gap-2 h-9"
-                  onClick={() => setIsImportModalOpen(true)}
+                  onClick={() => { resetImport(); setIsImportModalOpen(true); }}
                 >
                   <FileUp className="h-3.5 w-3.5" /> Importar Excel
                 </Button>
@@ -383,20 +437,33 @@ export default function DivulgadoresPage() {
           </DialogHeader>
 
           <div className="flex-1 overflow-auto p-8 space-y-8 bg-[#F8F9FA]">
-            {!importPreview.length ? (
+            {importErrors.length > 0 && (
+                <div className="bg-destructive/10 border-2 border-destructive p-6 rounded-2xl flex items-start gap-4 animate-in shake duration-500">
+                    <AlertTriangle className="h-6 w-6 text-destructive shrink-0 mt-1" />
+                    <div>
+                        <p className="font-black uppercase text-sm text-destructive">Error en el archivo</p>
+                        {importErrors.map((err, idx) => <p key={idx} className="text-xs font-bold uppercase text-destructive/80 mt-1">{err}</p>)}
+                        <Button variant="outline" size="sm" onClick={resetImport} className="mt-4 border-destructive text-destructive hover:bg-destructive hover:text-white font-black uppercase text-[10px]">REINTENTAR CARGA</Button>
+                    </div>
+                </div>
+            )}
+
+            {!importPreview.length && importErrors.length === 0 && (
               <label className="flex flex-col items-center justify-center h-64 border-4 border-dashed rounded-[2rem] border-primary/10 bg-white cursor-pointer hover:bg-primary/[0.02] hover:border-primary/30 transition-all group">
                 <div className="flex flex-col items-center gap-4">
                   <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <FileUp className="h-8 w-8 text-primary/40" />
+                    {isParsing ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <FileUp className="h-8 w-8 text-primary/40" />}
                   </div>
                   <div className="text-center">
-                    <p className="font-black uppercase text-sm text-primary">Seleccionar Archivo Excel</p>
+                    <p className="font-black uppercase text-sm text-primary">{isParsing ? "Procesando Archivo..." : "Seleccionar Archivo Excel"}</p>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">CEDULA, VINCULO, NOMBRES Y APELLIDOS, DISTRITO, DEPARTAMENTO</p>
                   </div>
                 </div>
-                <Input type="file" accept=".xlsx,.csv" className="hidden" onChange={handleFileImport} />
+                <Input type="file" accept=".xlsx,.csv" className="hidden" onChange={handleFileImport} disabled={isParsing} />
               </label>
-            ) : (
+            )}
+
+            {importPreview.length > 0 && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -405,10 +472,10 @@ export default function DivulgadoresPage() {
                     </div>
                     <div>
                       <p className="font-black uppercase text-xs">Archivo: {importFileName}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{importPreview.length} Registros detectados</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{importPreview.length} Registros válidos detectados</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => { setImportPreview([]); setImportFileName(null); }} className="text-destructive font-black uppercase text-[10px] gap-2">
+                  <Button variant="ghost" size="sm" onClick={resetImport} className="text-destructive font-black uppercase text-[10px] gap-2">
                     <X className="h-4 w-4" /> Cambiar Archivo
                   </Button>
                 </div>
