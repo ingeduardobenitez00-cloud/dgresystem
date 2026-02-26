@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo } from 'react';
@@ -25,12 +24,15 @@ type PresenceRecord = {
   ruta_actual: string;
 };
 
+// Margen de 5 minutos para considerar a un usuario ONLINE (ajustado para clock skew)
+const ONLINE_THRESHOLD_MS = 300000;
+
 export default function ConexionesPage() {
   const { user: currentUser, isUserLoading } = useUser();
   const { firestore } = useFirebase();
 
   const presenceQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null;
+    if (!firestore || isMeLoading) return null;
     return collection(firestore, 'presencia');
   }, [firestore, isUserLoading]);
 
@@ -48,10 +50,10 @@ export default function ConexionesPage() {
   const activeCount = useMemo(() => {
     if (!presenceData) return 0;
     const now = Date.now();
-    // Consideramos "Online" si hubo actividad en los últimos 3 minutos (180000 ms)
     return presenceData.filter(p => {
       const last = p.ultima_actividad?.toMillis?.() || 0;
-      return (now - last) < 180000;
+      // Usamos un margen generoso para compensar posibles desfases de reloj entre cliente y servidor
+      return Math.abs(now - last) < ONLINE_THRESHOLD_MS;
     }).length;
   }, [presenceData]);
 
@@ -59,6 +61,7 @@ export default function ConexionesPage() {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
   }
 
+  const isMeLoading = isUserLoading;
   const isAdmin = currentUser?.profile?.role === 'admin' || currentUser?.profile?.role === 'director';
 
   if (!isAdmin) {
@@ -111,7 +114,7 @@ export default function ConexionesPage() {
                 <CardTitle className="uppercase font-black text-sm tracking-widest flex items-center gap-3">
                     <UserCheck className="h-5 w-5 text-primary" /> LISTADO DE ACTIVIDAD RECIENTE
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase">Estado de conexión actualizado automáticamente cada 2 minutos</CardDescription>
+                <CardDescription className="text-[10px] font-bold uppercase">Estado de conexión actualizado automáticamente por telemetría</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -128,14 +131,14 @@ export default function ConexionesPage() {
                         <TableBody>
                             {sortedRecords.map((record) => {
                                 const lastMillis = record.ultima_actividad?.toMillis?.() || 0;
-                                const isOnline = (Date.now() - lastMillis) < 180000;
+                                const isOnline = Math.abs(Date.now() - lastMillis) < ONLINE_THRESHOLD_MS;
                                 
                                 return (
                                     <TableRow key={record.id} className="hover:bg-muted/20 transition-colors border-b">
                                         <TableCell className="px-8 py-6">
                                             <div className="flex items-center gap-2">
                                                 <div className={cn(
-                                                    "h-2.5 w-2.5 rounded-full",
+                                                    "h-2.5 w-2.5 rounded-full transition-all",
                                                     isOnline ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" : "bg-muted-foreground/30"
                                                 )} />
                                                 <span className={cn(

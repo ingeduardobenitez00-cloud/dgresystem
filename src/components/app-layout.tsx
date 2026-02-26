@@ -21,14 +21,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setMounted(true);
   }, []);
 
-  // SISTEMA DE PRESENCIA (HEARTBEAT)
+  // SISTEMA DE PRESENCIA (HEARTBEAT) - ACTUALIZADO PARA MAYOR PRECISIÓN
   useEffect(() => {
     if (!user || !firestore || !mounted) return;
 
     const updatePresence = async () => {
       const presenceRef = doc(firestore, 'presencia', user.uid);
       
-      // Aseguramos que no se envíen campos como 'undefined' a Firestore
       const presenceData = {
         usuario_id: user.uid,
         username: user.profile?.username || user.email || 'Usuario',
@@ -48,8 +47,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Actualizar inmediatamente al cargar/cambiar ruta
     updatePresence();
 
-    // Actualizar cada 2 minutos mientras la pestaña esté abierta
-    const interval = setInterval(updatePresence, 120000);
+    // Actualizar cada 60 segundos (1 minuto) para mayor sensibilidad
+    const interval = setInterval(updatePresence, 60000);
     return () => clearInterval(interval);
   }, [user, firestore, mounted, pathname]);
 
