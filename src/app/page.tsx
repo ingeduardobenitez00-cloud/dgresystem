@@ -28,8 +28,8 @@ const MODULE_GROUPS = [
   },
   {
     label: "Análisis y Reportes",
-    description: "Consolidados nacionales, resúmenes por ubicación y monitoreo de conexiones activas.",
-    modules: ['resumen', 'informe-general', 'conexiones']
+    description: "Consolidados nacionales y resúmenes técnicos por ubicación geográfica.",
+    modules: ['resumen', 'informe-general']
   },
   {
     label: "Locales de Votación",
@@ -43,8 +43,8 @@ const MODULE_GROUPS = [
   },
   {
     label: "Sistema",
-    description: "Administración de usuarios, permisos, roles, auditoría técnica y documentación del sistema.",
-    modules: ['users', 'settings', 'documentacion', 'auditoria']
+    description: "Administración de usuarios, monitoreo de conexiones en tiempo real, auditoría técnica y configuración.",
+    modules: ['users', 'settings', 'documentacion', 'auditoria', 'conexiones']
   },
 ];
 
@@ -116,7 +116,7 @@ export default function Home() {
                       </h2>
                     </div>
                     <div className="flex items-center gap-2 pr-4">
-                      <span className="text-[8px] font-black bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-widest group-data-[state=closed]:bg-muted group-data--------------[state=closed]:text-muted-foreground">
+                      <span className="text-[8px] font-black bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-widest group-data-[state=closed]:bg-muted group-data-[state=closed]:text-muted-foreground">
                         {group.items.length} Módulos
                       </span>
                     </div>
