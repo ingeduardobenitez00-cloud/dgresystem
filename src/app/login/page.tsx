@@ -97,7 +97,7 @@ export default function LoginPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, regData.email, regData.password);
       const user = userCredential.user;
 
-      // Definición de módulos para el rol Jefe
+      // Definición exacta de módulos para el rol Jefe solicitado
       const jefeModules = [
         'solicitud-capacitacion',
         'agenda-capacitacion',
@@ -108,12 +108,13 @@ export default function LoginPage() {
         'encuesta-satisfaccion'
       ];
 
-      // Construcción de permisos granulares (Ver, Guardar, PDF) para cada módulo
+      // Construcción de permisos automáticos: FILTRO DISTRITAL incluido por defecto
       const jefePermissions = [
         'assign_staff',
-        'district_filter'
+        'district_filter' // EL JEFE TENDRÁ AUTOMÁTICAMENTE FILTRO DISTRITAL
       ];
 
+      // Asignación de permisos granulares (Ver, Guardar, PDF) para cada módulo autorizado
       jefeModules.forEach(mod => {
         jefePermissions.push(`${mod}:view`);
         jefePermissions.push(`${mod}:add`);
@@ -132,16 +133,15 @@ export default function LoginPage() {
         fecha_registro: new Date().toISOString()
       });
 
-      // Sign out the user immediately after registration to force manual login
+      // Sign out the user immediately after registration to force manual login and session refresh
       await signOut(auth);
       
-      // Update states to show login form with pre-filled email
       setLoginEmail(regData.email);
       setMode('login');
       
       toast({ 
         title: 'Registro exitoso', 
-        description: 'Su cuenta ha sido creada con los permisos de Jefe. Por favor, inicie sesión.' 
+        description: 'Su cuenta de Jefe ha sido creada con filtro distrital automático. Por favor, inicie sesión.' 
       });
     } catch (error: any) {
       toast({
@@ -205,7 +205,7 @@ export default function LoginPage() {
               {mode === 'login' ? 'Acceso al Sistema' : 'Registro de Jefe'}
             </CardTitle>
             <CardDescription className="text-center font-bold uppercase text-[10px]">
-              {mode === 'login' ? 'Ingrese sus credenciales oficiales' : 'Cree su perfil regional de supervisión'}
+              {mode === 'login' ? 'Ingrese sus credenciales oficiales' : 'Cree su perfil regional con filtro distrital automático'}
             </CardDescription>
           </CardHeader>
 
