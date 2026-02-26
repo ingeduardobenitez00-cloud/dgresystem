@@ -38,7 +38,9 @@ import {
   LayoutGrid,
   FileArchive,
   History,
-  Images
+  Images,
+  Activity,
+  ScrollText
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -84,6 +86,7 @@ export default function AppSidebar() {
       items: [
         { href: "/resumen", label: "Resumen Ubicaciones", icon: BarChart3 },
         { href: "/informe-general", label: "Informe General PDF", icon: FileArchive },
+        { href: "/conexiones", label: "Monitoreo Conexiones", icon: Activity },
       ]
     },
     {
@@ -106,6 +109,7 @@ export default function AppSidebar() {
       items: [
         { href: "/users", label: "Usuarios", icon: Users },
         { href: "/settings", label: "Configuración", icon: Settings },
+        { href: "/auditoria", label: "Auditoría Sistema", icon: ScrollText },
         { href: "/documentacion", label: "Documentación", icon: BookOpen },
       ]
     },
