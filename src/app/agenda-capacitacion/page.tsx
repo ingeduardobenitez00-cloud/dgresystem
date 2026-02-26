@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -243,7 +242,7 @@ export default function AgendaCapacitacionPage() {
         doc.setFontSize(16);
         doc.text("JUSTICIA ELECTORAL", pageWidth / 2, 20, { align: 'center' });
         doc.setFontSize(10);
-        doc.text("SISTEMA DE GESTIÓN INTEGRAL CIDEE", pageWidth / 2, 28, { align: 'center' });
+        doc.text("SISTEMA DE DIVULGACION", pageWidth / 2, 28, { align: 'center' });
         
         doc.setLineWidth(0.5);
         doc.line(20, 40, pageWidth - 20, 40);
