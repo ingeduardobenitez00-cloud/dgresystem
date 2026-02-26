@@ -97,30 +97,38 @@ export default function LoginPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, regData.email, regData.password);
       const user = userCredential.user;
 
+      // Definición de módulos para el rol Jefe
+      const jefeModules = [
+        'solicitud-capacitacion',
+        'agenda-capacitacion',
+        'control-movimiento-maquinas',
+        'denuncia-lacres',
+        'informe-divulgador',
+        'informe-semanal-puntos-fijos',
+        'encuesta-satisfaccion'
+      ];
+
+      // Construcción de permisos granulares (Ver, Guardar, PDF) para cada módulo
+      const jefePermissions = [
+        'assign_staff',
+        'district_filter'
+      ];
+
+      jefeModules.forEach(mod => {
+        jefePermissions.push(`${mod}:view`);
+        jefePermissions.push(`${mod}:add`);
+        jefePermissions.push(`${mod}:pdf`);
+      });
+
       // Create User Profile in Firestore with role 'jefe'
       await setDoc(doc(firestore, 'users', user.uid), {
-        username: regData.username.toUpperCase(),
+        username: regData.username, 
         email: regData.email,
         role: 'jefe',
         departamento: regData.departamento,
         distrito: regData.distrito,
-        modules: [
-          'solicitud-capacitacion',
-          'divulgadores',
-          'agenda-capacitacion',
-          'control-movimiento-maquinas',
-          'encuesta-satisfaccion',
-          'informe-divulgador',
-          'informe-semanal-puntos-fijos',
-          'estadisticas-capacitacion'
-        ],
-        permissions: [
-          'solicitud:add',
-          'informe:add',
-          'pdf:gen',
-          'assign_staff',
-          'district_filter'
-        ],
+        modules: jefeModules,
+        permissions: jefePermissions,
         fecha_registro: new Date().toISOString()
       });
 
@@ -133,7 +141,7 @@ export default function LoginPage() {
       
       toast({ 
         title: 'Registro exitoso', 
-        description: 'Su cuenta ha sido creada. Por favor, inicie sesión con sus credenciales.' 
+        description: 'Su cuenta ha sido creada con los permisos de Jefe. Por favor, inicie sesión.' 
       });
     } catch (error: any) {
       toast({
@@ -208,8 +216,9 @@ export default function LoginPage() {
                   <Label htmlFor="login-email" className="text-[10px] font-black uppercase">Correo Electrónico</Label>
                   <Input
                     id="login-email"
-                    type="email"
+                    type="text"
                     required
+                    autoCapitalize="none"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     className="font-bold border-2"
@@ -275,14 +284,15 @@ export default function LoginPage() {
                     required 
                     value={regData.username}
                     onChange={(e) => setRegData(p => ({...p, username: e.target.value}))}
-                    className="font-bold border-2 uppercase"
+                    className="font-bold border-2"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase">Correo Electrónico</Label>
                   <Input 
-                    type="email" 
+                    type="text" 
                     required 
+                    autoCapitalize="none"
                     value={regData.email}
                     onChange={(e) => setRegData(p => ({...p, email: e.target.value}))}
                     className="font-bold border-2"
