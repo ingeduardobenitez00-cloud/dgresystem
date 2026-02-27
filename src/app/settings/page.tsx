@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus, Trash2, X } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,10 +15,23 @@ import { type Dato, type Department, type District, type MaquinaVotacion } from 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, writeBatch, addDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, addDoc, deleteDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -62,14 +75,19 @@ export default function SettingsPage() {
 
   const departmentsWithDistricts = useMemo(() => {
     if (!datosData) return [];
-    const deptsMap: Map<string, Department & { districts: District[] }> = new Map();
+    const deptsMap: Map<string, Department & { districts: (District & { distrito_codigo?: string })[] }> = new Map();
     datosData.forEach((dato) => {
       if (!deptsMap.has(dato.departamento)) {
         deptsMap.set(dato.departamento, { id: dato.departamento, name: dato.departamento, districts: [] });
       }
       const dept = deptsMap.get(dato.departamento);
-      if (dept && !dept.districts.some(d => d.name === dato.distrito)) {
-        dept.districts.push({ id: dato.id!, departmentId: dato.departamento, name: dato.distrito });
+      if (dept && !dept.districts.some(d => d.id === dato.id)) {
+        dept.districts.push({ 
+            id: dato.id!, 
+            departmentId: dato.departamento, 
+            name: dato.distrito,
+            distrito_codigo: dato.distrito_codigo 
+        });
       }
     });
     return Array.from(deptsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -133,6 +151,16 @@ export default function SettingsPage() {
     } finally {
       setIsUploadingGeo(false);
     }
+  };
+
+  const handleDeleteDato = (id: string) => {
+    if (!firestore) return;
+    const docRef = doc(firestore, 'datos', id);
+    deleteDoc(docRef)
+      .then(() => toast({ title: "Registro eliminado" }))
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
+      });
   };
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,7 +312,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                                 <div className="col-span-2 space-y-1.5">
-                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Distrito</Label>
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Distrito / Oficina</Label>
                                     <Input 
                                         value={manualGeo.distrito} 
                                         onChange={e => setManualGeo({...manualGeo, distrito: e.target.value})} 
@@ -357,17 +385,39 @@ export default function SettingsPage() {
                                                 <div className="flex items-center gap-3">
                                                     <Badge variant="outline" className="h-6 w-10 justify-center font-black text-primary border-primary/20">{datosData.find(d => d.departamento === dept.name)?.departamento_codigo || '??'}</Badge>
                                                     {dept.name} 
-                                                    <span className="ml-2 text-[9px] text-muted-foreground font-bold">({dept.districts.length} DISTRITOS)</span>
+                                                    <span className="ml-2 text-[9px] text-muted-foreground font-bold">({dept.districts.length} REGISTROS)</span>
                                                 </div>
                                             </AccordionTrigger>
                                             <AccordionContent className="pb-6">
-                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                                                     {dept.districts.map(d => (
-                                                        <div key={d.id} className="flex flex-col p-3 rounded-xl bg-primary/[0.03] border-2 border-primary/5 hover:border-primary/20 transition-all">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className="text-[8px] font-black text-primary/40 uppercase">CÓD: {d.distrito_codigo || '??'}</span>
+                                                        <div key={d.id} className="flex items-center justify-between p-3 rounded-xl bg-primary/[0.03] border-2 border-primary/5 hover:border-primary/20 transition-all group">
+                                                            <div className="flex flex-col">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[8px] font-black text-primary/40 uppercase">CÓD: {d.distrito_codigo || '??'}</span>
+                                                                </div>
+                                                                <span className="text-[10px] font-black uppercase truncate">{d.name}</span>
                                                             </div>
-                                                            <span className="text-[10px] font-black uppercase truncate">{d.name}</span>
+                                                            
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle className="font-black uppercase">¿ELIMINAR UBICACIÓN?</AlertDialogTitle>
+                                                                        <AlertDialogDescription className="text-xs uppercase font-bold">
+                                                                            Esta acción borrará el registro de {d.name} en el departamento {dept.name}. Esto podría afectar a los selectores de otros módulos.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel className="font-black uppercase text-[10px]">CANCELAR</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => handleDeleteDato(d.id)} className="bg-destructive text-white font-black uppercase text-[10px]">ELIMINAR REGISTRO</AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
                                                         </div>
                                                     ))}
                                                 </div>
