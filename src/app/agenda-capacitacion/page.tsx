@@ -116,7 +116,7 @@ export default function AgendaCapacitacionPage() {
     return null;
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divuladoresQuery);
+  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
 
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
