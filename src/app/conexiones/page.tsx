@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -25,12 +25,19 @@ type PresenceRecord = {
   ruta_actual: string;
 };
 
-// Margen de 5 minutos para considerar a un usuario ONLINE (ajustado para clock skew)
-const ONLINE_THRESHOLD_MS = 300000;
+// Margen de 15 minutos para considerar a un usuario ONLINE (más flexible para clock skew)
+const ONLINE_THRESHOLD_MS = 900000;
 
 export default function ConexionesPage() {
   const { user: currentUser, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const [now, setNow] = useState(Date.now());
+
+  // Actualizador de tiempo local para que el estado Online/Offline sea reactivo
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const presenceQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading) return null;
@@ -50,13 +57,11 @@ export default function ConexionesPage() {
 
   const activeCount = useMemo(() => {
     if (!presenceData) return 0;
-    const now = Date.now();
     return presenceData.filter(p => {
       const last = p.ultima_actividad?.toMillis?.() || 0;
-      // Usamos un margen generoso para compensar posibles desfases de reloj entre cliente y servidor
       return Math.abs(now - last) < ONLINE_THRESHOLD_MS;
     }).length;
-  }, [presenceData]);
+  }, [presenceData, now]);
 
   if (isUserLoading || isLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -131,7 +136,7 @@ export default function ConexionesPage() {
                         <TableBody>
                             {sortedRecords.map((record) => {
                                 const lastMillis = record.ultima_actividad?.toMillis?.() || 0;
-                                const isOnline = Math.abs(Date.now() - lastMillis) < ONLINE_THRESHOLD_MS;
+                                const isOnline = Math.abs(now - lastMillis) < ONLINE_THRESHOLD_MS;
                                 
                                 return (
                                     <TableRow key={record.id} className="hover:bg-muted/20 transition-colors border-b">
@@ -192,12 +197,6 @@ export default function ConexionesPage() {
                 </div>
             </CardContent>
         </Card>
-
-        <div className="text-center pb-10">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 italic">
-                * El sistema utiliza telemetría de presencia para garantizar la seguridad institucional.
-            </p>
-        </div>
       </main>
     </div>
   );
