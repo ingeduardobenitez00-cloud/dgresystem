@@ -5,7 +5,7 @@ import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
 import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,16 @@ import Image from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import jsPDF from 'jspdf';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -31,6 +41,7 @@ export default function AgendaCapacitacionPage() {
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [cancellingSolicitud, setCancellingSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [deletingSolicitud, setDeletingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -133,8 +144,8 @@ export default function AgendaCapacitacionPage() {
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
 
     activeSolicitudes.forEach(sol => {
-      const deptName = sol.departamento;
-      const distName = sol.distrito;
+      const deptName = sol.departamento || 'SIN DEPARTAMENTO';
+      const distName = sol.distrito || 'SIN DISTRITO';
       const dato = datosData.find(d => d.departamento === deptName && d.distrito === distName);
       
       const deptCode = dato?.departamento_codigo || '00';
@@ -207,6 +218,24 @@ export default function AgendaCapacitacionPage() {
         })
         .catch(async (error) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData }));
+            setIsUpdating(false);
+        });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingSolicitud || !firestore) return;
+    setIsUpdating(true);
+    
+    const docRef = doc(firestore, 'solicitudes-capacitacion', deletingSolicitud.id);
+    
+    deleteDoc(docRef)
+        .then(() => {
+            toast({ title: "Actividad Eliminada", description: "El registro ha sido borrado permanentemente." });
+            setDeletingSolicitud(null);
+            setIsUpdating(false);
+        })
+        .catch(async (error) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
             setIsUpdating(false);
         });
   };
@@ -447,6 +476,17 @@ export default function AgendaCapacitacionPage() {
                                                         >
                                                             <CalendarX className="h-4 w-4" />
                                                         </Button>
+                                                        {profile?.role === 'admin' && (
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="icon" 
+                                                                className="h-11 w-11 rounded-xl border-2 border-destructive/20 text-destructive hover:bg-destructive hover:text-white transition-all"
+                                                                onClick={() => setDeletingSolicitud(item)}
+                                                                title="Eliminar Permanente"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                     
                                                     <div className="flex gap-2 w-full max-w-[180px]">
@@ -493,7 +533,7 @@ export default function AgendaCapacitacionPage() {
         <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
           <DialogHeader className="bg-black text-white p-6">
             <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
-                <UserPlus className="h-4 w-4" /> ASIGNAR PERSONAL - {assigningSolicitud?.distrito.toUpperCase()}
+                <UserPlus className="h-4 w-4" /> ASIGNAR PERSONAL - {assigningSolicitud?.distrito?.toUpperCase() || 'SIN DISTRITO'}
             </DialogTitle>
           </DialogHeader>
           <div className="p-6 space-y-4 bg-white">
@@ -510,7 +550,7 @@ export default function AgendaCapacitacionPage() {
               {filteredDivul.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 opacity-20 text-center">
                     <UserPlus className="h-12 w-12 mb-2 mx-auto" />
-                    <p className="text-[10px] font-black uppercase">No se encontró personal registrado en {assigningSolicitud?.distrito}</p>
+                    <p className="text-[10px] font-black uppercase">No se encontró personal registrado en {assigningSolicitud?.distrito || 'este distrito'}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -566,6 +606,30 @@ export default function AgendaCapacitacionPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialogo para Eliminar Actividad (Admin) */}
+      <AlertDialog open={!!deletingSolicitud} onOpenChange={(o) => !o && setDeletingSolicitud(null)}>
+        <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-black uppercase tracking-tight text-xl flex items-center gap-2">
+                <Trash2 className="h-6 w-6 text-destructive" /> ¿ELIMINAR DEFINITIVAMENTE?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs font-medium uppercase leading-relaxed text-muted-foreground pt-2">
+                Esta acción es irreversible. Se borrarán todos los datos vinculados a la actividad de {deletingSolicitud?.lugar_local}. Use esta opción solo para corregir errores de carga.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="pt-6">
+            <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
+            <AlertDialogAction 
+                onClick={handleConfirmDelete} 
+                className="bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8"
+                disabled={isUpdating}
+            >
+                {isUpdating ? <Loader2 className="animate-spin h-4 w-4" /> : "SÍ, ELIMINAR REGISTRO"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialogo para Código QR de Encuesta */}
       <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
