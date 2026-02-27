@@ -115,7 +115,7 @@ export default function ControlMovimientoMaquinasPage() {
 
   // Carga de movimientos para filtrar el selector
   const movimientosQueryAll = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: allMovimientos } = useCollection<MovimientoMaquina>(movimientosQueryAll);
+  const { data: allMovimientos } = useCollection<MovimientoMaquina>(movementsQueryAll);
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems) return null;
@@ -144,17 +144,40 @@ export default function ControlMovimientoMaquinasPage() {
   }, [agendaItems, selectedSolicitudId]);
 
   useEffect(() => {
-    if (currentMovimiento?.salida) {
-        setSalidaData({
-            codigo_maquina: currentMovimiento.salida.codigo_maquina || '',
-            fecha: currentMovimiento.salida.fecha || '',
-            hora: currentMovimiento.salida.hora || '',
-            pendrive_serie: (currentMovimiento.salida as any).pendrive_serie || '',
-            credencial: (currentMovimiento.salida as any).credencial || false,
-            auricular: (currentMovimiento.salida as any).auricular || false,
-            acrilico: (currentMovimiento.salida as any).acrilico || false,
-            boletas: (currentMovimiento.salida as any).boletas || false,
-        });
+    if (currentMovimiento) {
+        const s = currentMovimiento.salida as any;
+        if (s) {
+            setSalidaData({
+                codigo_maquina: s.codigo_maquina || '',
+                fecha: s.fecha || '',
+                hora: s.hora || '',
+                pendrive_serie: s.pendrive_serie || '',
+                credencial: s.credencial || false,
+                auricular: s.auricular || false,
+                acrilico: s.acrilico || false,
+                boletas: s.boletas || false,
+            });
+        }
+
+        const d = currentMovimiento.devolucion as any;
+        if (d) {
+            setDevolucionData({
+                fecha: d.fecha || '',
+                hora: d.hora || '',
+                lacre_estado: d.lacre_estado || 'correcto',
+                pendrive_serie: d.pendrive_serie || '',
+                credencial: d.credencial || false,
+                auricular: d.auricular || false,
+                acrilico: d.acrilico || false,
+                boletas: d.boletas || false,
+            });
+        } else if (s) {
+            // Si hay salida pero no devolución registrada aún, pre-cargar el pendrive de la salida automáticamente
+            setDevolucionData(prev => ({
+                ...prev,
+                pendrive_serie: s.pendrive_serie || ''
+            }));
+        }
     }
   }, [currentMovimiento]);
 
