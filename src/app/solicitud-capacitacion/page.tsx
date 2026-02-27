@@ -554,7 +554,11 @@ export default function SolicitudCapacitacionPage() {
               </CardContent>
             </Card>
 
-            <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-20 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-2xl tracking-widest shadow-2xl">
+            <Button 
+              onClick={handleSubmit} 
+              disabled={isSubmitting} 
+              className="w-full h-20 bg-black hover:bg-black/90 text-white text-xs sm:text-sm md:text-base font-black uppercase rounded-2xl tracking-widest shadow-2xl px-4"
+            >
               {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />}
               GUARDAR Y AGENDAR ACTIVIDAD
             </Button>
