@@ -27,6 +27,12 @@ export const dashboardMenuItems = [
     description: 'Reporte de adulteración de los lacres de seguridad.',
   },
   {
+    href: '/informe-movimientos-denuncias',
+    label: 'Trazabilidad y Alertas',
+    icon: ShieldAlert,
+    description: 'Monitor central de movimientos con detección de irregularidades.',
+  },
+  {
     href: '/informe-divulgador',
     label: 'Informe del Divulgador',
     icon: UserCheck,

@@ -19,7 +19,7 @@ const MODULE_GROUPS = [
   {
     label: "CIDEE - CAPACITACIONES",
     description: "Gestión de solicitudes, agendas, movimientos de equipos, denuncias de lacres e informes de capacitación nacional.",
-    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'encuesta-satisfaccion', 'informe-divulgador', 'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion', 'archivo-capacitaciones']
+    modules: ['solicitud-capacitacion', 'divulgadores', 'agenda-capacitacion', 'control-movimiento-maquinas', 'denuncia-lacres', 'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'estadisticas-capacitacion', 'archivo-capacitaciones']
   },
   {
     label: "Registros Electorales",

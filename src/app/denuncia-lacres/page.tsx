@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, Globe, FileText, Printer, X } from 'lucide-react';
+import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, Globe, FileText, Printer, X, ImageIcon } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +20,7 @@ import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 
 function DenunciaContent() {
   const { user, isUserLoading } = useUser();
@@ -30,9 +31,16 @@ function DenunciaContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [denunciaFoto, setDenunciaFoto] = useState<string | null>(null);
+  const [respaldoFoto, setRespaldoFoto] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(agendaId);
   
+  // Camera States
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [activeCameraTarget, setActiveCameraTarget] = useState<'evidencia' | 'respaldo' | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   const [formData, setFormData] = useState({
     nro_acta: '',
     detalles: '',
@@ -102,11 +110,54 @@ function DenunciaContent() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const startCamera = async (target: 'evidencia' | 'respaldo') => {
+    setActiveCameraTarget(target);
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', aspectRatio: { ideal: 0.75 } } 
+      });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error de Cámara" });
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+    setActiveCameraTarget(null);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && activeCameraTarget) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.8);
+        if (activeCameraTarget === 'evidencia') setDenunciaFoto(dataUri);
+        else setRespaldoFoto(dataUri);
+        stopCamera();
+      }
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'evidencia' | 'respaldo') => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setDenunciaFoto(reader.result as string);
+      reader.onloadend = () => {
+        if (target === 'evidencia') setDenunciaFoto(reader.result as string);
+        else setRespaldoFoto(reader.result as string);
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -117,6 +168,14 @@ function DenunciaContent() {
         toast({ variant: "destructive", title: "Faltan datos" });
         return;
     }
+    if (!denunciaFoto || !respaldoFoto) {
+        toast({ 
+            variant: "destructive", 
+            title: "Faltan imágenes obligatorias", 
+            description: "Debe adjuntar tanto la evidencia del daño como el respaldo documental físico." 
+        });
+        return;
+    }
 
     setIsSubmitting(true);
     const docData = {
@@ -125,7 +184,8 @@ function DenunciaContent() {
       departamento: selectedSolicitud.departamento,
       distrito: selectedSolicitud.distrito,
       lugar: selectedSolicitud.lugar_local,
-      foto_evidencia: denunciaFoto || '',
+      foto_evidencia: denunciaFoto,
+      foto_respaldo_documental: respaldoFoto,
       usuario_id: user.uid,
       username: user.profile?.username || '',
       divulgador_nombre: selectedSolicitud.divulgador_nombre || '',
@@ -139,6 +199,7 @@ function DenunciaContent() {
         toast({ title: "¡Denuncia Registrada!" });
         setFormData(p => ({ ...p, nro_acta: '', detalles: '' }));
         setDenunciaFoto(null);
+        setRespaldoFoto(null);
         setIsSubmitting(false);
       })
       .catch(async (error) => {
@@ -207,7 +268,6 @@ function DenunciaContent() {
     y += 4;
     doc.roundedRect(margin, y, pageWidth - (margin * 2), 10, 5, 5);
     doc.setFont('helvetica', 'normal');
-    // USAR DATOS DEL DIVULGADOR ASIGNADO COMO RESPONSABLE SEGÚN SOLICITUD
     doc.text((selectedSolicitud.divulgador_nombre || '').toUpperCase(), margin + 5, y + 6.5);
 
     y += 18;
@@ -240,7 +300,6 @@ function DenunciaContent() {
     doc.roundedRect(margin, y, pageWidth - (margin * 2), 15, 5, 5);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    // USAR EL DETALLE DE LA ADULTERACIÓN ESCRITO EN EL FORMULARIO
     const splitDetalles = doc.splitTextToSize(formData.detalles.toUpperCase(), pageWidth - (margin * 2) - 10);
     doc.text(splitDetalles, margin + 5, y + 6);
 
@@ -261,7 +320,7 @@ function DenunciaContent() {
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
       <Header title="Denuncia de Lacres" />
-      <main className="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full">
+      <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full">
         <div className="flex items-center justify-between mb-8">
             <div>
                 <h1 className="text-3xl font-black tracking-tight text-primary uppercase">Denuncia de Adulteración</h1>
@@ -307,28 +366,31 @@ function DenunciaContent() {
             </div>
 
             {selectedSolicitud && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                <div className="space-y-8 animate-in fade-in duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase text-primary">Nº de Acta de Irregularidad</Label>
+                            <Input 
+                                name="nro_acta"
+                                value={formData.nro_acta} 
+                                onChange={handleInputChange}
+                                placeholder="EJ: ACTA CIDEE 001/2026"
+                                className="font-black uppercase border-2 h-12"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground">Fecha Reporte</Label>
+                                <Input value={formatDateToDDMMYYYY(formData.fecha_denuncia)} readOnly className="bg-muted/30 font-bold h-12" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground">Hora Reporte</Label>
+                                <Input value={formData.hora_denuncia} readOnly className="bg-muted/30 font-bold h-12" />
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-primary">Nº de Acta de Irregularidad</Label>
-                        <Input 
-                            name="nro_acta"
-                            value={formData.nro_acta} 
-                            onChange={handleInputChange}
-                            placeholder="EJ: ACTA CIDEE 001/2026"
-                            className="font-black uppercase border-2 h-12"
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Fecha Reporte</Label>
-                            <Input value={formatDateToDDMMYYYY(formData.fecha_denuncia)} readOnly className="bg-muted/30 font-bold h-12" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Hora Reporte</Label>
-                            <Input value={formData.hora_denuncia} readOnly className="bg-muted/30 font-bold h-12" />
-                        </div>
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
                         <Label className="text-[10px] font-black uppercase text-primary">Detalles de la Adulteración (MOTIVO DEL DESLACRE)</Label>
                         <Textarea 
                             name="detalles"
@@ -338,22 +400,67 @@ function DenunciaContent() {
                             className="min-h-[150px] font-medium border-2 uppercase"
                         />
                     </div>
-                    <div className="md:col-span-2 space-y-4">
-                        <Label className="text-[10px] font-black uppercase text-primary">Evidencia Fotográfica del Daño</Label>
-                        {denunciaFoto ? (
-                            <div className="relative aspect-video w-full max-w-lg rounded-2xl overflow-hidden border-4 border-white shadow-2xl group">
-                                <Image src={denunciaFoto} alt="Denuncia" fill className="object-cover" />
-                                <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDenunciaFoto(null)}>
-                                    <Trash2 className="h-5 w-5" />
-                                </Button>
-                            </div>
-                        ) : (
-                            <label className="flex flex-col items-center justify-center h-48 border-4 border-dashed rounded-3xl border-destructive/20 cursor-pointer hover:bg-destructive/5 transition-all bg-white">
-                                <Camera className="h-12 w-12 text-destructive opacity-30 mb-2" />
-                                <span className="font-black uppercase text-xs text-destructive opacity-60">Capturar Evidencia Visual</span>
-                                <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
-                            </label>
-                        )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* EVIDENCIA DEL DAÑO */}
+                        <div className="space-y-4">
+                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
+                                <FileWarning className="h-4 w-4" /> Evidencia Fotográfica del Daño *
+                            </Label>
+                            {denunciaFoto ? (
+                                <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
+                                    <Image src={denunciaFoto} alt="Evidencia" fill className="object-cover" />
+                                    <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDenunciaFoto(null)}>
+                                        <Trash2 className="h-5 w-5" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div 
+                                        className="flex flex-col items-center justify-center h-40 border-4 border-dashed rounded-3xl border-destructive/20 cursor-pointer hover:bg-destructive/5 transition-all bg-white"
+                                        onClick={() => startCamera('evidencia')}
+                                    >
+                                        <Camera className="h-10 w-10 text-destructive opacity-30 mb-2" />
+                                        <span className="font-black uppercase text-[10px] text-destructive opacity-60">Capturar Daño</span>
+                                    </div>
+                                    <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted transition-all text-muted-foreground">
+                                        <ImageIcon className="h-4 w-4" />
+                                        <span className="text-[10px] font-black uppercase">Subir de Galería</span>
+                                        <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'evidencia')} />
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* RESPALDO DOCUMENTAL */}
+                        <div className="space-y-4">
+                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
+                                <FileText className="h-4 w-4" /> Respaldo Documental Formulario Físico *
+                            </Label>
+                            {respaldoFoto ? (
+                                <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
+                                    <Image src={respaldoFoto} alt="Respaldo" fill className="object-cover" />
+                                    <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoFoto(null)}>
+                                        <Trash2 className="h-5 w-5" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div 
+                                        className="flex flex-col items-center justify-center h-40 border-4 border-dashed rounded-3xl border-primary/20 cursor-pointer hover:bg-primary/5 transition-all bg-white"
+                                        onClick={() => startCamera('respaldo')}
+                                    >
+                                        <Camera className="h-10 w-10 text-primary opacity-30 mb-2" />
+                                        <span className="font-black uppercase text-[10px] text-primary opacity-60">Capturar Formulario</span>
+                                    </div>
+                                    <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted transition-all text-muted-foreground">
+                                        <ImageIcon className="h-4 w-4" />
+                                        <span className="text-[10px] font-black uppercase">Subir de Galería</span>
+                                        <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'respaldo')} />
+                                    </label>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
@@ -366,6 +473,19 @@ function DenunciaContent() {
           </CardFooter>
         </Card>
       </main>
+
+      <Dialog open={isCameraOpen} onOpenChange={(o) => !o && stopCamera()}>
+        <DialogContent className="max-w-md p-0 overflow-hidden border-none bg-black rounded-[2rem]">
+          <div className="relative aspect-[3/4] w-full bg-black flex items-center justify-center">
+            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+            <div className="absolute inset-8 border-2 border-white/20 rounded-xl pointer-events-none border-dashed" />
+          </div>
+          <DialogFooter className="p-8 bg-black/80 flex flex-row items-center justify-between gap-4">
+            <Button variant="outline" className="rounded-full h-14 w-14 border-white/20 bg-white/10 text-white" onClick={stopCamera}><X className="h-6 w-6" /></Button>
+            <Button className="flex-1 h-16 rounded-full bg-white text-black font-black uppercase text-sm shadow-2xl" onClick={takePhoto}>CAPTURAR</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
