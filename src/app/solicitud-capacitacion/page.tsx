@@ -280,9 +280,17 @@ export default function SolicitudCapacitacionPage() {
   const handleSubmit = () => {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
-    if (!entidadFinal || !formData.lugar_local || !formData.nombre_completo) {
-      toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
+    
+    // Validación de campos obligatorios incluyendo la foto de respaldo
+    if (!entidadFinal || !formData.lugar_local || !formData.nombre_completo || !photoDataUri) {
+      toast({ 
+        variant: "destructive", 
+        title: "Faltan datos obligatorios",
+        description: !photoDataUri ? "Debe capturar o subir una foto del respaldo documental." : "Complete todos los campos del formulario."
+      }); 
+      return;
     }
+
     setIsSubmitting(true);
     
     const docData = { 
