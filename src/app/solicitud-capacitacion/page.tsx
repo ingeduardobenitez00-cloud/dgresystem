@@ -55,7 +55,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO } from "date-fns";
@@ -336,15 +335,16 @@ export default function SolicitudCapacitacionPage() {
     const doc = new jsPDF();
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
 
     // Lógica de Fecha Dinámica
     const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
     const hoy = new Date();
     const dia = hoy.getDate().toString().padStart(2, '0');
     const mesEscrito = meses[hoy.getMonth()].toUpperCase();
-    const departamentoConCodigo = (profile?.departamento || '').toUpperCase();
-    const distritoNombre = (profile?.distrito || '').toUpperCase();
+    
+    // Limpieza de nombres para la proforma (sin códigos)
+    const deptoNombre = (profile?.departamento || '').replace(/^\d+\s*-\s*/, '').toUpperCase();
+    const distritoNombre = (profile?.distrito || '').replace(/^\d+\s*-\s*/, '').toUpperCase();
 
     // 1. Logos and Header
     doc.setFontSize(7);
@@ -362,15 +362,14 @@ export default function SolicitudCapacitacionPage() {
     doc.setFont('helvetica', 'normal');
     doc.text("Custodio de la Voluntad Popular", pageWidth / 2, 25, { align: "center" });
 
-    // Right side tricolor bars
     const barWidth = 3;
     const barHeight = 15;
     const barX = pageWidth - margin - 10;
-    doc.setFillColor(200, 0, 0); // Red
+    doc.setFillColor(200, 0, 0); 
     doc.rect(barX, 10, barWidth, barHeight, 'F');
-    doc.setFillColor(240, 240, 240); // Whiteish
+    doc.setFillColor(240, 240, 240); 
     doc.rect(barX + barWidth, 10, barWidth, barHeight, 'F');
-    doc.setFillColor(0, 0, 200); // Blue
+    doc.setFillColor(0, 0, 200); 
     doc.rect(barX + (barWidth * 2), 10, barWidth, barHeight, 'F');
 
     // 2. Title Box
@@ -380,19 +379,19 @@ export default function SolicitudCapacitacionPage() {
     doc.setFont('helvetica', 'bold');
     doc.text("ANEXO V – PROFORMA DE SOLICITUD", pageWidth / 2, 40.5, { align: "center" });
 
-    // 3. Date Line Actualizada
+    // 3. Date Line Actualizada (Solo Nombre Depto)
     let y = 55;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${departamentoConCodigo}, ${dia} de ${mesEscrito} de 2026`, pageWidth - margin, y, { align: 'right' });
+    doc.text(`${deptoNombre}, ${dia} de ${mesEscrito} de 2026`, pageWidth - margin, y, { align: 'right' });
 
-    // 4. Recipient Actualizado
+    // 4. Recipient Actualizado (En Mayúsculas)
     y += 15;
     doc.text("Señor/a", margin, y);
     y += 6;
-    doc.text(`Jefes del Registro Electoral de ${distritoNombre}`, margin, y);
-    y += 10;
     doc.setFont('helvetica', 'bold');
+    doc.text(`JEFES DEL REGISTRO ELECTORAL de ${distritoNombre}`, margin, y);
+    y += 10;
     doc.text("Presente:", margin, y);
 
     // 5. Body Text
@@ -427,7 +426,7 @@ export default function SolicitudCapacitacionPage() {
       ["LUGAR Y/O LOCAL", `: ${formData.lugar_local.toUpperCase()}`],
       ["DIRECCIÓN", `CALLE: ${formData.direccion_calle.toUpperCase()}`],
       ["BARRIO - COMPAÑIA", `: ${formData.barrio_compania.toUpperCase()}`],
-      ["DISTRITO", `: ${profile?.distrito?.toUpperCase() || ''}`]
+      ["DISTRITO", `: ${distritoNombre}`]
     ];
 
     autoTable(doc, {
@@ -454,7 +453,6 @@ export default function SolicitudCapacitacionPage() {
     if(formData.rol_solicitante === 'otro') doc.text("X", margin + 99, y);
 
     y += 5;
-    // 9. Solicitante Table
     const applicantData = [
       ["NOMBRE COMPLETO", `: ${formData.nombre_completo.toUpperCase()}`],
       ["C.I.C. N.º", `: ${formData.cedula}`],
@@ -475,7 +473,6 @@ export default function SolicitudCapacitacionPage() {
 
     y = (doc as any).lastAutoTable.finalY;
 
-    // 10. Observation Box
     doc.setFillColor(230, 230, 210);
     doc.rect(margin, y, pageWidth - (margin * 2), 15, 'F');
     doc.rect(margin, y, pageWidth - (margin * 2), 15, 'S');
@@ -486,13 +483,11 @@ export default function SolicitudCapacitacionPage() {
     doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", pageWidth / 2, y + 8, { align: 'center' });
     doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", pageWidth / 2, y + 12, { align: 'center' });
 
-    // 11. Closing
     y += 25;
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, y);
 
-    // 12. Signature
     y += 30;
     doc.text("Firma del Solicitante: ________________________________________________", margin, y);
 
