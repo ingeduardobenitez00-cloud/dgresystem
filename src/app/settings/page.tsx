@@ -5,8 +5,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,7 +15,7 @@ import { type Dato, type Department, type District, type MaquinaVotacion } from 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, writeBatch, deleteDoc, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, doc, writeBatch, addDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -31,12 +32,18 @@ export default function SettingsPage() {
   const [isUploadingGeo, setIsUploadingGeo] = useState(false);
   const [previewGeo, setPreviewGeo] = useState<Dato[]>([]);
 
+  const [manualGeo, setManualGeo] = useState({
+    departamento: '',
+    departamento_codigo: '',
+    distrito: '',
+    distrito_codigo: ''
+  });
+
   const [fileNameMaq, setFileNameMaq] = useState<string | null>(null);
   const [isParsingMaq, setIsParsingMaq] = useState(false);
   const [isUploadingMaq, setIsUploadingMaq] = useState(false);
   const [previewMaq, setPreviewMaq] = useState<Omit<MaquinaVotacion, 'id' | 'fecha_registro'>[]>([]);
 
-  // Removed orderBy to avoid index issues during the fix
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: rawDatosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
@@ -103,6 +110,29 @@ export default function SettingsPage() {
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleManualSaveGeo = async () => {
+    if (!firestore || !manualGeo.departamento || !manualGeo.distrito) {
+      toast({ variant: 'destructive', title: 'Faltan datos obligatorios' });
+      return;
+    }
+    setIsUploadingGeo(true);
+    try {
+      const docData = {
+        departamento: manualGeo.departamento.toUpperCase().trim(),
+        departamento_codigo: manualGeo.departamento_codigo.trim(),
+        distrito: manualGeo.distrito.toUpperCase().trim(),
+        distrito_codigo: manualGeo.distrito_codigo.trim()
+      };
+      await addDoc(collection(firestore, 'datos'), docData);
+      toast({ title: 'Ubicación agregada con éxito' });
+      setManualGeo({ departamento: '', departamento_codigo: '', distrito: '', distrito_codigo: '' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al guardar' });
+    } finally {
+      setIsUploadingGeo(false);
+    }
   };
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,62 +251,134 @@ export default function SettingsPage() {
           </TabsList>
 
           <TabsContent value="geografia" className="space-y-6 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <Card className="lg:col-span-1 shadow-lg h-fit">
-                    <CardHeader className="bg-primary/5 border-b">
-                        <CardTitle className="text-xs font-black uppercase">Importar Estructura</CardTitle>
-                        <CardDescription className="text-[10px] uppercase font-bold">Suba el archivo Excel oficial de Dptos y Distritos.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="border-2 border-dashed rounded-xl p-8 bg-muted/30 text-center hover:bg-white transition-all">
-                            <label htmlFor="geo-up" className="cursor-pointer flex flex-col items-center">
-                                <FileUp className="h-10 w-10 mb-2 text-primary opacity-40" />
-                                <span className="text-[10px] font-black uppercase text-primary">Seleccionar Excel</span>
-                            </label>
-                            <Input id="geo-up" type="file" className="hidden" accept=".xlsx,.csv" onChange={handleGeoFile} disabled={isParsingGeo || isUploadingGeo} />
-                            {fileNameGeo && <p className="mt-4 text-[10px] font-black uppercase text-green-600 flex items-center justify-center gap-1"><CheckCircle2 className="h-3 w-3"/> {fileNameGeo}</p>}
-                        </div>
-                        {previewGeo.length > 0 && (
-                            <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                                <p className="text-[10px] font-black uppercase text-primary">Registros detectados: {previewGeo.length}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-4 space-y-6">
+                    {/* Registro Manual */}
+                    <Card className="shadow-lg border-t-4 border-t-black">
+                        <CardHeader className="bg-muted/10 border-b">
+                            <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
+                                <Plus className="h-4 w-4" /> Registro Manual
+                            </CardTitle>
+                            <CardDescription className="text-[10px] uppercase font-bold">Agregue una ubicación individual.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-6 space-y-4">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-2 space-y-1.5">
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Departamento</Label>
+                                    <Input 
+                                        value={manualGeo.departamento} 
+                                        onChange={e => setManualGeo({...manualGeo, departamento: e.target.value})} 
+                                        placeholder="Ej: CAAGUAZU" 
+                                        className="h-10 font-bold uppercase border-2 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Cód.</Label>
+                                    <Input 
+                                        value={manualGeo.departamento_codigo} 
+                                        onChange={e => setManualGeo({...manualGeo, departamento_codigo: e.target.value})} 
+                                        placeholder="05" 
+                                        className="h-10 font-bold border-2 text-xs text-center"
+                                    />
+                                </div>
                             </div>
-                        )}
-                    </CardContent>
-                    <CardFooter className="bg-muted/30 border-t p-4">
-                        <Button className="w-full font-black uppercase" onClick={handleSaveGeo} disabled={previewGeo.length === 0 || isUploadingGeo}>
-                            {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Database className="mr-2 h-4 w-4" />}
-                            GUARDAR GEOGRAFÍA
-                        </Button>
-                    </CardFooter>
-                </Card>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-2 space-y-1.5">
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Distrito</Label>
+                                    <Input 
+                                        value={manualGeo.distrito} 
+                                        onChange={e => setManualGeo({...manualGeo, distrito: e.target.value})} 
+                                        placeholder="Ej: CORONEL OVIEDO" 
+                                        className="h-10 font-bold uppercase border-2 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Cód.</Label>
+                                    <Input 
+                                        value={manualGeo.distrito_codigo} 
+                                        onChange={e => setManualGeo({...manualGeo, distrito_codigo: e.target.value})} 
+                                        placeholder="01" 
+                                        className="h-10 font-bold border-2 text-xs text-center"
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                        <CardFooter className="bg-muted/10 border-t p-4">
+                            <Button className="w-full font-black uppercase text-[10px] h-11" onClick={handleManualSaveGeo} disabled={isUploadingGeo || !manualGeo.departamento || !manualGeo.distrito}>
+                                {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                                AGREGAR UBICACIÓN
+                            </Button>
+                        </CardFooter>
+                    </Card>
 
-                <Card className="lg:col-span-2 shadow-lg">
-                    <CardHeader className="bg-muted/30 border-b">
-                        <CardTitle className="text-xs font-black uppercase">Estructura Actual</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <ScrollArea className="h-[500px]">
-                            <Accordion type="single" collapsible className="w-full">
-                                {departmentsWithDistricts.map((dept) => (
-                                    <AccordionItem key={dept.id} value={dept.id} className="px-6 border-b">
-                                        <AccordionTrigger className="hover:no-underline font-black uppercase text-xs">
-                                            {dept.name} <span className="ml-2 text-[9px] text-muted-foreground">({dept.districts.length} Distritos)</span>
-                                        </AccordionTrigger>
-                                        <AccordionContent className="pb-6">
-                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pt-2">
-                                                {dept.districts.map(d => (
-                                                    <Badge key={d.id} variant="secondary" className="text-[9px] font-black uppercase py-1 px-3 border-none bg-primary/5 text-primary">
-                                                        {d.name}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                ))}
-                            </Accordion>
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
+                    {/* Importar Excel */}
+                    <Card className="shadow-lg border-dashed">
+                        <CardHeader className="bg-primary/5 border-b">
+                            <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
+                                <FileUp className="h-4 w-4" /> Importar Estructura
+                            </CardTitle>
+                            <CardDescription className="text-[10px] uppercase font-bold">Suba el archivo Excel oficial.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                            <div className="border-2 border-dashed rounded-xl p-8 bg-muted/30 text-center hover:bg-white transition-all">
+                                <label htmlFor="geo-up" className="cursor-pointer flex flex-col items-center">
+                                    <FileUp className="h-10 w-10 mb-2 text-primary opacity-40" />
+                                    <span className="text-[10px] font-black uppercase text-primary">Seleccionar Excel</span>
+                                </label>
+                                <Input id="geo-up" type="file" className="hidden" accept=".xlsx,.csv" onChange={handleGeoFile} disabled={isParsingGeo || isUploadingGeo} />
+                                {fileNameGeo && <p className="mt-4 text-[10px] font-black uppercase text-green-600 flex items-center justify-center gap-1"><CheckCircle2 className="h-3 w-3"/> {fileNameGeo}</p>}
+                            </div>
+                            {previewGeo.length > 0 && (
+                                <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                                    <p className="text-[10px] font-black uppercase text-primary">Registros detectados: {previewGeo.length}</p>
+                                </div>
+                            )}
+                        </CardContent>
+                        <CardFooter className="bg-muted/30 border-t p-4">
+                            <Button className="w-full font-black uppercase text-[10px] h-11" onClick={handleSaveGeo} disabled={previewGeo.length === 0 || isUploadingGeo}>
+                                {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Database className="mr-2 h-4 w-4" />}
+                                GUARDAR LOTE EXCEL
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+
+                <div className="lg:col-span-8">
+                    <Card className="shadow-lg border-none overflow-hidden h-full">
+                        <CardHeader className="bg-muted/30 border-b">
+                            <CardTitle className="text-xs font-black uppercase tracking-widest">Estructura Geográfica Actual</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <ScrollArea className="h-[600px]">
+                                <Accordion type="single" collapsible className="w-full">
+                                    {departmentsWithDistricts.map((dept) => (
+                                        <AccordionItem key={dept.id} value={dept.id} className="px-6 border-b hover:bg-muted/5 transition-colors">
+                                            <AccordionTrigger className="hover:no-underline font-black uppercase text-xs py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <Badge variant="outline" className="h-6 w-10 justify-center font-black text-primary border-primary/20">{datosData.find(d => d.departamento === dept.name)?.departamento_codigo || '??'}</Badge>
+                                                    {dept.name} 
+                                                    <span className="ml-2 text-[9px] text-muted-foreground font-bold">({dept.districts.length} DISTRITOS)</span>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="pb-6">
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+                                                    {dept.districts.map(d => (
+                                                        <div key={d.id} className="flex flex-col p-3 rounded-xl bg-primary/[0.03] border-2 border-primary/5 hover:border-primary/20 transition-all">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-[8px] font-black text-primary/40 uppercase">CÓD: {d.distrito_codigo || '??'}</span>
+                                                            </div>
+                                                            <span className="text-[10px] font-black uppercase truncate">{d.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))}
+                                </Accordion>
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
           </TabsContent>
 
