@@ -116,7 +116,7 @@ export default function AgendaCapacitacionPage() {
     return null;
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
+  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divuladoresQuery);
 
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
@@ -358,6 +358,11 @@ export default function AgendaCapacitacionPage() {
                                 const inf = informesData?.find(i => i.solicitud_id === item.id);
                                 const hasAlert = isPast && (!mov?.devolucion || !inf);
 
+                                const missing = [];
+                                if (!mov?.devolucion) missing.push("DEVOLUCIÓN DE MÁQUINA");
+                                if (!inf) missing.push("INFORME ANEXO III");
+                                const alertLabel = `ALERTA: ACTIVIDAD VENCIDA - FALTA COMPLETAR: ${missing.join(" Y ")}`;
+
                                 return (
                                     <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : "border-muted/20 bg-white")}>
                                         <CardContent className="p-8">
@@ -365,7 +370,7 @@ export default function AgendaCapacitacionPage() {
                                                 <div className="mb-6 bg-destructive text-white px-4 py-2 rounded-xl flex items-center justify-between">
                                                     <div className="flex items-center gap-3">
                                                         <FileWarning className="h-5 w-5" />
-                                                        <span className="font-black uppercase text-[10px] tracking-widest">ALERTA: ACTIVIDAD VENCIDA SIN CERRAR</span>
+                                                        <span className="font-black uppercase text-[10px] tracking-widest">{alertLabel}</span>
                                                     </div>
                                                 </div>
                                             )}
