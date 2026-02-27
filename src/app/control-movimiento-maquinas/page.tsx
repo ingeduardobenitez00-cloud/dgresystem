@@ -465,14 +465,20 @@ export default function ControlMovimientoMaquinasPage() {
                             disabled={!!currentMovimiento?.devolucion}
                             className="flex gap-10"
                         >
-                            <div className="flex flex-col items-center gap-2 cursor-pointer">
+                            <div 
+                                className="flex flex-col items-center gap-2 cursor-pointer"
+                                onClick={() => !currentMovimiento?.devolucion && setDevolucionData(p => ({...p, lacre_estado: 'correcto'}))}
+                            >
                                 <div className={cn("h-10 w-10 rounded-full border-4 flex items-center justify-center transition-all", (devolucionData.lacre_estado === 'correcto' || currentMovimiento?.devolucion?.lacre_estado === 'correcto') ? "border-black bg-black text-white" : "border-muted")}>
                                     <RadioGroupItem value="correcto" className="hidden" />
                                     <Check className="h-6 w-6 stroke-[4]" />
                                 </div>
                                 <span className="text-[9px] font-black uppercase">CORRECTO</span>
                             </div>
-                            <div className="flex flex-col items-center gap-2 cursor-pointer">
+                            <div 
+                                className="flex flex-col items-center gap-2 cursor-pointer"
+                                onClick={() => !currentMovimiento?.devolucion && setDevolucionData(p => ({...p, lacre_estado: 'violentado'}))}
+                            >
                                 <div className={cn("h-10 w-10 rounded-full border-4 flex items-center justify-center transition-all", (devolucionData.lacre_estado === 'violentado' || currentMovimiento?.devolucion?.lacre_estado === 'violentado') ? "border-destructive bg-destructive text-white" : "border-muted")}>
                                     <RadioGroupItem value="violentado" className="hidden" />
                                     <ShieldAlert className="h-6 w-6" />
