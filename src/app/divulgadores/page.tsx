@@ -11,7 +11,7 @@ import { UserPlus, Users, Loader2, Edit, Trash2, Search, AlertCircle, UserCircle
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, writeBatch, getDocs, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -52,6 +52,11 @@ export default function DivulgadoresPage() {
   const [selectedDist, setSelectedDist] = useState<string>('');
   const [editingDivulgador, setEditingDivulgador] = useState<Divulgador | null>(null);
 
+  // Form Controlled States
+  const [formNombre, setFormNombre] = useState('');
+  const [formCedula, setFormCedula] = useState('');
+  const [isSearchingCedula, setIsSearchingCedula] = useState(false);
+
   // States para Importación
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
@@ -84,6 +89,16 @@ export default function DivulgadoresPage() {
       if (hasDistFilter) setSelectedDist(profile.distrito || '');
     }
   }, [profile, hasDeptFilter, hasDistFilter, editingDivulgador]);
+
+  useEffect(() => {
+    if (editingDivulgador) {
+      setFormNombre(editingDivulgador.nombre);
+      setFormCedula(editingDivulgador.cedula);
+    } else {
+      setFormNombre('');
+      setFormCedula('');
+    }
+  }, [editingDivulgador]);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
@@ -125,6 +140,29 @@ export default function DivulgadoresPage() {
     const term = searchTerm.toLowerCase().trim();
     return divulgadores.filter(d => d.nombre.toLowerCase().includes(term) || d.cedula.toLowerCase().includes(term));
   }, [divulgadores, searchTerm]);
+
+  const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
+    const cleanTerm = (cedulaInput || '').trim().toUpperCase();
+    if (!firestore || cleanTerm.length < 4) return;
+    
+    setIsSearchingCedula(true);
+    try {
+      const q = query(collection(firestore, 'padron'), where('cedula', '==', cleanTerm), limit(1));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const found = snap.docs[0].data();
+        setFormNombre(`${found.nombre} ${found.apellido}`.toUpperCase());
+        toast({ title: "Datos encontrados", description: "Información recuperada del padrón electoral." });
+      } else {
+        toast({ variant: 'destructive', title: "No encontrado", description: "Verifique si el número ingresado es correcto." });
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSearchingCedula(false);
+    }
+  }, [firestore, toast]);
 
   const resetImport = useCallback(() => {
     setImportPreview([]);
@@ -424,12 +462,36 @@ export default function DivulgadoresPage() {
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Nombre Completo</Label>
-                  <Input name="nombre" required defaultValue={editingDivulgador?.nombre || ''} className="font-bold uppercase h-11 border-2" />
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Cédula</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      name="cedula" 
+                      required 
+                      value={formCedula}
+                      onChange={e => setFormCedula(e.target.value.toUpperCase())}
+                      className="font-black h-11 border-2 uppercase" 
+                    />
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      size="icon" 
+                      className="h-11 w-11 shrink-0" 
+                      onClick={() => searchCedulaInPadron(formCedula)}
+                      disabled={isSearchingCedula || formCedula.length < 4}
+                    >
+                      {isSearchingCedula ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Cédula</Label>
-                  <Input name="cedula" required defaultValue={editingDivulgador?.cedula || ''} className="font-black h-11 border-2 uppercase" />
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Nombre Completo</Label>
+                  <Input 
+                    name="nombre" 
+                    required 
+                    value={formNombre}
+                    onChange={e => setFormNombre(e.target.value.toUpperCase())}
+                    className="font-bold uppercase h-11 border-2" 
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground">Vínculo</Label>
