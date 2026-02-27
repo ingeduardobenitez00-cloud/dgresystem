@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon } from 'lucide-react';
+import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon, FileText } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
@@ -30,6 +30,7 @@ function InformeContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [markedCells, setMarcaciones] = useState<number[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [respaldoPhoto, setRespaldoPhoto] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(agendaIdFromUrl);
   
@@ -135,13 +136,29 @@ function InformeContent() {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      Array.from(files).forEach(file => {
+      if (photos.length >= 5) {
+        toast({ variant: "destructive", title: "Límite alcanzado", description: "Máximo 5 fotos de respaldo." });
+        return;
+      }
+      const remainingSlots = 5 - photos.length;
+      Array.from(files).slice(0, remainingSlots).forEach(file => {
         const reader = new FileReader();
         reader.onloadend = () => {
           setPhotos(prev => [...prev, reader.result as string]);
         };
         reader.readAsDataURL(file);
       });
+    }
+  };
+
+  const handleRespaldoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setRespaldoPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -235,8 +252,13 @@ function InformeContent() {
 
   const handleSubmit = () => {
     if (!firestore || !user) return;
-    if (!formData.lugar_divulgacion || !formData.fecha) {
-        toast({ variant: "destructive", title: "Faltan datos obligatorios" }); return;
+    if (!formData.lugar_divulgacion || !formData.fecha || !respaldoPhoto) {
+        toast({ 
+          variant: "destructive", 
+          title: "Faltan datos obligatorios", 
+          description: !respaldoPhoto ? "Debe adjuntar la foto del respaldo documental (formulario físico)." : "Complete los campos requeridos." 
+        }); 
+        return;
     }
 
     setIsSubmitting(true);
@@ -246,6 +268,7 @@ function InformeContent() {
       total_personas: markedCells.length,
       marcaciones: markedCells,
       fotos: photos,
+      foto_respaldo_documental: respaldoPhoto,
       usuario_id: user.uid,
       fecha_creacion: new Date().toISOString(),
       server_timestamp: serverTimestamp(),
@@ -256,6 +279,7 @@ function InformeContent() {
         toast({ title: "¡Informe Guardado!", description: "Se ha registrado el informe con sus evidencias." });
         setMarcaciones([]); 
         setPhotos([]);
+        setRespaldoPhoto(null);
         setSelectedAgendaId(null);
         setIsSubmitting(false);
       })
@@ -425,12 +449,46 @@ function InformeContent() {
                 </div>
             </div>
 
+            {/* RESPALDO DOCUMENTAL - OBLIGATORIO */}
+            <div className="space-y-4 pt-4 border-t-2 border-dashed border-black/10">
+                <div className="flex items-center gap-3 px-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    <Label className="font-black uppercase text-xs">Respaldo Documental (Foto Formulario Físico) *</Label>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {respaldoPhoto ? (
+                        <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-black shadow-xl group">
+                            <Image src={respaldoPhoto} alt="Respaldo Documental" fill className="object-cover" />
+                            <Button 
+                                variant="destructive" 
+                                size="icon" 
+                                className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-2xl"
+                                onClick={() => setRespaldoPhoto(null)}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <label className="flex flex-col items-center justify-center aspect-video border-4 border-dashed border-primary/20 rounded-2xl cursor-pointer hover:bg-primary/[0.02] transition-all group bg-white shadow-inner">
+                            <Camera className="h-12 w-12 text-primary opacity-20 group-hover:opacity-100 transition-all mb-2" />
+                            <span className="text-[10px] font-black uppercase text-primary/40 group-hover:text-primary transition-colors text-center px-4">ADJUNTAR FOTO FORMULARIO</span>
+                            <Input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleRespaldoUpload} />
+                        </label>
+                    )}
+                    <div className="flex items-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-black/5">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground italic leading-relaxed">
+                            <span className="text-destructive font-black">IMPORTANTE:</span> Este campo es obligatorio para validar el reporte. Capture una imagen clara del formulario físico firmado y sellado.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <div className="space-y-4">
                 <div className="flex items-center gap-3 px-2">
                     <Camera className="h-5 w-5 text-primary" />
-                    <Label className="font-black uppercase text-xs">Fotografías de Respaldo del Evento</Label>
+                    <Label className="font-black uppercase text-xs">Fotografías de Respaldo del Evento (Máx. 5)</Label>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     {photos.map((photo, idx) => (
                         <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border-2 border-black/10 group">
                             <Image src={photo} alt={`Evidencia ${idx}`} fill className="object-cover" />
@@ -444,11 +502,13 @@ function InformeContent() {
                             </Button>
                         </div>
                     ))}
-                    <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-black/20 rounded-xl cursor-pointer hover:bg-muted/50 transition-all">
-                        <ImageIcon className="h-8 w-8 text-black/20 mb-1" />
-                        <span className="text-[10px] font-black uppercase text-black/40">Adjuntar Foto</span>
-                        <Input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
-                    </label>
+                    {photos.length < 5 && (
+                        <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-black/20 rounded-xl cursor-pointer hover:bg-muted/50 transition-all">
+                            <ImageIcon className="h-8 w-8 text-black/20 mb-1" />
+                            <span className="text-[10px] font-black uppercase text-black/40">Adjuntar Foto</span>
+                            <Input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+                        </label>
+                    )}
                 </div>
             </div>
 
