@@ -15,7 +15,7 @@ import { type Dato, type Department, type District, type MaquinaVotacion } from 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, writeBatch, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -45,6 +45,7 @@ export default function SettingsPage() {
   const [isUploadingGeo, setIsUploadingGeo] = useState(false);
   const [previewGeo, setPreviewGeo] = useState<Dato[]>([]);
 
+  const [editingDatoId, setEditingDatoId] = useState<string | null>(null);
   const [manualGeo, setManualGeo] = useState({
     departamento: '',
     departamento_codigo: '',
@@ -143,8 +144,17 @@ export default function SettingsPage() {
         distrito: manualGeo.distrito.toUpperCase().trim(),
         distrito_codigo: manualGeo.distrito_codigo.trim()
       };
-      await addDoc(collection(firestore, 'datos'), docData);
-      toast({ title: 'Ubicación agregada con éxito' });
+
+      if (editingDatoId) {
+        const docRef = doc(firestore, 'datos', editingDatoId);
+        await updateDoc(docRef, docData);
+        toast({ title: 'Ubicación actualizada con éxito' });
+        setEditingDatoId(null);
+      } else {
+        await addDoc(collection(firestore, 'datos'), docData);
+        toast({ title: 'Ubicación agregada con éxito' });
+      }
+      
       setManualGeo({ ...manualGeo, distrito: '', distrito_codigo: '' });
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error al guardar' });
@@ -281,13 +291,21 @@ export default function SettingsPage() {
           <TabsContent value="geografia" className="space-y-6 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
-                    {/* Registro Manual */}
-                    <Card className="shadow-lg border-t-4 border-t-black">
-                        <CardHeader className="bg-muted/10 border-b">
-                            <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
-                                <Plus className="h-4 w-4" /> Registro Manual
-                            </CardTitle>
-                            <CardDescription className="text-[10px] uppercase font-bold">Agregue una ubicación individual.</CardDescription>
+                    {/* Registro Manual / Editar */}
+                    <Card className={cn("shadow-lg border-t-4", editingDatoId ? "border-t-primary" : "border-t-black")}>
+                        <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
+                                    {editingDatoId ? <Edit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                    {editingDatoId ? "Editar Ubicación" : "Registro Manual"}
+                                </CardTitle>
+                                <CardDescription className="text-[10px] uppercase font-bold">
+                                    {editingDatoId ? "Modifique los datos de la oficina." : "Agregue una ubicación individual."}
+                                </CardDescription>
+                            </div>
+                            {editingDatoId && (
+                                <Button variant="ghost" size="icon" onClick={() => { setEditingDatoId(null); setManualGeo({departamento: '', departamento_codigo: '', distrito: '', distrito_codigo: ''}); }} className="h-8 w-8 text-muted-foreground"><X className="h-4 w-4" /></Button>
+                            )}
                         </CardHeader>
                         <CardContent className="pt-6 space-y-4">
                             <div className="grid grid-cols-3 gap-2">
@@ -333,42 +351,44 @@ export default function SettingsPage() {
                         </CardContent>
                         <CardFooter className="bg-muted/10 border-t p-4">
                             <Button className="w-full font-black uppercase text-[10px] h-11" onClick={handleManualSaveGeo} disabled={isUploadingGeo || !manualGeo.departamento || !manualGeo.distrito}>
-                                {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-                                AGREGAR UBICACIÓN
+                                {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : editingDatoId ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                                {editingDatoId ? "ACTUALIZAR UBICACIÓN" : "AGREGAR UBICACIÓN"}
                             </Button>
                         </CardFooter>
                     </Card>
 
                     {/* Importar Excel */}
-                    <Card className="shadow-lg border-dashed">
-                        <CardHeader className="bg-primary/5 border-b">
-                            <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
-                                <FileUp className="h-4 w-4" /> Importar Estructura
-                            </CardTitle>
-                            <CardDescription className="text-[10px] uppercase font-bold">Suba el archivo Excel oficial.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="pt-6">
-                            <div className="border-2 border-dashed rounded-xl p-8 bg-muted/30 text-center hover:bg-white transition-all">
-                                <label htmlFor="geo-up" className="cursor-pointer flex flex-col items-center">
-                                    <FileUp className="h-10 w-10 mb-2 text-primary opacity-40" />
-                                    <span className="text-[10px] font-black uppercase text-primary">Seleccionar Excel</span>
-                                </label>
-                                <Input id="geo-up" type="file" className="hidden" accept=".xlsx,.csv" onChange={handleGeoFile} disabled={isParsingGeo || isUploadingGeo} />
-                                {fileNameGeo && <p className="mt-4 text-[10px] font-black uppercase text-green-600 flex items-center justify-center gap-1"><CheckCircle2 className="h-3 w-3"/> {fileNameGeo}</p>}
-                            </div>
-                            {previewGeo.length > 0 && (
-                                <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                                    <p className="text-[10px] font-black uppercase text-primary">Registros detectados: {previewGeo.length}</p>
+                    {!editingDatoId && (
+                        <Card className="shadow-lg border-dashed">
+                            <CardHeader className="bg-primary/5 border-b">
+                                <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
+                                    <FileUp className="h-4 w-4" /> Importar Estructura
+                                </CardTitle>
+                                <CardDescription className="text-[10px] uppercase font-bold">Suba el archivo Excel oficial.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                                <div className="border-2 border-dashed rounded-xl p-8 bg-muted/30 text-center hover:bg-white transition-all">
+                                    <label htmlFor="geo-up" className="cursor-pointer flex flex-col items-center">
+                                        <FileUp className="h-10 w-10 mb-2 text-primary opacity-40" />
+                                        <span className="text-[10px] font-black uppercase text-primary">Seleccionar Excel</span>
+                                    </label>
+                                    <Input id="geo-up" type="file" className="hidden" accept=".xlsx,.csv" onChange={handleGeoFile} disabled={isParsingGeo || isUploadingGeo} />
+                                    {fileNameGeo && <p className="mt-4 text-[10px] font-black uppercase text-green-600 flex items-center justify-center gap-1"><CheckCircle2 className="h-3 w-3"/> {fileNameGeo}</p>}
                                 </div>
-                            )}
-                        </CardContent>
-                        <CardFooter className="bg-muted/30 border-t p-4">
-                            <Button className="w-full font-black uppercase text-[10px] h-11" onClick={handleSaveGeo} disabled={previewGeo.length === 0 || isUploadingGeo}>
-                                {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Database className="mr-2 h-4 w-4" />}
-                                GUARDAR LOTE EXCEL
-                            </Button>
-                        </CardFooter>
-                    </Card>
+                                {previewGeo.length > 0 && (
+                                    <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                                        <p className="text-[10px] font-black uppercase text-primary">Registros detectados: {previewGeo.length}</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                            <CardFooter className="bg-muted/30 border-t p-4">
+                                <Button className="w-full font-black uppercase text-[10px] h-11" onClick={handleSaveGeo} disabled={previewGeo.length === 0 || isUploadingGeo}>
+                                    {isUploadingGeo ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Database className="mr-2 h-4 w-4" />}
+                                    GUARDAR LOTE EXCEL
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    )}
                 </div>
 
                 <div className="lg:col-span-8">
@@ -401,6 +421,7 @@ export default function SettingsPage() {
                                                             distrito: '',
                                                             distrito_codigo: ''
                                                         });
+                                                        setEditingDatoId(null);
                                                         toast({ title: "Modo Edición", description: `Agregando oficinas a: ${dept.name}` });
                                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
@@ -419,25 +440,47 @@ export default function SettingsPage() {
                                                                 <span className="text-[10px] font-black uppercase truncate">{d.name}</span>
                                                             </div>
                                                             
-                                                            <AlertDialog>
-                                                                <AlertDialogTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
-                                                                </AlertDialogTrigger>
-                                                                <AlertDialogContent>
-                                                                    <AlertDialogHeader>
-                                                                        <AlertDialogTitle className="font-black uppercase">¿ELIMINAR UBICACIÓN?</AlertDialogTitle>
-                                                                        <AlertDialogDescription className="text-xs uppercase font-bold">
-                                                                            Esta acción borrará el registro de {d.name} en el departamento {dept.name}. Esto podría afectar a los selectores de otros módulos.
-                                                                        </AlertDialogDescription>
-                                                                    </AlertDialogHeader>
-                                                                    <AlertDialogFooter>
-                                                                        <AlertDialogCancel className="font-black uppercase text-[10px]">CANCELAR</AlertDialogCancel>
-                                                                        <AlertDialogAction onClick={() => handleDeleteDato(d.id)} className="bg-destructive text-white font-black uppercase text-[10px]">ELIMINAR REGISTRO</AlertDialogAction>
-                                                                    </AlertDialogFooter>
-                                                                </AlertDialogContent>
-                                                            </AlertDialog>
+                                                            <div className="flex items-center gap-1">
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="icon" 
+                                                                    className="h-8 w-8 text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                    onClick={() => {
+                                                                        const dato = datosData.find(dt => dt.id === d.id);
+                                                                        if (dato) {
+                                                                            setManualGeo({
+                                                                                departamento: dato.departamento,
+                                                                                departamento_codigo: dato.departamento_codigo || '',
+                                                                                distrito: dato.distrito,
+                                                                                distrito_codigo: dato.distrito_codigo || ''
+                                                                            });
+                                                                            setEditingDatoId(d.id);
+                                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <Edit className="h-4 w-4" />
+                                                                </Button>
+                                                                <AlertDialog>
+                                                                    <AlertDialogTrigger asChild>
+                                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </AlertDialogTrigger>
+                                                                    <AlertDialogContent>
+                                                                        <AlertDialogHeader>
+                                                                            <AlertDialogTitle className="font-black uppercase">¿ELIMINAR UBICACIÓN?</AlertDialogTitle>
+                                                                            <AlertDialogDescription className="text-xs uppercase font-bold">
+                                                                                Esta acción borrará el registro de {d.name} en el departamento {dept.name}. Esto podría afectar a los selectores de otros módulos.
+                                                                            </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter>
+                                                                            <AlertDialogCancel className="font-black uppercase text-[10px]">CANCELAR</AlertDialogCancel>
+                                                                            <AlertDialogAction onClick={() => handleDeleteDato(d.id)} className="bg-destructive text-white font-black uppercase text-[10px]">ELIMINAR REGISTRO</AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                    </AlertDialogContent>
+                                                                </AlertDialog>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
