@@ -35,7 +35,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import Link from 'next/link';
 
 export default function ControlMovimientoMaquinasPage() {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = userUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
 
@@ -115,7 +115,7 @@ export default function ControlMovimientoMaquinasPage() {
 
   // Carga de movimientos para filtrar el selector
   const movimientosQueryAll = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: allMovimientos } = useCollection<MovimientoMaquina>(movementsQueryAll);
+  const { data: allMovimientos } = useCollection<MovimientoMaquina>(movimientosQueryAll);
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems) return null;
@@ -318,6 +318,10 @@ export default function ControlMovimientoMaquinasPage() {
 
     doc.save(`Formulario-${type === 'salida' ? '01' : '02'}-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
+
+  function userUser() {
+    return useUser();
+  }
 
   if (isUserLoading || isLoadingAgenda) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
@@ -556,7 +560,7 @@ export default function ControlMovimientoMaquinasPage() {
                 )}
               </CardContent>
               {currentMovimiento && !currentMovimiento.devolucion && (
-                <CardFooter className="p-0 border-t">
+                <CardFooter className="p-0 border-t bg-black overflow-hidden">
                     <Button 
                         onClick={handleSaveDevolucion} 
                         disabled={isSubmitting || devolucionData.lacre_estado === 'violentado'} 
