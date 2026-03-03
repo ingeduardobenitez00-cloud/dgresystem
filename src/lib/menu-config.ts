@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText, ClipboardList } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -103,6 +103,12 @@ export const dashboardMenuItems = [
     label: 'Cargar Ficha',
     icon: UploadCloud,
     description: 'Accede a tu distrito asignado para cargar datos.',
+  },
+  {
+    href: '/informe-semanal-registro',
+    label: 'Informe Semanal de Registro',
+    icon: ClipboardList,
+    description: 'Reporte semanal de inscripciones y trámites del Registro Electoral.',
   },
   {
     href: '/resumen',

@@ -118,6 +118,30 @@
         "departamento": { "type": "string" },
         "distrito": { "type": "string" }
       }
+    },
+    "InformeSemanalRegistro": {
+      "title": "Informe Semanal Registro",
+      "type": "object",
+      "properties": {
+        "departamento": { "type": "string" },
+        "distrito": { "type": "string" },
+        "fecha_desde": { "type": "string" },
+        "fecha_hasta": { "type": "string" },
+        "inscripciones_1ra_vez": { "type": "number" },
+        "actualizacion_datos": { "type": "number" },
+        "cambio_local": { "type": "number" },
+        "cambio_distrito": { "type": "number" },
+        "organizaciones_asistidas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tipo": { "type": "string" },
+              "nombre": { "type": "string" }
+            }
+          }
+        }
+      }
     }
   },
   "auth": {
@@ -149,6 +173,12 @@
         "$ref": "#/entities/PadronItem"
       },
       "description": "Stores electoral register information."
+    },
+    "/informes-semanales-registro/{informeId}": {
+      "schema": {
+        "$ref": "#/entities/InformeSemanalRegistro"
+      },
+      "description": "Stores weekly reports from registry offices."
     }
   }
 }

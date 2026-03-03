@@ -170,6 +170,22 @@ export type InformeSemanalAnexoIV = {
   fecha_creacion: string;
 }
 
+export type InformeSemanalRegistro = {
+  id: string;
+  departamento: string;
+  distrito: string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  inscripciones_1ra_vez: number;
+  actualizacion_datos: number;
+  cambio_local: number;
+  cambio_distrito: number;
+  organizaciones_asistidas: { tipo: string, nombre: string }[];
+  fotos?: string[];
+  usuario_id: string;
+  fecha_creacion: string;
+}
+
 export type MovimientoMaquinaRegistro = {
   nombre: string;
   cedula: string;
