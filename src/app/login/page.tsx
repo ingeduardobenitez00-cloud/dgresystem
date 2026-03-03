@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -201,19 +200,30 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
        <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center">
-            <div className="h-20 w-20 relative mb-4">
-               <Image 
-                src="/logo.png" 
-                alt="Logo Justicia Electoral" 
-                fill 
-                className="object-contain" 
-                priority 
-              />
+            <div className="flex items-center gap-8 mb-4">
+                <div className="h-20 w-20 relative">
+                   <Image 
+                    src="/logo.png" 
+                    alt="Logo Justicia Electoral Izquierdo" 
+                    fill 
+                    className="object-contain" 
+                    priority 
+                  />
+                </div>
+                <div className="h-20 w-20 relative">
+                   <Image 
+                    src="/logo1.png" 
+                    alt="Logo Justicia Electoral Derecho" 
+                    fill 
+                    className="object-contain" 
+                    priority 
+                  />
+                </div>
             </div>
-             <h1 className="text-2xl font-black tracking-tight mt-2 uppercase text-primary text-center">
+             <h1 className="text-2xl font-black tracking-tight mt-2 uppercase text-primary text-center leading-none">
                 JUSTICIA ELECTORAL
              </h1>
-             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mt-1">SISTEMA DE GESTIÓN INTEGRAL</p>
+             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mt-2 text-center">SISTEMA DE GESTIÓN INTEGRAL</p>
         </div>
 
         <Card className="border-t-4 border-t-primary shadow-2xl">
