@@ -72,7 +72,7 @@ export default function ReporteSemanalRegistroPage() {
 
   const { data: informes, isLoading: isLoadingInformes } = useCollection<InformeSemanalRegistro>(informesQuery);
 
-  // Agrupación y Procesamiento de Cumplimiento
+  // Agrupación y Procesamiento de Cumplimiento (EXCLUYENDO SEDE CENTRAL)
   const hierarchy = useMemo(() => {
     if (!datosData) return [];
 
@@ -81,6 +81,9 @@ export default function ReporteSemanalRegistroPage() {
 
     // Inicializar estructura desde datos oficiales
     datosData.forEach(d => {
+      // FILTRO: No contar registros de Sede Central para este reporte operativo
+      if (d.departamento === 'SEDE CENTRAL') return;
+
       if (!depts[d.departamento]) depts[d.departamento] = { name: d.departamento, districts: {} };
       if (!depts[d.departamento].districts[d.distrito]) {
         depts[d.departamento].districts[d.distrito] = { name: d.distrito, reports: [] };
@@ -109,11 +112,19 @@ export default function ReporteSemanalRegistroPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [datosData, informes, searchTerm]);
 
-  const totalDistritos = datosData?.length || 0;
+  const totalDistritos = useMemo(() => {
+    if (!datosData) return 0;
+    return datosData.filter(d => d.departamento !== 'SEDE CENTRAL').length;
+  }, [datosData]);
+
   const totalCumplidos = useMemo(() => {
     if (!datosData || !informes) return 0;
     const fulfilled = new Set();
-    informes.forEach(inf => fulfilled.add(`${inf.departamento}-${inf.distrito}`));
+    informes.forEach(inf => {
+        if (inf.departamento !== 'SEDE CENTRAL') {
+            fulfilled.add(`${inf.departamento}-${inf.distrito}`);
+        }
+    });
     return fulfilled.size;
   }, [datosData, informes]);
 
@@ -169,7 +180,7 @@ export default function ReporteSemanalRegistroPage() {
             <div>
                 <h1 className="text-3xl font-black tracking-tight text-primary uppercase leading-none">Monitor de Informes</h1>
                 <p className="text-muted-foreground text-[10px] font-bold uppercase flex items-center gap-2 mt-2 tracking-widest">
-                    <History className="h-3.5 w-3.5" /> Seguimiento de cumplimiento semanal por Registro Electoral
+                    <History className="h-3.5 w-3.5" /> Seguimiento de cumplimiento semanal por Registro Electoral (Regional)
                 </p>
             </div>
             <div className="flex items-center gap-4">
@@ -218,7 +229,7 @@ export default function ReporteSemanalRegistroPage() {
                     <Building2 className="h-7 w-7 text-primary" />
                 </div>
                 <div>
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">TOTAL OFICINAS</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">REGISTROS REGIONALES</p>
                     <p className="text-3xl font-black leading-none">{totalDistritos}</p>
                 </div>
             </Card>
@@ -246,7 +257,7 @@ export default function ReporteSemanalRegistroPage() {
             <Card className="p-20 text-center border-dashed bg-white rounded-[2.5rem]">
                 <div className="flex flex-col items-center justify-center opacity-20">
                     <AlertCircle className="h-20 w-20 mb-4" />
-                    <p className="font-black uppercase tracking-widest text-sm">No se encontraron jurisdicciones</p>
+                    <p className="font-black uppercase tracking-widest text-sm">No se encontraron jurisdicciones regionales</p>
                 </div>
             </Card>
         ) : (
@@ -348,7 +359,7 @@ export default function ReporteSemanalRegistroPage() {
 
         <div className="text-center pb-10">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 italic">
-                * El estado de cumplimiento se actualiza automáticamente al registrar un nuevo informe semanal.
+                * Los registros de la Sede Central han sido excluidos de este monitor operativo regional.
             </p>
         </div>
       </main>

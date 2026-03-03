@@ -63,10 +63,14 @@ export default function ArchivoSemanalesRegistroPage() {
             where('id_archivo', '==', archivo.id)
         );
         const snap = await getDocs(q);
-        const informes = snap.docs.map(d => ({ ...d.data() } as InformeSemanalRegistro));
+        
+        // FILTRO: Excluir Sede Central de la exportación Excel
+        const informes = snap.docs
+            .map(d => ({ ...d.data() } as InformeSemanalRegistro))
+            .filter(inf => inf.departamento !== 'SEDE CENTRAL');
 
         if (informes.length === 0) {
-            toast({ variant: 'destructive', title: "Sin datos", description: "No se encontraron informes para este archivo." });
+            toast({ variant: 'destructive', title: "Sin datos regionales", description: "No se encontraron informes de registros regionales para este archivo." });
             return;
         }
 
@@ -88,7 +92,7 @@ export default function ArchivoSemanalesRegistroPage() {
         // Crear Libro de Excel
         const ws = XLSX.utils.json_to_sheet(excelData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Informes Semanales");
+        XLSX.utils.book_append_sheet(wb, ws, "Informes Semanales Regionales");
 
         // Ajustar anchos de columna automáticamente
         const wscols = [
@@ -96,8 +100,8 @@ export default function ArchivoSemanalesRegistroPage() {
         ];
         ws['!cols'] = wscols;
 
-        XLSX.writeFile(wb, `Archivo-Registro-${archivo.fecha_desde}-al-${archivo.fecha_hasta}.xlsx`);
-        toast({ title: "Excel Generado", description: "El reporte se ha descargado correctamente." });
+        XLSX.writeFile(wb, `Archivo-Registro-REGIONAL-${archivo.fecha_desde}-al-${archivo.fecha_hasta}.xlsx`);
+        toast({ title: "Excel Generado (Regional)", description: "El reporte regional se ha descargado correctamente." });
     } catch (e) {
         toast({ variant: 'destructive', title: "Error de exportación" });
     } finally {
@@ -127,12 +131,12 @@ export default function ArchivoSemanalesRegistroPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
       <Header title="Archivo de Semanas Cerradas" />
-      <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full space-y-8">
+      <main className="flex-1 p-4 md:p-8 max-5xl mx-auto w-full space-y-8">
         
         <div>
             <h1 className="text-3xl font-black tracking-tight text-primary uppercase leading-none">Histórico de Registro</h1>
             <p className="text-muted-foreground text-[10px] font-bold uppercase flex items-center gap-2 mt-2 tracking-widest">
-                <History className="h-3.5 w-3.5" /> Semanas archivadas y cerradas para auditoría externa
+                <History className="h-3.5 w-3.5" /> Semanas archivadas y cerradas para auditoría externa (Filtrado Regional)
             </p>
         </div>
 
@@ -196,7 +200,7 @@ export default function ArchivoSemanalesRegistroPage() {
                                         className="h-14 px-10 rounded-2xl font-black uppercase text-xs gap-3 shadow-xl bg-green-600 hover:bg-green-700 text-white w-full md:w-auto"
                                     >
                                         {isExporting === archivo.id ? <Loader2 className="animate-spin h-5 w-5" /> : <FileSpreadsheet className="h-5 w-5" />}
-                                        EXPORTAR DATOS A EXCEL
+                                        EXPORTAR DATOS REGIONALES
                                     </Button>
                                 </div>
                             </div>
@@ -208,7 +212,7 @@ export default function ArchivoSemanalesRegistroPage() {
 
         <div className="text-center pb-12 pt-8">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 italic leading-relaxed">
-                * Los informes archivados son inalterables y cumplen con los estándares de auditoría digital institucional.
+                * Nota: Los informes de la Sede Central se omiten automáticamente de estas exportaciones para cumplir con el estándar regional.
             </p>
         </div>
       </main>
