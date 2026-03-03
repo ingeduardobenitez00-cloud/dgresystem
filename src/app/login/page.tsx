@@ -220,10 +220,17 @@ export default function LoginPage() {
                   />
                 </div>
             </div>
-             <h1 className="text-2xl font-black tracking-tight mt-2 uppercase text-primary text-center leading-none">
-                JUSTICIA ELECTORAL
-             </h1>
-             <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mt-2 text-center">SISTEMA DE GESTIÓN INTEGRAL</p>
+             <div className="space-y-1 text-center">
+                <h3 className="text-xs font-black tracking-tight uppercase text-[#1A1A1A] leading-none opacity-80">
+                    DIRECCION GENERAL DEL REGISTRO ELECTORAL
+                </h3>
+                <h1 className="text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
+                    JUSTICIA ELECTORAL
+                </h1>
+                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">
+                    SISTEMA DE GESTIÓN
+                </p>
+             </div>
         </div>
 
         <Card className="border-t-4 border-t-primary shadow-2xl">
