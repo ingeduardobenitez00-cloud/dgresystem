@@ -23,7 +23,8 @@ import {
   Lock,
   Settings,
   ChevronRight,
-  UserCircle
+  UserCircle,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -96,6 +97,10 @@ const MODULE_STRUCTURE = [
       { id: 'ficha', label: 'VISTA DE FICHA' },
       { id: 'fotos', label: 'GALERÍA FOTOGRÁFICA' },
       { id: 'cargar-ficha', label: 'CARGAR FICHA' },
+      { id: 'configuracion-semanal', label: 'CONFIGURACIÓN FECHAS' },
+      { id: 'informe-semanal-registro', label: 'INF. SEMANAL REGISTRO' },
+      { id: 'reporte-semanal-registro', label: 'MONITOR DE INFORMES' },
+      { id: 'archivo-semanal-registro', label: 'ARCHIVO DE INFORMES' },
     ]
   },
   {
