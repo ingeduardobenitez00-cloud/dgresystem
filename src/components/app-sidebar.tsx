@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -13,9 +12,9 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
+  useSidebar
 } from "@/components/ui/sidebar";
 import { 
-  Settings, 
   ImageIcon, 
   Users, 
   FileText, 
@@ -52,6 +51,7 @@ import { cn } from "@/lib/utils";
 export default function AppSidebar() {
   const pathname = usePathname();
   const { user } = useUser();
+  const { setOpen } = useSidebar();
 
   const menuGroups = [
     {
@@ -131,6 +131,10 @@ export default function AppSidebar() {
     return user.profile?.modules?.includes(moduleName);
   };
 
+  const handleLinkClick = () => {
+    setOpen(false);
+  };
+
   return (
     <div className="flex h-full flex-col bg-white border-r">
       <SidebarHeader className="py-12 px-8">
@@ -185,7 +189,7 @@ export default function AppSidebar() {
                               )}
                               tooltip={item.label}
                             >
-                              <Link href={item.href} className="flex items-center gap-4 w-full py-2">
+                              <Link href={item.href} onClick={handleLinkClick} className="flex items-center gap-4 w-full py-2">
                                 <item.icon className={cn(
                                   "h-4 w-4 shrink-0 transition-colors", 
                                   isActive ? "text-primary" : "text-[#1A1A1A]/30"
