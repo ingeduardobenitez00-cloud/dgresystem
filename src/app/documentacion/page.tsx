@@ -26,7 +26,11 @@ import {
   ExternalLinkIcon,
   ShoppingCart,
   MessageCircle,
-  LockKeyhole
+  LockKeyhole,
+  ClipboardCheck,
+  ArrowLeftRight,
+  UserCheck,
+  TableProperties
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,14 +49,17 @@ export default function DocumentacionPage() {
           <h1 className="text-3xl font-black tracking-tight uppercase text-primary">Documentación Institucional</h1>
           <p className="text-muted-foreground text-sm font-medium flex items-center gap-2 mt-1">
             < BookOpen className="h-4 w-4" />
-            Guía técnica y operativa del Sistema de Gestión Integral CIDEE.
+            Guía técnica y operativa del Sistema de Gestión Integral.
           </p>
         </div>
 
-        <Tabs defaultValue="correo" className="space-y-8">
-          <TabsList className="grid w-full grid-cols-1 md:grid-cols-4 lg:w-[800px] bg-white border shadow-sm h-auto p-1">
+        <Tabs defaultValue="manual-cidee" className="space-y-8">
+          <TabsList className="grid w-full grid-cols-1 md:grid-cols-5 lg:w-[1000px] bg-white border shadow-sm h-auto p-1">
+            <TabsTrigger value="manual-cidee" className="gap-2 font-black uppercase text-[10px] py-2">
+              <ClipboardCheck className="h-3.5 w-3.5" /> Manual CIDEE
+            </TabsTrigger>
             <TabsTrigger value="correo" className="gap-2 font-black uppercase text-[10px] py-2">
-              <Mail className="h-3.5 w-3.5" /> Autenticación de Correo
+              <Mail className="h-3.5 w-3.5" /> Autenticación
             </TabsTrigger>
             <TabsTrigger value="roles" className="gap-2 font-black uppercase text-[10px] py-2">
               <Users className="h-3.5 w-3.5" /> Roles y Permisos
@@ -65,10 +72,132 @@ export default function DocumentacionPage() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="manual-cidee" className="animate-in fade-in duration-500 space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8 space-y-6">
+                <Card className="border-t-4 border-t-primary shadow-lg">
+                  <CardHeader className="bg-muted/10">
+                    <CardTitle className="uppercase font-black text-lg flex items-center gap-2 text-primary">
+                      <BookOpen className="h-5 w-5" /> Guía de Operación Paso a Paso
+                    </CardTitle>
+                    <CardDescription className="text-[10px] font-bold uppercase">
+                      Procedimientos estándar para el Módulo de Capacitaciones.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-8">
+                    <Accordion type="single" collapsible className="w-full space-y-4">
+                      
+                      <AccordionItem value="item-1" className="border rounded-2xl px-6 bg-white shadow-sm overflow-hidden">
+                        <AccordionTrigger className="hover:no-underline py-6">
+                          <div className="flex items-center gap-4 text-left">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black">1</div>
+                            <div>
+                              <p className="font-black uppercase text-sm">Registro de Solicitudes (Anexo V)</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">Entrada de datos y georreferenciación</p>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-8 text-xs font-medium space-y-4 text-muted-foreground leading-relaxed">
+                          <p>Al recibir un pedido de una organización política:</p>
+                          <ul className="list-disc pl-5 space-y-2 uppercase text-[10px] font-bold">
+                            <li>Seleccione el Partido del buscador oficial.</li>
+                            <li>Defina Fecha, Hora y Local exacto.</li>
+                            <li><b>IMPORTANTE:</b> Haga doble clic en el mapa para capturar las coordenadas GPS.</li>
+                            <li>Adjunte la foto de la solicitud física.</li>
+                            <li>Descargue la Proforma PDF para archivo del Registro.</li>
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="item-2" className="border rounded-2xl px-6 bg-white shadow-sm overflow-hidden">
+                        <AccordionTrigger className="hover:no-underline py-6">
+                          <div className="flex items-center gap-4 text-left">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black">2</div>
+                            <div>
+                              <p className="font-black uppercase text-sm">Control Logístico (F01 / F02)</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">Movimiento de Máquinas de Votación</p>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-8 text-xs font-medium space-y-4 text-muted-foreground leading-relaxed">
+                          <p>Para garantizar la seguridad de los equipos:</p>
+                          <ul className="list-disc pl-5 space-y-2 uppercase text-[10px] font-bold">
+                            <li><b>Salida:</b> Registre serie de la MV y Pendrive. Adjunte F01 firmado (obligatorio).</li>
+                            <li><b>Retorno:</b> Verifique estado de lacres.</li>
+                            <li><b>Denuncia:</b> Si el lacre está violentado, registre la denuncia con evidencia fotográfica antes de cerrar.</li>
+                            <li>Adjunte F02 firmado para cerrar el ciclo de la máquina.</li>
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="item-3" className="border rounded-2xl px-6 bg-white shadow-sm overflow-hidden">
+                        <AccordionTrigger className="hover:no-underline py-6">
+                          <div className="flex items-center gap-4 text-left">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black">3</div>
+                            <div>
+                              <p className="font-black uppercase text-sm">Informe de Productividad (Anexo III)</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">Carga de marcaciones individuales</p>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-8 text-xs font-medium space-y-4 text-muted-foreground leading-relaxed">
+                          <p>Al terminar la capacitación:</p>
+                          <ul className="list-disc pl-5 space-y-2 uppercase text-[10px] font-bold">
+                            <li>Vincule la actividad agendada (se completarán datos automáticamente).</li>
+                            <li>Use el tablero táctil para marcar cada ciudadano capacitado.</li>
+                            <li>Adjunte fotos de respaldo del evento y del formulario físico firmado.</li>
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="item-4" className="border rounded-2xl px-6 bg-white shadow-sm overflow-hidden">
+                        <AccordionTrigger className="hover:no-underline py-6">
+                          <div className="flex items-center gap-4 text-left">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black">4</div>
+                            <div>
+                              <p className="font-black uppercase text-sm">Consolidado Semanal (Anexo IV)</p>
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase">Generación automática de rendición</p>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-8 text-xs font-medium space-y-4 text-muted-foreground leading-relaxed">
+                          <p>Al cierre de la semana:</p>
+                          <ul className="list-disc pl-5 space-y-2 uppercase text-[10px] font-bold">
+                            <li>El sistema extrae todos los Anexos III del periodo.</li>
+                            <li>No requiere carga manual de filas.</li>
+                            <li>Genere el PDF horizontal (Landscape) listo para remitir a la Coordinación.</li>
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                    </Accordion>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="lg:col-span-4 space-y-6">
+                <Card className="bg-black text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+                  <div className="absolute -right-4 -top-4 opacity-10">
+                    <ShieldCheck className="h-32 w-32" />
+                  </div>
+                  <h3 className="font-black uppercase text-xs mb-6 flex items-center gap-2 text-primary-foreground">
+                    <AlertCircle className="h-4 w-4" /> Recordatorio Crítico
+                  </h3>
+                  <p className="text-xs leading-relaxed opacity-80 mb-6 font-bold uppercase">
+                    La veracidad de los datos está respaldada por las coordenadas GPS y las fotografías de los formularios firmados.
+                  </p>
+                  <Separator className="bg-white/20 mb-6" />
+                  <p className="text-[10px] leading-relaxed font-medium opacity-60 italic uppercase">
+                    Todo registro sin respaldo documental fotográfico será considerado inválido durante las auditorías nacionales.
+                  </p>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="correo" className="animate-in fade-in duration-500 space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               <div className="lg:col-span-8 space-y-6">
-                
                 <Card className="border-t-4 border-t-blue-600 shadow-lg">
                   <CardHeader className="bg-blue-50/50">
                     <CardTitle className="uppercase font-black text-lg flex items-center gap-2 text-blue-700">
@@ -79,7 +208,6 @@ export default function DocumentacionPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6 pt-6">
-                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="p-5 border-2 border-dashed rounded-2xl bg-white space-y-3">
                             <div className="flex items-center gap-2">
@@ -100,9 +228,7 @@ export default function DocumentacionPage() {
                             </p>
                         </div>
                     </div>
-
                     <Separator />
-
                     <div className="space-y-4">
                         <h3 className="font-black uppercase text-sm">¿Cómo evitar el SPAM definitivamente?</h3>
                         <Accordion type="single" collapsible className="w-full space-y-4">
@@ -120,7 +246,6 @@ export default function DocumentacionPage() {
                                     </p>
                                 </AccordionContent>
                             </AccordionItem>
-
                             <AccordionItem value="sin-dominio-smtp" className="border rounded-xl px-4 bg-white shadow-sm">
                                 <AccordionTrigger className="hover:no-underline">
                                     <div className="flex items-center gap-3">
@@ -147,7 +272,6 @@ export default function DocumentacionPage() {
                   </CardContent>
                 </Card>
               </div>
-
               <div className="lg:col-span-4 space-y-6">
                 <Card className="bg-black text-white p-8 rounded-[2rem] shadow-2xl relative overflow-hidden">
                   <div className="absolute -right-4 -top-4 opacity-10">
@@ -231,7 +355,6 @@ export default function DocumentacionPage() {
                     </Accordion>
                   </CardContent>
                 </Card>
-
                 <Card className="border-t-4 border-t-primary shadow-lg">
                   <CardHeader>
                     <CardTitle className="uppercase font-black text-lg">Jerarquía de Filtros Territoriales</CardTitle>
@@ -268,7 +391,6 @@ export default function DocumentacionPage() {
                   </CardContent>
                 </Card>
               </div>
-
               <div className="space-y-6">
                 <Card className="bg-primary text-white shadow-xl border-none overflow-hidden">
                   <CardHeader>
