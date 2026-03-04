@@ -48,7 +48,7 @@
 
 ## 3. Conclusión de la Implementación (Para Presentación)
 
-La implementación del **Sistema de Gestión Integral de la Justicia Electoral** marca un hito en la transformación digital de la institución, pasando de procesos manuales dispersos a una plataforma centralizada de alta eficiencia.
+La implementación del **Sistema de Gestión** marca un hito en la transformación digital de la institución, pasando de procesos manuales dispersos a una plataforma centralizada de alta eficiencia.
 
 **Puntos Clave:**
 *   **Optimización del Tiempo**: La automatización del Anexo IV elimina la carga manual de datos, reduciendo el trabajo administrativo de horas a segundos.

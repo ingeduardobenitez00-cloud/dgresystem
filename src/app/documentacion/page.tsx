@@ -123,7 +123,7 @@ export default function DocumentacionPage() {
         doc.setFontSize(24);
         doc.text("MANUAL DE USUARIO DETALLADO", pageWidth / 2, 100, { align: 'center' });
         doc.setFontSize(18);
-        doc.text("SISTEMA DE GESTIÓN INTEGRAL", pageWidth / 2, 115, { align: 'center' });
+        doc.text("SISTEMA DE GESTIÓN", pageWidth / 2, 115, { align: 'center' });
         doc.setFontSize(14);
         doc.text("JUSTICIA ELECTORAL", pageWidth / 2, 125, { align: 'center' });
         
@@ -143,7 +143,7 @@ export default function DocumentacionPage() {
         doc.addPage();
         let y = 30;
         y = renderSectionTitle("INTRODUCCIÓN AL SISTEMA", y);
-        y = renderWrappedText("El Sistema de Gestión Integral de la Justicia Electoral es una plataforma centralizada diseñada para optimizar los procesos de la Dirección General del Registro Electoral y el CIDEE. Este manual detalla los pasos obligatorios para garantizar la integridad de los datos, la trazabilidad logística y el cumplimiento de los informes semanales.", margin, y, 10);
+        y = renderWrappedText("El Sistema de Gestión de la Justicia Electoral es una plataforma centralizada diseñada para optimizar los procesos de la Dirección General del Registro Electoral y el CIDEE. Este manual detalla los pasos obligatorios para garantizar la integridad de los datos, la trazabilidad logística y el cumplimiento de los informes semanales.", margin, y, 10);
 
         y += 10;
         y = renderSectionTitle("1. MÓDULO CIDEE - CAPACITACIONES", y);
@@ -241,7 +241,7 @@ export default function DocumentacionPage() {
             doc.setPage(i);
             doc.setFontSize(8);
             doc.setFont('helvetica', 'italic');
-            doc.text(`Manual de Usuario - Sistema de Gestión Integral JE - Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            doc.text(`Manual de Usuario - Sistema de Gestión - Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
         }
 
         doc.save("Manual-Usuario-Detallado-V2.5.pdf");
