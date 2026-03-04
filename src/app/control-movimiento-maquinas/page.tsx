@@ -44,7 +44,6 @@ export default function ControlMovimientoMaquinasPage() {
   const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
   const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(null);
   
-  // States para Kits
   const [salidaData, setSalidaData] = useState({
     codigo_maquina: '',
     fecha: '',
@@ -249,7 +248,6 @@ export default function ControlMovimientoMaquinasPage() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Encabezado
     doc.addImage(logoBase64, 'PNG', margin, 5, 12, 12);
     doc.addImage(logo1Base64, 'PNG', pageWidth - margin - 20, 5, 20, 10);
     
@@ -271,8 +269,9 @@ export default function ControlMovimientoMaquinasPage() {
 
     // --- SECCIÓN A ---
     let y = 38;
+    const sectionAHeight = 105;
     doc.setLineWidth(0.2);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 100, 3, 3);
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), sectionAHeight, 3, 3);
     
     doc.circle(margin + 8, y + 7, 3);
     doc.setFontSize(8); doc.text("A", margin + 8, y + 8, { align: 'center' });
@@ -315,7 +314,7 @@ export default function ControlMovimientoMaquinasPage() {
     y += 2; doc.roundedRect(margin + 5, y, 160, 6, 1, 1); 
     doc.setFont('helvetica', 'normal'); doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 8, y + 4.2);
 
-    y += 15;
+    y += 12;
     const signW = 50;
     const drawSign = (x: number, yP: number, lbl: string) => {
         doc.line(x, yP, x + signW, yP);
@@ -326,7 +325,7 @@ export default function ControlMovimientoMaquinasPage() {
     drawSign(margin + 65, y, "FIRMA JEFE");
     drawSign(margin + 125, y, "FIRMA DEL DIVULGADOR");
 
-    y += 12; doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    y += 10; doc.setFontSize(7); doc.setFont('helvetica', 'bold');
     doc.text("KITS DE LA MÁQUINA DE VOTACION", margin + 10, y);
     const drawKitLine = (lbl: string, checked: boolean, curY: number) => {
         doc.text(`•  ${lbl}`, margin + 15, curY);
@@ -343,13 +342,13 @@ export default function ControlMovimientoMaquinasPage() {
     y += 4; drawKitLine("ACRILICO GENERICO", !!sK.acrilico, y);
     y += 4; drawKitLine("5 BOLETAS DE CAPACITACION", !!sK.boletas, y);
 
-    // Texto intermedio
-    y = 143; doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    y = 148; doc.setFontSize(7); doc.setFont('helvetica', 'bold');
     doc.text("OBS: ANEXAR A ESTE FORMULARIO: ANEXO I LUGAR FIJO DE DIVULGACIÓN / ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y, { align: 'center' });
 
     // --- SECCIÓN B ---
-    y = 148;
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 95, 3, 3);
+    y = 153;
+    const sectionBHeight = 105;
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), sectionBHeight, 3, 3);
     doc.circle(margin + 8, y + 7, 3); doc.text("B", margin + 8, y + 8, { align: 'center' });
     doc.text("DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", margin + 15, y + 7.5);
 
