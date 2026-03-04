@@ -337,6 +337,10 @@ export default function ControlMovimientoMaquinasPage() {
       .then(() => {
         toast({ title: '¡Devolución Registrada!' });
         setIsSubmitting(false);
+        // LIMPIAR CAMPO DESPUÉS DE 2 SEGUNDOS
+        setTimeout(() => {
+          setSelectedSolicitudId(null);
+        }, 2000);
       })
       .catch(async (error) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData }));
