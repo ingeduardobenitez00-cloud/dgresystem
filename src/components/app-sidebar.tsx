@@ -42,7 +42,8 @@ import {
   ScrollText,
   ClipboardList,
   CalendarCog,
-  Archive
+  Archive,
+  Settings
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
