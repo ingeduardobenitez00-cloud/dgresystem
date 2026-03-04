@@ -645,7 +645,14 @@ export default function ControlMovimientoMaquinasPage() {
                     </div>
                     {salidaFoto ? (
                         <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-white shadow-xl group">
-                            <Image src={salidaFoto} alt="Respaldo Salida" fill className="object-cover" />
+                            {salidaFoto.startsWith('data:application/pdf') ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                    <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                    <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                                </div>
+                            ) : (
+                                <Image src={salidaFoto} alt="Respaldo Salida" fill className="object-cover" />
+                            )}
                             {!currentMovimiento && (
                                 <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setSalidaFoto(null)}>
                                     <Trash2 className="h-4 w-4" />
@@ -661,7 +668,7 @@ export default function ControlMovimientoMaquinasPage() {
                             <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-all group bg-white">
                                 <FileUp className="h-8 w-8 text-muted-foreground group-hover:text-primary mb-1" />
                                 <span className="text-[10px] font-black uppercase text-muted-foreground">Subir de Galería</span>
-                                <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'salida')} />
+                                <Input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'salida')} />
                             </label>
                         </div>
                     )}
@@ -773,7 +780,14 @@ export default function ControlMovimientoMaquinasPage() {
                     </div>
                     {devolucionFoto ? (
                         <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-white shadow-xl group">
-                            <Image src={devolucionFoto} alt="Respaldo Devolución" fill className="object-cover" />
+                            {devolucionFoto.startsWith('data:application/pdf') ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                    <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                    <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                                </div>
+                            ) : (
+                                <Image src={devolucionFoto} alt="Respaldo Devolución" fill className="object-cover" />
+                            )}
                             {currentMovimiento && !currentMovimiento.devolucion && (
                                 <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setDevolucionFoto(null)}>
                                     <Trash2 className="h-4 w-4" />
@@ -789,7 +803,7 @@ export default function ControlMovimientoMaquinasPage() {
                             <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-all group bg-white">
                                 <FileUp className="h-8 w-8 text-muted-foreground group-hover:text-primary mb-1" />
                                 <span className="text-[10px] font-black uppercase text-muted-foreground">Subir de Galería</span>
-                                <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'devolucion')} />
+                                <Input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'devolucion')} />
                             </label>
                         </div>
                     )}
