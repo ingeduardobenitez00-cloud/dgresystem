@@ -248,7 +248,6 @@ export default function ControlMovimientoMaquinasPage() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // --- CABECERA COMPACTA ---
     doc.addImage(logoBase64, 'PNG', margin, 5, 12, 12);
     doc.addImage(logo1Base64, 'PNG', pageWidth - margin - 20, 5, 20, 10);
     
@@ -284,32 +283,43 @@ export default function ControlMovimientoMaquinasPage() {
     y += 2; doc.roundedRect(margin + 5, y, 165, 5, 1, 1);
     doc.setFont('helvetica', 'normal'); doc.text((selectedSolicitud.divulgador_nombre || '').toUpperCase(), margin + 8, y + 3.5);
 
+    // LÍNEA DE C.I. Y VÍNCULO (SIN SOBREPOSICIÓN)
     y += 8; doc.setFont('helvetica', 'bold'); doc.text("Nº C.I:", margin + 5, y);
-    doc.roundedRect(margin + 15, y - 4, 35, 5, 1, 1);
-    doc.setFont('helvetica', 'normal'); doc.text(selectedSolicitud.divulgador_cedula || '', margin + 18, y - 0.5);
+    doc.roundedRect(margin + 15, y - 4, 25, 5, 1, 1);
+    doc.setFont('helvetica', 'normal'); doc.text(selectedSolicitud.divulgador_cedula || '', margin + 17, y - 0.5);
 
-    doc.setFont('helvetica', 'bold'); doc.text("VÍNCULO:", margin + 60, y);
+    doc.setFont('helvetica', 'bold'); doc.text("VÍNCULO:", margin + 45, y);
     const v = (selectedSolicitud.divulgador_vinculo || '').toUpperCase();
     const drawCheck = (lbl: string, checked: boolean, x: number, yPos: number) => {
-        doc.rect(x, yPos - 3, 3, 3); doc.setFontSize(6); doc.text(lbl, x + 5, yPos - 0.5); if(checked) doc.text("X", x + 0.5, yPos - 0.5);
+        doc.rect(x, yPos - 3, 3, 3); 
+        doc.setFontSize(6); 
+        doc.setFont('helvetica', 'bold');
+        doc.text(lbl, x + 5, yPos - 0.5); 
+        if(checked) doc.text("X", x + 0.5, yPos - 0.5);
     }
-    drawCheck("PERMANENTE", v === 'PERMANENTE', margin + 75, y);
-    drawCheck("CONTRATADO", v === 'CONTRATADO', margin + 105, y);
-    drawCheck("COMISIONADO", v === 'COMISIONADO', margin + 135, y);
+    drawCheck("PERMANENTE", v === 'PERMANENTE', margin + 65, y);
+    drawCheck("CONTRATADO", v === 'CONTRATADO', margin + 95, y);
+    drawCheck("COMISIONADO", v === 'COMISIONADO', margin + 130, y);
 
-    y += 8; doc.setFont('helvetica', 'bold'); 
+    y += 8; doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); 
     doc.text("HORA DE SALIDA:", margin + 5, y);
     doc.roundedRect(margin + 30, y - 4, 20, 5, 1, 1); 
     doc.setFont('helvetica', 'normal'); 
-    if(currentMovimiento?.salida) doc.text(`${currentMovimiento.salida.hora} HS`, margin + 32, y - 0.5);
+    if(currentMovimiento?.salida) {
+        doc.text(`${currentMovimiento.salida.hora} HS`, margin + 32, y - 0.5);
+    }
     
     doc.setFont('helvetica', 'bold'); doc.text("FECHA:", margin + 100, y);
-    if(currentMovimiento?.salida) doc.text(`${formatDateToDDMMYYYY(currentMovimiento.salida.fecha)}`, margin + 115, y);
+    if(currentMovimiento?.salida) {
+        doc.text(`${formatDateToDDMMYYYY(currentMovimiento.salida.fecha)}`, margin + 115, y);
+    }
 
     y += 8; doc.setFont('helvetica', 'bold'); doc.text("NÚMERO DE SERIE DE LA MÁQUINA DE VOTACIÓN", margin + 5, y);
     y += 2; doc.roundedRect(margin + 5, y, 60, 5, 1, 1); 
     doc.setFont('helvetica', 'normal'); 
-    if(currentMovimiento?.salida) doc.text(currentMovimiento.salida.codigo_maquina.toUpperCase(), margin + 8, y + 3.5);
+    if(currentMovimiento?.salida) {
+        doc.text(currentMovimiento.salida.codigo_maquina.toUpperCase(), margin + 8, y + 3.5);
+    }
 
     y += 8; doc.setFont('helvetica', 'bold'); doc.text("LUGAR DE LA DIVULGACIÓN", margin + 5, y);
     y += 2; doc.roundedRect(margin + 5, y, 165, 5, 1, 1); 
