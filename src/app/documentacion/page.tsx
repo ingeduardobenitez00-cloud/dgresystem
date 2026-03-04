@@ -88,7 +88,32 @@ export default function DocumentacionPage() {
     try {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
         const margin = 20;
+        const maxWidth = pageWidth - (margin * 2);
+
+        // Helper para renderizar párrafos con envoltorio de texto
+        const renderWrappedText = (text: string | string[], x: number, y: number, fontSize = 9, fontStyle = 'normal') => {
+            doc.setFont('helvetica', fontStyle);
+            doc.setFontSize(fontSize);
+            const lines = doc.splitTextToSize(text, maxWidth - (x - margin));
+            doc.text(lines, x, y);
+            return y + (lines.length * (fontSize * 0.5)) + 2;
+        };
+
+        const renderSectionTitle = (title: string, y: number) => {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.text(title, margin, y);
+            return y + 8;
+        };
+
+        const renderSubTitle = (title: string, y: number) => {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text(title, margin, y);
+            return y + 6;
+        };
 
         // --- PORTADA ---
         doc.addImage(logoBase64, 'PNG', margin, 20, 30, 30);
@@ -110,128 +135,119 @@ export default function DocumentacionPage() {
         doc.text("Dirección General del Registro Electoral", pageWidth / 2, 150, { align: 'center' });
         doc.text("Centro de Información, Documentación y Educación Electoral (CIDEE)", pageWidth / 2, 156, { align: 'center' });
         
-        doc.text(`Versión: 2.0 (Actualizada)`, pageWidth / 2, 254, { align: 'center' });
+        doc.text(`Versión: 2.5 (Estable)`, pageWidth / 2, 254, { align: 'center' });
         doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`, pageWidth / 2, 260, { align: 'center' });
         doc.text("República del Paraguay", pageWidth / 2, 266, { align: 'center' });
 
-        // --- INTRODUCCIÓN ---
+        // --- PÁGINA 2: INTRODUCCIÓN Y CAPACITACIONES ---
         doc.addPage();
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text("INTRODUCCIÓN AL SISTEMA", margin, 30);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        const introText = "El Sistema de Gestión Integral de la Justicia Electoral es una plataforma centralizada diseñada para optimizar los procesos de la Dirección General del Registro Electoral y el CIDEE. Este manual detalla los pasos obligatorios para garantizar la integridad de los datos, la trazabilidad logística y el cumplimiento de los informes semanales.";
-        doc.text(doc.splitTextToSize(introText, pageWidth - (margin * 2)), margin, 40);
+        let y = 30;
+        y = renderSectionTitle("INTRODUCCIÓN AL SISTEMA", y);
+        y = renderWrappedText("El Sistema de Gestión Integral de la Justicia Electoral es una plataforma centralizada diseñada para optimizar los procesos de la Dirección General del Registro Electoral y el CIDEE. Este manual detalla los pasos obligatorios para garantizar la integridad de los datos, la trazabilidad logística y el cumplimiento de los informes semanales.", margin, y, 10);
 
-        // --- MÓDULO CIDEE DETALLADO ---
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.text("1. MÓDULO CIDEE - CAPACITACIONES", margin, 65);
+        y += 10;
+        y = renderSectionTitle("1. MÓDULO CIDEE - CAPACITACIONES", y);
+        y = renderSubTitle("1.1 Anexo V - Solicitud de Capacitación", y);
         
-        doc.setFontSize(11);
-        doc.text("1.1 Anexo V - Solicitud de Capacitación", margin, 75);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
         const anexoVSteps = [
-            "• Selector de Partido: Use el buscador para elegir la organización. Si no existe, use 'Otra Entidad'.",
-            "• Georreferenciación CRÍTICA: Es obligatorio hacer DOBLE CLIC en el mapa sobre la ubicación exacta. Esto captura las coordenadas GPS necesarias para auditoría.",
-            "• Datos del Solicitante: Use la lupa de búsqueda para validar el número de cédula contra el Padrón Electoral Nacional.",
-            "• Respaldo Documental: Capture la foto del pedido físico firmado antes de guardar.",
-            "• Generación PDF: Descargue la proforma oficial para que el solicitante firme el documento físico de respaldo."
+            "• Selector de Partido: Use el buscador para elegir la organización. Si no existe, use 'Otra Entidad' para ingreso manual.",
+            "• Georreferenciación CRÍTICA: Es obligatorio hacer DOBLE CLIC en el mapa sobre la ubicación exacta. Esto captura las coordenadas GPS necesarias para auditoría nacional.",
+            "• Datos del Solicitante: Use la lupa de búsqueda para validar el número de cédula contra el Padrón Electoral Nacional. Esto garantiza la veracidad del solicitante.",
+            "• Respaldo Documental: Capture la foto del pedido físico firmado antes de guardar el registro digital.",
+            "• Generación PDF: Descargue la proforma oficial para que el solicitante firme el documento físico de respaldo en el lugar del evento."
         ];
-        doc.text(anexoVSteps, margin + 5, 82);
+        
+        anexoVSteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        doc.setFont('helvetica', 'bold');
-        doc.text("1.2 Movimiento de Máquinas (F01 y F02)", margin, 115);
-        doc.setFont('helvetica', 'normal');
+        y += 5;
+        y = renderSubTitle("1.2 Movimiento de Máquinas (F01 y F02)", y);
         const movSteps = [
-            "• Salida (F01): Vincule la actividad de la agenda. Registre el Nro. de Serie de la MV y del Pendrive.",
+            "• Salida (F01): Vincule la actividad de la agenda. Registre el Nro. de Serie de la MV y del Pendrive de capacitación.",
             "• Kits Técnicos: Marque la entrega de Auriculares, Credencial, Acrílico y las 5 Boletas de práctica.",
-            "• Respaldo F01: Adjunte foto del formulario de salida firmado por el Jefe de Oficina.",
-            "• Devolución (F02): Verifique el estado de los LACRES. Si están 'Violentados', el sistema bloquea el reingreso y exige una Denuncia Oficial.",
-            "• Cierre de Ciclo: La actividad desaparece de la agenda pendiente una vez registrado el F02."
+            "• Respaldo F01: Es obligatorio adjuntar la foto del formulario de salida firmado físicamente por el Jefe de Oficina.",
+            "• Devolución (F02): Al reingreso, verifique el estado de los LACRES. Si están 'Violentados', el sistema bloquea el reingreso y exige una Denuncia Oficial inmediata.",
+            "• Cierre de Ciclo: La actividad desaparece de la agenda pendiente una vez registrado el reingreso exitoso en el F02."
         ];
-        doc.text(movSteps, margin + 5, 122);
+        movSteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        doc.setFont('helvetica', 'bold');
-        doc.text("1.3 Anexo III - Informe Individual", margin, 155);
-        doc.setFont('helvetica', 'normal');
+        // --- PÁGINA 3: ANEXO III Y REGISTROS ---
+        doc.addPage();
+        y = 30;
+        y = renderSubTitle("1.3 Anexo III - Informe Individual de Productividad", y);
         const anexoIIISteps = [
-            "• Vínculo con Agenda: Al seleccionar la actividad, se completan automáticamente los datos del divulgador.",
-            "• Tablero Táctil: Marque una 'X' por cada ciudadano capacitado (hasta 104 marcaciones por informe).",
-            "• Evidencias del Evento: Suba hasta 5 fotografías de la actividad en campo.",
-            "• Respaldo Documental: Es obligatorio adjuntar la foto del Anexo III físico firmado y sellado."
+            "• Vínculo con Agenda: Al seleccionar la actividad, se completan automáticamente los datos del divulgador asignado.",
+            "• Tablero Táctil: Marque una 'X' por cada ciudadano que realice la práctica. El sistema admite hasta 104 marcaciones por informe.",
+            "• Evidencias del Evento: Suba hasta 5 fotografías de la actividad en campo para validación visual.",
+            "• Respaldo Documental: Es obligatorio adjuntar la foto del Anexo III físico firmado y sellado por la Jefatura."
         ];
-        doc.text(anexoIIISteps, margin + 5, 162);
+        anexoIIISteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        // --- MÓDULO REGISTROS ELECTORALES ---
-        doc.addPage();
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.text("2. MÓDULO REGISTROS ELECTORALES (EDILICIO)", margin, 30);
-        
-        doc.setFontSize(11);
-        doc.text("2.1 Ficha Técnica y Relevamiento", margin, 40);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
+        y += 10;
+        y = renderSectionTitle("2. MÓDULO REGISTROS ELECTORALES (EDILICIO)", y);
+        y = renderSubTitle("2.1 Ficha Técnica y Relevamiento", y);
         const fichaSteps = [
-            "• Datos Estructurales: Se debe informar el estado físico, cantidad de habitaciones y dimensiones exactas de la Habitación Segura.",
-            "• Resguardo de Equipos: Indique el lugar exacto donde se guardan las MV (debe coincidir con la foto #5).",
-            "• Galería de 8 Fotos Obligatorias:",
-            "  1. Frente del Registro.",
-            "  2. Costado Derecho.",
-            "  3. Costado Izquierdo.",
-            "  4. Fondo del Registro.",
-            "  5. Habitación Segura (Interior).",
-            "  6. Habitación Segura (Techo).",
-            "  7. Vista General de Habitaciones.",
-            "  8. Formulario de Relevamiento firmado y sellado."
+            "• Datos Estructurales: Se debe informar el estado físico, cantidad de habitaciones y dimensiones exactas de la Habitación Segura para el resguardo.",
+            "• Resguardo de Equipos: Indique el lugar exacto donde se guardan las Máquinas de Votación (debe coincidir con la foto #5 de la galería).",
+            "• Galería de 8 Fotos Obligatorias: Se deben cargar las 8 fotos reglamentarias del protocolo institucional para que el informe sea válido."
         ];
-        doc.text(fichaSteps, margin + 5, 47);
+        fichaSteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        doc.setFont('helvetica', 'bold');
-        doc.text("2.2 Informe Semanal Operativo (Registro)", margin, 105);
-        doc.setFont('helvetica', 'normal');
+        y += 5;
+        y = renderSubTitle("2.2 Informe Semanal Operativo (Registro)", y);
         const infRegSteps = [
-            "• Trámites Cuantitativos: Ingrese la cantidad de Inscripciones 1ra Vez, Actualizaciones y Traslados realizados.",
-            "• Organizaciones Asistidas: Detalle el Tipo (Comisión, Cooperativa, etc.) y el Nombre de cada entidad asistida.",
-            "• Respaldo de Boletas: Adjunte capturas de las boletas de inscripción procesadas durante la semana.",
-            "• Monitor de Cumplimiento: La Dirección Nacional supervisa en tiempo real qué distritos han enviado su reporte."
+            "• Trámites Cuantitativos: Ingrese la cantidad de Inscripciones 1ra Vez, Actualizaciones y Traslados realizados durante la semana.",
+            "• Organizaciones Asistidas: Detalle el Tipo (Comisión, Cooperativa, etc.) y el Nombre de cada entidad asistida fuera del cronograma electoral.",
+            "• Monitor de Cumplimiento: La Dirección Nacional supervisa en tiempo real qué distritos han enviado su reporte dentro del periodo configurado."
         ];
-        doc.text(infRegSteps, margin + 5, 112);
+        infRegSteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        // --- ADMINISTRACIÓN Y AUDITORÍA ---
+        // --- PÁGINA 4: ADMINISTRACIÓN ---
         doc.addPage();
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.text("3. SEGURIDAD Y ADMINISTRACIÓN DEL SISTEMA", margin, 30);
-        
-        doc.setFontSize(11);
-        doc.text("3.1 Gestión de Usuarios y Matriz de Permisos", margin, 40);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
+        y = 30;
+        y = renderSectionTitle("3. SEGURIDAD Y ADMINISTRACIÓN DEL SISTEMA", y);
+        y = renderSubTitle("3.1 Gestión de Usuarios y Matriz de Permisos", y);
         const userSteps = [
-            "• Roles Institucionales: Admin, Director, Jefe de Oficina, Funcionario y Viewer.",
-            "• Filtros Territoriales: El sistema aplica automáticamente restricciones por Departamento o Distrito.",
-            "• Matriz de Permisos: Los administradores asignan acceso a módulos específicos (Ver, Guardar, Editar, Borrar, PDF).",
-            "• Monitoreo de Conexiones: Visualización en tiempo real de usuarios activos y su ubicación dentro del sistema."
+            "• Roles Institucionales: Se definen perfiles como Admin, Director, Jefe de Oficina, Funcionario y Viewer.",
+            "• Filtros Territoriales: El sistema aplica automáticamente restricciones por Departamento o Distrito según el perfil configurado.",
+            "• Monitoreo de Conexiones: Visualización en tiempo real de usuarios activos y su ubicación dentro de los módulos del sistema."
         ];
-        doc.text(userSteps, margin + 5, 47);
+        userSteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        doc.setFont('helvetica', 'bold');
-        doc.text("3.2 Auditoría Técnica (Bitácora)", margin, 80);
-        doc.setFont('helvetica', 'normal');
+        y += 10;
+        y = renderSubTitle("3.2 Auditoría Técnica (Bitácora)", y);
         const auditSteps = [
-            "• Trazabilidad Total: Cada creación, edición o borrado de datos queda registrado con Usuario, Fecha y Hora.",
-            "• Registro de Reportes: Se audita quién genera cada PDF oficial.",
-            "• Integridad de Datos: El sistema previene el borrado accidental mediante diálogos de confirmación obligatorios."
+            "• Trazabilidad Total: Cada creación, edición o borrado de datos queda registrado con Usuario, Fecha, Hora e IP de conexión.",
+            "• Integridad de Datos: El sistema previene el borrado accidental mediante diálogos de confirmación obligatorios para registros críticos."
         ];
-        doc.text(auditSteps, margin + 5, 87);
+        auditSteps.forEach(step => {
+            y = renderWrappedText(step, margin + 5, y);
+        });
 
-        doc.save("Manual-Detallado-Sistema-Gestion-Integral.pdf");
-        toast({ title: "Manual Generado", description: "El documento detallado se ha descargado correctamente." });
+        // Pie de página en todas las páginas
+        const pageCount = doc.internal.pages.length - 1;
+        for(let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Manual de Usuario - Sistema de Gestión Integral JE - Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        }
+
+        doc.save("Manual-Usuario-Detallado-V2.5.pdf");
+        toast({ title: "Manual Generado", description: "El documento detallado se ha descargado correctamente con ajuste de texto." });
     } catch (error) {
+        console.error(error);
         toast({ variant: 'destructive', title: "Error al generar manual" });
     } finally {
         setIsGeneratingPdf(false);
@@ -590,7 +606,7 @@ export default function DocumentacionPage() {
                             <div className="space-y-4 pt-2 border-l-2 border-muted pl-6 ml-5">
                               <p className="text-xs font-medium text-muted-foreground leading-relaxed uppercase">{item.desc}</p>
                               <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Nivel de Seguridad:</span>
+                                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest:">Nivel de Seguridad:</span>
                                 <Badge variant="secondary" className="text-[9px] font-black uppercase bg-primary/5 text-primary border-none px-3">
                                   {item.acceso}
                                 </Badge>
