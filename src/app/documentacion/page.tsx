@@ -37,7 +37,9 @@ import {
   Camera,
   Layers,
   Search,
-  Database
+  Database,
+  Building2,
+  Settings
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -333,7 +335,7 @@ export default function DocumentacionPage() {
                           <div className="flex items-center gap-4 text-left">
                             <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary font-black text-lg">2</div>
                             <div>
-                              <p className="font-black uppercase text-sm">Control Logístico (F01 / F02)</p>
+                              <p className="font-black uppercase text-sm">Control Logística (F01 / F02)</p>
                               <p className="text-[10px] font-bold text-muted-foreground uppercase">Movimiento de Máquinas de Votación</p>
                             </div>
                           </div>
