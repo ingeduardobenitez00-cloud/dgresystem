@@ -21,6 +21,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
 };
 
 export const metadata: Metadata = {
@@ -34,9 +35,17 @@ export const metadata: Metadata = {
   icons: {
     icon: '/logo.png',
     shortcut: '/logo.png',
-    apple: '/logo.png',
+    apple: '/logo1.png',
   },
   manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Sistema de Gestión',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
