@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
@@ -31,7 +30,7 @@ function DenunciaContent() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [denunciaFoto, setDenunciaFoto] = useState<string | null>(null);
-  const [respaldoFoto, setRespaldoFoto] = useState<string | null>(null);
+  const [respaldoFoto, setRespaldoPhoto] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(agendaId);
   
@@ -143,7 +142,7 @@ function DenunciaContent() {
         ctx.drawImage(videoRef.current, 0, 0);
         const dataUri = canvas.toDataURL('image/jpeg', 0.8);
         if (activeCameraTarget === 'evidencia') setDenunciaFoto(dataUri);
-        else setRespaldoFoto(dataUri);
+        else setRespaldoPhoto(dataUri);
         stopCamera();
       }
     }
@@ -153,9 +152,9 @@ function DenunciaContent() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onload = () => {
         if (target === 'evidencia') setDenunciaFoto(reader.result as string);
-        else setRespaldoFoto(reader.result as string);
+        else setRespaldoPhoto(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -198,7 +197,7 @@ function DenunciaContent() {
         toast({ title: "¡Denuncia Registrada!" });
         setFormData(p => ({ ...p, detalles: '' }));
         setDenunciaFoto(null);
-        setRespaldoFoto(null);
+        setRespaldoPhoto(null);
         setIsSubmitting(false);
       })
       .catch(async (error) => {
@@ -429,7 +428,7 @@ function DenunciaContent() {
                             {respaldoFoto ? (
                                 <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
                                     <Image src={respaldoFoto} alt="Respaldo" fill className="object-cover" />
-                                    <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoFoto(null)}>
+                                    <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoPhoto(null)}>
                                         <Trash2 className="h-5 w-5" />
                                     </Button>
                                 </div>

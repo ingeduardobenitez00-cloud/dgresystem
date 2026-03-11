@@ -12,19 +12,13 @@ import { getFirestore } from 'firebase/firestore'
  * correctas desde el primer momento, eliminando latencias de conexión.
  */
 export function initializeFirebase() {
-  if (getApps().length > 0) {
-    return getSdks(getApp());
-  }
-
-  const firebaseApp = initializeApp(firebaseConfig);
-  return getSdks(firebaseApp);
-}
-
-export function getSdks(firebaseApp: FirebaseApp) {
+  // Verificamos si ya hay apps inicializadas, si no, inicializamos con el config explícito
+  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  
   return {
-    firebaseApp,
-    auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    firebaseApp: app,
+    auth: getAuth(app),
+    firestore: getFirestore(app)
   };
 }
 

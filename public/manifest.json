@@ -1,7 +1,7 @@
 {
   "name": "Sistema de Gestión",
-  "short_name": "Gestión JE",
-  "description": "Sistema oficial de gestión de la Justicia Electoral",
+  "short_name": "Gestión",
+  "description": "Sistema oficial de gestión de informes y capacitaciones.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -17,7 +17,7 @@
       "src": "/logo1.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }
