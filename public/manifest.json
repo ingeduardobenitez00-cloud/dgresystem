@@ -1,7 +1,7 @@
 {
-  "name": "Justicia Electoral - Sistema de Gestión",
-  "short_name": "Sistema Gestión",
-  "description": "Sistema oficial de gestión de la Justicia Electoral de Paraguay",
+  "name": "Sistema de Gestión",
+  "short_name": "Gestión JE",
+  "description": "Sistema oficial de gestión de la Justicia Electoral",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -17,7 +17,7 @@
       "src": "/logo1.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }

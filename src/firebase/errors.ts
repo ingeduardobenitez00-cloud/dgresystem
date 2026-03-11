@@ -72,7 +72,7 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
       authObject = buildAuthObject(currentUser);
     }
   } catch {
-    // Silent fail if auth is not initialized
+    // Fail silencioso para evitar errores de consola en producción
   }
 
   return {
@@ -84,18 +84,18 @@ function buildRequestObject(context: SecurityRuleContext): SecurityRuleRequest {
 }
 
 /**
+ * CUMPLIMIENTO DE AUDITORÍA:
  * Genera un mensaje de error que oculta detalles técnicos en producción
- * para evitar la exposición de información sensible según reporte de auditoría.
+ * para evitar la exposición de información sensible.
  */
 function buildErrorMessage(requestObject: SecurityRuleRequest): string {
   const isProd = process.env.NODE_ENV === 'production';
   
   if (isProd) {
-    return "Error de permisos: No tiene autorización para realizar esta operación.";
+    return "Error de seguridad: Operación no autorizada.";
   }
 
-  return `Missing or insufficient permissions: The following request was denied by Firestore Security Rules:
-${JSON.stringify(requestObject, null, 2)}`;
+  return `Firestore Security Error: Access denied at ${requestObject.path}.`;
 }
 
 export class FirestorePermissionError extends Error {

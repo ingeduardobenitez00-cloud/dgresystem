@@ -5,12 +5,13 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 
-// Función centralizada para inicializar los servicios de Firebase de forma robusta.
+/**
+ * Inicialización Robusta:
+ * Se fuerza el uso del objeto firebaseConfig local para evitar el error 'app/no-options'
+ * reportado en la auditoría técnica. Esto garantiza que el SDK tenga las credenciales
+ * correctas desde el primer momento, eliminando latencias de conexión.
+ */
 export function initializeFirebase() {
-  // Se fuerza el uso del objeto de configuración local para evitar el error 'app/no-options'
-  // reportado en entornos donde las variables de entorno de App Hosting no son detectadas.
-  // Esto soluciona los problemas de latencia y fallas de canal (Listen/Write) del reporte técnico.
-  
   if (getApps().length > 0) {
     return getSdks(getApp());
   }
