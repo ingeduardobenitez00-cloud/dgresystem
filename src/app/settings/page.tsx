@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus, Trash2, X, Edit } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus, Trash2, X, Edit, Rocket, ShieldAlert } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,7 +15,7 @@ import { type Dato, type Department, type District, type MaquinaVotacion } from 
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, writeBatch, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -58,6 +58,8 @@ export default function SettingsPage() {
   const [isParsingMaq, setIsParsingMaq] = useState(false);
   const [isUploadingMaq, setIsUploadingMaq] = useState(false);
   const [previewMaq, setPreviewMaq] = useState<Omit<MaquinaVotacion, 'id' | 'fecha_registro'>[]>([]);
+
+  const [isResetting, setIsResetting] = useState(false);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: rawDatosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
@@ -250,6 +252,45 @@ export default function SettingsPage() {
     }
   };
 
+  const handleResetCIDEE = async () => {
+    if (!firestore || !isAdmin) return;
+    setIsResetting(true);
+    
+    const collectionsToClear = [
+      'solicitudes-capacitacion',
+      'divulgadores',
+      'informes-divulgador',
+      'informes-semanales-anexo-iv',
+      'movimientos-maquinas',
+      'denuncias-lacres',
+      'encuestas-satisfaccion'
+    ];
+
+    try {
+      for (const colName of collectionsToClear) {
+        let hasMore = true;
+        while (hasMore) {
+          const q = query(collection(firestore, colName), limit(500));
+          const snapshot = await getDocs(q);
+          if (snapshot.empty) {
+            hasMore = false;
+            continue;
+          }
+          const batch = writeBatch(firestore);
+          snapshot.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          await delay(200);
+        }
+      }
+      toast({ title: 'Reinicio Completado', description: 'El área de CIDEE ha sido limpiada para producción.' });
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error en el reinicio' });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   const isAdmin = currentUser?.profile?.role === 'admin';
@@ -280,19 +321,21 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="geografia" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px] bg-white border shadow-sm h-auto p-1">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[600px] bg-white border shadow-sm h-auto p-1">
             <TabsTrigger value="geografia" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Database className="h-3.5 w-3.5" /> Geografía
             </TabsTrigger>
             <TabsTrigger value="maquinas" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Cpu className="h-3.5 w-3.5" /> Inventario Máquinas
             </TabsTrigger>
+            <TabsTrigger value="produccion" className="gap-2 font-black uppercase text-[10px] py-2">
+                <Rocket className="h-3.5 w-3.5" /> Producción
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="geografia" className="space-y-6 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
-                    {/* Registro Manual / Editar */}
                     <Card className={cn("shadow-lg border-t-4", editingDatoId ? "border-t-primary" : "border-t-black")}>
                         <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between">
                             <div>
@@ -358,7 +401,6 @@ export default function SettingsPage() {
                         </CardFooter>
                     </Card>
 
-                    {/* Importar Excel */}
                     {!editingDatoId && (
                         <Card className="shadow-lg border-dashed">
                             <CardHeader className="bg-primary/5 border-b">
@@ -574,6 +616,80 @@ export default function SettingsPage() {
                     </CardContent>
                 </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="produccion" className="space-y-6 animate-in fade-in duration-500">
+            <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
+              <CardHeader className="bg-destructive text-white p-8">
+                <CardTitle className="text-xl font-black uppercase flex items-center gap-3">
+                  <ShieldAlert className="h-8 w-8" /> REINICIO DE ÁREA CIDEE
+                </CardTitle>
+                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">
+                  ESTA OPERACIÓN ES IRREVERSIBLE - PREPARACIÓN PARA ENTORNO DE PRODUCCIÓN
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-10 space-y-8">
+                <div className="bg-destructive/5 border-2 border-destructive/20 p-8 rounded-[2rem] space-y-6">
+                  <div className="flex items-start gap-4">
+                    <AlertTriangle className="h-6 w-6 text-destructive shrink-0 mt-1" />
+                    <div className="space-y-4">
+                      <p className="font-black uppercase text-sm text-destructive">Advertencia de Seguridad Nacional</p>
+                      <p className="text-xs font-bold text-muted-foreground uppercase leading-relaxed">
+                        Al confirmar el reinicio, el sistema procederá a la eliminación permanente de:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <ul className="space-y-2">
+                          <li className="text-[9px] font-black text-destructive/70 flex items-center gap-2">• TODAS LAS SOLICITUDES (ANEXO V)</li>
+                          <li className="text-[9px] font-black text-destructive/70 flex items-center gap-2">• TODO EL DIRECTORIO DE DIVULGADORES</li>
+                          <li className="text-[9px] font-black text-destructive/70 flex items-center gap-2">• TODOS LOS INFORMES INDIVIDUALES (ANEXO III)</li>
+                        </ul>
+                        <ul className="space-y-2">
+                          <li className="text-[9px] font-black text-destructive/70 flex items-center gap-2">• TODOS LOS INFORMES SEMANALES (ANEXO IV)</li>
+                          <li className="text-[9px] font-black text-destructive/70 flex items-center gap-2">• TODOS LOS MOVIMIENTOS Y DENUNCIAS</li>
+                          <li className="text-[9px] font-black text-destructive/70 flex items-center gap-2">• TODAS LAS ENCUESTAS DE SATISFACCIÓN</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center p-8 text-center space-y-6">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">
+                    Use esta función únicamente para limpiar los datos de prueba antes de la salida oficial a producción del Sistema de Gestión.
+                  </p>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="h-20 px-12 text-xl font-black uppercase rounded-[1.5rem] shadow-2xl bg-destructive hover:bg-destructive/90 gap-4" disabled={isResetting}>
+                        {isResetting ? <Loader2 className="h-8 w-8 animate-spin" /> : <Rocket className="h-8 w-8" />}
+                        REINICIAR CIDEE PARA PRODUCCIÓN
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
+                      <AlertDialogHeader className="space-y-4">
+                        <AlertDialogTitle className="text-2xl font-black uppercase text-destructive flex items-center gap-3">
+                          <ShieldAlert className="h-8 w-8" /> ¿CONFIRMAR REINICIO TOTAL?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground">
+                          Esta acción borrará permanentemente miles de registros potenciales. No hay forma de recuperar la información una vez iniciado el proceso. ¿Está absolutamente seguro de que desea proceder con la limpieza del área CIDEE?
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="mt-8 gap-4">
+                        <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR OPERACIÓN</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleResetCIDEE} className="h-14 flex-1 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px]">
+                          SÍ, BORRAR TODO E INICIAR PRODUCCIÓN
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+              <CardFooter className="bg-muted/30 border-t p-6">
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest text-center w-full italic">
+                  * Los datos de Geografía e Inventario de Máquinas no se verán afectados por este reinicio.
+                </p>
+              </CardFooter>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
