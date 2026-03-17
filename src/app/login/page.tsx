@@ -198,10 +198,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
+    <div className="flex-1 flex flex-col items-center justify-center p-4">
        <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex flex-col items-center">
-            <div className="flex items-center gap-6 mb-4">
+            <div className="flex items-center justify-center gap-6 mb-6">
                 <div className="h-16 w-16 relative">
                    <Image 
                     src="/logo.png" 
@@ -231,33 +231,33 @@ export default function LoginPage() {
                 </div>
             </div>
              <div className="space-y-1 text-center">
-                <h3 className="text-xs font-black tracking-tight uppercase text-[#1A1A1A] leading-none opacity-80">
+                <h3 className="text-[10px] sm:text-xs font-black tracking-tight uppercase text-[#1A1A1A] leading-none opacity-80">
                     DIRECCION GENERAL DEL REGISTRO ELECTORAL
                 </h3>
-                <h1 className="text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
                     JUSTICIA ELECTORAL
                 </h1>
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">
+                <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">
                     SISTEMA DE GESTIÓN
                 </p>
              </div>
         </div>
 
-        <Card className="border-t-4 border-t-primary shadow-2xl bg-white">
-          <CardHeader>
-            <CardTitle className="uppercase font-black text-center text-xl">
+        <Card className="border-t-4 border-t-primary shadow-2xl bg-white overflow-hidden">
+          <CardHeader className="pb-4">
+            <CardTitle className="uppercase font-black text-center text-xl tracking-tight">
               {mode === 'login' ? 'Acceso al Sistema' : 'Registro de Jefe'}
             </CardTitle>
-            <CardDescription className="text-center font-bold uppercase text-[10px]">
-              {mode === 'login' ? 'Ingrese sus credenciales oficiales' : 'Cree su perfil regional con filtro distrital automático'}
+            <CardDescription className="text-center font-bold uppercase text-[9px] tracking-widest opacity-60">
+              {mode === 'login' ? 'Ingrese sus credenciales oficiales' : 'Cree su perfil regional con filtro automático'}
             </CardDescription>
           </CardHeader>
 
           {mode === 'login' ? (
             <form onSubmit={handleLogin}>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email" className="text-[10px] font-black uppercase">Correo Electrónico</Label>
+                  <Label htmlFor="login-email" className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Correo Electrónico</Label>
                   <Input
                     id="login-email"
                     type="text"
@@ -265,16 +265,16 @@ export default function LoginPage() {
                     autoCapitalize="none"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="font-bold border-2"
+                    className="font-bold border-2 h-11 focus-visible:ring-primary/20"
                   />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                      <Label htmlFor="login-password" className="text-[10px] font-black uppercase">Contraseña</Label>
+                      <Label htmlFor="login-password" className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Contraseña</Label>
                        <button
                           type="button"
                           onClick={handlePasswordReset}
-                          className="text-[10px] font-bold text-primary hover:underline uppercase"
+                          className="text-[9px] font-bold text-primary hover:underline uppercase tracking-tight"
                       >
                           ¿Olvidó su clave?
                       </button>
@@ -286,13 +286,13 @@ export default function LoginPage() {
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        className="font-bold border-2"
+                        className="font-bold border-2 h-11 focus-visible:ring-primary/20"
                       />
                       <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="absolute inset-y-0 right-0 h-full w-10 text-muted-foreground"
+                          className="absolute inset-y-0 right-0 h-full w-10 text-muted-foreground hover:bg-transparent"
                           onClick={() => setPasswordVisible(!passwordVisible)}
                       >
                           {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -300,17 +300,17 @@ export default function LoginPage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-col gap-4">
-                <Button type="submit" className="w-full h-12 font-black uppercase shadow-lg" disabled={isLoading}>
+              <CardFooter className="flex flex-col gap-4 pt-2">
+                <Button type="submit" className="w-full h-12 font-black uppercase shadow-xl tracking-widest transition-transform active:scale-95" disabled={isLoading}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                  Ingresar
+                  Ingresar al sistema
                 </Button>
                 
                 <div className="w-full">
                     <Button 
                         type="button" 
                         variant="outline" 
-                        className="w-full border-2 font-black uppercase text-[10px] gap-2 h-11"
+                        className="w-full border-2 font-black uppercase text-[10px] gap-2 h-11 tracking-wider"
                         onClick={() => setMode('register')}
                     >
                         <UserPlus className="h-4 w-4" /> Registrarse como Jefe
@@ -320,43 +320,43 @@ export default function LoginPage() {
             </form>
           ) : (
             <form onSubmit={handleRegisterJefe}>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase">Nombre y Apellido</Label>
+                  <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Nombre y Apellido</Label>
                   <Input 
                     required 
                     value={regData.username}
                     onChange={(e) => setRegData(p => ({...p, username: e.target.value}))}
-                    className="font-bold border-2"
+                    className="font-bold border-2 h-11"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase">Correo Electrónico</Label>
+                  <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Correo Electrónico</Label>
                   <Input 
                     type="text" 
                     required 
                     autoCapitalize="none"
                     value={regData.email}
                     onChange={(e) => setRegData(p => ({...p, email: e.target.value}))}
-                    className="font-bold border-2"
+                    className="font-bold border-2 h-11"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase">Nueva Contraseña</Label>
+                  <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Nueva Contraseña</Label>
                   <Input 
                     type="password" 
                     required 
                     value={regData.password}
                     onChange={(e) => setRegData(p => ({...p, password: e.target.value}))}
-                    className="font-bold border-2"
+                    className="font-bold border-2 h-11"
                   />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase flex items-center gap-1"><MapPin className="h-3 w-3"/> Dpto.</Label>
+                    <Label className="text-[9px] font-black uppercase flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3"/> Dpto.</Label>
                     <Select onValueChange={(v) => setRegData(p => ({...p, departamento: v, distrito: ''}))}>
-                      <SelectTrigger className="font-bold border-2 text-[10px] h-9">
+                      <SelectTrigger className="font-bold border-2 text-[10px] h-10">
                         <SelectValue placeholder="Elegir..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -365,9 +365,9 @@ export default function LoginPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase flex items-center gap-1"><MapPin className="h-3 w-3"/> Distrito</Label>
+                    <Label className="text-[9px] font-black uppercase flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3"/> Distrito</Label>
                     <Select onValueChange={(v) => setRegData(p => ({...p, distrito: v}))} disabled={!regData.departamento}>
-                      <SelectTrigger className="font-bold border-2 text-[10px] h-9">
+                      <SelectTrigger className="font-bold border-2 text-[10px] h-10">
                         <SelectValue placeholder="Elegir..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -377,15 +377,15 @@ export default function LoginPage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-col gap-3">
-                <Button type="submit" className="w-full h-12 font-black uppercase shadow-lg" disabled={isLoading}>
+              <CardFooter className="flex flex-col gap-3 pt-2">
+                <Button type="submit" className="w-full h-12 font-black uppercase shadow-xl tracking-widest" disabled={isLoading}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                   Completar Registro
                 </Button>
                 <Button 
                   type="button" 
                   variant="ghost" 
-                  className="w-full text-[10px] font-black uppercase text-muted-foreground"
+                  className="w-full text-[9px] font-black uppercase text-muted-foreground tracking-widest"
                   onClick={() => setMode('login')}
                 >
                   Volver al Ingreso
