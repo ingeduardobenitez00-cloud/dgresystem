@@ -29,7 +29,7 @@ import {
   FileText,
   Cpu
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type MaquinaVotacion } from '@/lib/data';
@@ -196,7 +196,7 @@ export default function ControlMovimientoMaquinasPage() {
     return query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', '==', selectedSolicitudId));
   }, [firestore, user, selectedSolicitudId]);
 
-  const { data: movimientosData } = useCollection<MovimientoMaquina>(movementsQuery);
+  const { data: movimientosData } = useCollection<MovimientoMaquina>(movimientosQuery);
   const currentMovimiento = movimientosData && movimientosData.length > 0 ? movimientosData[0] : null;
 
   const selectedSolicitud = useMemo(() => {
@@ -427,7 +427,7 @@ export default function ControlMovimientoMaquinasPage() {
     y += 2; doc.roundedRect(margin + 5, y, 60, 5, 1, 1); doc.setFont('helvetica', 'normal'); 
     doc.text(salidaData.codigo_maquina.toUpperCase(), margin + 8, y + 3.5);
     y += 8; doc.setFont('helvetica', 'bold'); doc.text("LUGAR DE LA DIVULGACIÓN", margin + 5, y);
-    y += 2; doc.roundedRect(margin + 5, y, 165, 5, 1, 1); doc.setFont('helvetica', 'normal'); doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 8, y + 3.5);
+    y += 2; doc.roundedRect(margin + 5, y, 165, 5, 1, 1); doc.setFont('helvetica', 'normal'); text(selectedSolicitud.lugar_local.toUpperCase(), margin + 8, y + 3.5);
     y += 12;
     const signW = 45;
     const drawSign = (x: number, yP: number, lbl: string) => {
