@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -374,19 +373,21 @@ export default function ControlMovimientoMaquinasPage() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header Logos
-    doc.addImage(logoBase64, 'PNG', margin, 5, 15, 15);
+    // Header Logos - Mejorado tamaño
+    const leftLogoSize = 22;
+    doc.addImage(logoBase64, 'PNG', margin, 8, leftLogoSize, leftLogoSize);
 
-    const rightLogoW = 25;
+    const rightLogoW = 38;
+    const rightLogoH = 16;
     const rightX = pageWidth - margin - rightLogoW;
-    doc.addImage(logo1Base64, 'PNG', rightX, 5, rightLogoW, 12);
+    doc.addImage(logo1Base64, 'PNG', rightX, 10, rightLogoW, rightLogoH);
     
-    doc.setLineWidth(0.3);
-    doc.line(margin, 30, pageWidth - margin, 30);
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.text("FORMULARIO SALIDA / DEVOLUCIÓN DE MAQUINAS DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, 36, { align: "center" });
+    doc.setLineWidth(0.4);
+    doc.line(margin, 35, pageWidth - margin, 35);
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+    doc.text("FORMULARIO SALIDA / DEVOLUCIÓN DE MAQUINAS DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, 42, { align: "center" });
 
-    let y = 40;
+    let y = 48;
     const sectionHeight = 100;
     doc.setLineWidth(0.2);
     doc.roundedRect(margin, y, pageWidth - (margin * 2), sectionHeight, 3, 3);
@@ -438,7 +439,7 @@ export default function ControlMovimientoMaquinasPage() {
     y += 4; drawKitLine("5 BOLETAS DE CAPACITACION", !!salidaData.boletas, y);
     y += 6; doc.setFontSize(6); doc.setFont('helvetica', 'bold'); doc.text("OBS: ANEXAR A ESTE FORMULARIO: ANEXO I LUGAR FIJO DE DIVULGACIÓN / ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y, { align: 'center' });
 
-    y = 145; doc.roundedRect(margin, y, pageWidth - (margin * 2), sectionHeight, 3, 3);
+    y = 155; doc.roundedRect(margin, y, pageWidth - (margin * 2), sectionHeight, 3, 3);
     doc.circle(margin + 8, y + 6, 2.5); doc.setFontSize(7); doc.text("B", margin + 8, y + 7, { align: 'center' });
     doc.setFontSize(8); doc.text("DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", margin + 15, y + 6.5);
     y += 12; doc.setFont('helvetica', 'bold'); doc.text("FECHA:", margin + 5, y); 
