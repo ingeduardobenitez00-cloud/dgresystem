@@ -2,13 +2,14 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useUser, useFirebase } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/app-sidebar';
 import { Button } from './ui/button';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import Loading from '@/app/loading';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading, userError } = useUser();
@@ -53,18 +54,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [mounted, user, updatePresence]);
 
+  const isPublicRoute = useMemo(() => {
+    const publicRoutes = ['/login', '/encuesta-satisfaccion'];
+    return publicRoutes.some(route => pathname.startsWith(route));
+  }, [pathname]);
+
   useEffect(() => {
     if (!mounted || isUserLoading) return;
-
-    const publicRoutes = ['/login', '/encuesta-satisfaccion'];
-    const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
     if (!user && !isPublicRoute) {
       router.replace('/login');
     } else if (user && pathname === '/login') {
       router.replace('/');
     }
-  }, [user, isUserLoading, pathname, router, mounted]);
+  }, [user, isUserLoading, isPublicRoute, pathname, router, mounted]);
 
   if (userError && mounted) {
     return (
@@ -83,21 +86,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // OPTIMIZACIÓN: Mostramos la pantalla de carga solo durante el check de Auth
-  if (!mounted || (isUserLoading && pathname !== '/login' && !pathname.startsWith('/encuesta-satisfaccion'))) {
-    return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 relative">
-             <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
-             <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
-            Iniciando Sistema...
-          </p>
-        </div>
-      </div>
-    );
+  // OPTIMIZACIÓN: Bloqueo de renderizado para rutas privadas si no hay usuario
+  // Esto evita el "flicker" o pantallazo del dashboard al navegar atrás sin sesión.
+  if (!mounted || isUserLoading || (!user && !isPublicRoute)) {
+    return <Loading />;
   }
 
   const isLoginPage = pathname === '/login';
