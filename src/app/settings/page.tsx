@@ -36,6 +36,13 @@ import {
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+// Función auxiliar para normalizar encabezados (quitar acentos, espacios y pasar a minúsculas)
+const normalizeHeader = (str: string) => 
+  str.normalize("NFD")
+     .replace(/[\u0300-\u036f]/g, "")
+     .toLowerCase()
+     .trim();
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
@@ -122,8 +129,10 @@ export default function SettingsPage() {
         
         if (json.length === 0) return;
         const headers = Object.keys(json[0]);
+        
         const findHeader = (possibleNames: string[]) => {
-          return headers.find(h => possibleNames.some(p => h.toLowerCase().trim() === p.toLowerCase()));
+          const normalizedPossibles = possibleNames.map(normalizeHeader);
+          return headers.find(h => normalizedPossibles.includes(normalizeHeader(h)));
         };
 
         const depKey = findHeader(['DEPARTAMENTO', 'DEPTO', 'DPTO']);
@@ -131,12 +140,18 @@ export default function SettingsPage() {
         const depCodKey = findHeader(['DEPARTAMENTO_CODIGO', 'CODIGO_DPTO', 'COD_DPTO', 'COD_DEPTO']);
         const distCodKey = findHeader(['DISTRITO_CODIGO', 'CODIGO_DIST', 'COD_DIST']);
 
-        setPreviewGeo(json.map((row: any) => ({
+        const mapped = json.map((row: any) => ({
           departamento: String(depKey ? row[depKey] : '').trim().toUpperCase(),
           distrito: String(distKey ? row[distKey] : '').trim().toUpperCase(),
           departamento_codigo: String(depCodKey ? row[depCodKey] : '').trim(),
           distrito_codigo: String(distCodKey ? row[distCodKey] : '').trim(),
-        })).filter(d => d.departamento && d.distrito));
+        })).filter(d => d.departamento && d.distrito);
+
+        if (mapped.length === 0) {
+            toast({ variant: 'destructive', title: 'Error de formato', description: 'No se encontraron las columnas Departamento y Distrito.' });
+        } else {
+            setPreviewGeo(mapped);
+        }
       } catch (err) { 
         toast({ variant: 'destructive', title: 'Error al procesar archivo' }); 
       } finally { 
@@ -200,13 +215,20 @@ export default function SettingsPage() {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const json: any[] = XLSX.utils.sheet_to_json(sheet);
         
-        if (json.length === 0) return;
+        if (json.length === 0) {
+            toast({ variant: 'destructive', title: 'Archivo vacío', description: 'El archivo Excel no contiene datos.' });
+            return;
+        }
+
         const headers = Object.keys(json[0]);
+        
         const findHeader = (possibleNames: string[]) => {
-          return headers.find(h => possibleNames.some(p => h.toLowerCase().trim() === p.toLowerCase()));
+          const normalizedPossibles = possibleNames.map(normalizeHeader);
+          return headers.find(h => normalizedPossibles.includes(normalizeHeader(h)));
         };
 
-        const codKey = findHeader(['CODIGO', 'NRO_SERIE', 'SERIE', 'SERIAL', 'NRO SERIE', 'NRO. SERIE']);
+        // Búsqueda flexible de encabezados ignorando acentos
+        const codKey = findHeader(['CODIGO', 'CÓDIGO', 'NRO_SERIE', 'SERIE', 'SERIAL', 'NRO SERIE', 'NRO. SERIE']);
         const depKey = findHeader(['DEPARTAMENTO', 'DEPTO', 'DPTO']);
         const distKey = findHeader(['DISTRITO', 'OFICINA', 'LOCALIDAD']);
 
@@ -220,11 +242,13 @@ export default function SettingsPage() {
             toast({ 
                 variant: 'destructive', 
                 title: 'No se detectaron columnas', 
-                description: 'Verifique que los encabezados del Excel sean: CODIGO, DEPARTAMENTO, DISTRITO.' 
+                description: 'Verifique que los encabezados del Excel sean: Código, Departamento, Distrito.' 
             });
+            setPreviewMaq([]);
+        } else {
+            setPreviewMaq(mapped);
+            toast({ title: "Archivo procesado", description: `Se han detectado ${mapped.length} máquinas listas para importar.` });
         }
-
-        setPreviewMaq(mapped);
       } catch (err) { 
         toast({ variant: 'destructive', title: 'Error al procesar archivo' }); 
       } finally { 
@@ -323,11 +347,9 @@ export default function SettingsPage() {
     }
   };
 
-  if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  const isAdminView = currentUser?.profile?.role === 'admin';
 
-  const isAdmin = currentUser?.profile?.role === 'admin';
-
-  if (!isAdmin) {
+  if (!isAdminView) {
     return (
       <div className="flex min-h-screen flex-col bg-muted/10">
         <Header title="Configuración" />
@@ -593,7 +615,7 @@ export default function SettingsPage() {
                         )}
                     </CardContent>
                     <CardFooter className="bg-muted/30 border-t p-4">
-                        <Button className="w-full font-black uppercase h-12" onClick={handleSaveMaquinas} disabled={previewMaq.length === 0 || isUploadingMaq}>
+                        <Button className="w-full font-black uppercase h-12 shadow-lg" onClick={handleSaveMaquinas} disabled={previewMaq.length === 0 || isUploadingMaq}>
                             {isUploadingMaq ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Cpu className="mr-2 h-4 w-4" />}
                             GUARDAR INVENTARIO
                         </Button>
