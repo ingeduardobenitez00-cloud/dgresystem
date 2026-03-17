@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus, Trash2, X, Edit, Rocket, ShieldAlert } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, Database, Cpu, Search, Trash, AlertTriangle, TableIcon, Plus, Trash2, X, Edit, Rocket, ShieldAlert, Download } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -310,7 +310,7 @@ export default function SettingsPage() {
   };
 
   const handleResetCIDEE = async () => {
-    if (!firestore || !isAdmin) return;
+    if (!firestore || !isAdminView) return;
     setIsResetting(true);
     
     const collectionsToClear = [
@@ -347,7 +347,7 @@ export default function SettingsPage() {
     }
   };
 
-  const isAdminView = currentUser?.profile?.role === 'admin';
+  const isAdmin = currentUser?.profile?.role === 'admin';
 
   if (!isAdminView) {
     return (
@@ -613,6 +613,13 @@ export default function SettingsPage() {
                                 <p className="text-[10px] font-black uppercase text-primary">Máquinas detectadas: {previewMaq.length}</p>
                             </div>
                         )}
+                        <div className="mt-6 flex justify-center">
+                            <Button variant="link" className="text-[9px] font-black uppercase text-primary/60 hover:text-primary gap-2 h-auto p-0" asChild>
+                                <a href="/plantilla_inventario.csv" download>
+                                    <Download className="h-3 w-3" /> Descargar Plantilla de Ejemplo
+                                </a>
+                            </Button>
+                        </div>
                     </CardContent>
                     <CardFooter className="bg-muted/30 border-t p-4">
                         <Button className="w-full font-black uppercase h-12 shadow-lg" onClick={handleSaveMaquinas} disabled={previewMaq.length === 0 || isUploadingMaq}>
