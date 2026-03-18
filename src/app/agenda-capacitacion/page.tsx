@@ -8,7 +8,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
-import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer } from 'lucide-react';
+import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import Image from 'next/image';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import jsPDF from 'jspdf';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +51,10 @@ export default function AgendaCapacitacionPage() {
   const [divulSearch, setDivulSearch] = useState('');
   const [copied, setCopied] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+
+  // State to handle the 5-second delay before archiving
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [pendingArchiveIds, setPendingArchiveIds] = useState<Set<string>>(new Set());
 
   const profile = user?.profile;
 
@@ -118,18 +123,31 @@ export default function AgendaCapacitacionPage() {
 
   const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
 
+  // Effect to manage the 5-second archive timer
+  useEffect(() => {
+    if (!rawSolicitudes || !movimientosData || !informesData) return;
+
+    rawSolicitudes.forEach(sol => {
+      const mov = movimientosData.find(m => m.solicitud_id === sol.id);
+      const inf = informesData.find(i => i.solicitud_id === sol.id);
+      const isClosed = mov?.devolucion && inf;
+
+      if (isClosed && !hiddenIds.has(sol.id) && !pendingArchiveIds.has(sol.id)) {
+        setPendingArchiveIds(prev => new Set(prev).add(sol.id));
+        setTimeout(() => {
+          setHiddenIds(prev => new Set(prev).add(sol.id));
+        }, 5000);
+      }
+    });
+  }, [rawSolicitudes, movimientosData, informesData, hiddenIds, pendingArchiveIds]);
+
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
 
-    const today = new Date().toISOString().split('T')[0];
-
     const activeSolicitudes = rawSolicitudes.filter(sol => {
+        if (hiddenIds.has(sol.id)) return false;
         if (sol.cancelada) return false;
-        const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
-        const inf = informesData?.find(i => i.solicitud_id === sol.id);
-        const isPast = sol.fecha < today;
-        const isClosed = mov?.devolucion && inf;
-        return !(isPast && isClosed);
+        return true;
     });
 
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
@@ -152,7 +170,7 @@ export default function AgendaCapacitacionPage() {
     });
 
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
-  }, [rawSolicitudes, datosData, movimientosData, informesData]);
+  }, [rawSolicitudes, datosData, hiddenIds]);
 
   const filteredDivul = useMemo(() => {
     if (!rawDivulgadores || !assigningSolicitud) return [];
@@ -356,7 +374,8 @@ export default function AgendaCapacitacionPage() {
                                 const isPast = item.fecha < today;
                                 const mov = movimientosData?.find(m => m.solicitud_id === item.id);
                                 const inf = informesData?.find(i => i.solicitud_id === item.id);
-                                const hasAlert = isPast && (!mov?.devolucion || !inf);
+                                const isClosed = mov?.devolucion && inf;
+                                const hasAlert = isPast && !isClosed;
 
                                 const missing = [];
                                 if (!mov?.devolucion) missing.push("DEVOLUCIÓN DE MÁQUINA");
@@ -364,9 +383,19 @@ export default function AgendaCapacitacionPage() {
                                 const alertLabel = `ALERTA: ACTIVIDAD VENCIDA - FALTA COMPLETAR: ${missing.join(" Y ")}`;
 
                                 return (
-                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : "border-muted/20 bg-white")}>
+                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isClosed ? "border-green-600 bg-green-50/10" : "border-muted/20 bg-white")}>
                                         <CardContent className="p-8">
-                                            {hasAlert && (
+                                            {isClosed && (
+                                                <Alert className="mb-6 border-green-600 bg-green-50 text-green-800 animate-in fade-in slide-in-from-top-2 duration-500">
+                                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                                    <AlertTitle className="font-black uppercase text-[10px] tracking-widest">Actividad cumplida</AlertTitle>
+                                                    <AlertDescription className="text-[9px] font-bold uppercase">
+                                                        Se agendará en Historia/Archivo. Este detalle desaparecerá en 5 segundos.
+                                                    </AlertDescription>
+                                                </Alert>
+                                            )}
+
+                                            {hasAlert && !isClosed && (
                                                 <div className="mb-6 bg-destructive text-white px-4 py-2 rounded-xl flex items-center justify-between">
                                                     <div className="flex items-center gap-3">
                                                         <FileWarning className="h-5 w-5" />
@@ -409,14 +438,14 @@ export default function AgendaCapacitacionPage() {
 
                                                 <div className="lg:col-span-3 flex flex-col items-end gap-3">
                                                     <div className="flex gap-2 w-full max-w-[180px]">
-                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}>
+                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} disabled={isClosed}>
                                                             <UserPlus className="h-4 w-4" /> {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
                                                         </Button>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/20 text-destructive" onClick={() => setCancellingSolicitud(item)}>
+                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/20 text-destructive" onClick={() => setCancellingSolicitud(item)} disabled={isClosed}>
                                                             <CalendarX className="h-4 w-4" />
                                                         </Button>
                                                         {profile?.role === 'admin' && (
-                                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/20 text-destructive" onClick={() => setDeletingSolicitud(item)}>
+                                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/20 text-destructive" onClick={() => setDeletingSolicitud(item)} disabled={isClosed}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
                                                         )}
@@ -442,11 +471,7 @@ export default function AgendaCapacitacionPage() {
                       </AccordionItem>
                     ))}
                   </Accordion>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        )}
+                )}
       </main>
 
       {/* Dialogo para Asignar Personal */}
