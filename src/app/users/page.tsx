@@ -24,7 +24,10 @@ import {
   Settings,
   ChevronRight,
   UserCircle,
-  X
+  X,
+  Landmark,
+  Building2,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -64,6 +67,7 @@ type UserProfile = {
   permissions: string[];
   departamento?: string;
   distrito?: string;
+  active?: boolean;
 };
 
 const ACTION_LABELS = [
@@ -284,6 +288,55 @@ export default function UsersPage() {
     ).sort((a,b) => a.username.localeCompare(b.username));
   }, [users, searchTerm]);
 
+  // Jerarquía Geográfica de Usuarios
+  const userHierarchy = useMemo(() => {
+    if (!datosData) return [];
+    
+    const term = searchTerm.toLowerCase().trim();
+    const depts: Record<string, { name: string, districts: Record<string, { name: string, users: UserProfile[] }> }> = {};
+
+    // Inicializar con geografía completa
+    datosData.forEach(d => {
+      if (!depts[d.departamento]) depts[d.departamento] = { name: d.departamento, districts: {} };
+      if (!depts[d.departamento].districts[d.distrito]) {
+        depts[d.departamento].districts[d.distrito] = { name: d.distrito, users: [] };
+      }
+    });
+
+    // Casos especiales (Nacionales o usuarios sin jurisdicción explícita en datosData)
+    const extraDepts: Record<string, { name: string, districts: Record<string, { name: string, users: UserProfile[] }> }> = {};
+
+    filteredUsers.forEach(u => {
+      const deptName = u.departamento || 'ALCANCE NACIONAL';
+      const distName = u.distrito || 'TODOS LOS DISTRITOS';
+
+      if (depts[deptName]) {
+        if (!depts[deptName].districts[distName]) {
+            depts[deptName].districts[distName] = { name: distName, users: [] };
+        }
+        depts[deptName].districts[distName].users.push(u);
+      } else {
+        if (!extraDepts[deptName]) extraDepts[deptName] = { name: deptName, districts: {} };
+        if (!extraDepts[deptName].districts[distName]) extraDepts[deptName].districts[distName] = { name: distName, users: [] };
+        extraDepts[deptName].districts[distName].users.push(u);
+      }
+    });
+
+    const combined = { ...depts, ...extraDepts };
+
+    return Object.values(combined)
+      .map(dept => ({
+        ...dept,
+        districts: Object.values(dept.districts).sort((a, b) => a.name.localeCompare(b.name))
+      }))
+      .filter(dept => {
+        // Si hay búsqueda, solo mostramos departamentos que tengan coincidencias o cuyos distritos tengan coincidencias
+        if (!term) return true;
+        return dept.name.toLowerCase().includes(term) || dept.districts.some(d => d.users.length > 0);
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [datosData, filteredUsers, searchTerm]);
+
   const handleTogglePerm = (permId: string, isEditing = false) => {
     if (isEditing && editingUser) {
       const next = new Set(editingUser.permissions || []);
@@ -367,6 +420,29 @@ export default function UsersPage() {
         });
     }
   };
+  
+  const toggleUserStatus = (user: UserProfile) => {
+    if (!firestore) return;
+
+    const newStatus = user.active === false;
+    const docRef = doc(firestore, 'users', user.id);
+
+    updateDoc(docRef, { active: newStatus })
+      .then(() => {
+        toast({
+          title: 'Estado Actualizado',
+          description: `El usuario ahora está ${newStatus ? 'activo' : 'inactivo'}.`
+        });
+      })
+      .catch((error) => {
+        toast({
+          variant: 'destructive',
+          title: 'Error al actualizar',
+          description: 'No se pudo cambiar el estado del usuario.'
+        });
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
+      });
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -379,14 +455,15 @@ export default function UsersPage() {
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
 
-    const newUserProfile: Omit<UserProfile, 'id'> = { 
+    const newUserProfile: Omit<UserProfile, 'id' | 'active'> & { active: boolean } = { 
       username: username, 
       email, 
       role: regRole, 
       modules: Array.from(selectedModules), 
       permissions: Array.from(selectedPerms), 
       departamento: regDepartamento || '', 
-      distrito: regDistrito || ''
+      distrito: regDistrito || '',
+      active: regRole !== 'jefe'
     };
 
     const tempAppName = 'temp-creation-' + Math.random().toString(36).substring(7);
@@ -532,96 +609,146 @@ export default function UsersPage() {
           </form>
         </Card>
 
-        <Card className="shadow-xl overflow-hidden border-none rounded-xl">
-            <CardHeader className="bg-primary text-white py-5 px-8 flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle className="uppercase font-black text-sm tracking-widest">Personal Activo ({filteredUsers.length})</CardTitle>
+        {/* LISTADO JERÁRQUICO POR DEPARTAMENTO Y DISTRITO */}
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-primary p-6 rounded-xl shadow-lg">
+                <div className="flex items-center gap-3">
+                    <Users className="h-6 w-6 text-white opacity-50" />
+                    <div>
+                        <h2 className="text-white font-black uppercase text-sm tracking-widest leading-none">Matriz de Distribución Nacional</h2>
+                        <p className="text-white/60 font-bold uppercase text-[9px] mt-1 tracking-tighter">Supervisión de cobertura por oficina regional</p>
+                    </div>
                 </div>
-                <div className="relative w-80">
+                <div className="relative w-full md:w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                     <Input 
-                        placeholder="Buscar por nombre..." 
+                        placeholder="Filtrar por nombre o zona..." 
                         className="h-10 pl-10 text-[10px] font-bold bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
-            </CardHeader>
-            <CardContent className="p-0 bg-white">
-                <Table>
-                    <TableHeader className="bg-muted/50">
-                        <TableRow>
-                            <TableHead className="text-[9px] font-black uppercase tracking-widest px-8">Funcionario</TableHead>
-                            <TableHead className="text-[9px] font-black uppercase tracking-widest">Rol</TableHead>
-                            <TableHead className="text-[9px] font-black uppercase tracking-widest">Jurisdicción</TableHead>
-                            <TableHead className="text-right text-[9px] font-black uppercase tracking-widest px-8">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredUsers.map(user => (
-                            <TableRow key={user.id} className="hover:bg-primary/5 transition-colors border-b">
-                                <TableCell className="py-5 px-8">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center font-black text-[10px]">
-                                            {user.username.substring(0, 2).toUpperCase()}
+            </div>
+
+            <Accordion type="multiple" className="space-y-4">
+                {userHierarchy.map((dept) => {
+                    const totalUsers = dept.districts.reduce((acc, d) => acc + d.users.length, 0);
+                    const pendingDistricts = dept.districts.filter(d => d.users.length === 0).length;
+
+                    return (
+                        <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-xl shadow-md overflow-hidden">
+                            <AccordionTrigger className="hover:no-underline px-8 py-5 bg-white group">
+                                <div className="flex items-center justify-between w-full pr-6 text-left">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-10 w-10 rounded-lg bg-primary/5 text-primary flex items-center justify-center font-black border border-primary/10">
+                                            <Landmark className="h-5 w-5" />
                                         </div>
                                         <div>
-                                            <p className="font-black text-xs uppercase text-primary">{user.username}</p>
-                                            <p className="text-[9px] font-bold text-muted-foreground uppercase">{user.email}</p>
+                                            <h2 className="text-lg font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
+                                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                                                {dept.districts.length} OFICINAS | {totalUsers} FUNCIONARIOS
+                                            </p>
                                         </div>
                                     </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/20 bg-primary/5 text-primary">
-                                        {user.role}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <p className="text-[9px] font-black uppercase flex items-center gap-1.5">
-                                        <Globe className="h-3 w-3 opacity-40" /> {user.departamento || 'NACIONAL'}
-                                    </p>
-                                    {user.distrito && user.distrito !== 'N/A' && (
-                                        <p className="text-[8px] font-bold text-muted-foreground uppercase mt-0.5 ml-4">
-                                            {user.distrito}
-                                        </p>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-right px-8">
-                                    <div className="flex justify-end gap-3">
-                                        <Button variant="outline" size="icon" className="h-9 w-9 border-primary/10 hover:bg-primary hover:text-white transition-all" onClick={() => {
-                                            setEditingUser({ ...user });
-                                            setEditModalOpen(true);
-                                        }}>
-                                            <Edit className="h-4 w-4" />
-                                        </Button>
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="outline" size="icon" className="h-9 w-9 text-destructive/60 hover:bg-destructive hover:text-white">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle className="font-black uppercase">¿Eliminar acceso?</AlertDialogTitle>
-                                                    <AlertDialogDescription className="text-xs">Revocará permanentemente los permisos de este funcionario.</AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel className="font-bold text-[10px] uppercase">Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => {
-                                                        const docRef = doc(firestore, 'users', user.id);
-                                                        deleteDoc(docRef).catch(() => errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' })));
-                                                    }} className="bg-destructive text-white font-black text-[10px] uppercase">Eliminar</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
+                                    <div className="flex items-center gap-3">
+                                        {pendingDistricts > 0 && (
+                                            <Badge variant="destructive" className="bg-amber-100 text-amber-700 border-amber-200 text-[8px] font-black uppercase animate-pulse">
+                                                {pendingDistricts} PENDIENTES
+                                            </Badge>
+                                        )}
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">
+                                            {totalUsers} ACTIVOS
+                                        </Badge>
                                     </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-8 pb-8 pt-2">
+                                <Accordion type="multiple" className="space-y-3 pt-4">
+                                    {dept.districts.map((dist) => {
+                                        const hasUsers = dist.users.length > 0;
+                                        return (
+                                            <AccordionItem key={dist.name} value={dist.name} className="border-2 rounded-xl overflow-hidden transition-all hover:border-primary/10">
+                                                <AccordionTrigger className="hover:no-underline px-6 py-3 bg-muted/5 group">
+                                                    <div className="flex items-center justify-between w-full pr-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <Building2 className={cn("h-4 w-4", hasUsers ? "text-primary" : "text-muted-foreground/30")} />
+                                                            <span className="font-black uppercase text-xs tracking-tight">{dist.name}</span>
+                                                        </div>
+                                                        {!hasUsers && (
+                                                            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                                                                <AlertCircle className="h-3.5 w-3.5" />
+                                                                <span className="text-[8px] font-black uppercase">USUARIO PENDIENTE</span>
+                                                            </div>
+                                                        )}
+                                                        {hasUsers && (
+                                                            <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} REGISTROS</Badge>
+                                                        )}
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent className="p-0 bg-white">
+                                                    {!hasUsers ? (
+                                                        <div className="py-10 text-center space-y-2 opacity-30">
+                                                            <UserCircle className="h-10 w-10 mx-auto text-muted-foreground" />
+                                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Sin personal asignado a esta oficina</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="overflow-x-auto">
+                                                            <Table>
+                                                                <TableHeader className="bg-muted/30">
+                                                                    <TableRow>
+                                                                        <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
+                                                                        <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
+                                                                        <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
+                                                                        <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {dist.users.map(u => (
+                                                                        <TableRow key={u.id} className={cn("hover:bg-primary/5 transition-colors", u.active === false && "bg-amber-50/50")}>
+                                                                            <TableCell className="px-6 py-3">
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="font-black text-[11px] uppercase text-primary leading-tight">{u.username}</span>
+                                                                                    <span className="text-[9px] font-bold text-muted-foreground uppercase">{u.email}</span>
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell>
+                                                                                <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/10 bg-primary/5">
+                                                                                    {u.role}
+                                                                                </Badge>
+                                                                            </TableCell>
+                                                                            <TableCell>
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <div className={cn("h-1.5 w-1.5 rounded-full", u.active !== false ? "bg-green-500" : "bg-destructive")} />
+                                                                                    <span className="text-[8px] font-black uppercase">{u.active !== false ? 'Activo' : 'Inactivo'}</span>
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="text-right px-6">
+                                                                                <div className="flex justify-end gap-2">
+                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingUser({...u}); setEditModalOpen(true); }}>
+                                                                                        <Edit className="h-3.5 w-3.5" />
+                                                                                    </Button>
+                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => toggleUserStatus(u)}>
+                                                                                        <ShieldAlert className="h-3.5 w-3.5" />
+                                                                                    </Button>
+                                                                                </div>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    ))}
+                                                                </TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    )}
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        );
+                                    })}
+                                </Accordion>
+                            </AccordionContent>
+                        </AccordionItem>
+                    );
+                })}
+            </Accordion>
+        </div>
       </main>
 
       <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
