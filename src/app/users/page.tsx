@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -681,7 +680,7 @@ export default function UsersPage() {
                                                             </div>
                                                         )}
                                                         {hasUsers && (
-                                                            <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} REGISTROS</Badge>
+                                                            <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} {dist.users.length === 1 ? 'FUNCIONARIO' : 'FUNCIONARIOS'}</Badge>
                                                         )}
                                                     </div>
                                                 </AccordionTrigger>
@@ -773,7 +772,7 @@ export default function UsersPage() {
                 <div className="p-8 space-y-10">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div className="space-y-3">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Nombre y Apellido</Label>
+                            <Label className="text- [10px] font-black uppercase text-muted-foreground">Nombre y Apellido</Label>
                             <Input 
                                 value={editingUser.username} 
                                 onChange={(e) => setEditingUser({...editingUser, username: e.target.value})}
