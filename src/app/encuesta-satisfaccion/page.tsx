@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, DatabaseZap, Check, Search, X, Users, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, DatabaseZap, Check, Search, X, Users, AlertCircle, ArrowLeft, Clock, Lock } from 'lucide-react';
 import { useUser, useFirebase, useMemoFirebase, useDoc, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where, limit, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
@@ -19,6 +19,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 function EncuestaContent() {
   const { user } = useUser();
@@ -76,6 +77,30 @@ function EncuestaContent() {
   );
   
   const { data: linkedSolicitud, isLoading: isLoadingLinked } = useDoc<SolicitudCapacitacion>(solicitudRef);
+
+  // VALIDACIÓN DE HORARIO PARA QR (PÚBLICO)
+  const isWithinTimeWindow = useMemo(() => {
+    if (!linkedSolicitud || user) return true; // Si es usuario logueado o no hay solicitud cargada, no aplicamos esta restricción aquí
+    
+    try {
+        const now = new Date();
+        const [year, month, day] = linkedSolicitud.fecha.split('-').map(Number);
+        
+        // Ventana de inicio: 1 hora antes de hora_desde
+        const startDateTime = new Date(year, month - 1, day);
+        const [startH, startM] = linkedSolicitud.hora_desde.split(':').map(Number);
+        startDateTime.setHours(startH - 1, startM, 0, 0);
+        
+        // Ventana de fin: 1 hora después de hora_hasta
+        const endDateTime = new Date(year, month - 1, day);
+        const [endH, endM] = linkedSolicitud.hora_hasta.split(':').map(Number);
+        endDateTime.setHours(endH + 1, endM, 0, 0);
+        
+        return now >= startDateTime && now <= endDateTime;
+    } catch (e) {
+        return true; // En caso de error de parseo, permitimos acceso para no bloquear
+    }
+  }, [linkedSolicitud, user]);
 
   // Sincronización: Efecto para cargar datos del informe y encuestas existentes
   useEffect(() => {
@@ -162,7 +187,6 @@ function EncuestaContent() {
   const handleSubmit = () => {
     if (!firestore) return;
     
-    // Validación completa incluyendo las preguntas de la máquina
     if (
       !formData.lugar_practica || 
       !formData.fecha || 
@@ -179,7 +203,6 @@ function EncuestaContent() {
         return;
     }
 
-    // Validación de cupo si hay informe previo
     if (reportTotal > 0 && existingSurveysCount >= reportTotal) {
         toast({ 
             variant: "destructive", 
@@ -230,6 +253,8 @@ function EncuestaContent() {
   if (!isMounted) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   const isFormLocked = reportTotal > 0 && existingSurveysCount >= reportTotal;
+  const isStaffDisabled = user && effectiveSolicitudId && !isLoadingSync && reportTotal === 0;
+  const isPublicDisabled = !user && solicitudIdFromUrl && !isWithinTimeWindow;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
@@ -260,7 +285,7 @@ function EncuestaContent() {
             </Button>
           </div>
 
-          {/* MODO MANUAL PARA FUNCIONARIOS (Si no viene de QR) */}
+          {/* MODO MANUAL PARA FUNCIONARIOS */}
           {user && !solicitudIdFromUrl && (
             <Card className="border-primary/20 shadow-md">
                 <CardHeader className="py-4 bg-primary/5">
@@ -294,8 +319,31 @@ function EncuestaContent() {
             </Card>
           )}
 
+          {/* ALERTAS DE RESTRICCIÓN */}
+          {isStaffDisabled && (
+            <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 animate-in shake duration-500">
+                <Lock className="h-5 w-5" />
+                <AlertTitle className="font-black uppercase text-xs">Módulo Inhabilitado</AlertTitle>
+                <AlertDescription className="text-xs font-bold uppercase">
+                    Debe cargar primero el <span className="font-black">Informe del Divulgador (Anexo III)</span> para esta actividad antes de procesar las encuestas.
+                </AlertDescription>
+            </Alert>
+          )}
+
+          {isPublicDisabled && (
+            <Card className="p-16 text-center border-dashed rounded-[2.5rem] bg-white space-y-6 animate-in zoom-in duration-500">
+                <Clock className="h-20 w-20 mx-auto text-muted-foreground opacity-30" />
+                <div className="space-y-2">
+                    <h2 className="text-2xl font-black uppercase text-primary">Formulario no disponible</h2>
+                    <p className="text-sm text-muted-foreground font-bold uppercase tracking-tight leading-relaxed max-w-sm mx-auto">
+                        Esta encuesta solo se habilita durante el horario de la actividad (incluyendo margen de retrasos). Por favor, intente más tarde.
+                    </p>
+                </div>
+            </Card>
+          )}
+
           {/* INDICADOR DE SINCRONIZACIÓN Y CUPO */}
-          {effectiveSolicitudId && reportTotal > 0 && (
+          {effectiveSolicitudId && reportTotal > 0 && !isStaffDisabled && !isPublicDisabled && (
             <Card className={cn(
                 "border-2 shadow-xl animate-in slide-in-from-top-4 duration-500",
                 isFormLocked ? "bg-red-50 border-destructive/20" : "bg-primary/5 border-primary/20"
@@ -325,160 +373,163 @@ function EncuestaContent() {
             </Card>
           )}
 
-          {isFormLocked ? (
-            <Card className="p-20 text-center border-dashed rounded-[2.5rem] bg-white space-y-6">
-                <CheckCircle2 className="h-20 w-20 mx-auto text-green-600" />
-                <div className="space-y-2">
-                    <h2 className="text-2xl font-black uppercase text-primary">Carga Finalizada</h2>
-                    <p className="text-sm text-muted-foreground font-bold uppercase tracking-tight">Todas las encuestas de este evento han sido procesadas.</p>
-                </div>
-                <Button variant="outline" className="font-black uppercase text-xs" onClick={() => setInternalSolicitudId(null)}>VOLVER A LISTADO</Button>
-            </Card>
-          ) : (
-            <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden bg-white">
-                <CardHeader className="bg-white border-b p-8 md:p-12">
-                <div className="flex items-start gap-6">
-                    <Image src="/logo.png" alt="Logo TSJE" width={70} height={70} className="object-contain shrink-0" />
-                    <div className="space-y-1">
-                        <h1 className="text-2xl md:text-3xl font-black uppercase text-[#1A1A1A] leading-tight">ANEXO II - ENCUESTA DE SATISFACCIÓN</h1>
-                        <h2 className="text-lg font-black uppercase text-muted-foreground tracking-tight">PRÁCTICA CON LA MÁQUINA DE VOTACIÓN</h2>
-                    </div>
-                </div>
-                </CardHeader>
-
-                <CardContent className="p-8 md:p-12 space-y-16">
-                
-                {/* Box 1: Lugar, Fecha, Hora */}
-                <div className={cn("p-10 border-[3px] border-black rounded-[2.5rem] space-y-12 bg-white relative", isLoadingLinked && "opacity-50")}>
-                    {isLoadingLinked && (
-                        <div className="absolute inset-0 flex items-center justify-center z-10">
-                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                        </div>
-                    )}
-                    
+          {!isPublicDisabled && (
+            <>
+              {isFormLocked ? (
+                <Card className="p-20 text-center border-dashed rounded-[2.5rem] bg-white space-y-6">
+                    <CheckCircle2 className="h-20 w-20 mx-auto text-green-600" />
                     <div className="space-y-2">
-                        <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">LUGAR DONDE REALIZÓ LA PRÁCTICA:</Label>
-                        <Input 
-                            name="lugar_practica" 
-                            value={formData.lugar_practica} 
-                            onChange={handleInputChange} 
-                            readOnly={!!effectiveSolicitudId}
-                            placeholder="__________________________________________________________"
-                            className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 uppercase bg-transparent placeholder:text-muted-foreground/20" 
-                        />
+                        <h2 className="text-2xl font-black uppercase text-primary">Carga Finalizada</h2>
+                        <p className="text-sm text-muted-foreground font-bold uppercase tracking-tight">Todas las encuestas de este evento han sido procesadas.</p>
                     </div>
+                    {user && <Button variant="outline" className="font-black uppercase text-xs" onClick={() => setInternalSolicitudId(null)}>VOLVER A LISTADO</Button>}
+                </Card>
+              ) : (
+                <Card className={cn("shadow-2xl border-none rounded-[2.5rem] overflow-hidden bg-white transition-opacity", isStaffDisabled && "opacity-40 grayscale pointer-events-none")}>
+                    <CardHeader className="bg-white border-b p-8 md:p-12">
+                    <div className="flex items-start gap-6">
+                        <Image src="/logo.png" alt="Logo TSJE" width={70} height={70} className="object-contain shrink-0" />
+                        <div className="space-y-1">
+                            <h1 className="text-2xl md:text-3xl font-black uppercase text-[#1A1A1A] leading-tight">ANEXO II - ENCUESTA DE SATISFACCIÓN</h1>
+                            <h2 className="text-lg font-black uppercase text-muted-foreground tracking-tight">PRÁCTICA CON LA MÁQUINA DE VOTACIÓN</h2>
+                        </div>
+                    </div>
+                    </CardHeader>
+
+                    <CardContent className="p-8 md:p-12 space-y-16">
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className={cn("p-10 border-[3px] border-black rounded-[2.5rem] space-y-12 bg-white relative", isLoadingLinked && "opacity-50")}>
+                        {isLoadingLinked && (
+                            <div className="absolute inset-0 flex items-center justify-center z-10">
+                                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                            </div>
+                        )}
+                        
                         <div className="space-y-2">
-                            <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">FECHA:</Label>
+                            <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">LUGAR DONDE REALIZÓ LA PRÁCTICA:</Label>
                             <Input 
-                                name="fecha" 
-                                type={effectiveSolicitudId ? "text" : "date"}
-                                value={effectiveSolicitudId ? formatDateToDDMMYYYY(formData.fecha) : formData.fecha} 
+                                name="lugar_practica" 
+                                value={formData.lugar_practica} 
                                 onChange={handleInputChange} 
                                 readOnly={!!effectiveSolicitudId}
-                                placeholder="dd/mm/aaaa"
-                                className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 bg-transparent placeholder:text-muted-foreground/20" 
+                                placeholder="__________________________________________________________"
+                                className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 uppercase bg-transparent placeholder:text-muted-foreground/20" 
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">HORA:</Label>
-                            <Input 
-                                name="hora" 
-                                type={effectiveSolicitudId ? "text" : "time"}
-                                value={formData.hora} 
-                                onChange={handleInputChange} 
-                                readOnly={!!effectiveSolicitudId}
-                                placeholder="--:--"
-                                className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 bg-transparent placeholder:text-muted-foreground/20" 
-                            />
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="space-y-2">
+                                <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">FECHA:</Label>
+                                <Input 
+                                    name="fecha" 
+                                    type={effectiveSolicitudId ? "text" : "date"}
+                                    value={effectiveSolicitudId ? formatDateToDDMMYYYY(formData.fecha) : formData.fecha} 
+                                    onChange={handleInputChange} 
+                                    readOnly={!!effectiveSolicitudId}
+                                    placeholder="dd/mm/aaaa"
+                                    className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 bg-transparent placeholder:text-muted-foreground/20" 
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">HORA:</Label>
+                                <Input 
+                                    name="hora" 
+                                    type={effectiveSolicitudId ? "text" : "time"}
+                                    value={formData.hora} 
+                                    onChange={handleInputChange} 
+                                    readOnly={!!effectiveSolicitudId}
+                                    placeholder="--:--"
+                                    className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 bg-transparent placeholder:text-muted-foreground/20" 
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-start">
-                        <div className="space-y-2">
-                            <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">EDAD (AÑOS):</Label>
-                            <Input name="edad" type="number" value={formData.edad} onChange={handleInputChange} className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 bg-transparent" />
-                        </div>
-                        <div className="md:col-span-2 space-y-8 pt-1">
-                            <div className="flex flex-wrap gap-8 items-center">
-                                <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em] shrink-0">GÉNERO:</Label>
-                                <div className="flex items-center gap-6">
-                                    <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleValueChange('genero', 'hombre')}>
-                                        <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-colors", formData.genero === 'hombre' ? "bg-black text-white" : "bg-white")}>
-                                            {formData.genero === 'hombre' && <Check className="h-5 w-5 stroke-[4]" />}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-start">
+                            <div className="space-y-2">
+                                <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em]">EDAD (AÑOS):</Label>
+                                <Input name="edad" type="number" value={formData.edad} onChange={handleInputChange} className="h-14 font-black text-xl border-x-0 border-t-0 border-b-[3px] rounded-none border-black focus-visible:ring-0 px-0 bg-transparent" />
+                            </div>
+                            <div className="md:col-span-2 space-y-8 pt-1">
+                                <div className="flex flex-wrap gap-8 items-center">
+                                    <Label className="text-[11px] font-black uppercase text-[#1A1A1A] tracking-[0.1em] shrink-0">GÉNERO:</Label>
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleValueChange('genero', 'hombre')}>
+                                            <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-colors", formData.genero === 'hombre' ? "bg-black text-white" : "bg-white")}>
+                                                {formData.genero === 'hombre' && <Check className="h-5 w-5 stroke-[4]" />}
+                                            </div>
+                                            <span className="font-black text-xs uppercase">HOMBRE</span>
                                         </div>
-                                        <span className="font-black text-xs uppercase">HOMBRE</span>
-                                    </div>
-                                    <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleValueChange('genero', 'mujer')}>
-                                        <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-colors", formData.genero === 'mujer' ? "bg-black text-white" : "bg-white")}>
-                                            {formData.genero === 'mujer' && <Check className="h-5 w-5 stroke-[4]" />}
+                                        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleValueChange('genero', 'mujer')}>
+                                            <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-colors", formData.genero === 'mujer' ? "bg-black text-white" : "bg-white")}>
+                                                {formData.genero === 'mujer' && <Check className="h-5 w-5 stroke-[4]" />}
+                                            </div>
+                                            <span className="font-black text-xs uppercase">MUJER</span>
                                         </div>
-                                        <span className="font-black text-xs uppercase">MUJER</span>
                                     </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setFormData(p => ({...p, pueblo_originario: !p.pueblo_originario}))}>
-                                <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-colors", formData.pueblo_originario ? "bg-black text-white" : "bg-white")}>
-                                    {formData.pueblo_originario && <Check className="h-5 w-5 stroke-[4]" />}
+                                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setFormData(p => ({...p, pueblo_originario: !p.pueblo_originario}))}>
+                                    <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-colors", formData.pueblo_originario ? "bg-black text-white" : "bg-white")}>
+                                        {formData.pueblo_originario && <Check className="h-5 w-5 stroke-[4]" />}
+                                    </div>
+                                    <span className="font-black text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]">PUEBLO ORIGINARIO</span>
                                 </div>
-                                <span className="font-black text-[11px] uppercase tracking-[0.1em] text-[#1A1A1A]">PUEBLO ORIGINARIO</span>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="space-y-16">
-                    <div className="space-y-8">
-                    <Label className="font-black text-lg md:text-xl uppercase text-[#1A1A1A] leading-tight">1. ¿Le parece útil practicar con la máquina de votación?</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {['muy_util', 'util', 'poco_util', 'nada_util'].map(val => (
-                        <div key={val} className="flex items-center space-x-4 cursor-pointer group" onClick={() => handleValueChange('utilidad_maquina', val as any)}>
-                            <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-all group-hover:scale-110", formData.utilidad_maquina === val ? "bg-black text-white" : "bg-white")}>
-                                {formData.utilidad_maquina === val && <Check className="h-5 w-5 stroke-[4]" />}
+                    <div className="space-y-16">
+                        <div className="space-y-8">
+                        <Label className="font-black text-lg md:text-xl uppercase text-[#1A1A1A] leading-tight">1. ¿Le parece útil practicar con la máquina de votación?</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {['muy_util', 'util', 'poco_util', 'nada_util'].map(val => (
+                            <div key={val} className="flex items-center space-x-4 cursor-pointer group" onClick={() => handleValueChange('utilidad_maquina', val as any)}>
+                                <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-all group-hover:scale-110", formData.utilidad_maquina === val ? "bg-black text-white" : "bg-white")}>
+                                    {formData.utilidad_maquina === val && <Check className="h-5 w-5 stroke-[4]" />}
+                                </div>
+                                <Label className="font-black text-xs uppercase cursor-pointer group-hover:text-primary transition-colors">{val.replace('_', ' ')}</Label>
                             </div>
-                            <Label className="font-black text-xs uppercase cursor-pointer group-hover:text-primary transition-colors">{val.replace('_', ' ')}</Label>
+                            ))}
                         </div>
-                        ))}
-                    </div>
-                    </div>
+                        </div>
 
-                    <div className="space-y-8">
-                    <Label className="font-black text-lg md:text-xl uppercase text-[#1A1A1A] leading-tight">2. ¿Le resultó fácil usar la máquina de votación?</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {['muy_facil', 'facil', 'poco_facil', 'nada_facil'].map(val => (
-                        <div key={val} className="flex items-center space-x-4 cursor-pointer group" onClick={() => handleValueChange('facilidad_maquina', val as any)}>
-                            <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-all group-hover:scale-110", formData.facilidad_maquina === val ? "bg-black text-white" : "bg-white")}>
-                                {formData.facilidad_maquina === val && <Check className="h-5 w-5 stroke-[4]" />}
+                        <div className="space-y-8">
+                        <Label className="font-black text-lg md:text-xl uppercase text-[#1A1A1A] leading-tight">2. ¿Le resultó fácil usar la máquina de votación?</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {['muy_facil', 'facil', 'poco_facil', 'nada_facil'].map(val => (
+                            <div key={val} className="flex items-center space-x-4 cursor-pointer group" onClick={() => handleValueChange('facilidad_maquina', val as any)}>
+                                <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-all group-hover:scale-110", formData.facilidad_maquina === val ? "bg-black text-white" : "bg-white")}>
+                                    {formData.facilidad_maquina === val && <Check className="h-5 w-5 stroke-[4]" />}
+                                </div>
+                                <Label className="font-black text-xs uppercase cursor-pointer group-hover:text-primary transition-colors">{val.replace('_', ' ')}</Label>
                             </div>
-                            <Label className="font-black text-xs uppercase cursor-pointer group-hover:text-primary transition-colors">{val.replace('_', ' ')}</Label>
+                            ))}
                         </div>
-                        ))}
-                    </div>
-                    </div>
+                        </div>
 
-                    <div className="space-y-8">
-                    <Label className="font-black text-lg md:text-xl uppercase text-[#1A1A1A] leading-tight">3. Después de la práctica, ¿qué tan seguro/a se siente para utilizar la máquina de votación?</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {['muy_seguro', 'seguro', 'poco_seguro', 'nada_seguro'].map(val => (
-                        <div key={val} className="flex items-center space-x-4 cursor-pointer group" onClick={() => handleValueChange('seguridad_maquina', val as any)}>
-                            <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-all group-hover:scale-110", formData.seguridad_maquina === val ? "bg-black text-white" : "bg-white")}>
-                                {formData.seguridad_maquina === val && <Check className="h-5 w-5 stroke-[4]" />}
+                        <div className="space-y-8">
+                        <Label className="font-black text-lg md:text-xl uppercase text-[#1A1A1A] leading-tight">3. Después de la práctica, ¿qué tan seguro/a se siente para utilizar la máquina de votación?</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {['muy_seguro', 'seguro', 'poco_seguro', 'nada_seguro'].map(val => (
+                            <div key={val} className="flex items-center space-x-4 cursor-pointer group" onClick={() => handleValueChange('seguridad_maquina', val as any)}>
+                                <div className={cn("h-7 w-7 border-[3px] border-black rounded-lg flex items-center justify-center transition-all group-hover:scale-110", formData.seguridad_maquina === val ? "bg-black text-white" : "bg-white")}>
+                                    {formData.seguridad_maquina === val && <Check className="h-5 w-5 stroke-[4]" />}
+                                </div>
+                                <Label className="font-black text-xs uppercase cursor-pointer group-hover:text-primary transition-colors">{val.replace('_', ' ')}/A</Label>
                             </div>
-                            <Label className="font-black text-xs uppercase cursor-pointer group-hover:text-primary transition-colors">{val.replace('_', ' ')}/A</Label>
+                            ))}
                         </div>
-                        ))}
+                        </div>
                     </div>
-                    </div>
-                </div>
-                </CardContent>
+                    </CardContent>
 
-                <CardFooter className="flex flex-col sm:flex-row gap-6 bg-muted/30 border-t p-10 md:p-12">
-                <Button onClick={handleSubmit} disabled={isSubmitting || !formData.edad} className="w-full h-20 font-black text-2xl uppercase shadow-2xl bg-black hover:bg-black/90 text-white rounded-[1.5rem] tracking-wider">
-                    {isSubmitting ? <Loader2 className="animate-spin mr-4 h-8 w-8" /> : "ENVIAR MI OPINIÓN"}
-                </Button>
-                </CardFooter>
-            </Card>
+                    <CardFooter className="flex flex-col sm:flex-row gap-6 bg-muted/30 border-t p-10 md:p-12">
+                    <Button onClick={handleSubmit} disabled={isSubmitting || !formData.edad || isStaffDisabled} className="w-full h-20 font-black text-2xl uppercase shadow-2xl bg-black hover:bg-black/90 text-white rounded-[1.5rem] tracking-wider">
+                        {isSubmitting ? <Loader2 className="animate-spin mr-4 h-8 w-8" /> : "ENVIAR MI OPINIÓN"}
+                    </Button>
+                    </CardFooter>
+                </Card>
+              )}
+            </>
           )}
         </div>
       </main>
