@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -81,6 +82,7 @@ const MODULE_STRUCTURE = [
   {
     category: "CIDEE - CAPACITACIONES",
     items: [
+      { id: 'anexo-i', label: 'ANEXO I - LUGARES FIJOS' },
       { id: 'solicitud-capacitacion', label: 'ANEXO V - SOLICITUD' },
       { id: 'agenda-capacitacion', label: 'AGENDA DE ACTIVIDADES' },
       { id: 'control-movimiento-maquinas', label: 'MOVIMIENTO DE MÁQUINAS' },
