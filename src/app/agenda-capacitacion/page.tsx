@@ -7,9 +7,9 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
-import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer, CheckCircle2, User } from 'lucide-react';
+import { Loader2, MapPin, Calendar, UserPlus, QrCode, Building2, LayoutList, Globe, Search, Trash2, Printer, CheckCircle2, User, Copy, Check, CalendarX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -133,7 +133,7 @@ export default function AgendaCapacitacionPage() {
         setPendingArchiveIds(prev => new Set(prev).add(sol.id));
         setTimeout(() => {
           setHiddenIds(prev => new Set(prev).add(sol.id));
-        }, 120000); // 2 Minutos
+        }, 120000); 
       }
     });
   }, [rawSolicitudes, movimientosData, informesData, hiddenIds, pendingArchiveIds]);
@@ -141,11 +141,7 @@ export default function AgendaCapacitacionPage() {
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
 
-    const activeSolicitudes = rawSolicitudes.filter(sol => {
-        if (hiddenIds.has(sol.id)) return false;
-        if (sol.cancelada) return false;
-        return true;
-    });
+    const activeSolicitudes = rawSolicitudes.filter(sol => !hiddenIds.has(sol.id) && !sol.cancelada);
 
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
 
@@ -168,15 +164,6 @@ export default function AgendaCapacitacionPage() {
 
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
   }, [rawSolicitudes, datosData, hiddenIds]);
-
-  const filteredDivul = useMemo(() => {
-    if (!rawDivulgadores || !assigningSolicitud) return [];
-    const term = divulSearch.toLowerCase().trim();
-    return rawDivulgadores.filter(d => 
-      d.distrito === assigningSolicitud.distrito &&
-      (d.nombre.toLowerCase().includes(term) || d.cedula.includes(term))
-    );
-  }, [rawDivulgadores, divulSearch, assigningSolicitud]);
 
   const handleAssignDivulgador = (divulgador: Divulgador) => {
     if (!assigningSolicitud || !firestore) return;
@@ -240,29 +227,26 @@ export default function AgendaCapacitacionPage() {
         });
   };
 
-  const surveyUrl = useMemo(() => {
-    if (typeof window === 'undefined' || !qrSolicitud) return '';
-    return `${window.location.origin}/encuesta-satisfaccion?solicitudId=${qrSolicitud.id}`;
-  }, [qrSolicitud]);
+  const surveyUrl = (sol: SolicitudCapacitacion) => {
+    if (typeof window === 'undefined' || !sol) return '';
+    return `${window.location.origin}/encuesta-satisfaccion?solicitudId=${sol.id}`;
+  };
 
-  const qrImageUrl = useMemo(() => {
-    if (!surveyUrl) return '';
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(surveyUrl)}`;
-  }, [surveyUrl]);
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(surveyUrl);
+  const copyToClipboard = (sol: SolicitudCapacitacion) => {
+    navigator.clipboard.writeText(surveyUrl(sol));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({ title: "Enlace copiado" });
   };
 
-  const generateQrPDF = async () => {
-    if (!qrSolicitud || !logoBase64) return;
+  const generateQrPDF = async (sol: SolicitudCapacitacion) => {
+    if (!sol || !logoBase64) return;
     setIsGeneratingPdf(true);
     try {
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(surveyUrl(sol))}`;
+        
         doc.addImage(logoBase64, 'PNG', 20, 10, 25, 25);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(16);
@@ -274,10 +258,11 @@ export default function AgendaCapacitacionPage() {
         doc.setFontSize(18);
         doc.text("CÓDIGO QR - ENCUESTA DE SATISFACCIÓN", pageWidth / 2, 55, { align: 'center' });
         doc.setFontSize(12);
-        doc.text(`LOCAL: ${qrSolicitud.lugar_local.toUpperCase()}`, pageWidth / 2, 75, { align: 'center' });
-        doc.text(`DISTRITO: ${qrSolicitud.distrito.toUpperCase()} | DEPTO: ${qrSolicitud.departamento.toUpperCase()}`, pageWidth / 2, 83, { align: 'center' });
-        doc.text(`FECHA: ${formatDateToDDMMYYYY(qrSolicitud.fecha)} | HORARIO: ${qrSolicitud.hora_desde} HS.`, pageWidth / 2, 91, { align: 'center' });
-        const response = await fetch(qrImageUrl);
+        doc.text(`LOCAL: ${sol.lugar_local.toUpperCase()}`, pageWidth / 2, 75, { align: 'center' });
+        doc.text(`DISTRITO: ${sol.distrito.toUpperCase()} | DEPTO: ${sol.departamento.toUpperCase()}`, pageWidth / 2, 83, { align: 'center' });
+        doc.text(`FECHA: ${formatDateToDDMMYYYY(sol.fecha)} | HORARIO: ${sol.hora_desde} HS.`, pageWidth / 2, 91, { align: 'center' });
+        
+        const response = await fetch(qrUrl);
         const blob = await response.blob();
         const qrBase64 = await new Promise<string>((resolve) => {
             const reader = new FileReader();
@@ -290,12 +275,7 @@ export default function AgendaCapacitacionPage() {
         doc.setFont('helvetica', 'normal');
         doc.text("Instrucciones: Escanee este código con la cámara de su teléfono", pageWidth / 2, 220, { align: 'center' });
         doc.text("para acceder al formulario oficial de satisfacción ciudadana.", pageWidth / 2, 226, { align: 'center' });
-        doc.setLineWidth(0.2);
-        doc.setDrawColor(200);
-        doc.line(40, 240, pageWidth - 40, 240);
-        doc.setFontSize(8);
-        doc.text("CUSTODIO DE LA VOLUNTAD POPULAR - REPÚBLICA DEL PARAGUAY", pageWidth / 2, 250, { align: 'center' });
-        doc.save(`QR-Encuesta-${qrSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
+        doc.save(`QR-Encuesta-${sol.lugar_local.replace(/\s+/g, '-')}.pdf`);
         toast({ title: "PDF Generado con éxito" });
     } catch (error) {
         toast({ variant: 'destructive', title: "Error al generar PDF" });
@@ -303,6 +283,15 @@ export default function AgendaCapacitacionPage() {
         setIsGeneratingPdf(false);
     }
   };
+
+  const filteredDivul = useMemo(() => {
+    if (!rawDivulgadores || !assigningSolicitud) return [];
+    const term = divulSearch.toLowerCase().trim();
+    return rawDivulgadores.filter(d => 
+      d.distrito === assigningSolicitud.distrito &&
+      (d.nombre.toLowerCase().includes(term) || d.cedula.includes(term))
+    );
+  }, [rawDivulgadores, divulSearch, assigningSolicitud]);
 
   if (isUserLoading || isLoadingSolicitudes || isLoadingDivul) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -324,7 +313,7 @@ export default function AgendaCapacitacionPage() {
             </div>
             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-                <span className="text-[9px] font-black uppercase text-muted-foreground">ALERTAS ACTIVAS</span>
+                <span className="text-[9px] font-black uppercase text-muted-foreground">MONITOR EN TIEMPO REAL</span>
             </div>
         </div>
 
@@ -352,140 +341,136 @@ export default function AgendaCapacitacionPage() {
                 
                 <AccordionContent className="px-8 pb-8 pt-2">
                   <Accordion type="multiple" className="space-y-4">
-                    {Object.values(dept.dists).map((dist) => (
-                      <AccordionItem key={dist.label} value={dist.label} className="border-none">
-                        <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed">
-                            <div className="flex items-center gap-3">
-                                <Building2 className="h-5 w-5 text-[#1A1A1A]" />
-                                <h3 className="font-black uppercase text-sm tracking-tight text-primary/80">
-                                    {dist.code} {dist.label}
-                                </h3>
-                                <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">
-                                    {dist.items.length}
-                                </Badge>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-6 space-y-4 px-2">
-                            {dist.items.sort((a,b) => a.fecha.localeCompare(b.fecha)).map((item) => {
-                                const today = new Date().toISOString().split('T')[0];
-                                const isPast = item.fecha < today;
-                                const mov = movimientosData?.find(m => m.solicitud_id === item.id);
-                                const inf = informesData?.find(i => i.solicitud_id === item.id);
-                                const isClosed = mov?.devolucion && inf;
-                                const hasAlert = isPast && !isClosed;
+                    {Object.values(dept.dists).map((dist) => {
+                        // Agrupar items del distrito por local y entidad (Lote)
+                        const batches: Record<string, SolicitudCapacitacion[]> = {};
+                        dist.items.forEach(item => {
+                            const key = `${item.solicitante_entidad}-${item.lugar_local}-${item.tipo_solicitud}`;
+                            if (!batches[key]) batches[key] = [];
+                            batches[key].push(item);
+                        });
 
-                                return (
-                                    <Card key={item.id} className={cn("border-2 shadow-md rounded-2xl relative overflow-hidden transition-all", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isClosed ? "border-green-600 bg-green-50/10" : "border-muted/20 bg-white")}>
-                                        <CardContent className="p-6">
-                                            {isClosed && (
-                                                <Alert className="mb-4 border-green-600 bg-green-50 text-green-800 animate-in fade-in slide-in-from-top-2 duration-500">
-                                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                                    <AlertTitle className="font-black uppercase text-[9px] tracking-widest">Actividad cumplida</AlertTitle>
-                                                    <AlertDescription className="text-[8px] font-bold uppercase">
-                                                        Se agendará en Historia/Archivo en 2 minutos.
-                                                    </AlertDescription>
-                                                </Alert>
-                                            )}
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                                                {/* COLUMNA SOLICITANTE */}
-                                                <div className="lg:col-span-3 space-y-1">
-                                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">SOLICITANTE</p>
-                                                    <p className="font-black text-[13px] uppercase leading-tight text-[#1A1A1A]">
-                                                        {item.solicitante_entidad || item.otra_entidad}
-                                                    </p>
-                                                    <Badge variant="secondary" className="bg-[#E2E8F0] text-[#475569] font-black uppercase text-[8px] tracking-widest px-2 py-0.5 rounded-md">
-                                                        {item.tipo_solicitud}
-                                                    </Badge>
-                                                </div>
-
-                                                {/* COLUMNA INFORMACIÓN LOCAL / FECHA */}
-                                                <div className="lg:col-span-3 space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                                                        <p className="font-black text-[11px] uppercase text-[#1A1A1A] truncate">{item.lugar_local}</p>
+                        return (
+                            <AccordionItem key={dist.label} value={dist.label} className="border-none">
+                                <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed">
+                                    <div className="flex items-center gap-3">
+                                        <Building2 className="h-5 w-5 text-[#1A1A1A]" />
+                                        <h3 className="font-black uppercase text-sm tracking-tight text-primary/80">
+                                            {dist.code} {dist.label}
+                                        </h3>
+                                        <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">
+                                            {dist.items.length}
+                                        </Badge>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pt-6 space-y-6 px-2">
+                                    {Object.values(batches).map((batch, bIdx) => {
+                                        const head = batch[0];
+                                        return (
+                                            <Card key={bIdx} className="border-none shadow-xl rounded-[2rem] overflow-hidden bg-white group/card">
+                                                <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch min-h-[140px]">
+                                                    {/* SECCIÓN SOLICITANTE */}
+                                                    <div className="lg:col-span-3 p-8 bg-muted/5 border-r border-dashed border-black/10 flex flex-col justify-center gap-3">
+                                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em]">SOLICITANTE</p>
+                                                        <h4 className="font-black text-sm uppercase leading-tight text-[#1A1A1A]">
+                                                            {head.solicitante_entidad || head.otra_entidad}
+                                                        </h4>
+                                                        <Badge variant="secondary" className="w-fit bg-[#E2E8F0] text-[#475569] font-black uppercase text-[8px] tracking-widest px-3 py-1 rounded-md">
+                                                            {head.tipo_solicitud}
+                                                        </Badge>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Calendar className={cn("h-3.5 w-3.5", hasAlert ? "text-destructive" : "text-muted-foreground")} />
-                                                        <p className={cn("font-black text-[11px] uppercase", hasAlert ? "text-destructive" : "text-[#1A1A1A]")}>
-                                                            {formatDateToDDMMYYYY(item.fecha)} | {item.hora_desde} HS
-                                                        </p>
-                                                    </div>
-                                                </div>
 
-                                                {/* COLUMNA DIVULGADOR */}
-                                                <div className="lg:col-span-2 space-y-1">
-                                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">DIVULGADOR</p>
-                                                    {item.divulgador_nombre ? (
-                                                        <div className="flex items-center gap-2 text-[#16A34A]">
-                                                            <User className="h-4 w-4" />
-                                                            <p className="font-black text-[12px] uppercase leading-tight">{item.divulgador_nombre}</p>
+                                                    {/* SECCIÓN LUGAR Y FECHAS */}
+                                                    <div className="lg:col-span-9 p-8 flex flex-col gap-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <MapPin className="h-5 w-5 text-muted-foreground" />
+                                                            <h3 className="text-lg font-black uppercase tracking-tight text-primary">{head.lugar_local}</h3>
                                                         </div>
-                                                    ) : (
-                                                        <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
-                                                    )}
-                                                </div>
 
-                                                {/* COLUMNA ACCIONES */}
-                                                <div className="lg:col-span-4 flex flex-col gap-2">
-                                                    <div className="flex gap-2 w-full">
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            className="h-9 flex-1 rounded-lg font-black uppercase text-[10px] border-2 gap-2" 
-                                                            onClick={() => setAssigningSolicitud(item)} 
-                                                            disabled={isClosed}
-                                                        >
-                                                            <UserPlus className="h-3.5 w-3.5" /> {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
-                                                        </Button>
-                                                        <div className="flex gap-1.5">
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="icon" 
-                                                                className="h-9 w-9 rounded-lg border-2 border-destructive/20 text-destructive" 
-                                                                onClick={() => setCancellingSolicitud(item)} 
-                                                                disabled={isClosed}
-                                                            >
-                                                                <CalendarX className="h-4 w-4" />
-                                                            </Button>
-                                                            {profile?.role === 'admin' && (
-                                                                <Button 
-                                                                    variant="outline" 
-                                                                    size="icon" 
-                                                                    className="h-9 w-9 rounded-lg border-2 border-destructive/20 text-destructive" 
-                                                                    onClick={() => setDeletingSolicitud(item)} 
-                                                                    disabled={isClosed}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            )}
+                                                        {/* LISTADO DE FECHAS (FILAS) */}
+                                                        <div className="space-y-4">
+                                                            {batch.sort((a,b) => a.fecha.localeCompare(b.fecha)).map((item) => {
+                                                                const mov = movimientosData?.find(m => m.solicitud_id === item.id);
+                                                                const inf = informesData?.find(i => i.solicitud_id === item.id);
+                                                                const isClosed = mov?.devolucion && inf;
+                                                                const today = new Date().toISOString().split('T')[0];
+                                                                const hasAlert = item.fecha < today && !isClosed;
+
+                                                                return (
+                                                                    <div key={item.id} className={cn(
+                                                                        "flex flex-col md:flex-row items-center gap-6 p-4 rounded-2xl border-2 transition-all",
+                                                                        isClosed ? "bg-green-50/30 border-green-200" : hasAlert ? "bg-destructive/[0.02] border-destructive/20" : "bg-[#F8F9FA] border-transparent hover:border-black/5"
+                                                                    )}>
+                                                                        {/* FECHA Y HORA */}
+                                                                        <div className="flex items-center gap-3 md:w-64">
+                                                                            <Calendar className={cn("h-4 w-4", hasAlert ? "text-destructive" : "text-muted-foreground")} />
+                                                                            <p className={cn("font-black text-xs uppercase tracking-tighter", hasAlert ? "text-destructive" : "text-[#1A1A1A]")}>
+                                                                                {formatDateToDDMMYYYY(item.fecha)} | {item.hora_desde} HS
+                                                                            </p>
+                                                                        </div>
+
+                                                                        {/* DIVULGADOR */}
+                                                                        <div className="flex-1 flex flex-col gap-1">
+                                                                            <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">DIVULGADOR</p>
+                                                                            {item.divulgador_nombre ? (
+                                                                                <div className="flex items-center gap-2 text-green-600">
+                                                                                    <User className="h-3 w-3" />
+                                                                                    <span className="font-black text-[10px] uppercase">{item.divulgador_nombre}</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="font-black text-[9px] text-destructive uppercase italic italic">SIN ASIGNAR</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* PANEL DE ACCIONES (2 FILAS) */}
+                                                                        <div className="flex flex-col gap-1.5 md:w-[280px]">
+                                                                            {/* FILA 1: ASIGNACIÓN Y CONTROL */}
+                                                                            <div className="flex gap-1.5 w-full">
+                                                                                <Button 
+                                                                                    variant="outline" 
+                                                                                    size="sm" 
+                                                                                    className="h-8 flex-1 rounded-lg font-black uppercase text-[9px] border-2 bg-white gap-2" 
+                                                                                    onClick={() => setAssigningSolicitud(item)} 
+                                                                                    disabled={isClosed}
+                                                                                >
+                                                                                    <UserPlus className="h-3 w-3" /> {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
+                                                                                </Button>
+                                                                                <div className="flex gap-1">
+                                                                                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-2 border-destructive/10 text-destructive/60 hover:text-destructive" onClick={() => setCancellingSolicitud(item)} disabled={isClosed}>
+                                                                                        <CalendarX className="h-3.5 w-3.5" />
+                                                                                    </Button>
+                                                                                    {profile?.role === 'admin' && (
+                                                                                        <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-2 border-destructive/10 text-destructive/60 hover:text-destructive" onClick={() => setDeletingSolicitud(item)} disabled={isClosed}>
+                                                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                                                        </Button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            {/* FILA 2: QR E INFORME */}
+                                                                            <div className="flex gap-1.5 w-full">
+                                                                                <Button variant="outline" size="icon" className="h-8 w-12 rounded-lg border-2 bg-white" onClick={() => setQrSolicitud(item)}>
+                                                                                    <QrCode className="h-3.5 w-3.5" />
+                                                                                </Button>
+                                                                                <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex-1">
+                                                                                    <Button className={cn("h-8 w-full rounded-lg font-black uppercase text-[9px] shadow-sm", inf ? "bg-green-600 hover:bg-green-700" : "bg-black hover:bg-black/90")}>
+                                                                                        {inf ? 'CUMPLIDO' : 'INFORME'}
+                                                                                    </Button>
+                                                                                </Link>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
-                                                    
-                                                    <div className="flex gap-2 w-full">
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            className="h-9 flex-1 rounded-lg font-black uppercase text-[10px] border-2 gap-2" 
-                                                            onClick={() => setQrSolicitud(item)}
-                                                        >
-                                                            <QrCode className="h-4 w-4" />
-                                                        </Button>
-                                                        <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex-[2]">
-                                                            <Button className={cn("h-9 w-full rounded-lg font-black uppercase text-[10px] shadow-sm", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}>
-                                                                {inf ? 'CUMPLIDO' : 'INFORME'}
-                                                            </Button>
-                                                        </Link>
-                                                    </div>
                                                 </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
+                                            </Card>
+                                        );
+                                    })}
+                                </AccordionContent>
+                            </AccordionItem>
+                        );
+                    })}
                   </Accordion>
                 </AccordionContent>
               </AccordionItem>
@@ -494,12 +479,12 @@ export default function AgendaCapacitacionPage() {
         )}
       </main>
 
-      {/* Dialogo para Asignar Personal */}
+      {/* DIALOGS */}
       <Dialog open={!!assigningSolicitud} onOpenChange={(o) => !o && setAssigningSolicitud(null)}>
         <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
           <DialogHeader className="bg-black text-white p-6">
             <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
-                <UserPlus className="h-4 w-4" /> ASIGNAR PERSONAL - {assigningSolicitud?.distrito?.toUpperCase() || 'SIN DISTRITO'}
+                <UserPlus className="h-4 w-4" /> ASIGNAR PERSONAL - {assigningSolicitud?.distrito?.toUpperCase()}
             </DialogTitle>
           </DialogHeader>
           <div className="p-6 space-y-4 bg-white">
@@ -531,7 +516,36 @@ export default function AgendaCapacitacionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialogo para Cancelar Actividad */}
+      <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
+        <DialogContent className="max-w-sm rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="bg-primary p-8 text-white">
+            <DialogTitle className="font-black uppercase text-center tracking-widest text-lg">ENCUESTA QR</DialogTitle>
+          </DialogHeader>
+          <div className="p-10 flex flex-col items-center bg-white space-y-8">
+            <div className="p-4 bg-white border-4 border-muted/20 rounded-[2rem] shadow-inner">
+                {qrSolicitud && (
+                    <Image src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(surveyUrl(qrSolicitud))}`} alt="QR" width={220} height={220} className="rounded-xl" />
+                )}
+            </div>
+            <div className="text-center space-y-2">
+                <p className="font-black uppercase text-sm text-primary">{qrSolicitud?.lugar_local}</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">{qrSolicitud ? formatDateToDDMMYYYY(qrSolicitud.fecha) : ''}</p>
+            </div>
+            <div className="w-full space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px] border-2 gap-2" onClick={() => qrSolicitud && copyToClipboard(qrSolicitud)}>
+                        {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} COPIAR
+                    </Button>
+                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px] border-2 gap-2 text-primary border-primary/20" onClick={() => qrSolicitud && generateQrPDF(qrSolicitud)} disabled={isGeneratingPdf}>
+                        {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />} PDF
+                    </Button>
+                </div>
+                <Button className="w-full h-12 rounded-xl font-black uppercase text-[10px] bg-black text-white" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!cancellingSolicitud} onOpenChange={(o) => !o && setCancellingSolicitud(null)}>
         <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
           <DialogHeader className="bg-destructive text-white p-8">
@@ -539,69 +553,31 @@ export default function AgendaCapacitacionPage() {
           </DialogHeader>
           <div className="p-8 space-y-6 bg-white">
             <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">MOTIVO (OBLIGATORIO)</Label>
-                <Textarea placeholder="Ej: Suspensión por inclemencia del tiempo..." className="min-h-[120px] font-bold border-2 rounded-xl uppercase" value={cancelReason} onChange={e => setCancelReason(e.target.value)} />
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">MOTIVO DE LA CANCELACIÓN</Label>
+                <Textarea placeholder="Ej: Suspensión por lluvia..." className="min-h-[120px] font-bold border-2 rounded-xl uppercase" value={cancelReason} onChange={e => setCancelReason(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px]" onClick={() => setCancellingSolicitud(null)}>CANCELAR</Button>
-                <Button className="h-12 rounded-xl font-black uppercase text-[10px] bg-destructive hover:bg-destructive/90 shadow-lg" disabled={!cancelReason.trim() || isUpdating} onClick={handleConfirmCancel}>
-                    {isUpdating ? <Loader2 className="animate-spin h-4 w-4" /> : "CONFIRMAR"}
-                </Button>
+                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px]" onClick={() => setCancellingSolicitud(null)}>CERRAR</Button>
+                <Button className="h-12 rounded-xl font-black uppercase text-[10px] bg-destructive" disabled={!cancelReason.trim() || isUpdating} onClick={handleConfirmCancel}>CONFIRMAR</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Dialogo para Eliminar Actividad (Admin) */}
       <AlertDialog open={!!deletingSolicitud} onOpenChange={(o) => !o && setDeletingSolicitud(null)}>
         <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-black uppercase tracking-tight text-xl flex items-center gap-2">
-                <Trash2 className="h-6 w-6 text-destructive" /> ¿ELIMINAR DEFINITIVAMENTE?
-            </AlertDialogTitle>
+            <AlertDialogTitle className="font-black uppercase">¿ELIMINAR DEFINITIVAMENTE?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs font-medium uppercase leading-relaxed text-muted-foreground pt-2">
-                Esta acción es irreversible. Se borrarán todos los datos vinculados a la actividad de {deletingSolicitud?.lugar_local}.
+                Esta acción es irreversible y borrará el registro de la agenda.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="pt-6">
-            <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8" disabled={isUpdating}>
-                {isUpdating ? <Loader2 className="animate-spin h-4 w-4" /> : "SÍ, ELIMINAR REGISTRO"}
-            </AlertDialogAction>
+            <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">CANCELAR</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]" disabled={isUpdating}>SÍ, ELIMINAR</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Dialogo para Código QR de Encuesta */}
-      <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
-        <DialogContent className="max-sm rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
-          <DialogHeader className="bg-primary p-8 text-white">
-            <DialogTitle className="font-black uppercase text-center tracking-widest text-lg">ENCUESTA DE SATISFACCIÓN</DialogTitle>
-          </DialogHeader>
-          <div className="p-10 flex flex-col items-center bg-white space-y-8">
-            <div className="p-4 bg-white border-4 border-muted/20 rounded-[2rem] shadow-inner">
-                {qrSolicitud && (
-                    <Image src={qrImageUrl} alt="QR Encuesta" width={220} height={220} className="rounded-xl" />
-                )}
-            </div>
-            <div className="text-center space-y-2">
-                <p className="font-black uppercase text-sm text-primary">{qrSolicitud?.lugar_local}</p>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{qrSolicitud ? formatDateToDDMMYYYY(qrSolicitud.fecha) : ''} HS.</p>
-            </div>
-            <div className="w-full space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px] border-2 gap-2" onClick={copyToClipboard}>
-                        {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} {copied ? "COPIADO" : "COPIAR ENLACE"}
-                    </Button>
-                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[10px] border-2 gap-2 text-primary border-primary/20" onClick={generateQrPDF} disabled={isGeneratingPdf}>
-                        {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />} IMPRIMIR QR
-                    </Button>
-                </div>
-                <Button className="w-full h-12 rounded-xl font-black uppercase text-[10px] bg-black text-white hover:bg-black/90" onClick={() => setQrSolicitud(null)}>CERRAR VENTANA</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
