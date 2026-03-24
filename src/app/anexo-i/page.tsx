@@ -19,7 +19,8 @@ import {
   X,
   ImageIcon,
   FileText,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Clock
 } from 'lucide-react';
 import { useUser, useFirebase } from '@/firebase';
 import { collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
@@ -68,7 +69,7 @@ export default function AnexoIPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Inicialización limpia
+  // Inicialización limpia (campos vacíos para forzar carga manual AM/PM)
   const [filas, setFilas] = useState<AnexoIFila[]>(
     Array.from({ length: 10 }, () => ({
       lugar: '',
@@ -243,6 +244,16 @@ export default function AnexoIPage() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
 
+    // Helper para formato AM/PM
+    const formatTo12h = (t: string) => {
+      if (!t) return '';
+      const [h, m] = t.split(':');
+      const hh = parseInt(h);
+      const suffix = hh >= 12 ? 'PM' : 'AM';
+      const h12 = hh % 12 || 12;
+      return `${h12}:${m} ${suffix}`;
+    };
+
     // Header
     doc.addImage(logoBase64, 'PNG', margin, 10, 15, 15);
     doc.setFont('helvetica', 'bold');
@@ -275,8 +286,8 @@ export default function AnexoIPage() {
         : 'DEL:   /   AL:   /   / 2026';
       
       const horaStr = (f.hora_desde && f.hora_hasta)
-        ? `DE: ${f.hora_desde} A: ${f.hora_hasta} HS.`
-        : 'DE:       A:       HS.';
+        ? `DE: ${formatTo12h(f.hora_desde)} A: ${formatTo12h(f.hora_hasta)}`
+        : 'DE:       A:       ';
 
       return [
         i + 1,
@@ -289,7 +300,7 @@ export default function AnexoIPage() {
 
     autoTable(doc, {
       startY: y + 10,
-      head: [['N.º', 'LUGAR FIJO PARA DIVULGACIÓN', 'DIRECCIÓN', 'FECHA', 'HORARIO']],
+      head: [['N.º', 'LUGAR FIJO PARA DIVULGACIÓN', 'DIRECCIÓN', 'FECHA', 'HORARIO (AM/PM)']],
       body: tableBody,
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
@@ -331,7 +342,7 @@ export default function AnexoIPage() {
             </div>
             <div className="flex gap-3">
                 <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-11 gap-2 shadow-sm" onClick={generatePDF}>
-                    <Printer className="h-4 w-4" /> VISTA PREVIA PDF
+                    <Printer className="h-4 w-4" /> VISTA PREVIA PDF (AM/PM)
                 </Button>
                 <Button className="font-black uppercase text-[10px] h-11 gap-2 shadow-xl" onClick={handleSave} disabled={isSubmitting || !fotoRespaldo}>
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -390,7 +401,7 @@ export default function AnexoIPage() {
                                 <th className="p-4 text-[9px] font-black uppercase text-left">Lugar Fijo para Divulgación</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-left">Dirección</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-center w-[300px]">Fecha (Desde - Hasta)</th>
-                                <th className="p-4 text-[9px] font-black uppercase text-center w-[220px]">Horario (De - A)</th>
+                                <th className="p-4 text-[9px] font-black uppercase text-center w-[220px]">Horario (AM/PM)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-black/10">
@@ -458,19 +469,25 @@ export default function AnexoIPage() {
                                         </Popover>
                                     </td>
                                     <td className="p-2">
-                                        <div className="flex items-center gap-3 justify-center">
-                                            <Input 
-                                                type="time" 
-                                                value={fila.hora_desde} 
-                                                onChange={e => handleFilaChange(idx, 'hora_desde', e.target.value)}
-                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-20 px-1 text-center"
-                                            />
-                                            <Input 
-                                                type="time" 
-                                                value={fila.hora_hasta} 
-                                                onChange={e => handleFilaChange(idx, 'hora_hasta', e.target.value)}
-                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-20 px-1 text-center"
-                                            />
+                                        <div className="flex flex-col gap-1 items-center justify-center">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[8px] font-black text-muted-foreground w-4">DE:</span>
+                                                <Input 
+                                                    type="time" 
+                                                    value={fila.hora_desde} 
+                                                    onChange={e => handleFilaChange(idx, 'hora_desde', e.target.value)}
+                                                    className="border-2 rounded-xl text-[10px] font-bold h-8 w-24 px-1 text-center"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[8px] font-black text-muted-foreground w-4">A:</span>
+                                                <Input 
+                                                    type="time" 
+                                                    value={fila.hora_hasta} 
+                                                    onChange={e => handleFilaChange(idx, 'hora_hasta', e.target.value)}
+                                                    className="border-2 rounded-xl text-[10px] font-bold h-8 w-24 px-1 text-center"
+                                                />
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
