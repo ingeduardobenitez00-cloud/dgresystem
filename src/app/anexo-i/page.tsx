@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -16,7 +15,6 @@ import {
   Building2, 
   Landmark,
   Camera,
-  FileUp,
   Trash2,
   X,
   ImageIcon,
@@ -35,8 +33,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
 
@@ -64,7 +60,7 @@ export default function AnexoIPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Inicialización limpia sin pre-carga de horarios
+  // Inicialización limpia
   const [filas, setFilas] = useState<AnexoIFila[]>(
     Array.from({ length: 10 }, () => ({
       lugar: '',
@@ -385,8 +381,8 @@ export default function AnexoIPage() {
                                 <th className="p-4 text-[9px] font-black uppercase w-12 text-center">N.º</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-left">Lugar Fijo para Divulgación</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-left">Dirección</th>
-                                <th className="p-4 text-[9px] font-black uppercase text-center w-[300px]">Fecha (Desde - Hasta)</th>
-                                <th className="p-4 text-[9px] font-black uppercase text-center w-[200px]">Horario (De - A)</th>
+                                <th className="p-4 text-[9px] font-black uppercase text-center w-[340px]">Fecha (Desde - Hasta)</th>
+                                <th className="p-4 text-[9px] font-black uppercase text-center w-[220px]">Horario (De - A)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-black/10">
@@ -410,35 +406,35 @@ export default function AnexoIPage() {
                                         />
                                     </td>
                                     <td className="p-2 border-r">
-                                        <div className="flex items-center gap-2 justify-center">
+                                        <div className="flex items-center gap-3 justify-center">
                                             <Input 
                                                 type="date" 
                                                 value={fila.fecha_desde} 
                                                 onChange={e => handleFilaChange(idx, 'fecha_desde', e.target.value)}
-                                                className="border-2 rounded-lg text-[10px] font-bold h-9 w-32"
+                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-36 px-2 focus-visible:ring-primary/20"
                                             />
-                                            <span className="text-[9px] font-black opacity-30">AL</span>
+                                            <span className="text-[10px] font-black opacity-40 px-1">AL</span>
                                             <Input 
                                                 type="date" 
                                                 value={fila.fecha_hasta} 
                                                 onChange={e => handleFilaChange(idx, 'fecha_hasta', e.target.value)}
-                                                className="border-2 rounded-lg text-[10px] font-bold h-9 w-32"
+                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-36 px-2 focus-visible:ring-primary/20"
                                             />
                                         </div>
                                     </td>
                                     <td className="p-2">
-                                        <div className="flex items-center gap-2 justify-center">
+                                        <div className="flex items-center gap-3 justify-center">
                                             <Input 
                                                 type="time" 
                                                 value={fila.hora_desde} 
                                                 onChange={e => handleFilaChange(idx, 'hora_desde', e.target.value)}
-                                                className="border-2 rounded-lg text-[10px] font-bold h-9 w-20 px-1"
+                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-20 px-1 text-center"
                                             />
                                             <Input 
                                                 type="time" 
                                                 value={fila.hora_hasta} 
                                                 onChange={e => handleFilaChange(idx, 'hora_hasta', e.target.value)}
-                                                className="border-2 rounded-lg text-[10px] font-bold h-9 w-20 px-1"
+                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-20 px-1 text-center"
                                             />
                                         </div>
                                     </td>
