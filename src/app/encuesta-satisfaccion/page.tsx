@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, DatabaseZap, Check, Search, X, Users, AlertCircle } from 'lucide-react';
+import { Loader2, MessageSquareHeart, CheckCircle2, FileDown, DatabaseZap, Check, Search, X, Users, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useUser, useFirebase, useMemoFirebase, useDoc, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where, limit, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
@@ -25,6 +25,7 @@ function EncuestaContent() {
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
   
   const [isMounted, setIsMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,9 +47,9 @@ function EncuestaContent() {
     edad: '',
     genero: 'hombre' as 'hombre' | 'mujer',
     pueblo_originario: false,
-    utilidad_maquina: 'muy_util' as const,
-    facilidad_maquina: 'muy_facil' as const,
-    seguridad_maquina: 'muy_seguro' as const,
+    utilidad_maquina: '' as string,
+    facilidad_maquina: '' as string,
+    seguridad_maquina: '' as string,
     departamento: '',
     distrito: '',
   });
@@ -160,8 +161,21 @@ function EncuestaContent() {
 
   const handleSubmit = () => {
     if (!firestore) return;
-    if (!formData.lugar_practica || !formData.fecha || !formData.edad) {
-        toast({ variant: "destructive", title: "Faltan datos obligatorios" });
+    
+    // Validación completa incluyendo las preguntas de la máquina
+    if (
+      !formData.lugar_practica || 
+      !formData.fecha || 
+      !formData.edad || 
+      !formData.utilidad_maquina || 
+      !formData.facilidad_maquina || 
+      !formData.seguridad_maquina
+    ) {
+        toast({ 
+          variant: "destructive", 
+          title: "Faltan datos obligatorios", 
+          description: "Por favor, responda todas las preguntas de la encuesta antes de enviar." 
+        });
         return;
     }
 
@@ -188,8 +202,18 @@ function EncuestaContent() {
 
     addDoc(collection(firestore, 'encuestas-satisfaccion'), encuestaData)
       .then(() => {
-        toast({ title: "¡Gracias por su participación!", description: "Su feedback ha sido registrado exitosamente." });
-        setFormData(p => ({ ...p, edad: '', pueblo_originario: false }));
+        toast({ 
+          title: "¡Gracias por su participación en la divulgación de uso de la máquina electoral!", 
+          description: "Su feedback ha sido registrado exitosamente." 
+        });
+        setFormData(p => ({ 
+          ...p, 
+          edad: '', 
+          pueblo_originario: false,
+          utilidad_maquina: '',
+          facilidad_maquina: '',
+          seguridad_maquina: ''
+        }));
         setExistingSurveysCount(prev => prev + 1);
         setIsSubmitting(false);
       })
@@ -208,8 +232,8 @@ function EncuestaContent() {
   const isFormLocked = reportTotal > 0 && existingSurveysCount >= reportTotal;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {!user && (
+    <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
+      {!user ? (
         <header className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-50">
             <div className="flex items-center gap-4">
                 <Image src="/logo.png" alt="Logo" width={40} height={40} className="object-contain" />
@@ -219,11 +243,23 @@ function EncuestaContent() {
                 </div>
             </div>
         </header>
+      ) : (
+        <Header title="Encuesta de Satisfacción" />
       )}
       
       <main className="flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-6">
           
+          <div className="flex justify-start">
+            <Button 
+              variant="ghost" 
+              className="font-black uppercase text-[10px] gap-2 text-muted-foreground hover:text-primary transition-colors"
+              onClick={() => user ? router.back() : window.history.back()}
+            >
+              <ArrowLeft className="h-4 w-4" /> Volver atrás
+            </Button>
+          </div>
+
           {/* MODO MANUAL PARA FUNCIONARIOS (Si no viene de QR) */}
           {user && !solicitudIdFromUrl && (
             <Card className="border-primary/20 shadow-md">
