@@ -18,7 +18,8 @@ import {
   Trash2,
   X,
   ImageIcon,
-  FileText
+  FileText,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { useUser, useFirebase } from '@/firebase';
 import { collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
@@ -28,6 +29,7 @@ import Image from 'next/image';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format, addDays, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import {
@@ -35,6 +37,12 @@ import {
   DialogContent,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 type AnexoIFila = {
   lugar: string;
@@ -381,7 +389,7 @@ export default function AnexoIPage() {
                                 <th className="p-4 text-[9px] font-black uppercase w-12 text-center">N.º</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-left">Lugar Fijo para Divulgación</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-left">Dirección</th>
-                                <th className="p-4 text-[9px] font-black uppercase text-center w-[340px]">Fecha (Desde - Hasta)</th>
+                                <th className="p-4 text-[9px] font-black uppercase text-center w-[300px]">Fecha (Desde - Hasta)</th>
                                 <th className="p-4 text-[9px] font-black uppercase text-center w-[220px]">Horario (De - A)</th>
                             </tr>
                         </thead>
@@ -406,21 +414,48 @@ export default function AnexoIPage() {
                                         />
                                     </td>
                                     <td className="p-2 border-r">
-                                        <div className="flex items-center gap-3 justify-center">
-                                            <Input 
-                                                type="date" 
-                                                value={fila.fecha_desde} 
-                                                onChange={e => handleFilaChange(idx, 'fecha_desde', e.target.value)}
-                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-36 px-2 focus-visible:ring-primary/20"
-                                            />
-                                            <span className="text-[10px] font-black opacity-40 px-1">AL</span>
-                                            <Input 
-                                                type="date" 
-                                                value={fila.fecha_hasta} 
-                                                onChange={e => handleFilaChange(idx, 'fecha_hasta', e.target.value)}
-                                                className="border-2 rounded-xl text-[10px] font-bold h-10 w-36 px-2 focus-visible:ring-primary/20"
-                                            />
-                                        </div>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    className={cn(
+                                                        "w-full justify-start text-left font-black h-10 border-2 rounded-xl text-[11px] bg-white transition-all",
+                                                        !fila.fecha_desde && "text-muted-foreground/40 border-dashed"
+                                                    )}
+                                                >
+                                                    <CalendarIcon className="mr-2 h-4 w-4 opacity-30" />
+                                                    {fila.fecha_desde ? (
+                                                        fila.fecha_hasta ? (
+                                                            <span className="tracking-tight">
+                                                                {format(parseISO(fila.fecha_desde), "dd/MM/yy")} - {format(parseISO(fila.fecha_hasta), "dd/MM/yy")}
+                                                            </span>
+                                                        ) : (
+                                                            format(parseISO(fila.fecha_desde), "dd/MM/yy")
+                                                        )
+                                                    ) : (
+                                                        <span className="uppercase font-bold text-[9px]">Seleccionar Rango</span>
+                                                    )}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="center">
+                                                <Calendar
+                                                    initialFocus
+                                                    mode="range"
+                                                    defaultMonth={fila.fecha_desde ? parseISO(fila.fecha_desde) : undefined}
+                                                    selected={{
+                                                        from: fila.fecha_desde ? parseISO(fila.fecha_desde) : undefined,
+                                                        to: fila.fecha_hasta ? parseISO(fila.fecha_hasta) : undefined,
+                                                    }}
+                                                    onSelect={(range) => {
+                                                        handleFilaChange(idx, 'fecha_desde', range?.from ? format(range.from, "yyyy-MM-dd") : '');
+                                                        handleFilaChange(idx, 'fecha_hasta', range?.to ? format(range.to, "yyyy-MM-dd") : '');
+                                                    }}
+                                                    numberOfMonths={1}
+                                                    locale={es}
+                                                    className="bg-white"
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
                                     </td>
                                     <td className="p-2">
                                         <div className="flex items-center gap-3 justify-center">
