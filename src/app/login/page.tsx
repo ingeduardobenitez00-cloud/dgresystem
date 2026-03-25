@@ -141,7 +141,7 @@ export default function LoginPage() {
         modules: jefeModules,
         permissions: jefePermissions,
         fecha_registro: new Date().toISOString(),
-        active: true
+        active: false // El usuario inicia inactivo por requerimiento
       });
 
       // Auditoría de nuevo registro
@@ -151,7 +151,7 @@ export default function LoginPage() {
         usuario_rol: 'jefe',
         accion: 'CREAR',
         modulo: 'seguridad',
-        detalles: `Auto-registro de Jefe para ${regData.distrito}`
+        detalles: `Auto-registro de Jefe para ${regData.distrito} (Pendiente de aprobación)`
       });
 
       await signOut(auth);
@@ -160,8 +160,8 @@ export default function LoginPage() {
       setMode('login');
       
       toast({ 
-        title: 'Registro exitoso', 
-        description: 'Su cuenta de Jefe ha sido creada con acceso a todos los Anexos y módulos CIDEE. Por favor, inicie sesión.' 
+        title: 'Solicitud enviada', 
+        description: 'Su cuenta ha sido creada. Un administrador nacional debe aprobar su acceso antes de que pueda ingresar al sistema.' 
       });
     } catch (error: any) {
       toast({
