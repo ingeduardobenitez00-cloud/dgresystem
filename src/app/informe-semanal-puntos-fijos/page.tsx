@@ -1,13 +1,28 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, TableProperties, CheckCircle2, FileDown, DatabaseZap, AlertCircle, Search, Printer, FileText, Calendar as CalendarIcon, Landmark } from 'lucide-react';
+import { 
+  Loader2, 
+  TableProperties, 
+  CheckCircle2, 
+  DatabaseZap, 
+  AlertCircle, 
+  Search, 
+  Printer, 
+  FileText, 
+  Calendar as CalendarIcon, 
+  Landmark,
+  Camera,
+  ImageIcon,
+  X,
+  FileUp
+} from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { type InformeDivulgador, type Dato } from '@/lib/data';
@@ -24,6 +39,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -39,7 +62,13 @@ export default function InformeSemanalAnexoIVPage() {
   
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+  const [respaldoPhoto, setRespaldoPhoto] = useState<string | null>(null);
   
+  // Camera States
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: undefined,
     to: undefined,
@@ -113,6 +142,54 @@ export default function InformeSemanalAnexoIVPage() {
   const totalCapacitados = useMemo(() => {
     return informesAnexoIII.reduce((acc, curr) => acc + (curr.total_personas || 0), 0);
   }, [informesAnexoIII]);
+
+  const startCamera = async () => {
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', aspectRatio: { ideal: 0.75 } } 
+      });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error de Cámara" });
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.8);
+        setRespaldoPhoto(dataUri);
+        stopCamera();
+      }
+    }
+  };
+
+  const handleRespaldoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setRespaldoPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const generatePDF = () => {
     if (!logoBase64 || !selectedDistrict) return;
@@ -194,8 +271,12 @@ export default function InformeSemanalAnexoIVPage() {
   };
 
   const handleSubmit = () => {
-    if (!firestore || !user || !informesAnexoIII || informesAnexoIII.length === 0) {
+    if (!firestore || !user) return;
+    if (!informesAnexoIII || informesAnexoIII.length === 0) {
         toast({ variant: "destructive", title: "Sin datos", description: "No hay informes de Anexo III para consolidar." }); return;
+    }
+    if (!respaldoPhoto) {
+        toast({ variant: "destructive", title: "Respaldo Requerido", description: "Debe adjuntar la foto del Anexo IV físico firmado." }); return;
     }
 
     setIsSubmitting(true);
@@ -204,6 +285,7 @@ export default function InformeSemanalAnexoIVPage() {
       distrito: selectedDistrict || '',
       semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
       semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
+      foto_respaldo_documental: respaldoPhoto,
       filas: informesAnexoIII.map(inf => ({
         lugar: inf.lugar_divulgacion,
         fecha: inf.fecha,
@@ -222,6 +304,7 @@ export default function InformeSemanalAnexoIVPage() {
     addDoc(collection(firestore, 'informes-semanales-anexo-iv'), docData)
       .then(() => {
         toast({ title: "¡Consolidado Guardado!", description: "El informe semanal ha sido archivado en el sistema." });
+        setRespaldoPhoto(null);
         setIsSubmitting(false);
       })
       .catch(async (error) => {
@@ -319,8 +402,44 @@ export default function InformeSemanalAnexoIVPage() {
                         </Popover>
                     </div>
 
+                    <Separator className="border-dashed" />
+
+                    {/* SECCIÓN DE RESPALDO OBLIGATORIO */}
+                    <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
+                            <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado *
+                        </Label>
+                        {respaldoPhoto ? (
+                            <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-primary shadow-md group">
+                                {respaldoPhoto.startsWith('data:application/pdf') ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                        <FileText className="h-10 w-10 text-primary opacity-40 mb-1" />
+                                        <p className="text-[8px] font-black uppercase text-primary/60">PDF Cargado</p>
+                                    </div>
+                                ) : (
+                                    <Image src={respaldoPhoto} alt="Respaldo Anexo IV" fill className="object-cover" />
+                                )}
+                                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoPhoto(null)}>
+                                    <X className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-dashed rounded-xl gap-1 hover:bg-primary/5 hover:border-primary transition-all" onClick={startCamera}>
+                                    <Camera className="h-4 w-4 opacity-40" />
+                                    <span className="text-[8px] font-black uppercase">CÁMARA</span>
+                                </Button>
+                                <label className="h-16 flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-1 cursor-pointer hover:bg-primary/5 hover:border-primary transition-all">
+                                    <FileUp className="h-4 w-4 opacity-40" />
+                                    <span className="text-[8px] font-black uppercase">SUBIR</span>
+                                    <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleRespaldoUpload} />
+                                </label>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="pt-4">
-                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
+                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0 || !respaldoPhoto} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
                             {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
                             GUARDAR REPORTE
                         </Button>
@@ -383,6 +502,19 @@ export default function InformeSemanalAnexoIVPage() {
             </Card>
         </div>
       </main>
+
+      <Dialog open={isCameraOpen} onOpenChange={(o) => !o && stopCamera()}>
+        <DialogContent className="max-w-md p-0 overflow-hidden border-none bg-black rounded-[2rem]">
+          <div className="relative aspect-[3/4] w-full bg-black flex items-center justify-center">
+            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+            <div className="absolute inset-8 border-2 border-white/20 rounded-xl pointer-events-none border-dashed" />
+          </div>
+          <DialogFooter className="p-8 bg-black/80 flex flex-row items-center justify-between gap-4">
+            <Button variant="outline" className="rounded-full h-14 w-14 border-white/20 bg-white/10 text-white" onClick={stopCamera}><X className="h-6 w-6" /></Button>
+            <Button className="flex-1 h-16 rounded-full bg-white text-black font-black uppercase text-sm shadow-2xl" onClick={takePhoto}>CAPTURAR</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
