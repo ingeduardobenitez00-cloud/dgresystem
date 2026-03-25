@@ -24,6 +24,7 @@ import {
   Check,
   FileText,
   X,
+  ImageIcon
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit } from 'firebase/firestore';
@@ -680,7 +681,14 @@ export default function SolicitudCapacitacionPage() {
               <CardContent className="p-8 space-y-4">
                 {photoDataUri ? (
                     <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
-                        <Image src={photoDataUri} alt="Respaldo" fill className="object-cover" />
+                        {photoDataUri.startsWith('data:application/pdf') ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                            </div>
+                        ) : (
+                            <Image src={photoDataUri} alt="Respaldo" fill className="object-cover" />
+                        )}
                         <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setPhotoDataUri(null)}>
                             <Trash2 className="h-5 w-5" />
                         </Button>
@@ -693,8 +701,8 @@ export default function SolicitudCapacitacionPage() {
                         </div>
                         <label className="flex flex-col items-center justify-center gap-3 h-32 border-2 border-dashed rounded-[1.5rem] cursor-pointer hover:bg-muted/10 transition-all bg-muted/5 group">
                             <FileUp className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-center">GALERÍA / ARCHIVO</span>
-                            <Input type="file" accept="image/*" className="hidden" onChange={handlePhotoCapture} />
+                            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest text-center">GALERÍA / PDF</span>
+                            <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handlePhotoCapture} />
                         </label>
                     </div>
                 )}

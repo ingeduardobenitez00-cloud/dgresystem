@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon, FileText, Users } from 'lucide-react';
+import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon, FileText, Users, FileUp } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
@@ -555,12 +555,19 @@ function InformeContent() {
             <div className="space-y-4 pt-4 border-t-2 border-dashed border-black/10">
                 <div className="flex items-center gap-3 px-2">
                     <FileText className="h-5 w-5 text-primary" />
-                    <Label className="font-black uppercase text-xs">Respaldo Documental (Foto Formulario Físico) *</Label>
+                    <Label className="font-black uppercase text-xs">Respaldo Documental (Anexo III Firmado) *</Label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {respaldoPhoto ? (
                         <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-black shadow-xl group">
-                            <Image src={respaldoPhoto} alt="Respaldo Documental" fill className="object-cover" />
+                            {respaldoPhoto.startsWith('data:application/pdf') ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                    <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                    <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                                </div>
+                            ) : (
+                                <Image src={respaldoPhoto} alt="Respaldo Documental" fill className="object-cover" />
+                            )}
                             <Button 
                                 variant="destructive" 
                                 size="icon" 
@@ -581,14 +588,14 @@ function InformeContent() {
                             </div>
                             <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted transition-all text-muted-foreground hover:text-primary">
                                 <ImageIcon className="h-4 w-4" />
-                                <span className="text-[10px] font-black uppercase">SUBIR DESDE GALERÍA</span>
-                                <Input type="file" accept="image/*" className="hidden" onChange={handleRespaldoUpload} />
+                                <span className="text-[10px] font-black uppercase">SUBIR DESDE GALERÍA / PDF</span>
+                                <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleRespaldoUpload} />
                             </label>
                         </div>
                     )}
                     <div className="flex items-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-black/5">
                         <p className="text-[10px] font-bold uppercase text-muted-foreground italic leading-relaxed">
-                            <span className="text-destructive font-black">IMPORTANTE:</span> Este campo es obligatorio para validar el reporte. Capture una imagen clara del formulario físico firmado y sellado.
+                            <span className="text-destructive font-black">IMPORTANTE:</span> Este campo es obligatorio para validar el reporte. Capture una imagen clara o suba el archivo PDF del formulario físico firmado y sellado.
                         </p>
                     </div>
                 </div>

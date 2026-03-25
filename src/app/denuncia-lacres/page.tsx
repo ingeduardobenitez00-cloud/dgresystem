@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, Globe, FileText, Printer, X, ImageIcon } from 'lucide-react';
+import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, Globe, FileText, Printer, X, ImageIcon, FileUp } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, orderBy, where } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
@@ -393,11 +393,18 @@ function DenunciaContent() {
                         {/* EVIDENCIA DEL DAÑO */}
                         <div className="space-y-4">
                             <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                                <FileWarning className="h-4 w-4" /> Evidencia Fotográfica del Daño *
+                                <FileWarning className="h-4 w-4" /> Evidencia Fotográfica / PDF del Daño *
                             </Label>
                             {denunciaFoto ? (
                                 <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
-                                    <Image src={denunciaFoto} alt="Evidencia" fill className="object-cover" />
+                                    {denunciaFoto.startsWith('data:application/pdf') ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                            <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                            <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                                        </div>
+                                    ) : (
+                                        <Image src={denunciaFoto} alt="Evidencia" fill className="object-cover" />
+                                    )}
                                     <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDenunciaFoto(null)}>
                                         <Trash2 className="h-5 w-5" />
                                     </Button>
@@ -413,8 +420,8 @@ function DenunciaContent() {
                                     </div>
                                     <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted transition-all text-muted-foreground">
                                         <ImageIcon className="h-4 w-4" />
-                                        <span className="text-[10px] font-black uppercase">Subir de Galería</span>
-                                        <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'evidencia')} />
+                                        <span className="text-[10px] font-black uppercase">Subir de Galería / PDF</span>
+                                        <Input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'evidencia')} />
                                     </label>
                                 </div>
                             )}
@@ -427,7 +434,14 @@ function DenunciaContent() {
                             </Label>
                             {respaldoFoto ? (
                                 <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
-                                    <Image src={respaldoFoto} alt="Respaldo" fill className="object-cover" />
+                                    {respaldoFoto.startsWith('data:application/pdf') ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                            <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                            <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                                        </div>
+                                    ) : (
+                                        <Image src={respaldoFoto} alt="Respaldo" fill className="object-cover" />
+                                    )}
                                     <Button variant="destructive" size="icon" className="absolute top-4 right-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoPhoto(null)}>
                                         <Trash2 className="h-5 w-5" />
                                     </Button>
@@ -443,8 +457,8 @@ function DenunciaContent() {
                                     </div>
                                     <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted transition-all text-muted-foreground">
                                         <ImageIcon className="h-4 w-4" />
-                                        <span className="text-[10px] font-black uppercase">Subir de Galería</span>
-                                        <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, 'respaldo')} />
+                                        <span className="text-[10px] font-black uppercase">Subir de Galería / PDF</span>
+                                        <Input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'respaldo')} />
                                     </label>
                                 </div>
                             )}

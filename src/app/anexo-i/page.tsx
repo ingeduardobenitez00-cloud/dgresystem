@@ -330,7 +330,7 @@ export default function AnexoIPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
       <Header title="Anexo I - Lugares Fijos" />
-      <main className="flex-1 p-4 md:p-8 max-w-[1400px] mx-auto w-full space-y-6">
+      <main className="flex-1 p-4 md:p-8 max-[1400px] mx-auto w-full space-y-6">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
@@ -507,7 +507,14 @@ export default function AnexoIPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {fotoRespaldo ? (
                         <div className="relative aspect-video rounded-3xl overflow-hidden border-4 border-white shadow-2xl group">
-                            <Image src={fotoRespaldo} alt="Respaldo Anexo I" fill className="object-cover" />
+                            {fotoRespaldo.startsWith('data:application/pdf') ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                    <FileText className="h-16 w-16 text-primary opacity-40 mb-2" />
+                                    <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF Cargado</p>
+                                </div>
+                            ) : (
+                                <Image src={fotoRespaldo} alt="Respaldo Anexo I" fill className="object-cover" />
+                            )}
                             <Button 
                                 variant="destructive" 
                                 size="icon" 
@@ -528,15 +535,15 @@ export default function AnexoIPage() {
                             </div>
                             <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed rounded-2xl cursor-pointer hover:bg-muted transition-all text-muted-foreground">
                                 <ImageIcon className="h-4 w-4" />
-                                <span className="text-[10px] font-black uppercase">Subir desde Galería</span>
-                                <Input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                                <span className="text-[10px] font-black uppercase">Subir desde Galería / PDF</span>
+                                <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
                             </label>
                         </div>
                     )}
                     
                     <div className="flex flex-col justify-center p-8 bg-muted/20 rounded-[2.5rem] border-2 border-dashed">
                         <p className="text-[11px] font-bold text-muted-foreground uppercase leading-relaxed italic text-center">
-                            Es obligatorio adjuntar la fotografía del Anexo I con la firma y el sello de la jefatura para validar la planificación semanal.
+                            Es obligatorio adjuntar la fotografía o el archivo PDF del Anexo I con la firma y el sello de la jefatura para validar la planificación semanal.
                         </p>
                     </div>
                 </div>

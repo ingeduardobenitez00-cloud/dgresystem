@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -8,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Calendar as CalendarIcon, MapPin, Building2, Landmark, FileDown, CheckCircle2, Plus, Trash2, Camera, ImageIcon, ClipboardList, X, FileUp, Lock } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, MapPin, Building2, Landmark, FileDown, CheckCircle2, Plus, Trash2, Camera, ImageIcon, ClipboardList, X, FileUp, Lock, FileText } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc } from 'firebase/firestore';
 import { type Dato, type InformeSemanalRegistro } from '@/lib/data';
@@ -376,7 +375,7 @@ export default function InformeSemanalRegistroPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">Cant. de Inscripciones 1ra Vez</Label>
-                        <Input type="number" value={formData.inscripciones_1ra_vez} onChange={e => setFormData(p => ({...p, inscripciones_1ra_vez: parseInt(e.target.value) || 0}))} className="h-12 font-bold border-2 bg-muted/10 rounded-xl" />
+                        <Input type="number" value={formData.inscripciones_1ra_vez} onChange={e => setFormData(p => ({...p, json_inscripciones_1ra_vez: parseInt(e.target.value) || 0}))} className="h-12 font-bold border-2 bg-muted/10 rounded-xl" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">Cant. de Actualización de Datos (Automática)</Label>
@@ -429,15 +428,15 @@ export default function InformeSemanalRegistroPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                     <div className="flex gap-3">
                         <label htmlFor="file-up" className="flex-1 flex items-center justify-center gap-2 h-12 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/20 transition-all font-black uppercase text-[10px]">
-                            <FileUp className="h-4 w-4" /> Adjuntar Archivos
-                            <Input id="file-up" type="file" multiple className="hidden" accept="image/*" onChange={handleFileUpload} />
+                            <FileUp className="h-4 w-4" /> Adjuntar Archivos / PDF
+                            <Input id="file-up" type="file" multiple className="hidden" accept="image/*,.pdf" onChange={handleFileUpload} />
                         </label>
                         <Button variant="outline" className="flex-1 h-12 border-2 rounded-xl font-black uppercase text-[10px] gap-2" onClick={startCamera}>
                             <Camera className="h-4 w-4" /> Usar Cámara
                         </Button>
                     </div>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-60 leading-relaxed italic">
-                        Adjunta fotos de boletas, documentos u otros archivos relevantes. Puedes subir varios.
+                        Adjunta fotos de boletas, documentos o archivos PDF relevantes. Puedes subir varios.
                     </p>
                 </div>
 
@@ -445,7 +444,14 @@ export default function InformeSemanalRegistroPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4 pt-4">
                         {photos.map((p, i) => (
                             <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-white shadow-lg group">
-                                <Image src={p} alt={`Evidencia ${i}`} fill className="object-cover" />
+                                {p.startsWith('data:application/pdf') ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                        <FileText className="h-8 w-8 text-primary opacity-40 mb-1" />
+                                        <p className="text-[8px] font-black uppercase text-primary/60">PDF</p>
+                                    </div>
+                                ) : (
+                                    <Image src={p} alt={`Evidencia ${i}`} fill className="object-cover" />
+                                )}
                                 <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removePhoto(i)}>
                                     <X className="h-4 w-4" />
                                 </Button>
