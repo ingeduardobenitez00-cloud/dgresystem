@@ -192,7 +192,6 @@ export default function SolicitudCapacitacionPage() {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Estados de Control de Stock
   const [isStockConflict, setIsStockConflict] = useState(false);
   const [conflictingFixedPlace, setConflictingFixedPlace] = useState<SolicitudCapacitacion | null>(null);
 
@@ -221,7 +220,6 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // CONSULTAS PARA STOCK
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.departamento || !profile?.distrito) return null;
     return query(collection(firestore, 'maquinas'), where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
@@ -289,7 +287,6 @@ export default function SolicitudCapacitacionPage() {
     setFormData(prev => ({ ...prev, gps: `${lat.toFixed(6)}, ${lng.toFixed(6)}` }));
   }, []);
 
-  // MOTOR DE VALIDACIÓN DE STOCK
   const checkStockAvailability = () => {
     if (!maquinasDistrito || !solicitudesMismoDia) return true;
     
@@ -298,12 +295,10 @@ export default function SolicitudCapacitacionPage() {
 
     const overlapping = solicitudesMismoDia.filter(s => {
         if (s.cancelada) return false;
-        // Lógica de solapamiento: (StartA < EndB) AND (EndA > StartB)
         return (formData.hora_desde < s.hora_hasta) && (formData.hora_hasta > s.hora_desde);
     });
 
     if (overlapping.length >= totalMaquinas) {
-        // Buscar si alguna de las que bloquea es un Lugar Fijo
         const fixedPlace = overlapping.find(s => s.tipo_solicitud === 'Lugar Fijo');
         if (fixedPlace) {
             setConflictingFixedPlace(fixedPlace);
@@ -329,7 +324,6 @@ export default function SolicitudCapacitacionPage() {
       return;
     }
 
-    // CONTROL DE STOCK
     if (!bypassStock && !checkStockAvailability()) {
         setIsStockConflict(true);
         return;
@@ -376,7 +370,6 @@ export default function SolicitudCapacitacionPage() {
     setIsSubmitting(true);
     
     try {
-        // Suspender el Lugar Fijo
         const docRef = doc(firestore, 'solicitudes-capacitacion', conflictingFixedPlace.id);
         await updateDoc(docRef, {
             cancelada: true,
@@ -387,7 +380,7 @@ export default function SolicitudCapacitacionPage() {
 
         toast({ title: "Lugar Fijo Suspendido", description: "Agenda liberada. Guardando nueva solicitud..." });
         setIsStockConflict(false);
-        handleSubmit(true); // Re-enviar con bypass de stock
+        handleSubmit(true);
     } catch (e) {
         toast({ variant: 'destructive', title: "Error al suspender" });
         setIsSubmitting(false);
@@ -459,7 +452,10 @@ export default function SolicitudCapacitacionPage() {
     } catch (error) { setPadronFound(false); } finally { setIsSearchingCedula(false); }
   }, [firestore, toast]);
 
-  if (isUserLoading || !isMounted) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
+  const canSave = useMemo(() => {
+    const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
+    return !!(entidadFinal && formData.lugar_local && formData.nombre_completo && photoDataUri && formData.fecha);
+  }, [formData, photoDataUri]);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
@@ -502,7 +498,7 @@ export default function SolicitudCapacitacionPage() {
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                    <Label className="text-[9px] font-black uppercase text-primary">Grupo Político o Institución Solicitante</Label>
+                    <Label className="text-[9px] font-black uppercase text-primary">Grupo Político o Institución Solicitante *</Label>
                     <div className="flex gap-2">
                         <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
                             <PopoverTrigger asChild>
@@ -555,7 +551,7 @@ export default function SolicitudCapacitacionPage() {
                 </div>
                 <div className="flex flex-col justify-center space-y-8">
                     <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-primary">FECHA DEL EVENTO</Label>
+                        <Label className="text-[10px] font-black uppercase text-primary">FECHA DEL EVENTO *</Label>
                         <Popover>
                           <PopoverTrigger asChild>
                             <div className="h-14 w-full flex items-center px-5 font-black text-xl border-2 rounded-[1.2rem] bg-white cursor-pointer hover:border-black transition-all">
@@ -577,7 +573,7 @@ export default function SolicitudCapacitacionPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Local / Lugar</Label>
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Local / Lugar *</Label>
                     <Input value={formData.lugar_local} onChange={e => setFormData(p => ({...p, lugar_local: e.target.value.toUpperCase()}))} className="h-12 font-black border-2 rounded-xl" />
                 </div>
                 <div className="space-y-2">
@@ -588,7 +584,7 @@ export default function SolicitudCapacitacionPage() {
 
               <div className="space-y-8 pt-4">
                 <div className="flex items-center gap-4">
-                    <h3 className="font-black uppercase text-xs text-primary shrink-0">Solicitante Autorizado</h3>
+                    <h3 className="font-black uppercase text-xs text-primary shrink-0">Solicitante Autorizado *</h3>
                     <Separator className="flex-1" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -620,7 +616,7 @@ export default function SolicitudCapacitacionPage() {
             <Card className="shadow-2xl border-none overflow-hidden rounded-[2rem] bg-white">
               <CardHeader className="bg-muted/10 border-b py-6 px-8">
                 <CardTitle className="text-sm font-black uppercase text-primary flex items-center gap-3">
-                    <Camera className="h-5 w-5" /> RESPALDO ANEXO V
+                    <Camera className="h-5 w-5" /> RESPALDO ANEXO V *
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-8 space-y-4">
@@ -656,17 +652,19 @@ export default function SolicitudCapacitacionPage() {
 
             <Button 
               onClick={() => handleSubmit(false)} 
-              disabled={isSubmitting} 
-              className="w-full h-20 bg-black hover:bg-black/90 text-white font-black uppercase rounded-[1.5rem] tracking-[0.2em] shadow-2xl px-4"
+              disabled={isSubmitting || !canSave} 
+              className={cn(
+                "w-full h-20 font-black uppercase rounded-[1.5rem] tracking-[0.2em] shadow-2xl px-4 transition-all",
+                canSave ? "bg-black hover:bg-black/90 text-white" : "bg-muted text-muted-foreground cursor-not-allowed"
+              )}
             >
               {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />}
-              GUARDAR Y AGENDAR
+              {canSave ? "GUARDAR Y AGENDAR" : "COMPLETAR REQUISITOS *"}
             </Button>
           </div>
         </div>
       </main>
 
-      {/* DIÁLOGO DE CONFLICTO DE STOCK */}
       <AlertDialog open={isStockConflict} onOpenChange={setIsStockConflict}>
         <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
             <AlertDialogHeader className="space-y-4">
