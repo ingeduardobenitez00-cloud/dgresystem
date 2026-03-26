@@ -610,15 +610,30 @@ function InformeContent() {
         </Card>
       </main>
 
+      {/* Diálogo de Cámara */}
       <Dialog open={isCameraOpen} onOpenChange={(open) => !open && stopCamera()}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden border-none bg-black">
           <div className="relative aspect-[3/4] bg-black">
-            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="w-full h-full object-cover"
+            />
             <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
-              <Button variant="outline" size="icon" onClick={stopCamera} className="rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={stopCamera}
+                className="rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
                 <X className="h-6 w-6" />
               </Button>
-              <Button size="lg" onClick={takePhoto} className="rounded-full h-16 w-16 bg-white hover:bg-white/90 text-black border-4 border-black/20">
+              <Button 
+                size="lg" 
+                onClick={takePhoto}
+                className="rounded-full h-16 w-16 bg-white hover:bg-white/90 text-black border-4 border-black/20"
+              >
                 <Camera className="h-8 w-8" />
               </Button>
             </div>
@@ -636,6 +651,7 @@ function InformeContent() {
   );
 }
 
+// Exportación con Suspense para evitar errores de build con useSearchParams
 export default function AnexoIII() {
   return (
     <Suspense fallback={
