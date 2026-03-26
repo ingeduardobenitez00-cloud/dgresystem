@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -6,8 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
-import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer, Users, Power, PowerOff } from 'lucide-react';
+import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
+import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer, Users, Power, PowerOff, MessageSquarePlus, MessageSquareHeart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -102,6 +103,9 @@ export default function AgendaCapacitacionPage() {
   const informesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'informes-divulgador') : null, [firestore]);
   const { data: informesData } = useCollection<InformeDivulgador>(informesQuery);
 
+  const encuestasQuery = useMemoFirebase(() => firestore ? collection(firestore, 'encuestas-satisfaccion') : null, [firestore]);
+  const { data: encuestasData } = useCollection<EncuestaSatisfaccion>(encuestasQuery);
+
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
@@ -128,7 +132,6 @@ export default function AgendaCapacitacionPage() {
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
         const isPast = sol.fecha < today;
-        // Ciclo cerrado si tiene fecha de devolución e informe Anexo III
         const isClosed = mov?.fecha_devolucion && inf;
         return !(isPast && isClosed);
     });
@@ -337,8 +340,8 @@ export default function AgendaCapacitacionPage() {
       
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
         {showCompletedAlert && (
-          <div className="fixed top-10 right-10 bg-green-500 text-white p-4 rounded-lg shadow-lg z-50">
-            <p>Se agendará en Historia/Archivo. Este detalle desaparecerá en 5 segundos.</p>
+          <div className="fixed top-10 right-10 bg-green-500 text-white p-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-right duration-300">
+            <p className="font-black uppercase text-xs">Ciclo cerrado. Se agendará en Historia/Archivo.</p>
           </div>
         )}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -406,6 +409,12 @@ export default function AgendaCapacitacionPage() {
                                 if (!inf) missing.push("INFORME ANEXO III");
                                 const alertLabel = `ALERTA: ACTIVIDAD VENCIDA - FALTA COMPLETAR: ${missing.join(" Y ")}`;
 
+                                // Lógica de encuestas
+                                const itemEncuestas = encuestasData?.filter(e => e.solicitud_id === item.id) || [];
+                                const qrSurveys = itemEncuestas.filter(e => e.usuario_id === 'CIUDADANO_EXTERNO').length;
+                                const physicalSurveys = itemEncuestas.length - qrSurveys;
+                                const hasSurveys = itemEncuestas.length > 0;
+
                                 return (
                                     <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : "border-muted/20 bg-white")}>
                                         <CardContent className="p-8">
@@ -420,7 +429,10 @@ export default function AgendaCapacitacionPage() {
 
                                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                                 <div className="lg:col-span-4 space-y-3">
-                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">SOLICITANTE</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">SOLICITANTE</p>
+                                                        {item.anexo_id && <Badge variant="secondary" className="bg-primary/5 text-primary text-[7px] font-black uppercase">Lote: {item.anexo_id.substring(0, 6)}</Badge>}
+                                                    </div>
                                                     <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.solicitante_entidad || item.otra_entidad}</p>
                                                     <Badge variant="secondary" className="bg-[#E2E8F0] text-[#475569] font-black uppercase text-[9px] tracking-widest px-3 py-1 rounded-md">{item.tipo_solicitud}</Badge>
                                                 </div>
@@ -438,16 +450,46 @@ export default function AgendaCapacitacionPage() {
                                                     </div>
                                                 </div>
 
-                                                <div className="lg:col-span-2 space-y-2">
-                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">DIVULGADORES</p>
-                                                    {(item.divulgadores && item.divulgadores.length > 0) ? (
-                                                        <div className="flex items-center gap-2 text-[#16A34A]">
-                                                            <Users className="h-5 w-5" />
-                                                            <p className="font-black text-[13px] uppercase">{item.divulgadores.length} ASIGNADOS</p>
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-xs font-black text-destructive italic uppercase">SIN ASIGNAR</p>
-                                                    )}
+                                                <div className="lg:col-span-2 space-y-4">
+                                                    <div className="space-y-1">
+                                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL</p>
+                                                        {(item.divulgadores && item.divulgadores.length > 0) ? (
+                                                            <div className="flex items-center gap-2 text-[#16A34A]">
+                                                                <Users className="h-4 w-4" />
+                                                                <p className="font-black text-[11px] uppercase">{item.divulgadores.length} ASIGNADOS</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* SECCIÓN DE ENCUESTAS */}
+                                                    <div className="pt-2 border-t border-dashed">
+                                                        {hasSurveys ? (
+                                                            <div className="space-y-1.5">
+                                                                <div className="flex items-center gap-2 text-primary">
+                                                                    <MessageSquareHeart className="h-3.5 w-3.5" />
+                                                                    <span className="text-[9px] font-black uppercase">ENCUESTAS: {itemEncuestas.length}</span>
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <Badge variant="outline" className="text-[7px] font-black px-1.5 h-4 border-primary/20">QR: {qrSurveys}</Badge>
+                                                                    <Badge variant="outline" className="text-[7px] font-black px-1.5 h-4 border-primary/20">FÍS: {physicalSurveys}</Badge>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-2 text-muted-foreground/40">
+                                                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                                                    <span className="text-[8px] font-black uppercase leading-tight">SIN ENCUESTAS REGISTRADAS</span>
+                                                                </div>
+                                                                <Link href={`/encuesta-satisfaccion?solicitudId=${item.id}`}>
+                                                                    <Button variant="link" className="h-auto p-0 text-[8px] font-black text-primary uppercase underline tracking-tighter">
+                                                                        ¿Desea registrar encuestas físicas?
+                                                                    </Button>
+                                                                </Link>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 <div className="lg:col-span-3 flex flex-col items-end gap-3">

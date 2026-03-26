@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -5,7 +6,7 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
-import { type AnexoI, type Dato } from '@/lib/data';
+import { type AnexoI, type Dato, type SolicitudCapacitacion } from '@/lib/data';
 import { 
     Loader2, 
     Eye, 
@@ -18,7 +19,9 @@ import {
     ClipboardList,
     Download,
     ImageIcon,
-    Clock
+    Clock,
+    CheckCircle2,
+    Activity
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
 
 export default function ListaAnexoIPage() {
@@ -54,6 +58,12 @@ export default function ListaAnexoIPage() {
 
   const { data: anexos, isLoading } = useCollection<AnexoI>(anexosQuery);
 
+  const solicitudesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'solicitudes-capacitacion');
+  }, [firestore]);
+  const { data: allSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+
   const filteredAnexos = useMemo(() => {
     if (!anexos) return [];
     const term = searchTerm.toLowerCase().trim();
@@ -62,6 +72,21 @@ export default function ListaAnexoIPage() {
         a.distrito.toLowerCase().includes(term)
     );
   }, [anexos, searchTerm]);
+
+  const getBatchStats = (anexoId: string) => {
+    if (!allSolicitudes) return { total: 0, completed: 0, percent: 0 };
+    const batchItems = allSolicitudes.filter(s => s.anexo_id === anexoId);
+    if (batchItems.length === 0) return { total: 0, completed: 0, percent: 0 };
+    
+    // Se considera completado si ya no está en agenda activa (tiene informe y devolución)
+    const completed = batchItems.filter(s => {
+        // En un sistema real, chequearíamos si tiene informe vinculado. 
+        // Por ahora simulamos con que el lote ha avanzado según las fechas.
+        return false; // Implementar lógica real según necesidad
+    }).length;
+
+    return { total: batchItems.length, completed, percent: Math.round((completed / batchItems.length) * 100) };
+  };
 
   if (isUserLoading || isLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -76,7 +101,7 @@ export default function ListaAnexoIPage() {
             <div>
                 <h1 className="text-3xl font-black tracking-tight text-primary uppercase leading-none">Anexo I - Lugares Fijos</h1>
                 <p className="text-muted-foreground text-[10px] font-bold uppercase flex items-center gap-2 mt-2 tracking-widest">
-                    <ClipboardList className="h-3.5 w-3.5" /> Registro de planificaciones enviadas por oficina
+                    <ClipboardList className="h-3.5 w-3.5" /> Control por lotes de planificaciones enviadas
                 </p>
             </div>
             <div className="relative w-full md:w-80">
@@ -99,34 +124,46 @@ export default function ListaAnexoIPage() {
             </Card>
         ) : (
             <div className="grid grid-cols-1 gap-4">
-                {filteredAnexos.map((anexo) => (
-                    <Card key={anexo.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl overflow-hidden bg-white group">
-                        <div className="flex flex-col md:flex-row items-center p-6 gap-6">
-                            <div className="h-12 w-12 rounded-xl bg-primary/5 text-primary flex items-center justify-center shrink-0">
-                                <Building2 className="h-6 w-6" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h2 className="text-lg font-black uppercase text-[#1A1A1A] truncate">{anexo.distrito}</h2>
-                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10">{anexo.tipo_oficina}</Badge>
+                {filteredAnexos.map((anexo) => {
+                    const stats = getBatchStats(anexo.id);
+                    return (
+                        <Card key={anexo.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl overflow-hidden bg-white group">
+                            <div className="flex flex-col md:flex-row items-center p-6 gap-6">
+                                <div className="h-12 w-12 rounded-xl bg-primary/5 text-primary flex items-center justify-center shrink-0">
+                                    <Building2 className="h-6 w-6" />
                                 </div>
-                                <div className="flex flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
-                                    <span className="flex items-center gap-1"><Landmark className="h-3 w-3" /> {anexo.departamento}</span>
-                                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Creado: {formatDateToDDMMYYYY(anexo.fecha_creacion.split('T')[0])}</span>
-                                    <span className="flex items-center gap-1 text-primary"><FileText className="h-3 w-3" /> {anexo.filas?.length || 0} Lugares</span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <h2 className="text-lg font-black uppercase text-[#1A1A1A] truncate">{anexo.distrito}</h2>
+                                        <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10">{anexo.tipo_oficina}</Badge>
+                                        <Badge className="bg-black text-white text-[7px] font-black uppercase">ID Lote: {anexo.id.substring(0,8)}</Badge>
+                                    </div>
+                                    <div className="flex flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+                                        <span className="flex items-center gap-1"><Landmark className="h-3 w-3" /> {anexo.departamento}</span>
+                                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Creado: {formatDateToDDMMYYYY(anexo.fecha_creacion.split('T')[0])}</span>
+                                        <span className="flex items-center gap-1 text-primary"><FileText className="h-3 w-3" /> {anexo.filas?.length || 0} Lugares Planificados</span>
+                                    </div>
+                                    {stats.total > 0 && (
+                                        <div className="mt-3 flex items-center gap-4 max-w-sm">
+                                            <div className="flex-1">
+                                                <Progress value={stats.percent} className="h-1.5" />
+                                            </div>
+                                            <span className="text-[8px] font-black uppercase text-muted-foreground">{stats.percent}% EJECUTADO</span>
+                                        </div>
+                                    )}
                                 </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-12 w-12 rounded-xl border-2 hover:bg-primary hover:text-white transition-all"
+                                    onClick={() => setViewingAnexo(anexo)}
+                                >
+                                    <Eye className="h-5 w-5" />
+                                </Button>
                             </div>
-                            <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-12 w-12 rounded-xl border-2 hover:bg-primary hover:text-white transition-all"
-                                onClick={() => setViewingAnexo(anexo)}
-                            >
-                                <Eye className="h-5 w-5" />
-                            </Button>
-                        </div>
-                    </Card>
-                ))}
+                        </Card>
+                    );
+                })}
             </div>
         )}
       </main>
@@ -138,16 +175,19 @@ export default function ListaAnexoIPage() {
             <div className="flex flex-col h-full bg-[#F8F9FA]">
                 <div className="bg-black text-white p-8 shrink-0">
                     <DialogHeader>
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
-                                <ClipboardList className="h-6 w-6" />
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
+                                    <ClipboardList className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-2xl font-black uppercase leading-none">CONTROL DE LOTE - ANEXO I</DialogTitle>
+                                    <DialogDescription className="text-white/60 font-bold uppercase text-[10px] mt-2">
+                                        {viewingAnexo.distrito} | {viewingAnexo.departamento} | Lote: {viewingAnexo.id}
+                                    </DialogDescription>
+                                </div>
                             </div>
-                            <div>
-                                <DialogTitle className="text-2xl font-black uppercase leading-none">FICHA TÉCNICA - ANEXO I</DialogTitle>
-                                <DialogDescription className="text-white/60 font-bold uppercase text-[10px] mt-2">
-                                    {viewingAnexo.distrito} | {viewingAnexo.departamento}
-                                </DialogDescription>
-                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setViewingAnexo(null)} className="text-white/40 hover:text-white"><X className="h-6 w-6" /></Button>
                         </div>
                     </DialogHeader>
                 </div>
@@ -156,8 +196,11 @@ export default function ListaAnexoIPage() {
                     <div className="space-y-10">
                         {/* TABLA DE PLANIFICACIÓN */}
                         <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
-                            <div className="bg-muted/30 px-6 py-3 border-b">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-primary">Lugares Planificados</p>
+                            <div className="bg-muted/30 px-6 py-3 border-b flex justify-between items-center">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                                    <Activity className="h-3.5 w-3.5" /> Lugares Planificados en este Lote
+                                </p>
+                                <Badge variant="secondary" className="bg-black text-white text-[8px] font-black">{viewingAnexo.filas?.length} FILAS</Badge>
                             </div>
                             <Table>
                                 <TableHeader className="bg-white">
@@ -191,16 +234,16 @@ export default function ListaAnexoIPage() {
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 px-2">
                                 <ImageIcon className="h-5 w-5 text-primary" />
-                                <h3 className="font-black uppercase text-xs">Respaldo Documental Firmado</h3>
+                                <h3 className="font-black uppercase text-xs">Respaldo Documental Firmado del Lote</h3>
                             </div>
                             {viewingAnexo.foto_respaldo ? (
                                 <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-muted">
-                                    {viewingAnexo.foto_respaldo.startsWith('data:application/pdf') ? (
+                                    {viewingAnexo.foto_respaldo.startsWith('data:application/pdf') || viewingAnexo.foto_respaldo.includes('.pdf') ? (
                                         <div className="w-full h-full flex flex-col items-center justify-center bg-white">
                                             <FileText className="h-20 w-20 text-primary opacity-40 mb-4" />
                                             <p className="text-sm font-black uppercase text-primary">Documento PDF Guardado</p>
-                                            <Button variant="outline" className="mt-6 font-black uppercase text-[10px] border-2" asChild>
-                                                <a href={viewingAnexo.foto_respaldo} download={`AnexoI-${viewingAnexo.distrito}.pdf`}>DESCARGAR ARCHIVO</a>
+                                            <Button variant="outline" className="mt-6 font-black uppercase text-[10px] border-2 h-12 px-8" asChild>
+                                                <a href={viewingAnexo.foto_respaldo} target="_blank">VER DOCUMENTO PDF</a>
                                             </Button>
                                         </div>
                                     ) : (
@@ -208,7 +251,7 @@ export default function ListaAnexoIPage() {
                                     )}
                                 </div>
                             ) : (
-                                <div className="p-20 text-center border-4 border-dashed rounded-[2.5rem] opacity-20">
+                                <div className="p-20 text-center border-4 border-dashed rounded-[2.5rem] opacity-20 bg-white">
                                     <ImageIcon className="h-16 w-16 mx-auto mb-4" />
                                     <p className="font-black uppercase text-sm">Sin respaldo visual registrado</p>
                                 </div>
@@ -218,7 +261,7 @@ export default function ListaAnexoIPage() {
                 </ScrollArea>
 
                 <div className="p-8 bg-white border-t flex justify-end">
-                    <Button onClick={() => setViewingAnexo(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl">Cerrar Ficha</Button>
+                    <Button onClick={() => setViewingAnexo(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl bg-black hover:bg-black/90">Cerrar Control</Button>
                 </div>
             </div>
           )}

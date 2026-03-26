@@ -75,8 +75,8 @@ export default function AnexoIPage() {
       direccion: '',
       fecha_desde: '',
       fecha_hasta: '',
-      hora_desde: '',
-      hora_hasta: ''
+      hora_desde: '08:00',
+      hora_hasta: '13:00'
     }))
   );
 
@@ -229,6 +229,7 @@ export default function AnexoIPage() {
         const dayStr = format(current, "yyyy-MM-dd");
         
         batch.set(agendaRef, {
+          anexo_id: anexoRef.id, // Vínculo por lote
           solicitante_entidad: tipoOficina === 'REGISTRO' ? 'OFICINA REGISTRO ELECTORAL' : 'CENTRO CÍVICO',
           tipo_solicitud: 'Lugar Fijo',
           fecha: dayStr,
@@ -368,7 +369,7 @@ export default function AnexoIPage() {
                 </Button>
                 <Button className="font-black uppercase text-[10px] h-11 gap-2 shadow-xl" onClick={handleSave} disabled={isSubmitting || !fotoRespaldo}>
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    GUARDAR Y AGENDAR
+                    GUARDAR Y AGENDAR POR LOTE
                 </Button>
             </div>
         </div>
@@ -557,7 +558,7 @@ export default function AnexoIPage() {
                             <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed rounded-2xl cursor-pointer hover:bg-muted transition-all text-muted-foreground">
                                 <ImageIcon className="h-4 w-4" />
                                 <span className="text-[10px] font-black uppercase">Subir desde Galería / PDF</span>
-                                <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
+                                <Input type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileUpload} />
                             </label>
                         </div>
                     )}
@@ -572,7 +573,7 @@ export default function AnexoIPage() {
 
             <div className="p-6 bg-muted/20 rounded-3xl text-center">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-relaxed max-w-3xl mx-auto italic">
-                    * Al guardar este formulario, el sistema generará automáticamente las entradas en la Agenda para cada día comprendido en los rangos de fecha seleccionados, facilitando la asignación del personal.
+                    * Al guardar este formulario, el sistema generará automáticamente las entradas en la Agenda para cada día comprendido en los rangos de fecha seleccionados, facilitando el control por lote.
                 </p>
             </div>
 
