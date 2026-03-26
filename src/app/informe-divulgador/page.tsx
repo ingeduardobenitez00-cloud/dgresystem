@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
@@ -14,7 +13,7 @@ import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/
 import { collection, addDoc, serverTimestamp, doc, query, where, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { type SolicitudCapacitacion, type InformeDivulgador, type EncuestaSatisfaccion, type Asignado } from '@/lib/data';
+import { type SolicitudCapacitacion, type InformeDivulgador, type Asignado } from '@/lib/data';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -80,7 +79,6 @@ function InformeContent() {
     fetchLogo();
   }, []);
 
-  // FUNCIÓN DE COMPRESIÓN CENTRALIZADA
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (file.type === 'application/pdf') {
@@ -157,22 +155,13 @@ function InformeContent() {
 
   const { data: rawAgendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
 
-  const informesRealizadosQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !user?.profile) return null;
-    return collection(firestore, 'informes-divulgador');
-  }, [firestore, user, isUserLoading]);
-
-  const { data: rawInformesRealizados } = useCollection<InformeDivulgador>(informesRealizadosQuery);
-
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems) return [];
-    const myEmail = user?.email?.toLowerCase();
-    
     return rawAgendaItems
       .filter(item => {
         if (item.cancelada) return false;
-        // Solo mostrar actividades donde el usuario está asignado (o si es admin/jefe)
-        const isAsigned = item.asignados?.some(a => a.cedula === user?.profile?.cedula);
+        const myCedula = user?.profile?.cedula;
+        const isAsigned = item.asignados?.some(a => a.cedula === myCedula);
         const isAdmin = ['admin', 'director', 'jefe'].includes(user?.profile?.role || '');
         return isAsigned || isAdmin;
       })
@@ -187,7 +176,6 @@ function InformeContent() {
 
   useEffect(() => {
     if (agendaDoc && user?.profile) {
-      // Intentar encontrar la asignación del usuario actual en la lista del evento
       const myCedula = user.profile.cedula;
       const myAssignment = agendaDoc.asignados?.find(a => a.cedula === myCedula);
       
@@ -198,7 +186,6 @@ function InformeContent() {
         fecha: agendaDoc.fecha || '',
         hora_desde: (agendaDoc.hora_desde || '').substring(0, 5),
         hora_hasta: (agendaDoc.hora_hasta || '').substring(0, 5),
-        // Si no está asignado, usar datos del perfil (para jefes/admins que testean)
         nombre_divulgador: myAssignment?.nombre || user.profile.username || '',
         cedula_divulgador: myAssignment?.cedula || user.profile.cedula || '',
         vinculo: myAssignment?.vinculo || user.profile.vinculo || '',
@@ -412,8 +399,6 @@ function InformeContent() {
         setIsSubmitting(false);
       });
   };
-
-  if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
@@ -676,16 +661,33 @@ function InformeContent() {
         </Card>
       </main>
 
-      <Dialog open={isCameraOpen} onOpenChange={(o) => !o && stopCamera()}>
-        <DialogContent className="max-w-md p-0 overflow-hidden border-none bg-black rounded-[2rem]">
-          <div className="relative aspect-[3/4] w-full bg-black flex items-center justify-center">
-            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
-            <div className="absolute inset-8 border-2 border-white/20 rounded-xl pointer-events-none border-dashed" />
+      <Dialog open={isCameraOpen} onOpenChange={(open) => !open && stopCamera()}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-none bg-black">
+          <div className="relative aspect-[3/4] bg-black">
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={stopCamera}
+                className="rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                <X className="h-6 w-6" />
+              </Button>
+              <Button 
+                size="lg" 
+                onClick={takePhoto}
+                className="rounded-full h-16 w-16 bg-white hover:bg-white/90 text-black border-4 border-black/20"
+              >
+                <Camera className="h-8 w-8" />
+              </Button>
+            </div>
           </div>
-          <DialogFooter className="p-8 bg-black/80 flex flex-row items-center justify-between gap-4">
-            <Button variant="outline" className="rounded-full h-14 w-14 border-white/20 bg-white/10 text-white" onClick={stopCamera}><X className="h-6 w-6" /></Button>
-            <Button className="flex-1 h-16 rounded-full bg-white text-black font-black uppercase text-sm shadow-2xl" onClick={takePhoto}>CAPTURAR</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -699,9 +701,13 @@ function InformeContent() {
   );
 }
 
-export default function InformeDivulgadorPage() {
+export default function AnexoIII() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>}>
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin h-8 w-8 text-primary"/>
+      </div>
+    }>
       <InformeContent />
     </Suspense>
   );
