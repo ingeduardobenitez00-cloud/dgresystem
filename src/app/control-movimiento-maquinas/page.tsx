@@ -635,30 +635,55 @@ export default function ControlMovimientoMaquinasPage() {
                 </div>
 
                 <div className="space-y-6">
-                    <Label className="text-[11px] font-black uppercase text-primary tracking-widest">AUDITORÍA DE LACRES AL REINGRESO</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Label className="text-[11px] font-black uppercase text-primary tracking-widest text-center block w-full">AUDITORÍA DE LACRES AL REINGRESO</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         {movimientoData.maquinas.map((maq, idx) => (
-                            <div key={idx} className="p-6 border-2 border-black rounded-3xl space-y-4 bg-[#F8F9FA] shadow-sm">
-                                <p className="text-center font-black text-xs uppercase tracking-tighter">MÁQUINA: {maq.codigo}</p>
-                                <RadioGroup 
-                                    value={maq.lacre_estado || ''} 
-                                    onValueChange={(v: any) => updateMaquina(idx, 'lacre_estado', v)}
-                                    disabled={!!currentMovimiento?.fecha_devolucion}
-                                    className="flex justify-center gap-6"
-                                >
-                                    <div className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => !currentMovimiento?.fecha_devolucion && updateMaquina(idx, 'lacre_estado', 'correcto')}>
-                                        <div className={cn("h-10 w-10 rounded-full border-2 flex items-center justify-center transition-all", maq.lacre_estado === 'correcto' ? "border-black bg-black text-white" : "border-muted bg-white")}>
-                                            <Check className="h-5 w-5 stroke-[4]" />
+                            <div key={idx} className="p-8 border-2 border-black rounded-[2rem] space-y-6 bg-white shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-black/5" />
+                                <div className="text-center space-y-1">
+                                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Identificación del Equipo</p>
+                                    <p className="font-black text-[13px] uppercase tracking-tighter text-primary">{maq.codigo || 'S/N'}</p>
+                                </div>
+                                
+                                <div className="flex justify-around items-center pt-2">
+                                    <div 
+                                        className="flex flex-col items-center gap-3 cursor-pointer group" 
+                                        onClick={() => !currentMovimiento?.fecha_devolucion && updateMaquina(idx, 'lacre_estado', 'correcto')}
+                                    >
+                                        <div className={cn(
+                                            "h-14 w-14 rounded-full border-[3px] flex items-center justify-center transition-all duration-300 shadow-sm", 
+                                            maq.lacre_estado === 'correcto' 
+                                                ? "border-black bg-black text-white scale-110" 
+                                                : "border-muted-foreground/20 bg-muted/30 group-hover:border-black/30"
+                                        )}>
+                                            <Check className={cn("h-7 w-7 transition-all", maq.lacre_estado === 'correcto' ? "stroke-[4]" : "stroke-[2] opacity-30")} />
                                         </div>
-                                        <span className="text-[8px] font-black uppercase tracking-widest">CORRECTO</span>
+                                        <span className={cn(
+                                            "text-[9px] font-black uppercase tracking-widest transition-colors",
+                                            maq.lacre_estado === 'correcto' ? "text-black" : "text-muted-foreground"
+                                        )}>CORRECTO</span>
                                     </div>
-                                    <div className="flex flex-col items-center gap-2 cursor-pointer" onClick={() => !currentMovimiento?.fecha_devolucion && updateMaquina(idx, 'lacre_estado', 'violentado')}>
-                                        <div className={cn("h-10 w-10 rounded-full border-2 flex items-center justify-center transition-all", maq.lacre_estado === 'violentado' ? "border-destructive bg-destructive text-white" : "border-muted bg-white")}>
-                                            <ShieldAlert className="h-5 w-5" />
+
+                                    <div className="h-12 w-px bg-muted-foreground/10" />
+
+                                    <div 
+                                        className="flex flex-col items-center gap-3 cursor-pointer group" 
+                                        onClick={() => !currentMovimiento?.fecha_devolucion && updateMaquina(idx, 'lacre_estado', 'violentado')}
+                                    >
+                                        <div className={cn(
+                                            "h-14 w-14 rounded-full border-[3px] flex items-center justify-center transition-all duration-300 shadow-sm", 
+                                            maq.lacre_estado === 'violentado' 
+                                                ? "border-destructive bg-destructive text-white scale-110" 
+                                                : "border-muted-foreground/20 bg-muted/30 group-hover:border-destructive/30"
+                                        )}>
+                                            <ShieldAlert className={cn("h-7 w-7 transition-all", maq.lacre_estado === 'violentado' ? "opacity-100" : "opacity-30")} />
                                         </div>
-                                        <span className="text-[8px] font-black uppercase text-destructive tracking-widest">VIOLENTADO</span>
+                                        <span className={cn(
+                                            "text-[9px] font-black uppercase tracking-widest transition-colors",
+                                            maq.lacre_estado === 'violentado' ? "text-destructive" : "text-muted-foreground"
+                                        )}>VIOLENTADO</span>
                                     </div>
-                                </RadioGroup>
+                                </div>
                             </div>
                         ))}
                     </div>
