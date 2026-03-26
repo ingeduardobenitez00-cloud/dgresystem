@@ -504,7 +504,7 @@ export default function ControlMovimientoMaquinasPage() {
                 doc.setFontSize(7); doc.setFont('helvetica', 'bold');
                 doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 8, { align: 'center' });
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-                doc.text(`C.I. ${resp.cedula}`, cx + 8, y + 16);
+                doc.text(`C.I. {resp.cedula}`, cx + 8, y + 16);
                 doc.setDrawColor(200); doc.roundedRect(cx + cardW - 25, y + 13, 20, 5, 1, 1, 'D');
                 doc.setFontSize(5); doc.text(resp.vinculo.toUpperCase(), cx + cardW - 15, y + 16.5, { align: 'center' });
             }
@@ -527,7 +527,7 @@ export default function ControlMovimientoMaquinasPage() {
         y += 4; doc.roundedRect(margin, y, boxWidth, 10, 5, 5);
         doc.setFont('helvetica', 'normal'); doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 5, y + 6.5);
 
-        // SIGNATURE MATRIX (As requested: 2 for jefe, 3 for divulgador)
+        // SIGNATURE MATRIX
         y += 20;
         const sigH = 25;
         const sigJefeW = (boxWidth - 10) / 2;
@@ -549,37 +549,44 @@ export default function ControlMovimientoMaquinasPage() {
             doc.text("ACLARACIÓN: _________________", sx + 5, y + 18);
         }
 
-        // IMPROVED EQUIPMENT BLOCK (Based on image)
+        // EQUIPMENT BLOCK - FIXED OVERFLOW
         y += sigH + 15;
+        const equipBoxH = 40;
         doc.setDrawColor(180); doc.setLineWidth(0.3);
-        doc.roundedRect(margin, y, boxWidth, 45, 8, 8);
+        doc.roundedRect(margin, y, boxWidth, equipBoxH, 8, 8);
         
         doc.setFillColor(0);
-        doc.roundedRect(margin + 15, y - 5, 35, 10, 5, 5, 'F');
-        doc.setTextColor(255); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-        doc.text(`EQUIPO #${index + 1}`, margin + 32.5, y + 1.5, { align: 'center' });
+        doc.roundedRect(margin + 15, y - 5, 30, 8, 4, 4, 'F');
+        doc.setTextColor(255); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+        doc.text(`EQUIPO #${index + 1}`, margin + 30, y + 0.5, { align: 'center' });
         doc.setTextColor(0);
 
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-        doc.text("SERIE DE MÁQUINA", margin + 15, y + 10);
-        doc.setDrawColor(150); doc.roundedRect(margin + 15, y + 12, 85, 10, 5, 5);
-        doc.setFont('helvetica', 'normal'); doc.text(maq.codigo || '', margin + 20, y + 18.5);
+        const inputW = (boxWidth - 40) / 2;
+        
+        // Input 1: Serie Máquina
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+        doc.text("SERIE DE MÁQUINA", margin + 15, y + 8);
+        doc.setDrawColor(150); doc.roundedRect(margin + 15, y + 10, inputW, 8, 4, 4);
+        doc.setFont('helvetica', 'normal'); doc.text(maq.codigo || '', margin + 20, y + 15.5);
 
-        doc.setFont('helvetica', 'bold'); doc.text("SERIE PENDRIVE", margin + 110, y + 10);
-        doc.roundedRect(margin + 110, y + 12, 85, 10, 5, 5);
-        doc.setFont('helvetica', 'normal'); doc.text(maq.pendrive_serie || '', margin + 115, y + 18.5);
+        // Input 2: Serie Pendrive
+        doc.setFont('helvetica', 'bold');
+        doc.text("SERIE PENDRIVE", margin + 25 + inputW, y + 8);
+        doc.roundedRect(margin + 25 + inputW, y + 10, inputW, 8, 4, 4);
+        doc.setFont('helvetica', 'normal'); doc.text(maq.pendrive_serie || '', margin + 30 + inputW, y + 15.5);
 
-        const kitY = y + 35;
+        const kitY = y + 28;
+        const kitSpacing = (boxWidth - 30) / 4;
         const kits = [
             { label: "CREDENCIAL", val: maq.credencial, x: margin + 15 },
-            { label: "AURICULAR", val: maq.auricular, x: margin + 65 },
-            { label: "ACRILICO", val: maq.acrilico, x: margin + 115 },
-            { label: "BOLETAS", val: maq.boletas, x: margin + 165 }
+            { label: "AURICULAR", val: maq.auricular, x: margin + 15 + kitSpacing },
+            { label: "ACRILICO", val: maq.acrilico, x: margin + 15 + (kitSpacing * 2) },
+            { label: "BOLETAS", val: maq.boletas, x: margin + 15 + (kitSpacing * 3) }
         ];
         kits.forEach(k => {
-            doc.setDrawColor(0); doc.rect(k.x, kitY - 4, 5, 5);
-            if (k.val) { doc.setFont('helvetica', 'bold'); doc.text("X", k.x + 1, kitY - 0.5); }
-            doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.text(k.label, k.x + 8, kitY);
+            doc.setDrawColor(0); doc.rect(k.x, kitY - 3, 4, 4);
+            if (k.val) { doc.setFont('helvetica', 'bold'); doc.text("X", k.x + 1, kitY + 0.5); }
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.text(k.label, k.x + 6, kitY);
         });
 
         // PAGE NUMBER
@@ -587,9 +594,9 @@ export default function ControlMovimientoMaquinasPage() {
         doc.text(`Hoja ${index + 1} de ${totalPages}`, pageWidth - margin, 290, { align: 'right' });
 
         // FOOTER OBS
-        y = 275; doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+        y = 275; doc.setFontSize(8); doc.setFont('helvetica', 'bold');
         doc.text("OBS: ANEXAR A ESTE FORMULARIO: ANEXO I LUGAR FIJO DE DIVULGACIÓN", pageWidth / 2, y, { align: 'center' });
-        doc.text("ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y + 6, { align: 'center' });
+        doc.text("ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y + 5, { align: 'center' });
     };
 
     movimientoData.maquinas.forEach((maq, i) => drawPage(maq, i));
