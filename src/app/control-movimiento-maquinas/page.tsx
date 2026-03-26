@@ -254,17 +254,29 @@ export default function ControlMovimientoMaquinasPage() {
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: any) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (target === 'salida' || target === 'devolucion' || target === 'denuncia_respaldo') {
+      const file = files[0];
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
         if (target === 'salida') setSalidaFoto(result);
         else if (target === 'devolucion') setDevolucionFoto(result);
-        else if (target === 'denuncia_evidencia') setDenunciaEvidencias(prev => [...prev, result].slice(0, 5));
         else if (target === 'denuncia_respaldo') setDenunciaRespaldo(result);
       };
       reader.readAsDataURL(file);
+    } else if (target === 'denuncia_evidencia') {
+      const remaining = 5 - denunciaEvidencias.length;
+      Array.from(files).slice(0, remaining).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          setDenunciaEvidencias(prev => [...prev, result].slice(0, 5));
+        };
+        reader.readAsDataURL(file);
+      });
     }
   };
 
@@ -669,7 +681,17 @@ export default function ControlMovimientoMaquinasPage() {
                                         </div>
                                     ))}
                                     {denunciaEvidencias.length < 5 && (
-                                        <Button variant="outline" className="aspect-square flex-col border-dashed rounded-xl gap-1" onClick={() => startCamera('denuncia_evidencia')}><Camera className="h-4 w-4 opacity-30" /> <span className="text-[7px] font-black uppercase">FOTO</span></Button>
+                                        <>
+                                            <Button variant="outline" className="aspect-square flex-col border-dashed rounded-xl gap-1" onClick={() => startCamera('denuncia_evidencia')}>
+                                                <Camera className="h-4 w-4 opacity-30" /> 
+                                                <span className="text-[7px] font-black uppercase">FOTO</span>
+                                            </Button>
+                                            <label className="aspect-square flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-1 cursor-pointer hover:bg-muted/10 transition-all">
+                                                <FileUp className="h-4 w-4 opacity-30" /> 
+                                                <span className="text-[7px] font-black uppercase">SUBIR</span>
+                                                <Input type="file" multiple accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'denuncia_evidencia')} />
+                                            </label>
+                                        </>
                                     )}
                                 </div>
                             </div>

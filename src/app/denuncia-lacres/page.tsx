@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check } from 'lucide-react';
+import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus } from 'lucide-react';
 import { useUser, useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
@@ -321,8 +322,8 @@ function DenunciaContent() {
 
     y += 15; doc.setFontSize(10); doc.text("Señores Directores - DGRE / Logística / RR.EE.", margin, y);
     y += 15; doc.setFont('helvetica', 'normal');
-    const introText = `Los Jefes del Registro Electoral de ${selectedSolicitud.distrito.toUpperCase()}, informan la manipulación de la máquina de votación (adulteración de lacres) en las siguientes unidades: ${reportedMaquinas.join(", ")}.`;
-    const splitIntro = doc.splitTextToSize(introText, pageWidth - (margin * 2));
+    const intro = `Los Jefes del Registro Electoral de ${selectedSolicitud.distrito.toUpperCase()}, informan la manipulación de la máquina de votación (adulteración de lacres) en las siguientes unidades: ${reportedMaquinas.join(", ")}.`;
+    const splitIntro = doc.splitTextToSize(intro, pageWidth - (margin * 2));
     doc.text(splitIntro, margin, y);
 
     y += 20; doc.setFont('helvetica', 'bold');
@@ -449,8 +450,16 @@ function DenunciaContent() {
                                     </div>
                                 ))}
                                 {denunciaFotos.length < 5 && (
-                                    <div className="h-24 border-2 border-dashed rounded-xl flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-all bg-white" onClick={() => startCamera('evidencia')}>
-                                        <Plus className="h-6 w-6 text-muted-foreground opacity-30" />
+                                    <div className="grid grid-cols-2 gap-2 col-span-2">
+                                        <div className="h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-muted/50 transition-all bg-white" onClick={() => startCamera('evidencia')}>
+                                            <Camera className="h-6 w-6 text-muted-foreground opacity-30" />
+                                            <span className="text-[8px] font-black uppercase">FOTO</span>
+                                        </div>
+                                        <label className="h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-muted/50 transition-all bg-white">
+                                            <FileUp className="h-6 w-6 text-muted-foreground opacity-30" />
+                                            <span className="text-[8px] font-black uppercase">SUBIR</span>
+                                            <Input type="file" multiple accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'evidencia')} />
+                                        </label>
                                     </div>
                                 )}
                             </div>
@@ -475,9 +484,16 @@ function DenunciaContent() {
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="h-48 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-all bg-white" onClick={() => startCamera('respaldo')}>
-                                    <Camera className="h-8 w-8 text-primary opacity-20" />
-                                    <span className="text-[9px] font-black uppercase text-muted-foreground">Capturar Acta Firmada</span>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="h-48 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-all bg-white" onClick={() => startCamera('respaldo')}>
+                                        <Camera className="h-8 w-8 text-primary opacity-20" />
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground text-center">Capturar Acta Firmada</span>
+                                    </div>
+                                    <label className="h-48 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/50 transition-all bg-white">
+                                        <FileUp className="h-8 w-8 text-primary opacity-20" />
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground text-center">Subir Acta Firmada</span>
+                                        <Input type="file" accept="image/*,.pdf" className="hidden" onChange={e => handleFileUpload(e, 'respaldo')} />
+                                    </label>
                                 </div>
                             )}
                         </div>
@@ -509,10 +525,6 @@ function DenunciaContent() {
     </div>
   );
 }
-
-const Plus = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-);
 
 export default function DenunciaLacresPage() {
   return (
