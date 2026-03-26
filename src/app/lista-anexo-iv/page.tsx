@@ -21,7 +21,9 @@ import {
     ImageIcon,
     Clock,
     Users,
-    TableProperties
+    TableProperties,
+    CheckCircle2,
+    X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -140,7 +142,6 @@ export default function ListaAnexoIVPage() {
         )}
       </main>
 
-      {/* DIÁLOGO DE FICHA TÉCNICA */}
       <Dialog open={!!viewingAnexo} onOpenChange={(o) => !o && setViewingAnexo(null)}>
         <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 border-none shadow-2xl overflow-hidden rounded-[2rem]">
           {viewingAnexo && (
@@ -163,7 +164,6 @@ export default function ListaAnexoIVPage() {
 
                 <ScrollArea className="flex-1 p-8">
                     <div className="space-y-10">
-                        {/* TABLA DE PRODUCCIÓN */}
                         <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
                             <div className="bg-muted/30 px-6 py-3 border-b">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-primary">Detalle de Producción Semanal</p>
@@ -171,23 +171,22 @@ export default function ListaAnexoIVPage() {
                             <Table>
                                 <TableHeader className="bg-white">
                                     <TableRow>
-                                        <TableHead className="text-[9px] font-black uppercase px-6">Local de Divulgación</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase px-6">Lugar</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Fecha</TableHead>
-                                        <TableHead className="text-[9px] font-black uppercase">Divulgador / Funcionario</TableHead>
-                                        <TableHead className="text-right text-[9px] font-black uppercase px-6">Personas</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Funcionario</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">C.I.</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Vínculo</TableHead>
+                                        <TableHead className="text-right text-[9px] font-black uppercase px-6">Cantidad</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {viewingAnexo.filas?.map((f, idx) => (
                                         <TableRow key={idx} className="border-b last:border-0">
-                                            <TableCell className="px-6 py-4 font-black text-[11px] uppercase text-primary leading-tight">{f.lugar}</TableCell>
-                                            <TableCell className="text-[10px] font-bold uppercase text-muted-foreground">{formatDateToDDMMYYYY(f.fecha)}</TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col">
-                                                    <span className="font-black text-[10px] uppercase text-primary leading-none mb-1">{f.nombre_divulgador}</span>
-                                                    <span className="text-[8px] font-bold text-muted-foreground uppercase">C.I. {f.cedula} | {f.vinculo}</span>
-                                                </div>
-                                            </TableCell>
+                                            <TableCell className="px-6 py-4 font-black text-[10px] uppercase text-primary leading-tight">{f.lugar}</TableCell>
+                                            <TableCell className="text-[9px] font-bold uppercase text-muted-foreground">{formatDateToDDMMYYYY(f.fecha)}</TableCell>
+                                            <TableCell className="font-black text-[10px] uppercase text-primary">{f.nombre_divulgador}</TableCell>
+                                            <TableCell className="text-[10px] font-bold">C.I. {f.cedula}</TableCell>
+                                            <TableCell><Badge variant="outline" className="text-[8px] font-black uppercase bg-muted/20 border-primary/10">{f.vinculo}</Badge></TableCell>
                                             <TableCell className="text-right px-6 font-black text-sm text-primary">
                                                 {f.cantidad_personas}
                                             </TableCell>
@@ -197,11 +196,10 @@ export default function ListaAnexoIVPage() {
                             </Table>
                         </Card>
 
-                        {/* RESPALDO DOCUMENTAL */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 px-2">
                                 <ImageIcon className="h-5 w-5 text-primary" />
-                                <h3 className="font-black uppercase text-xs">Respaldo Anexo IV Firmado</h3>
+                                <h3 className="font-black uppercase text-xs">Respaldo Documental Firmado</h3>
                             </div>
                             {viewingAnexo.foto_respaldo_documental ? (
                                 <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-muted">

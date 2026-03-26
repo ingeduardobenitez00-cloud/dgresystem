@@ -237,7 +237,6 @@ export default function InformeSemanalAnexoIVPage() {
         idx + 1,
         inf.lugar_divulgacion.toUpperCase(),
         inf.fecha.split('-').reverse().join('/'),
-        `DE: ${inf.hora_desde} A: ${inf.hora_hasta} HS.`,
         inf.nombre_divulgador.toUpperCase(),
         inf.cedula_divulgador,
         inf.vinculo.toUpperCase(),
@@ -245,7 +244,7 @@ export default function InformeSemanalAnexoIVPage() {
     ]);
 
     while (tableBody.length < 12) {
-        tableBody.push([tableBody.length + 1, '', '', 'DE:    A:    HS.', '', '', '', '']);
+        tableBody.push([tableBody.length + 1, '', '', '', '', '', '']);
     }
 
     autoTable(doc, {
@@ -256,15 +255,14 @@ export default function InformeSemanalAnexoIVPage() {
         headStyles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'center' },
         columnStyles: {
             0: { cellWidth: 8, halign: 'center' },
-            1: { cellWidth: 55 },
+            1: { cellWidth: 70 },
             2: { cellWidth: 20, halign: 'center' },
-            3: { cellWidth: 35, halign: 'center' },
-            4: { cellWidth: 60 },
-            5: { cellWidth: 20, halign: 'center' },
-            6: { cellWidth: 40, halign: 'center' },
-            7: { cellWidth: 25, halign: 'center' }
+            3: { cellWidth: 70 },
+            4: { cellWidth: 25, halign: 'center' },
+            5: { cellWidth: 40, halign: 'center' },
+            6: { cellWidth: 25, halign: 'center' }
         },
-        head: [['N.º', 'LUGAR DE DIVULGACIÓN', 'FECHA', 'HORARIO', 'NOMBRE COMPLETO FUNCIONARIO DIVULGADOR', 'C.I.C. N.º', 'VÍNCULO', 'CANTIDAD DE PERSONAS']],
+        head: [['N.º', 'LUGAR DE DIVULGACIÓN', 'FECHA', 'NOMBRE COMPLETO FUNCIONARIO DIVULGADOR', 'C.I.C. N.º', 'VÍNCULO', 'CANTIDAD']],
         body: tableBody,
     });
 
@@ -489,18 +487,20 @@ export default function InformeSemanalAnexoIVPage() {
                                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                                     <TableRow>
                                         <TableHead className="text-[9px] font-black uppercase w-10">N.º</TableHead>
-                                        <TableHead className="text-[9px] font-black uppercase">Lugar de Divulgación</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Lugar</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Fecha</TableHead>
-                                        <TableHead className="text-[9px] font-black uppercase">Divulgador / Funcionario</TableHead>
-                                        <TableHead className="text-right text-[9px] font-black uppercase">Personas</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Funcionario Divulgador</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">C.I.</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Vínculo</TableHead>
+                                        <TableHead className="text-right text-[9px] font-black uppercase">Cantidad</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody className="bg-white">
                                     {isLoadingInformes ? (
-                                        <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
                                     ) : informesAnexoIII.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-20">
+                                            <TableCell colSpan={7} className="text-center py-20">
                                                 <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
                                                 <p className="text-xs font-black text-muted-foreground uppercase">
                                                     {!selectedDistrict ? "Seleccione un distrito para buscar informes" : `No hay informes individuales para este rango en ${selectedDistrict}`}
@@ -511,17 +511,11 @@ export default function InformeSemanalAnexoIVPage() {
                                         informesAnexoIII.map((inf, idx) => (
                                             <TableRow key={inf.id} className="hover:bg-muted/30 transition-colors border-b">
                                                 <TableCell className="font-black text-xs text-muted-foreground">{idx + 1}</TableCell>
-                                                <TableCell className="font-black text-[11px] uppercase text-primary leading-tight">{inf.lugar_divulgacion}</TableCell>
-                                                <TableCell className="text-[10px] font-bold">{formatDateToDDMMYYYY(inf.fecha)}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col">
-                                                        <p className="font-black text-[10px] uppercase text-primary leading-none mb-1">{inf.nombre_divulgador}</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/10 h-4 bg-muted/20">C.I. {inf.cedula_divulgador}</Badge>
-                                                            <span className="text-[8px] font-bold text-muted-foreground uppercase">{inf.vinculo}</span>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
+                                                <TableCell className="font-black text-[10px] uppercase text-primary leading-tight">{inf.lugar_divulgacion}</TableCell>
+                                                <TableCell className="text-[9px] font-bold">{formatDateToDDMMYYYY(inf.fecha)}</TableCell>
+                                                <TableCell className="font-black text-[10px] uppercase text-primary">{inf.nombre_divulgador}</TableCell>
+                                                <TableCell className="text-[10px] font-bold">C.I. {inf.cedula_divulgador}</TableCell>
+                                                <TableCell><Badge variant="secondary" className="text-[8px] font-black uppercase bg-primary/5 text-primary border-none">{inf.vinculo}</Badge></TableCell>
                                                 <TableCell className="text-right font-black text-primary">{inf.total_personas}</TableCell>
                                             </TableRow>
                                         ))
