@@ -268,7 +268,7 @@ export default function ControlMovimientoMaquinasPage() {
       fecha_salida: movimientoData.fecha_salida,
       hora_salida: movimientoData.hora_salida,
       foto_salida: salidaFoto,
-      responsables: selectedSolicitud.asignados || [],
+      responsables: selectedSolicitud.divulgadores || [],
       fecha_creacion: new Date().toISOString(),
     };
 
@@ -345,7 +345,7 @@ export default function ControlMovimientoMaquinasPage() {
     
     y += 12; doc.setFontSize(6.5); doc.text("EQUIPO RESPONSABLE DE LA DIVULGACIÓN", margin + 5, y);
     y += 2; 
-    const responsablesList = selectedSolicitud.asignados?.map(a => `${a.nombre} (CI: ${a.cedula})`).join(", ") || "SIN ASIGNAR";
+    const responsablesList = selectedSolicitud.divulgadores?.map(a => `${a.nombre} (CI: ${a.cedula})`).join(", ") || "SIN ASIGNAR";
     doc.roundedRect(margin + 5, y, 165, 8, 1, 1);
     doc.setFont('helvetica', 'normal'); 
     const splitResp = doc.splitTextToSize(responsablesList.toUpperCase(), 160);
@@ -397,7 +397,9 @@ export default function ControlMovimientoMaquinasPage() {
     doc.save(`Movimiento-Equipo-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
-  if (isUserLoading || isLoadingAgenda || isLoadingMaquinas) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  if (isUserLoading || isLoadingAgenda || isLoadingMaquinas) {
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
@@ -458,12 +460,28 @@ export default function ControlMovimientoMaquinasPage() {
                 
                 <div className="space-y-4">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">Equipo de Trabajo Responsable</Label>
-                    <div className="flex flex-wrap gap-2 p-4 bg-muted/20 rounded-2xl border-2 border-dashed">
-                        {selectedSolicitud?.asignados?.map(a => (
-                            <Badge key={a.id} variant="secondary" className="bg-white border-2 text-[10px] font-black uppercase py-1.5 px-3">
-                                <User className="h-3 w-3 mr-2" /> {a.nombre}
-                            </Badge>
-                        )) || <span className="text-[10px] font-black text-destructive italic uppercase">Sin personal asignado en agenda</span>}
+                    <div className="flex flex-wrap gap-3 p-6 bg-muted/20 rounded-[1.5rem] border-2 border-dashed">
+                        {selectedSolicitud?.divulgadores && selectedSolicitud.divulgadores.length > 0 ? (
+                            selectedSolicitud.divulgadores.map(a => (
+                                <div key={a.id} className="bg-white border-2 border-black/5 rounded-2xl p-4 flex flex-col gap-1 shadow-sm min-w-[200px]">
+                                    <div className="flex items-center gap-2 border-b pb-2 mb-1">
+                                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <User className="h-3 w-3 text-primary" />
+                                        </div>
+                                        <span className="text-[11px] font-black uppercase truncate">{a.nombre}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase">C.I. {a.cedula}</span>
+                                        <Badge variant="outline" className="text-[7px] font-black uppercase py-0 px-2 h-4 border-primary/20">{a.vinculo}</Badge>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="flex items-center gap-3 text-destructive opacity-60">
+                                <ShieldAlert className="h-5 w-5" />
+                                <span className="text-[10px] font-black uppercase italic">Sin personal asignado en la agenda de este distrito</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
