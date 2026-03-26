@@ -105,6 +105,29 @@ export type AnexoI = {
   fecha_creacion: string;
 }
 
+export type AnexoIVFila = {
+  lugar: string;
+  fecha: string;
+  hora_desde: string;
+  hora_hasta: string;
+  nombre_divulgador: string;
+  cedula: string;
+  vinculo: string;
+  cantidad_personas: number;
+}
+
+export type AnexoIV = {
+  id: string;
+  departamento: string;
+  distrito: string;
+  semana_desde: string;
+  semana_hasta: string;
+  foto_respaldo_documental: string;
+  filas: AnexoIVFila[];
+  usuario_id: string;
+  fecha_creacion: string;
+}
+
 export type Asignado = {
   id: string;
   nombre: string;

@@ -22,7 +22,8 @@ import {
   Camera,
   ImageIcon,
   X,
-  FileUp
+  FileUp,
+  Users
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
@@ -143,6 +144,11 @@ export default function InformeSemanalAnexoIVPage() {
 
   const totalCapacitados = useMemo(() => {
     return informesAnexoIII.reduce((acc, curr) => acc + (curr.total_personas || 0), 0);
+  }, [informesAnexoIII]);
+
+  const totalDivulgadores = useMemo(() => {
+    const cedulas = new Set(informesAnexoIII.map(inf => inf.cedula_divulgador));
+    return cedulas.size;
   }, [informesAnexoIII]);
 
   const startCamera = async () => {
@@ -332,7 +338,7 @@ export default function InformeSemanalAnexoIVPage() {
                 </p>
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-10 shadow-sm" onClick={generatePDF} disabled={informesAnexoIII.length === 0}>
+                <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-10 gap-2 shadow-sm" onClick={generatePDF} disabled={informesAnexoIII.length === 0}>
                     <Printer className="mr-2 h-4 w-4" /> GENERAR PDF HORIZONTAL
                 </Button>
             </div>
@@ -449,59 +455,87 @@ export default function InformeSemanalAnexoIVPage() {
                 </CardContent>
             </Card>
 
-            <Card className="lg:col-span-3 shadow-xl border-none overflow-hidden">
-                <CardHeader className="bg-primary text-white py-4">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                        <FileText className="h-4 w-4" /> VISTA PREVIA DE CONSOLIDACIÓN ({informesAnexoIII.length} REGISTROS)
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="overflow-auto max-h-[600px]">
-                        <Table>
-                            <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                                <TableRow>
-                                    <TableHead className="text-[9px] font-black uppercase w-10">N.º</TableHead>
-                                    <TableHead className="text-[9px] font-black uppercase">Lugar de Divulgación</TableHead>
-                                    <TableHead className="text-[9px] font-black uppercase">Fecha</TableHead>
-                                    <TableHead className="text-[9px] font-black uppercase">Divulgador</TableHead>
-                                    <TableHead className="text-right text-[9px] font-black uppercase">Personas</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody className="bg-white">
-                                {isLoadingInformes ? (
-                                    <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                                ) : informesAnexoIII.length === 0 ? (
+            <div className="lg:col-span-3 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="bg-white border-2 shadow-sm p-6 rounded-2xl flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-primary/5 flex items-center justify-center">
+                            <Users className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">FUNCIONARIOS ACTIVOS</p>
+                            <p className="text-2xl font-black">{totalDivulgadores}</p>
+                        </div>
+                    </Card>
+                    <Card className="bg-black text-white p-6 rounded-2xl flex items-center gap-4 shadow-xl">
+                        <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
+                            <CheckCircle2 className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">TOTAL CAPACITADOS</p>
+                            <p className="text-2xl font-black">{totalCapacitados}</p>
+                        </div>
+                    </Card>
+                </div>
+
+                <Card className="shadow-xl border-none overflow-hidden">
+                    <CardHeader className="bg-primary text-white py-4">
+                        <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                            <FileText className="h-4 w-4" /> VISTA PREVIA DE CONSOLIDACIÓN ({informesAnexoIII.length} REGISTROS)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-auto max-h-[600px]">
+                            <Table>
+                                <TableHeader className="bg-muted/50 sticky top-0 z-10">
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-20">
-                                            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
-                                            <p className="text-xs font-black text-muted-foreground uppercase">
-                                                {!selectedDistrict ? "Seleccione un distrito para buscar informes" : `No hay informes individuales para este rango en ${selectedDistrict}`}
-                                            </p>
-                                        </TableCell>
+                                        <TableHead className="text-[9px] font-black uppercase w-10">N.º</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Lugar de Divulgación</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Fecha</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Divulgador / Funcionario</TableHead>
+                                        <TableHead className="text-right text-[9px] font-black uppercase">Personas</TableHead>
                                     </TableRow>
-                                ) : (
-                                    informesAnexoIII.map((inf, idx) => (
-                                        <TableRow key={inf.id} className="hover:bg-muted/30 transition-colors border-b">
-                                            <TableCell className="font-black text-xs text-muted-foreground">{idx + 1}</TableCell>
-                                            <TableCell className="font-black text-[11px] uppercase text-primary">{inf.lugar_divulgacion}</TableCell>
-                                            <TableCell className="text-[10px] font-bold">{formatDateToDDMMYYYY(inf.fecha)}</TableCell>
-                                            <TableCell>
-                                                <p className="font-black text-[10px] uppercase leading-tight">{inf.nombre_divulgador}</p>
-                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">{inf.vinculo}</p>
+                                </TableHeader>
+                                <TableBody className="bg-white">
+                                    {isLoadingInformes ? (
+                                        <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                                    ) : informesAnexoIII.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-20">
+                                                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
+                                                <p className="text-xs font-black text-muted-foreground uppercase">
+                                                    {!selectedDistrict ? "Seleccione un distrito para buscar informes" : `No hay informes individuales para este rango en ${selectedDistrict}`}
+                                                </p>
                                             </TableCell>
-                                            <TableCell className="text-right font-black text-primary">{inf.total_personas}</TableCell>
                                         </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-                <CardFooter className="bg-muted/30 p-4 flex justify-between border-t">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground italic">Total consolidado en semana:</p>
-                    <p className="text-xl font-black text-primary">{totalCapacitados} Ciudadanos</p>
-                </CardFooter>
-            </Card>
+                                    ) : (
+                                        informesAnexoIII.map((inf, idx) => (
+                                            <TableRow key={inf.id} className="hover:bg-muted/30 transition-colors border-b">
+                                                <TableCell className="font-black text-xs text-muted-foreground">{idx + 1}</TableCell>
+                                                <TableCell className="font-black text-[11px] uppercase text-primary leading-tight">{inf.lugar_divulgacion}</TableCell>
+                                                <TableCell className="text-[10px] font-bold">{formatDateToDDMMYYYY(inf.fecha)}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <p className="font-black text-[10px] uppercase text-primary leading-none mb-1">{inf.nombre_divulgador}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/10 h-4 bg-muted/20">C.I. {inf.cedula_divulgador}</Badge>
+                                                            <span className="text-[8px] font-bold text-muted-foreground uppercase">{inf.vinculo}</span>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-black text-primary">{inf.total_personas}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                    <CardFooter className="bg-muted/30 p-4 flex justify-between border-t">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground italic">Total consolidado en semana:</p>
+                        <p className="text-xl font-black text-primary">{totalCapacitados} Ciudadanos</p>
+                    </CardFooter>
+                </Card>
+            </div>
         </div>
       </main>
 

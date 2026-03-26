@@ -1,3 +1,4 @@
+
 import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText, ClipboardList, CalendarCog, Archive, MapPin } from 'lucide-react';
 
 export const dashboardMenuItems = [
@@ -59,7 +60,13 @@ export const dashboardMenuItems = [
     href: '/informe-semanal-puntos-fijos',
     label: 'Anexo IV - Informe Semanal',
     icon: TableProperties,
-    description: 'Resumen semanal de puntos fijos de divulgación.',
+    description: 'Genera el consolidado semanal de producción por distrito.',
+  },
+  {
+    href: '/lista-anexo-iv',
+    label: 'Listado de Anexo IV',
+    icon: ClipboardList,
+    description: 'Consulta los consolidados semanales archivados en el sistema.',
   },
   {
     href: '/archivo-capacitaciones',
