@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -49,7 +48,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Textarea } from '@/components/ui/textarea';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import html2canvas from 'html2canvas';
 import {
   AlertDialog,
@@ -158,7 +157,7 @@ export default function AgendaCapacitacionPage() {
 
     rawSolicitudes.forEach(sol => {
       const mov = movimientosData.find(m => m.solicitud_id === sol.id);
-      const isClosed = !!(mov?.maquinas.every(m => !!m.lacre_estado) && informesData.some(i => i.solicitud_id === sol.id));
+      const isClosed = !!((mov?.maquinas || []).every(m => !!m.lacre_estado) && informesData.some(i => i.solicitud_id === sol.id));
 
       if (isClosed && !hiddenIds.has(sol.id) && !pendingArchiveIds.has(sol.id)) {
         setPendingArchiveIds(prev => new Set(prev).add(sol.id));
@@ -501,9 +500,8 @@ export default function AgendaCapacitacionPage() {
                                                                 const mov = movimientosData?.find(m => m.solicitud_id === item.id);
                                                                 const inf = informesData?.filter(i => i.solicitud_id === item.id);
                                                                 
-                                                                // Evento cumplido si hay informe por cada asignado y máquinas devueltas
                                                                 const asignadosCount = item.asignados?.length || 0;
-                                                                const isClosed = !!(mov?.maquinas.every(m => !!m.lacre_estado) && inf && inf.length >= asignadosCount && asignadosCount > 0);
+                                                                const isClosed = !!((mov?.maquinas || []).every(m => !!m.lacre_estado) && inf && inf.length >= asignadosCount && asignadosCount > 0);
                                                                 
                                                                 const today = new Date().toISOString().split('T')[0];
                                                                 const hasAlert = item.fecha < today && !isClosed;

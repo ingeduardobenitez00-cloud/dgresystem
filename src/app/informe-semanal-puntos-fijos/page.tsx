@@ -33,7 +33,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from "@/components/ui/separator";
 import { Badge } from '@/components/ui/badge';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import autoTable from 'jspdf-autotable';
 import Image from 'next/image';
 import {
@@ -66,7 +66,6 @@ export default function InformeSemanalAnexoIVPage() {
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [respaldoPhoto, setRespaldoPhoto] = useState<string | null>(null);
   
-  // Camera States
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -170,12 +169,15 @@ export default function InformeSemanalAnexoIVPage() {
   const takePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
+      const MAX_WIDTH = 1200;
+      const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
+      canvas.width = videoRef.current.videoWidth * scaleSize;
+      canvas.height = videoRef.current.videoHeight * scaleSize;
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.8);
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.7);
         setRespaldoPhoto(dataUri);
         stopCamera();
       }
@@ -406,7 +408,6 @@ export default function InformeSemanalAnexoIVPage() {
 
                     <Separator className="border-dashed" />
 
-                    {/* SECCIÓN DE RESPALDO OBLIGATORIO */}
                     <div className="space-y-4">
                         <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
                             <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado *

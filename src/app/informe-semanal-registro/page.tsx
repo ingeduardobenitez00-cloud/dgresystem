@@ -16,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatDateToDDMMYYYY, cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import autoTable from 'jspdf-autotable';
 import Image from 'next/image';
 import {
@@ -50,7 +50,6 @@ export default function InformeSemanalRegistroPage() {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   
-  // Camera States
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -60,7 +59,6 @@ export default function InformeSemanalRegistroPage() {
     to: undefined,
   });
 
-  // CARGAR CONFIGURACIÓN GLOBAL
   const configRef = useMemoFirebase(() => firestore ? doc(firestore, 'config', 'reporte_semanal') : null, [firestore]);
   const { data: configData, isLoading: isLoadingConfig } = useDoc<any>(configRef);
 
@@ -77,7 +75,6 @@ export default function InformeSemanalRegistroPage() {
 
   const profile = user?.profile;
 
-  // FUNCIÓN DE COMPRESIÓN CENTRALIZADA
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (file.type === 'application/pdf') {
@@ -251,7 +248,7 @@ export default function InformeSemanalRegistroPage() {
 
     addDoc(collection(firestore, 'informes-semanales-registro'), docData)
       .then(() => {
-        toast({ title: "Informe Guardado!", description: "El reporte operativo ha sido registrado con éxito." });
+        toast({ title: "¡Informe Guardado!", description: "El reporte operativo ha sido registrado con éxito." });
         setPhotos([]);
         setIsSubmitting(false);
       })
@@ -347,7 +344,6 @@ export default function InformeSemanalRegistroPage() {
         <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden">
           <CardContent className="p-10 space-y-12">
             
-            {/* Header Filtros */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
@@ -397,7 +393,6 @@ export default function InformeSemanalRegistroPage() {
                 </div>
             </div>
 
-            {/* Detalle de Actividades */}
             <div className="space-y-8">
                 <div className="flex items-center gap-4">
                     <h3 className="font-black uppercase text-sm text-primary tracking-widest">Detalle de Actividades</h3>
@@ -428,7 +423,6 @@ export default function InformeSemanalRegistroPage() {
                 </div>
             </div>
 
-            {/* Detalle de Organizaciones - Dinámico */}
             {formData.organizaciones_asistidas.length > 0 && (
                 <div className="p-8 border-2 border-dashed rounded-[2.5rem] bg-muted/5 space-y-8 animate-in fade-in duration-500">
                     <h4 className="font-black uppercase text-xs text-primary/60 tracking-widest text-center">Detalle de Organizaciones Asistidas</h4>
@@ -456,7 +450,6 @@ export default function InformeSemanalRegistroPage() {
 
             <Separator />
 
-            {/* Boletas y Otros */}
             <div className="space-y-6">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Boletas de Inscripción y Otros</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">

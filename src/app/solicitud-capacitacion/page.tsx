@@ -33,7 +33,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import { type PartidoPolitico, type MaquinaVotacion, type SolicitudCapacitacion } from '@/lib/data';
 import Image from 'next/image';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import autoTable from 'jspdf-autotable';
 import { recordAuditLog } from '@/lib/audit';
 import {
@@ -217,7 +217,6 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
 
-  // FUNCIÓN DE COMPRESIÓN CENTRALIZADA
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (file.type === 'application/pdf') {
@@ -431,7 +430,6 @@ export default function SolicitudCapacitacionPage() {
     const mesEscrito = meses[hoy.getMonth()].toUpperCase();
     const distritoNombre = (profile?.distrito || '').replace(/^\d+\s*-\s*/, '').toUpperCase();
 
-    // 1. HEADER INSTITUCIONAL
     doc.addImage(logoBase64, 'PNG', margin, 8, 18, 18);
     doc.setFontSize(7); doc.setFont('helvetica', 'bold');
     doc.text("REPÚBLICA DEL PARAGUAY", margin + 20, 14);
@@ -444,13 +442,11 @@ export default function SolicitudCapacitacionPage() {
     doc.setTextColor(150, 150, 150);
     doc.text("Custodio de la Voluntad Popular", pageWidth / 2, 24, { align: "center" });
 
-    // Barras de colores derecha (Flag bars)
     const barW = 2.5; const barH = 18; const barX = pageWidth - margin - (barW * 3);
-    doc.setFillColor(200, 0, 0); doc.rect(barX, 10, barW, barH, 'F'); // Rojo
-    doc.setFillColor(240, 240, 240); doc.rect(barX + barW, 10, barW, barH, 'F'); // Blanco
-    doc.setFillColor(0, 0, 200); doc.rect(barX + (barW * 2), 10, barW, barH, 'F'); // Azul
+    doc.setFillColor(200, 0, 0); doc.rect(barX, 10, barW, barH, 'F');
+    doc.setFillColor(240, 240, 240); doc.rect(barX + barW, 10, barW, barH, 'F');
+    doc.setFillColor(0, 0, 200); doc.rect(barX + (barW * 2), 10, barW, barH, 'F');
 
-    // 2. TÍTULO CON BARRA GRIS
     let y = 35;
     doc.setFillColor(235, 235, 235);
     doc.rect(margin, y, pageWidth - (margin * 2), 8, 'F');
@@ -458,12 +454,10 @@ export default function SolicitudCapacitacionPage() {
     doc.setTextColor(0, 0, 0);
     doc.text("ANEXO V – PROFORMA DE SOLICITUD", pageWidth / 2, y + 5.5, { align: 'center' });
 
-    // 3. FECHA Y LUGAR (Derecha)
     y += 18;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     doc.text(`${distritoNombre}, ________ de ________________ de 2026`, pageWidth - margin, y, { align: 'right' });
 
-    // 4. DESTINATARIO
     y += 15;
     doc.text("Señor/a", margin, y);
     y += 6; doc.setFont('helvetica', 'bold');
@@ -471,14 +465,12 @@ export default function SolicitudCapacitacionPage() {
     y += 8;
     doc.text("Presente:", margin, y);
 
-    // 5. TEXTO INTRODUCTORIO
     y += 10;
     doc.setFont('helvetica', 'normal');
     const intro = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas del 07 de junio del 2026, a los efectos de solicitar:";
     const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2) - 10);
     doc.text(introLines, margin + 5, y);
 
-    // 6. CHECKBOXES DE SOLICITUD
     y += 15;
     const drawSquare = (x: number, yPos: number, active: boolean) => {
         doc.rect(x, yPos - 4, 5, 5);
@@ -492,7 +484,6 @@ export default function SolicitudCapacitacionPage() {
     drawSquare(margin + 15, y, formData.tipo_solicitud === 'capacitacion');
     doc.setFont('helvetica', 'bold'); doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", margin + 23, y);
 
-    // 7. TABLA TÉCNICA DE DATOS
     y += 12;
     const tableData = [
         ["FECHA", `: ${formData.fecha ? formatDateToDDMMYYYY(formData.fecha) : '    /    '} / 2026`],
@@ -512,7 +503,6 @@ export default function SolicitudCapacitacionPage() {
         margin: { left: margin, right: margin }
     });
 
-    // 8. DATOS DEL SOLICITANTE CON CHECKBOXES INLINE
     y = (doc as any).lastAutoTable.finalY + 5;
     doc.setFontSize(9); doc.setFont('helvetica', 'bold');
     doc.text("DATOS DEL SOLICITANTE – APODERADO", margin + 5, y + 4);
@@ -537,7 +527,6 @@ export default function SolicitudCapacitacionPage() {
         margin: { left: margin, right: margin }
     });
 
-    // 9. CUADRO DE OBSERVACIÓN (Sombreado)
     y = (doc as any).lastAutoTable.finalY + 2;
     doc.setFillColor(235, 235, 235);
     doc.rect(margin, y, pageWidth - (margin * 2), 18, 'F');
@@ -547,7 +536,6 @@ export default function SolicitudCapacitacionPage() {
     doc.text("La recepción de solicitudes se realiza hasta 48 horas de antelación a la fecha del evento.", pageWidth / 2, y + 10, { align: 'center' });
     doc.text("En caso de cancelación de la actividad debe informarse con 24 horas de anticipación.", pageWidth / 2, y + 14, { align: 'center' });
 
-    // 10. CIERRE Y FIRMA
     y += 25;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     doc.text("Se hace propicia la ocasión para saludarle muy cordialmente.", margin, y);
