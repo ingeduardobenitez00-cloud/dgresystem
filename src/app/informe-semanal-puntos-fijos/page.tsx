@@ -23,7 +23,8 @@ import {
   ImageIcon,
   X,
   FileUp,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
@@ -237,11 +238,13 @@ export default function InformeSemanalAnexoIVPage() {
         const nombre = inf.nombre_divulgador || (inf as any).divulgador_nombre || '';
         const ci = inf.cedula_divulgador || (inf as any).divulgador_cedula || '';
         const vinc = inf.vinculo || (inf as any).divulgador_vinculo || '';
+        const horario = `${inf.hora_desde} a ${inf.hora_hasta}`;
         
         return [
             idx + 1,
             inf.lugar_divulgacion.toUpperCase(),
             inf.fecha.split('-').reverse().join('/'),
+            horario,
             nombre.toUpperCase(),
             ci,
             vinc.toUpperCase(),
@@ -250,7 +253,7 @@ export default function InformeSemanalAnexoIVPage() {
     });
 
     while (tableBody.length < 12) {
-        tableBody.push([tableBody.length + 1, '', '', '', '', '', '']);
+        tableBody.push([tableBody.length + 1, '', '', '', '', '', '', '']);
     }
 
     autoTable(doc, {
@@ -261,14 +264,15 @@ export default function InformeSemanalAnexoIVPage() {
         headStyles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'center' },
         columnStyles: {
             0: { cellWidth: 8, halign: 'center' },
-            1: { cellWidth: 70 },
+            1: { cellWidth: 60 },
             2: { cellWidth: 20, halign: 'center' },
-            3: { cellWidth: 70 },
-            4: { cellWidth: 25, halign: 'center' },
-            5: { cellWidth: 40, halign: 'center' },
-            6: { cellWidth: 25, halign: 'center' }
+            3: { cellWidth: 25, halign: 'center' },
+            4: { cellWidth: 60 },
+            5: { cellWidth: 20, halign: 'center' },
+            6: { cellWidth: 35, halign: 'center' },
+            7: { cellWidth: 20, halign: 'center' }
         },
-        head: [['N.º', 'LUGAR DE DIVULGACIÓN', 'FECHA', 'NOMBRE COMPLETO FUNCIONARIO DIVULGADOR', 'C.I.C. N.º', 'VÍNCULO', 'CANTIDAD']],
+        head: [['N.º', 'LUGAR DE DIVULGACIÓN', 'FECHA', 'HORARIO', 'NOMBRE COMPLETO FUNCIONARIO DIVULGADOR', 'C.I.C. N.º', 'VÍNCULO', 'CANTIDAD']],
         body: tableBody,
     });
 
@@ -495,6 +499,7 @@ export default function InformeSemanalAnexoIVPage() {
                                         <TableHead className="text-[9px] font-black uppercase w-10">N.º</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Lugar</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Fecha</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Horario</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Funcionario Divulgador</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">C.I.</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Vínculo</TableHead>
@@ -503,10 +508,10 @@ export default function InformeSemanalAnexoIVPage() {
                                 </TableHeader>
                                 <TableBody className="bg-white">
                                     {isLoadingInformes ? (
-                                        <TableRow><TableCell colSpan={7} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={8} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
                                     ) : informesAnexoIII.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center py-20">
+                                            <TableCell colSpan={8} className="text-center py-20">
                                                 <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
                                                 <p className="text-xs font-black text-muted-foreground uppercase">
                                                     {!selectedDistrict ? "Seleccione un distrito para buscar informes" : `No hay informes individuales para este rango en ${selectedDistrict}`}
@@ -524,6 +529,11 @@ export default function InformeSemanalAnexoIVPage() {
                                                     <TableCell className="font-black text-xs text-muted-foreground">{idx + 1}</TableCell>
                                                     <TableCell className="font-black text-[10px] uppercase text-primary leading-tight">{inf.lugar_divulgacion}</TableCell>
                                                     <TableCell className="text-[9px] font-bold">{formatDateToDDMMYYYY(inf.fecha)}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-1 text-[9px] font-black uppercase text-muted-foreground">
+                                                            <Clock className="h-2.5 w-2.5" /> {inf.hora_desde} a {inf.hora_hasta}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="font-black text-[10px] uppercase text-primary">{nombre}</TableCell>
                                                     <TableCell className="text-[10px] font-bold">C.I. {ci}</TableCell>
                                                     <TableCell><Badge variant="secondary" className="text-[8px] font-black uppercase bg-primary/5 text-primary border-none">{vinc}</Badge></TableCell>

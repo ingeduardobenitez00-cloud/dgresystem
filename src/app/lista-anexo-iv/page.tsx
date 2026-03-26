@@ -173,6 +173,7 @@ export default function ListaAnexoIVPage() {
                                     <TableRow>
                                         <TableHead className="text-[9px] font-black uppercase px-6">Lugar</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Fecha</TableHead>
+                                        <TableHead className="text-[9px] font-black uppercase">Horario</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Funcionario</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">C.I.</TableHead>
                                         <TableHead className="text-[9px] font-black uppercase">Vínculo</TableHead>
@@ -184,6 +185,7 @@ export default function ListaAnexoIVPage() {
                                         <TableRow key={idx} className="border-b last:border-0">
                                             <TableCell className="px-6 py-4 font-black text-[10px] uppercase text-primary leading-tight">{f.lugar}</TableCell>
                                             <TableCell className="text-[9px] font-bold uppercase text-muted-foreground">{formatDateToDDMMYYYY(f.fecha)}</TableCell>
+                                            <TableCell className="text-[9px] font-black text-muted-foreground uppercase">{f.hora_desde} a {f.hora_hasta}</TableCell>
                                             <TableCell className="font-black text-[10px] uppercase text-primary">{f.nombre_divulgador || (f as any).divulgador_nombre}</TableCell>
                                             <TableCell className="text-[10px] font-bold">C.I. {f.cedula || (f as any).divulgador_cedula}</TableCell>
                                             <TableCell><Badge variant="outline" className="text-[8px] font-black uppercase bg-muted/20 border-primary/10">{f.vinculo || (f as any).divulgador_vinculo}</Badge></TableCell>
