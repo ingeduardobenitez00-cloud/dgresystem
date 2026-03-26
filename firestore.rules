@@ -3,7 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /** Funciones Auxiliares **/
+    /** 
+     * REGLAS DE SEGURIDAD CIDEE 2026 
+     * Actualizadas para permitir flujo ininterrumpido de Denuncias y Movimientos.
+     */
+
     function isSignedIn() {
       return request.auth != null;
     }
@@ -29,7 +33,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    /** Regla para Auditoría **/
+    /** Regla para Auditoría - Permite registro de logs a todo usuario logueado **/
     match /auditoria/{logId} {
       allow read: if isAdmin() || isDirector();
       allow create: if isSignedIn();
@@ -58,12 +62,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    /** Reglas Generales **/
+    /** Reglas Generales de Geografía **/
     match /datos/{datoId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
+    /** Gestión de Usuarios **/
     match /users/{userId} {
       allow get, list: if isSignedIn();
       allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == 'jefe');
@@ -71,58 +76,52 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    /** CIDEE - Colecciones Transaccionales (Alta disponibilidad operativa) **/
+    
     match /anexo-i/{anexoId} {
-      allow read, create, update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     match /solicitudes-capacitacion/{solicitudId} {
-      allow get: if true; // PERMITE QUE EL FORMULARIO DE ENCUESTA CARGUE DATOS POR QR SIN LOGIN
-      allow list: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow get: if true; // Habilita carga de datos para ciudadanos externos (Encuesta)
+      allow list, create, update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /encuestas-satisfaccion/{encuestaId} {
       allow read: if isSignedIn();
-      allow create: if true; 
+      allow create: if true; // Ciudadanos sin login pueden responder
       allow update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /informes-divulgador/{informeId} {
-      allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read, write: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /informes-semanales-anexo-iv/{informeId} {
-      allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read, write: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /informes-semanales-registro/{informeId} {
-      allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read, write: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /archivos-semanales-registro/{archivoId} {
-      allow get, list: if isSignedIn();
-      allow create, update: if isAdmin();
+      allow read, write: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /movimientos-maquinas/{movimientoId} {
-      allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read, write: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /denuncias-lacres/{denunciaId} {
-      allow get, list: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read, write: if isSignedIn();
       allow delete: if isAdmin();
     }
 
