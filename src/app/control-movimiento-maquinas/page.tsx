@@ -52,6 +52,7 @@ export default function ControlMovimientoMaquinasPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [logoDGREBase64, setLogoDGREBase64] = useState<string | null>(null);
   const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(null);
   const [isDevolucionGuardada, setIsDevolucionGuardada] = useState(false);
   
@@ -102,18 +103,28 @@ export default function ControlMovimientoMaquinasPage() {
   }, []);
 
   useEffect(() => {
-    const fetchLogo = async () => {
+    const fetchLogos = async () => {
       try {
-        const r1 = await fetch('/logo.png');
-        const b1 = await r1.blob();
-        const reader1 = new FileReader();
-        reader1.onloadend = () => setLogoBase64(reader1.result as string);
-        reader1.readAsDataURL(b1);
+        const [r1, r2] = await Promise.all([
+          fetch('/logo.png'),
+          fetch('/logo3.png')
+        ]);
+        const [b1, b2] = await Promise.all([r1.blob(), r2.blob()]);
+        
+        const readBlob = (blob: Blob): Promise<string> => new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+
+        const [l1, l2] = await Promise.all([readBlob(b1), readBlob(b2)]);
+        setLogoBase64(l1);
+        setLogoDGREBase64(l2);
       } catch (error) {
-        console.error("Error fetching logo:", error);
+        console.error("Error fetching logos:", error);
       }
     };
-    fetchLogo();
+    fetchLogos();
   }, []);
 
   const profile = user?.profile;
@@ -442,13 +453,219 @@ export default function ControlMovimientoMaquinasPage() {
   };
 
   const generatePDF = () => {
-    if (!selectedSolicitud || !logoBase64) return;
+    if (!selectedSolicitud || !logoBase64 || !logoDGREBase64) {
+      toast({ variant: 'destructive', title: "Cargando recursos...", description: "Espere a que los logos se carguen." });
+      return;
+    }
+    
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    doc.addImage(logoBase64, 'PNG', 15, 8, 22, 22);
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-    doc.text("FORMULARIO DE TRAZABILIDAD LOGÍSTICA", pageWidth / 2, 42, { align: "center" });
-    doc.save(`Trazabilidad-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
+    const margin = 10;
+    const lineHeight = 5;
+
+    movimientoData.maquinas.forEach((maq, index) => {
+      if (index > 0) doc.addPage();
+
+      // HEADER
+      const coatOfArmsWidth = 20;
+      doc.addImage(logoBase64, 'PNG', margin, 5, coatOfArmsWidth, coatOfArmsWidth);
+
+      const dgreLogoWidth = 35;
+      doc.addImage(logoDGREBase64, 'PNG', pageWidth - margin - dgreLogoWidth, 5, dgreLogoWidth, 15);
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text("FORMULARIO SALIDA / DEVOLUCIÓN DE MAQUINAS DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, 25, { align: "center" });
+
+      // SECCION A
+      let y = 30;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), 110, 5, 5);
+
+      // Letra A en circulo
+      doc.circle(margin + 10, y + 8, 5);
+      doc.text("A", margin + 10, y + 9, { align: 'center' });
+      doc.text("SALIDA DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, y + 8, { align: 'center' });
+
+      y += 15;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("NOMBRE Y APELLIDO DEL FUNCIONARIO RESPONSABLE DE LA DIVULGACIÓN", margin + 10, y);
+
+      y += lineHeight;
+      doc.setFont('helvetica', 'normal');
+      const responsibles = selectedSolicitud.divulgadores || selectedSolicitud.asignados || [];
+      const respNames = responsibles.map(r => r.nombre.toUpperCase()).join(" / ");
+      
+      doc.roundedRect(margin + 10, y, pageWidth - (margin * 2) - 20, 8, 4, 4);
+      doc.text(respNames, margin + 15, y + 5.5);
+
+      y += 12;
+      doc.setFont('helvetica', 'bold');
+      doc.text("N° C.I.:", margin + 10, y);
+      
+      y += lineHeight;
+      const ciText = responsibles.map(r => r.cedula).join(" / ");
+      doc.roundedRect(margin + 10, y, 80, 8, 4, 4);
+      doc.setFont('helvetica', 'normal');
+      doc.text(ciText, margin + 15, y + 5.5);
+
+      y += 12;
+      doc.setFont('helvetica', 'bold');
+      doc.text("VÍNCULO:", margin + 10, y);
+      const vinculos = ["PERMANENTE", "CONTRATADO", "COMISIONADO"];
+      let vx = margin + 35;
+      vinculos.forEach(v => {
+        doc.rect(vx, y - 3, 4, 4);
+        if (responsibles.some(r => r.vinculo === v)) doc.text("X", vx + 0.5, y);
+        doc.text(v, vx + 6, y);
+        vx += 45;
+      });
+
+      y += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text(`HORA DE SALIDA:  ${movimientoData.hora_salida} HS`, margin + 10, y);
+      doc.text(`FECHA:  ${formatDateToDDMMYYYY(movimientoData.fecha_salida).replace(/-/g, ' / ')}`, pageWidth - margin - 60, y);
+
+      y += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text("NÚMERO DE SERIE DE LA MÁQUINA DE VOTACIÓN", margin + 10, y);
+      y += lineHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.roundedRect(margin + 10, y, 80, 8, 4, 4);
+      doc.text(maq.codigo || '', margin + 15, y + 5.5);
+
+      y += 12;
+      doc.setFont('helvetica', 'bold');
+      doc.text("LUGAR DE LA DIVULGACIÓN", margin + 10, y);
+      y += lineHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.roundedRect(margin + 10, y, pageWidth - (margin * 2) - 20, 8, 4, 4);
+      doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 15, y + 5.5);
+
+      // Signatures A
+      y += 15;
+      doc.setFontSize(7);
+      const sigW = 55;
+      doc.line(margin + 10, y, margin + 10 + sigW, y);
+      doc.text("FIRMA JEFE\nACLARACIÓN: _________________", margin + 10, y + 3);
+
+      doc.line(margin + 70, y, margin + 70 + sigW, y);
+      doc.text("FIRMA JEFE\nACLARACIÓN: _________________", margin + 70, y + 3);
+
+      doc.line(margin + 130, y, margin + 130 + sigW, y);
+      doc.text("FIRMA DEL DIVULGADOR\nACLARACIÓN: _________________", margin + 130, y + 3);
+
+      // Kits A
+      y += 15;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("KITS DE LA MÁQUINA DE VOTACIÓN", margin + 10, y);
+      const kitAStartY = y + 6;
+      const kitItemX = margin + 15;
+      const kitCircleX = margin + 75;
+      
+      const kitItemsA = [
+        { label: "N° DE SERIE DEL PENDRIVE", val: maq.pendrive_serie, isVal: true },
+        { label: "CREDENCIAL GENÉRICA", active: maq.credencial },
+        { label: "AURICULAR GENÉRICO", active: maq.auricular },
+        { label: "ACRÍLICO GENÉRICO", active: maq.acrilico },
+        { label: "5 BOLETAS DE CAPACITACIÓN", active: maq.boletas },
+      ];
+      
+      doc.setFont('helvetica', 'normal');
+      kitItemsA.forEach((item, kIdx) => {
+        const itemY = kitAStartY + kIdx * 5;
+        doc.text(`•  ${item.label}`, kitItemX, itemY);
+        if (item.isVal) {
+            doc.roundedRect(kitItemX + 50, itemY - 4, 60, 6, 2, 2);
+            doc.text(item.val || '', kitItemX + 55, itemY);
+        } else {
+            doc.circle(kitCircleX, itemY - 1, 2.5);
+            if (item.active) doc.text("X", kitCircleX - 1, itemY);
+        }
+      });
+
+      // OBS
+      y = 145;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("OBS: ANEXAR A ESTE FORMULARIO: ANEXO I LUGAR FIJO DE DIVULGACIÓN", pageWidth / 2, y, { align: 'center' });
+      doc.text("ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y + 4, { align: 'center' });
+
+      // SECCION B
+      y = 155;
+      doc.setDrawColor(0);
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), 110, 5, 5);
+
+      doc.circle(margin + 10, y + 8, 5);
+      doc.text("B", margin + 10, y + 9, { align: 'center' });
+      doc.text("DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, y + 8, { align: 'center' });
+
+      y += 15;
+      doc.setFont('helvetica', 'bold');
+      doc.text(`FECHA:  ${formatDateToDDMMYYYY(movimientoData.fecha_devolucion).replace(/-/g, ' / ')}`, margin + 10, y);
+      doc.text(`HORA DE DEVOLUCIÓN:  ${movimientoData.hora_devolucion} HS`, pageWidth - margin - 75, y);
+
+      y += 10;
+      doc.setFont('helvetica', 'bold');
+      doc.text("NÚMERO DE SERIE DE LA MÁQUINA DE VOTACIÓN", margin + 10, y);
+      y += lineHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.roundedRect(margin + 10, y, 80, 8, 4, 4);
+      doc.text(maq.codigo || '', margin + 15, y + 5.5);
+
+      // Lacre B
+      const lacreY = y - 10;
+      doc.roundedRect(pageWidth - margin - 90, lacreY, 80, 22, 5, 5);
+      doc.setFont('helvetica', 'bold');
+      doc.text("ESTADO DE LOS LACRES A LA DEVOLUCIÓN", pageWidth - margin - 85, lacreY + 6);
+      doc.setFont('helvetica', 'normal');
+      
+      doc.circle(pageWidth - margin - 80, lacreY + 14, 3);
+      doc.text("CORRECTO", pageWidth - margin - 75, lacreY + 15);
+      if (maq.lacre_estado === 'correcto') doc.text("X", pageWidth - margin - 81, lacreY + 15.5);
+
+      doc.circle(pageWidth - margin - 45, lacreY + 14, 3);
+      doc.text("VIOLENTADO", pageWidth - margin - 40, lacreY + 15);
+      if (maq.lacre_estado === 'violentado') doc.text("X", pageWidth - margin - 46, lacreY + 15.5);
+
+      // Signatures B
+      y += 35;
+      doc.setFontSize(7);
+      doc.line(margin + 10, y, margin + 10 + sigW, y);
+      doc.text("FIRMA JEFE\nACLARACIÓN: _________________", margin + 10, y + 3);
+
+      doc.line(margin + 70, y, margin + 70 + sigW, y);
+      doc.text("FIRMA JEFE\nACLARACIÓN: _________________", margin + 70, y + 3);
+
+      doc.line(margin + 130, y, margin + 130 + sigW, y);
+      doc.text("FIRMA DEL DIVULGADOR\nACLARACIÓN: _________________", margin + 130, y + 3);
+
+      // Kits B
+      y += 15;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("KITS DE LA MÁQUINA DE VOTACIÓN", margin + 10, y);
+      const kitBStartY = y + 6;
+      const kitItemsB = [
+        { label: "CREDENCIAL GENÉRICA", active: maq.retorno_credencial },
+        { label: "AURICULAR GENÉRICO", active: maq.retorno_auricular },
+        { label: "ACRÍLICO GENÉRICO", active: maq.retorno_acrilico },
+        { label: "5 BOLETAS DE CAPACITACIÓN", active: maq.retorno_boletas },
+      ];
+
+      doc.setFont('helvetica', 'normal');
+      kitItemsB.forEach((item, kIdx) => {
+        const itemY = kitBStartY + kIdx * 5;
+        doc.text(`•  ${item.label}`, kitItemX, itemY);
+        doc.circle(kitCircleX, itemY - 1, 2.5);
+        if (item.active) doc.text("X", kitCircleX - 1, itemY);
+      });
+    });
+
+    doc.save(`F01-F02-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
   if (isUserLoading || isLoadingAgenda || isLoadingMaquinas) {
@@ -469,7 +686,7 @@ export default function ControlMovimientoMaquinasPage() {
             </div>
             {selectedSolicitudId && (
                 <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-11 gap-2 shadow-xl bg-white" onClick={generatePDF}>
-                    <Printer className="h-4 w-4" /> EXPORTAR TRAZABILIDAD
+                    <Printer className="h-4 w-4" /> EXPORTAR PROFORMA F01/F02
                 </Button>
             )}
         </div>
