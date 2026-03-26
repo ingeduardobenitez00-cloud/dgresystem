@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -43,7 +44,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/command";
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,

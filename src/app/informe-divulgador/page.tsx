@@ -12,14 +12,14 @@ import { useFirebase, useUser, useCollection, useMemoFirebase } from '@/firebase
 import { collection, doc, setDoc, query, where } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark } from 'lucide-react';
+import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark, ImageIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
-import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import Image from 'next/image';
 
 function InformeContent() {
@@ -247,14 +247,14 @@ function InformeContent() {
                             <ChevronsUpDown className="ml-2 h-5 w-5 opacity-30 shrink-0" />
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl overflow-hidden border-none">
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-none overflow-hidden">
                             <Command>
                                 <CommandInput placeholder="Buscar por local o divulgador..." className="h-12" />
                                 <CommandList>
                                     <CommandEmpty className="py-10 text-center text-[10px] font-black uppercase text-muted-foreground">No hay actividades pendientes.</CommandEmpty>
                                     <CommandGroup>
                                     {linkedActivities.map((act) => (
-                                        <CommandItem key={act.id} value={act.label} onSelect={() => { setSelectedActivityKey(act.id); setOpen(false);}} className="font-bold py-4 border-b last:border-0 cursor-pointer">
+                                        <CommandItem key={act.id} value={act.label} onSelect={() => { setSelectedActivityKey(act.id); setOpen(false);}} className="font-bold p-4 border-b last:border-0 cursor-pointer">
                                         {act.label}
                                         <Check className={cn("ml-auto h-4 w-4", selectedActivityKey === act.id ? "opacity-100" : "opacity-0")} />
                                         </CommandItem>
@@ -451,14 +451,14 @@ function InformeContent() {
                 onClick={stopCamera}
                 className="rounded-full h-16 w-16 bg-white/10 border-white/20 text-white hover:bg-white/20"
               >
-                <X className="h-8 w-8" />
+                <X className="h-6 w-6" />
               </Button>
               <Button 
                 size="lg" 
                 onClick={takePhoto}
                 className="rounded-full h-20 w-20 bg-white hover:bg-white/90 text-black border-8 border-black/20"
               >
-                <Camera className="h-10 w-10" />
+                <Camera className="h-8 w-8" />
               </Button>
             </div>
           </div>
