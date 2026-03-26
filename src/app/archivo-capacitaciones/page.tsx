@@ -18,7 +18,11 @@ import {
     XCircle, 
     FileX, 
     Landmark, 
-    Building2 
+    Building2,
+    ShieldAlert,
+    Users,
+    UserCheck,
+    FileWarning
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatDateToDDMMYYYY, cn } from '@/lib/utils';
@@ -28,7 +32,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 export default function ArchivoCapacitacionesPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
-  const [search, setSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const profile = user?.profile;
 
@@ -56,22 +60,25 @@ export default function ArchivoCapacitacionesPage() {
   const informesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'informes-divulgador') : null, [firestore]);
   const { data: informesData } = useCollection<InformeDivulgador>(informesQuery);
 
+  const denunciasQuery = useMemoFirebase(() => firestore ? collection(firestore, 'denuncias-lacres') : null, [firestore]);
+  const { data: denunciasData } = useCollection<any>(denunciasQuery);
+
   // Filtrado y Agrupación Jerárquica
   const groupedData = useMemo(() => {
     if (!rawSolicitudes) return [];
     
-    const term = search.toLowerCase().trim();
+    const term = searchTerm.toLowerCase().trim();
     
     const archived = rawSolicitudes.filter(sol => {
         const isCancelled = sol.cancelada;
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
-        const inf = informesData?.find(i => i.solicitud_id === sol.id);
+        const hasReport = informesData?.some(i => i.solicitud_id === sol.id);
         
-        // El registro se considera "archivado" si está cancelado o si el ciclo logístico está cerrado
-        const isFinished = mov?.fecha_devolucion && inf;
+        // El registro se considera "archivado" si está cancelado o si el ciclo logístico tiene devolución e informe
+        const isFinished = mov?.fecha_devolucion && hasReport;
+        
         const matchesSearch = sol.lugar_local.toLowerCase().includes(term) || 
-                             sol.solicitante_entidad.toLowerCase().includes(term) ||
-                             sol.divulgador_nombre?.toLowerCase().includes(term);
+                             sol.solicitante_entidad.toLowerCase().includes(term);
 
         return (isCancelled || isFinished) && matchesSearch;
     }).sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -97,7 +104,7 @@ export default function ArchivoCapacitacionesPage() {
             items
           }))
       }));
-  }, [rawSolicitudes, movimientosData, informesData, search]);
+  }, [rawSolicitudes, movimientosData, informesData, searchTerm]);
 
   if (isUserLoading || isLoadingSolicitudes) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -120,7 +127,7 @@ export default function ArchivoCapacitacionesPage() {
                 <Input 
                     placeholder="Buscar en archivo..." 
                     className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
-                    value={search}
+                    value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                 />
             </div>
@@ -177,15 +184,19 @@ export default function ArchivoCapacitacionesPage() {
                                                             <tr className="bg-muted/50 border-b">
                                                                 <th className="text-[9px] font-black uppercase tracking-widest px-8 py-4 text-left">FECHA / LOCAL</th>
                                                                 <th className="text-[9px] font-black uppercase tracking-widest px-4 py-4 text-left">SOLICITANTE</th>
-                                                                <th className="text-[9px] font-black uppercase tracking-widest px-4 py-4 text-left">DIVULGADOR</th>
+                                                                <th className="text-[9px] font-black uppercase tracking-widest px-4 py-4 text-left">PERSONAL OPERATIVO / RESULTADOS</th>
                                                                 <th className="text-[9px] font-black uppercase tracking-widest px-4 py-4 text-left">ESTADO FINAL</th>
-                                                                <th className="text-[9px] font-black uppercase tracking-widest px-8 py-4 text-right">RESULTADO</th>
+                                                                <th className="text-[9px] font-black uppercase tracking-widest px-8 py-4 text-right">TOTAL</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
                                                             {dist.items.map(item => {
-                                                                const informe = informesData?.find(inf => inf.solicitud_id === item.id);
+                                                                const matchingInformes = informesData?.filter(inf => inf.solicitud_id === item.id) || [];
+                                                                const mov = movimientosData?.find(m => m.solicitud_id === item.id);
+                                                                const denuncia = denunciasData?.find(d => d.solicitud_id === item.id);
                                                                 const isCancelled = item.cancelada;
+                                                                
+                                                                const totalCapacitados = matchingInformes.reduce((acc, curr) => acc + (curr.total_personas || 0), 0);
 
                                                                 return (
                                                                     <tr key={item.id} className={cn("border-b hover:bg-muted/20 transition-colors", isCancelled && "bg-destructive/[0.02]")}>
@@ -210,8 +221,25 @@ export default function ArchivoCapacitacionesPage() {
                                                                             </Badge>
                                                                         </td>
                                                                         <td className="px-4 py-6">
-                                                                            <p className="font-black text-[10px] uppercase text-primary">{item.divulgador_nombre || '---'}</p>
-                                                                            <p className="text-[9px] font-bold text-muted-foreground uppercase">{item.divulgador_vinculo}</p>
+                                                                            <div className="space-y-3">
+                                                                                {(item.divulgadores || item.asignados || []).map((div: any) => {
+                                                                                    const report = matchingInformes.find(r => r.divulgador_id === div.id);
+                                                                                    return (
+                                                                                        <div key={div.id} className="flex items-center justify-between gap-4 border-b border-dashed border-muted pb-1 last:border-0">
+                                                                                            <div>
+                                                                                                <p className="font-black text-[10px] uppercase text-primary leading-none">{div.nombre}</p>
+                                                                                                <p className="text-[8px] font-bold text-muted-foreground uppercase">C.I. {div.cedula}</p>
+                                                                                            </div>
+                                                                                            <Badge variant="secondary" className="bg-primary/5 text-primary text-[9px] font-black min-w-[30px] justify-center">
+                                                                                                {report ? report.total_personas : '0'}
+                                                                                            </Badge>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                                {(item.divulgadores || item.asignados || []).length === 0 && (
+                                                                                    <p className="text-[9px] font-bold text-muted-foreground italic">SIN PERSONAL ASIGNADO</p>
+                                                                                )}
+                                                                            </div>
                                                                         </td>
                                                                         <td className="px-4 py-6">
                                                                             {isCancelled ? (
@@ -225,22 +253,29 @@ export default function ArchivoCapacitacionesPage() {
                                                                                     </div>
                                                                                 </div>
                                                                             ) : (
-                                                                                <div className="space-y-1.5">
+                                                                                <div className="space-y-2">
                                                                                     <div className="flex items-center gap-2 text-green-600">
                                                                                         <CheckCircle2 className="h-3.5 w-3.5" />
-                                                                                        <span className="text-[9px] font-black uppercase">EQUIPO DEVUELTO</span>
+                                                                                        <span className="text-[9px] font-black uppercase">CICLO COMPLETADO</span>
                                                                                     </div>
-                                                                                    <div className="flex items-center gap-2 text-green-600">
-                                                                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                                                                        <span className="text-[9px] font-black uppercase">INFORME CERRADO</span>
-                                                                                    </div>
+                                                                                    {denuncia ? (
+                                                                                        <div className="bg-destructive/10 border border-destructive/20 p-2 rounded-lg flex items-center gap-2 text-destructive">
+                                                                                            <FileWarning className="h-3.5 w-3.5" />
+                                                                                            <span className="text-[8px] font-black uppercase">DENUNCIA REGISTRADA</span>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="bg-green-50 border border-green-100 p-2 rounded-lg flex items-center gap-2 text-green-700">
+                                                                                            <ShieldAlert className="h-3.5 w-3.5 opacity-40" />
+                                                                                            <span className="text-[8px] font-black uppercase">SIN IRREGULARIDAD</span>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             )}
                                                                         </td>
                                                                         <td className="px-8 py-6 text-right">
                                                                             <div className="flex flex-col items-end">
                                                                                 <span className={cn("text-2xl font-black leading-none", isCancelled ? "text-muted-foreground/30" : "text-primary")}>
-                                                                                    {isCancelled ? '---' : (informe?.total_personas || 0)}
+                                                                                    {isCancelled ? '---' : totalCapacitados}
                                                                                 </span>
                                                                                 <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
                                                                                     {isCancelled ? 'SIN EJECUCIÓN' : 'CAPACITADOS'}
