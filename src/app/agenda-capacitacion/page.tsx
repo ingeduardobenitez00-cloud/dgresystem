@@ -453,10 +453,10 @@ export default function AgendaCapacitacionPage() {
                                                 <div className="lg:col-span-2 space-y-4">
                                                     <div className="space-y-1">
                                                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL</p>
-                                                        {(item.divulgadores && item.divulgadores.length > 0) ? (
+                                                        {(item.divulgadores || item.asignados || []).length > 0 ? (
                                                             <div className="flex items-center gap-2 text-[#16A34A]">
                                                                 <Users className="h-4 w-4" />
-                                                                <p className="font-black text-[11px] uppercase">{item.divulgadores.length} ASIGNADOS</p>
+                                                                <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados).length} ASIGNADOS</p>
                                                             </div>
                                                         ) : (
                                                             <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
@@ -544,7 +544,7 @@ export default function AgendaCapacitacionPage() {
 
       {/* Dialogo para Asignar Personal */}
       <Dialog open={!!assigningSolicitud} onOpenChange={(o) => !o && setAssigningSolicitud(null)}>
-        <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden [&_[data-radix-dialog-close]]:text-white">
+        <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden [&>button]:text-white [&>button]:opacity-100">
           <DialogHeader className="bg-black text-white p-6">
             <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
                 <Users className="h-4 w-4" /> GESTIONAR DIVULGADORES - {assigningSolicitud?.distrito?.toUpperCase() || 'SIN DISTRITO'}
@@ -610,7 +610,7 @@ export default function AgendaCapacitacionPage() {
 
       {/* Dialogo para Cancelar Actividad */}
       <Dialog open={!!cancellingSolicitud} onOpenChange={(o) => !o && setCancellingSolicitud(null)}>
-        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden [&_[data-radix-dialog-close]]:text-white">
+        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden [&>button]:text-white [&>button]:opacity-100">
           <DialogHeader className="bg-destructive text-white p-8">
             <DialogTitle className="font-black uppercase tracking-widest text-center text-sm">ANULAR ACTIVIDAD</DialogTitle>
           </DialogHeader>
@@ -651,7 +651,7 @@ export default function AgendaCapacitacionPage() {
 
       {/* Dialogo para Código QR de Encuesta */}
       <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
-        <DialogContent className="max-w-sm rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden [&_[data-radix-dialog-close]]:text-white">
+        <DialogContent className="max-w-sm rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden [&>button]:text-white [&>button]:opacity-100">
           <DialogHeader className="bg-primary p-8 text-white">
             <DialogTitle className="font-black uppercase text-center tracking-widest text-lg">ENCUESTA DE SATISFACCIÓN</DialogTitle>
           </DialogHeader>
