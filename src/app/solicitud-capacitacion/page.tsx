@@ -34,7 +34,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import { type PartidoPolitico, type MaquinaVotacion, type SolicitudCapacitacion } from '@/lib/data';
 import Image from 'next/image';
-import jsPDF from 'jsPDF';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { recordAuditLog } from '@/lib/audit';
 import {

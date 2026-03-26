@@ -39,6 +39,7 @@ function InformeContent() {
   const solicitudIdFromUrl = searchParams.get('solicitudId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | undefined>(undefined);
   
@@ -48,6 +49,7 @@ function InformeContent() {
   const [photo, setPhoto] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const informesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
   const { data: submittedInformes } = useCollection<InformeDivulgador>(informesQuery);
@@ -196,14 +198,22 @@ function InformeContent() {
     try {
       const docId = `${selectedEntry.solicitudId}_${selectedEntry.divulgador.id}`;
       await setDoc(doc(firestore, 'informes-divulgador', docId), informeData);
-      toast({ title: '¡Informe Guardado con Éxito!' });
-      setSelectedActivityKey(undefined);
-      setMarkedCells(new Set());
-      setPhoto(null);
-      event.currentTarget.reset();
+      
+      setSubmitSuccess(true);
+      toast({ title: '¡ENVIADO!', description: 'El informe ha sido enviado correctamente.' });
+
+      // Esperar 2 segundos antes de dejar disponible el módulo para seguir la carga
+      setTimeout(() => {
+        setSubmitSuccess(false);
+        setSelectedActivityKey(undefined);
+        setMarkedCells(new Set());
+        setPhoto(null);
+        if (formRef.current) formRef.current.reset();
+        setIsSubmitting(false);
+      }, 2000);
+
     } catch (error) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'informes-divulgador', operation: 'create' }));
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -215,45 +225,45 @@ function InformeContent() {
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
       <Header title="Anexo III - Informe Individual" />
-      <main className="flex-1 p-2 md:p-6 flex flex-col items-center">
+      <main className="flex-1 p-2 md:p-4 flex flex-col items-center">
         
-        <div className="w-full max-w-2xl mb-4 space-y-4">
-            <div className="flex items-center justify-between">
+        <div className="w-full max-w-2xl mb-2 space-y-2">
+            <div className="flex items-center justify-between px-2">
                 <div>
-                    <h1 className="text-xl font-black text-primary uppercase leading-tight tracking-tight">Informe Individual</h1>
-                    <p className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1 mt-0.5 tracking-widest">
-                        <FileText className="h-3 w-3" /> Anexo III
+                    <h1 className="text-lg font-black text-primary uppercase leading-tight tracking-tighter">Informe Individual</h1>
+                    <p className="text-[7px] font-bold text-muted-foreground uppercase flex items-center gap-1 mt-0.5 tracking-widest">
+                        <FileText className="h-2 w-2" /> Anexo III
                     </p>
                 </div>
                 <Link href="/agenda-capacitacion">
-                    <Button variant="outline" className="rounded-full border-2 font-black uppercase text-[8px] gap-1 h-8 shadow-sm">
-                        <X className="h-3 w-3" /> Cancelar
+                    <Button variant="outline" className="rounded-full border-2 font-black uppercase text-[7px] gap-1 h-7 shadow-sm">
+                        <X className="h-2.5 w-2.5" /> Cancelar
                     </Button>
                 </Link>
             </div>
 
             <Card className="border-primary/20 shadow-sm">
-                <CardHeader className="py-2 px-4 bg-primary/5">
-                    <CardTitle className="text-[8px] font-black flex items-center gap-2 uppercase tracking-widest text-primary">
+                <CardHeader className="py-1.5 px-3 bg-primary/5">
+                    <CardTitle className="text-[7px] font-black flex items-center gap-2 uppercase tracking-widest text-primary">
                         VINCULAR ACTIVIDAD ASIGNADA
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="p-3">
+                <CardContent className="p-2">
                     <Popover open={open} onOpenChange={setOpen}>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-10 font-black text-[10px] uppercase border-2 rounded-lg shadow-sm">
+                            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9 font-black text-[9px] uppercase border-2 rounded-lg shadow-sm">
                             <span className="truncate">{selectedActivityKey ? linkedActivities.find((act) => act.id === selectedActivityKey)?.label : "Seleccionar actividad..."}</span>
-                            <ChevronsUpDown className="ml-2 h-4 w-4 opacity-30 shrink-0" />
+                            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-30 shrink-0" />
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-lg border-none overflow-hidden">
                             <Command>
-                                <CommandInput placeholder="Buscar..." className="h-10 text-xs" />
+                                <CommandInput placeholder="Buscar..." className="h-9 text-[10px]" />
                                 <CommandList>
-                                    <CommandEmpty className="py-6 text-center text-[9px] font-black uppercase text-muted-foreground">No hay actividades pendientes.</CommandEmpty>
+                                    <CommandEmpty className="py-4 text-center text-[8px] font-black uppercase text-muted-foreground">No hay actividades pendientes.</CommandEmpty>
                                     <CommandGroup>
                                     {linkedActivities.map((act) => (
-                                        <CommandItem key={act.id} value={act.label} onSelect={() => { setSelectedActivityKey(act.id); setOpen(false);}} className="font-bold p-3 border-b last:border-0 cursor-pointer text-[10px]">
+                                        <CommandItem key={act.id} value={act.label} onSelect={() => { setSelectedActivityKey(act.id); setOpen(false);}} className="font-bold p-2 border-b last:border-0 cursor-pointer text-[9px]">
                                         {act.label}
                                         <Check className={cn("ml-auto h-3 w-3", selectedActivityKey === act.id ? "opacity-100" : "opacity-0")} />
                                         </CommandItem>
@@ -268,68 +278,68 @@ function InformeContent() {
         </div>
 
         {selectedEntry && (
-          <form onSubmit={handleSubmit} className="w-full max-w-2xl animate-in fade-in duration-500 pb-10">
-            <Card className="shadow-xl border-none rounded-[1.5rem] overflow-hidden bg-white">
-              <CardHeader className="bg-white border-b p-4 md:p-6">
-                <div className="flex items-center gap-4">
-                    <Image src="/logo.png" alt="Logo" width={40} height={40} className="object-contain shrink-0" />
+          <form ref={formRef} onSubmit={handleSubmit} className="w-full max-w-2xl animate-in fade-in duration-500 pb-10 px-1">
+            <Card className="shadow-lg border-none rounded-xl overflow-hidden bg-white">
+              <CardHeader className="bg-white border-b p-3 md:p-4">
+                <div className="flex items-center gap-3">
+                    <Image src="/logo.png" alt="Logo" width={30} height={30} className="object-contain shrink-0" />
                     <div>
-                        <h2 className="text-base font-black uppercase text-[#1A1A1A] leading-tight">ANEXO III</h2>
-                        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-tight">INFORME DEL DIVULGADOR</h3>
+                        <h2 className="text-sm font-black uppercase text-[#1A1A1A] leading-tight">ANEXO III</h2>
+                        <h3 className="text-[8px] font-black uppercase text-muted-foreground tracking-tight">INFORME DEL DIVULGADOR</h3>
                     </div>
                 </div>
               </CardHeader>
 
-              <CardContent className="p-4 md:p-6 space-y-6">
+              <CardContent className="p-3 md:p-4 space-y-4">
                 
-                <div className="grid grid-cols-1 gap-3 border-2 border-black rounded-xl overflow-hidden bg-[#F8F9FA]/50">
-                    <div className="p-3 border-b-2 border-black bg-white">
-                        <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">LUGAR DE DIVULGACIÓN:</Label>
-                        <p className="font-black text-sm uppercase">{selectedEntry.activityData.lugar_local}</p>
+                <div className="grid grid-cols-1 gap-2 border border-black rounded-lg overflow-hidden bg-[#F8F9FA]/50">
+                    <div className="p-2 border-b border-black bg-white">
+                        <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">LUGAR DE DIVULGACIÓN:</Label>
+                        <p className="font-black text-xs uppercase">{selectedEntry.activityData.lugar_local}</p>
                     </div>
                     <div className="grid grid-cols-2">
-                        <div className="p-3 border-r-2 border-black bg-white">
-                            <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">FECHA:</Label>
-                            <p className="font-black text-sm uppercase">{formatToOfficialDate(selectedEntry.activityData.fecha)}</p>
+                        <div className="p-2 border-r border-black bg-white">
+                            <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">FECHA:</Label>
+                            <p className="font-black text-xs uppercase">{formatToOfficialDate(selectedEntry.activityData.fecha)}</p>
                         </div>
-                        <div className="p-3 bg-white">
-                            <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">HORARIO:</Label>
-                            <p className="font-black text-sm uppercase">{selectedEntry.activityData.hora_desde} A {selectedEntry.activityData.hora_hasta} HS.</p>
+                        <div className="p-2 bg-white">
+                            <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">HORARIO:</Label>
+                            <p className="font-black text-xs uppercase">{selectedEntry.activityData.hora_desde} A {selectedEntry.activityData.hora_hasta} HS.</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 border-2 border-black rounded-xl overflow-hidden bg-[#F8F9FA]/50">
-                    <div className="p-3 border-b-2 border-black bg-white">
-                        <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">NOMBRE COMPLETO DIVULGADOR:</Label>
-                        <p className="font-black text-sm uppercase">{selectedEntry.divulgador.nombre}</p>
+                <div className="grid grid-cols-1 gap-2 border border-black rounded-lg overflow-hidden bg-[#F8F9FA]/50">
+                    <div className="p-2 border-b border-black bg-white">
+                        <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">NOMBRE COMPLETO DIVULGADOR:</Label>
+                        <p className="font-black text-xs uppercase">{selectedEntry.divulgador.nombre}</p>
                     </div>
                     <div className="grid grid-cols-2">
-                        <div className="p-3 border-r-2 border-black bg-white">
-                            <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">C.I.C. N.º:</Label>
-                            <p className="font-black text-sm uppercase">{selectedEntry.divulgador.cedula}</p>
+                        <div className="p-2 border-r border-black bg-white">
+                            <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">C.I.C. N.º:</Label>
+                            <p className="font-black text-xs uppercase">{selectedEntry.divulgador.cedula}</p>
                         </div>
-                        <div className="p-3 bg-white">
-                            <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">VÍNCULO:</Label>
-                            <p className="font-black text-sm uppercase">{selectedEntry.divulgador.vinculo}</p>
+                        <div className="p-2 bg-white">
+                            <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">VÍNCULO:</Label>
+                            <p className="font-black text-xs uppercase">{selectedEntry.divulgador.vinculo}</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 border-2 border-black rounded-xl overflow-hidden bg-white">
-                    <div className="p-3 border-r-2 border-black">
-                        <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">OFICINA:</Label>
-                        <p className="font-black text-sm uppercase">{selectedEntry.activityData.distrito}</p>
+                <div className="grid grid-cols-2 gap-2 border border-black rounded-lg overflow-hidden bg-white">
+                    <div className="p-2 border-r border-black">
+                        <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">OFICINA:</Label>
+                        <p className="font-black text-xs uppercase">{selectedEntry.activityData.distrito}</p>
                     </div>
                     <div className="p-3">
-                        <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest block mb-1">DEPARTAMENTO:</Label>
-                        <p className="font-black text-sm uppercase">{selectedEntry.activityData.departamento}</p>
+                        <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">DEPARTAMENTO:</Label>
+                        <p className="font-black text-xs uppercase">{selectedEntry.activityData.departamento}</p>
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="bg-black text-white p-2 rounded-lg text-center">
-                        <h4 className="font-black uppercase text-[9px] tracking-widest">MARCACIÓN CIUDADANA (X)</h4>
+                <div className="space-y-2">
+                    <div className="bg-black text-white p-1 rounded-md text-center">
+                        <h4 className="font-black uppercase text-[8px] tracking-widest">MARCACIÓN CIUDADANA (X)</h4>
                     </div>
                     
                     <div className="grid grid-cols-8 sm:grid-cols-13 border border-black rounded-lg overflow-hidden bg-[#F8F9FA]">
@@ -342,70 +352,79 @@ function InformeContent() {
                                 )}
                                 onClick={() => toggleCell(num)}
                             >
-                                <span className="text-[6px] font-bold text-muted-foreground leading-none mb-0.5">{num}</span>
+                                <span className="text-[5px] font-bold text-muted-foreground leading-none mb-0.5">{num}</span>
                                 {markedCells.has(num) && (
-                                    <span className="text-base font-black leading-none animate-in zoom-in-50 duration-200">X</span>
+                                    <span className="text-sm font-black leading-none animate-in zoom-in-50 duration-200">X</span>
                                 )}
                             </div>
                         ))}
                     </div>
 
-                    <div className="flex items-center justify-center gap-3 py-4 border-y border-dashed border-black/10">
-                        <span className="text-xs font-black uppercase tracking-tight text-muted-foreground">TOTAL CAPACITADOS:</span>
-                        <div className="h-10 w-20 border-b-2 border-black flex items-center justify-center">
-                            <span className="text-2xl font-black">{markedCells.size}</span>
+                    <div className="flex items-center justify-center gap-3 py-2 border-y border-dashed border-black/10">
+                        <span className="text-[9px] font-black uppercase tracking-tight text-muted-foreground">TOTAL PERSONAS:</span>
+                        <div className="h-8 w-16 border-b-2 border-black flex items-center justify-center">
+                            <span className="text-xl font-black">{markedCells.size}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="space-y-4 pt-2 border-t border-dashed">
+                <div className="space-y-2 pt-1 border-t border-dashed">
                     <div className="flex items-center gap-2">
-                        <Camera className="h-4 w-4 text-primary" />
-                        <Label className="font-black uppercase text-[10px]">Respaldo Documental *</Label>
+                        <Camera className="h-3.5 w-3.5 text-primary" />
+                        <Label className="font-black uppercase text-[8px]">Respaldo Documental *</Label>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {photo ? (
-                            <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-muted shadow-lg group">
+                            <div className="relative aspect-video rounded-lg overflow-hidden border border-muted shadow-md group">
                                 <Image src={photo} alt="Respaldo" fill className="object-cover" />
-                                <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setPhoto(null)}>
-                                    <Trash2 className="h-4 w-4" />
+                                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setPhoto(null)}>
+                                    <Trash2 className="h-3 w-3" />
                                 </Button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-2">
                                 <div 
-                                    className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/50 transition-all bg-white"
+                                    className="flex flex-col items-center justify-center h-16 border border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-all bg-white"
                                     onClick={startCamera}
                                 >
-                                    <Camera className="h-6 w-6 text-muted-foreground mb-1" />
-                                    <span className="font-black uppercase text-[8px] text-muted-foreground">CÁMARA</span>
+                                    <Camera className="h-5 w-5 text-muted-foreground mb-0.5" />
+                                    <span className="font-black uppercase text-[7px] text-muted-foreground">CÁMARA</span>
                                 </div>
-                                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted transition-all bg-white text-muted-foreground">
-                                    <ImageIcon className="h-6 w-6 mb-1" />
-                                    <span className="text-[8px] font-black uppercase">GALERÍA / PDF</span>
+                                <label className="flex flex-col items-center justify-center h-16 border border-dashed rounded-lg cursor-pointer hover:bg-muted transition-all bg-white text-muted-foreground">
+                                    <ImageIcon className="h-5 w-5 mb-0.5" />
+                                    <span className="font-black uppercase text-[7px] text-muted-foreground">GALERÍA / PDF</span>
                                     <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
                                 </label>
                             </div>
                         )}
-                        <div className="flex flex-col justify-center p-4 bg-muted/20 rounded-xl border border-dashed text-center">
-                            <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight italic">
+                        <div className="flex flex-col justify-center p-2 bg-muted/20 rounded-lg border border-dashed text-center">
+                            <p className="text-[7px] font-bold text-muted-foreground uppercase leading-tight italic">
                                 Adjunte foto del Anexo III físico con firma y sello oficial.
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <Label className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Observaciones</Label>
-                    <Input name="observations" placeholder="Opcional..." className="h-10 font-bold border-2 rounded-lg uppercase text-[10px] px-4" />
+                <div className="space-y-1.5">
+                    <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest">Observaciones</Label>
+                    <Input name="observaciones" placeholder="Opcional..." className="h-8 font-bold border-2 rounded-md uppercase text-[9px] px-3" />
                 </div>
 
               </CardContent>
 
-              <CardFooter className="bg-muted/10 border-t p-4">
-                <Button type="submit" className="w-full h-14 font-black uppercase text-sm tracking-widest shadow-lg bg-black hover:bg-black/90" disabled={isSubmitting || !photo || markedCells.size === 0}>
-                  {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : "ENVIAR INFORME"}
+              <CardFooter className="bg-muted/10 border-t p-3">
+                <Button 
+                    type="submit" 
+                    className={cn(
+                        "w-full h-12 font-black uppercase text-xs tracking-widest shadow-lg transition-all",
+                        submitSuccess ? "bg-green-600 hover:bg-green-600" : "bg-black hover:bg-black/90"
+                    )} 
+                    disabled={isSubmitting || !photo || markedCells.size === 0 || submitSuccess}
+                >
+                  {isSubmitting ? (
+                    submitSuccess ? <span className="animate-in zoom-in duration-300">¡ENVIADO CORRECTAMENTE!</span> : <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                  ) : "ENVIAR INFORME"}
                 </Button>
               </CardFooter>
             </Card>
@@ -413,15 +432,16 @@ function InformeContent() {
         )}
 
         {!selectedEntry && (
-            <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-[2rem] bg-white text-muted-foreground opacity-30 max-w-md w-full">
-                <FileText className="h-12 w-12 mb-4" />
-                <p className="text-xs font-black uppercase tracking-widest text-center px-6">Seleccione una actividad para comenzar</p>
+            <div className="flex flex-col items-center justify-center py-16 border-2 border-dashed rounded-[1.5rem] bg-white text-muted-foreground opacity-30 max-w-md w-full">
+                <FileText className="h-10 w-10 mb-3" />
+                <p className="text-[9px] font-black uppercase tracking-widest text-center px-6 leading-relaxed">Seleccione una actividad de la agenda para comenzar el informe individual</p>
             </div>
         )}
       </main>
 
+      {/* Diálogo de Cámara */}
       <Dialog open={isCameraOpen} onOpenChange={(open) => !open && stopCamera()}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-none bg-black rounded-xl">
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-none bg-black">
           <div className="relative aspect-[3/4] bg-black">
             <video 
               ref={videoRef} 
@@ -434,16 +454,16 @@ function InformeContent() {
                 variant="outline" 
                 size="icon" 
                 onClick={stopCamera}
-                className="rounded-full h-12 w-12 bg-white/10 border-white/20 text-white"
+                className="rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
               >
-                <X className="h-5 w-5" />
+                <X className="h-6 w-6" />
               </Button>
               <Button 
                 size="lg" 
                 onClick={takePhoto}
-                className="rounded-full h-14 w-14 bg-white hover:bg-white/90 text-black border-4 border-black/20"
+                className="rounded-full h-16 w-16 bg-white hover:bg-white/90 text-black border-4 border-black/20"
               >
-                <Camera className="h-6 w-6" />
+                <Camera className="h-8 w-8" />
               </Button>
             </div>
           </div>
@@ -453,9 +473,14 @@ function InformeContent() {
   );
 }
 
+// Exportación con Suspense para evitar errores de build con useSearchParams
 export default function AnexoIII() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>}>
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin h-8 w-8 text-primary"/>
+      </div>
+    }>
       <InformeContent />
     </Suspense>
   );
