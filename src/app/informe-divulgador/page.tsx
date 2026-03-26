@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
@@ -8,12 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon, FileText, Users, FileUp } from 'lucide-react';
+import { Loader2, FileDown, CheckCircle2, Printer, X, CalendarDays, DatabaseZap, Search, Camera, Trash2, ImageIcon, FileText, Users, FileUp, AlertTriangle } from 'lucide-react';
 import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { type SolicitudCapacitacion, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
+import { type SolicitudCapacitacion, type InformeDivulgador, type EncuestaSatisfaccion, type Asignado } from '@/lib/data';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -61,6 +62,8 @@ function InformeContent() {
     distrito: '',
     departamento: '',
   });
+
+  const [currentUserAssignment, setCurrentUserAssignment] = useState<Asignado | null>(null);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -163,11 +166,18 @@ function InformeContent() {
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems) return [];
-    const usedSolicitudIds = new Set(rawInformesRealizados?.map(inf => inf.solicitud_id) || []);
+    const myEmail = user?.email?.toLowerCase();
+    
     return rawAgendaItems
-      .filter(item => !usedSolicitudIds.has(item.id) || item.id === selectedAgendaId)
+      .filter(item => {
+        if (item.cancelada) return false;
+        // Solo mostrar actividades donde el usuario está asignado (o si es admin/jefe)
+        const isAsigned = item.asignados?.some(a => a.cedula === user?.profile?.cedula);
+        const isAdmin = ['admin', 'director', 'jefe'].includes(user?.profile?.role || '');
+        return isAsigned || isAdmin;
+      })
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [rawAgendaItems, rawInformesRealizados, selectedAgendaId]);
+  }, [rawAgendaItems, user]);
 
   const solicitudRef = useMemoFirebase(() => 
     firestore && selectedAgendaId ? doc(firestore, 'solicitudes-capacitacion', selectedAgendaId) : null, 
@@ -176,33 +186,26 @@ function InformeContent() {
   const { data: agendaDoc } = useDoc<SolicitudCapacitacion>(solicitudRef);
 
   useEffect(() => {
-    if (agendaDoc) {
+    if (agendaDoc && user?.profile) {
+      // Intentar encontrar la asignación del usuario actual en la lista del evento
+      const myCedula = user.profile.cedula;
+      const myAssignment = agendaDoc.asignados?.find(a => a.cedula === myCedula);
+      
+      setCurrentUserAssignment(myAssignment || null);
+
       setFormData({
         lugar_divulgacion: agendaDoc.lugar_local || '',
         fecha: agendaDoc.fecha || '',
         hora_desde: (agendaDoc.hora_desde || '').substring(0, 5),
         hora_hasta: (agendaDoc.hora_hasta || '').substring(0, 5),
-        nombre_divulgador: agendaDoc.divulgador_nombre || user?.profile?.username || '',
-        cedula_divulgador: agendaDoc.divulgador_cedula || user?.profile?.cedula || '',
-        vinculo: agendaDoc.divulgador_vinculo || user?.profile?.vinculo || '',
+        // Si no está asignado, usar datos del perfil (para jefes/admins que testean)
+        nombre_divulgador: myAssignment?.nombre || user.profile.username || '',
+        cedula_divulgador: myAssignment?.cedula || user.profile.cedula || '',
+        vinculo: myAssignment?.vinculo || user.profile.vinculo || '',
         oficina: agendaDoc.distrito || '',
         distrito: agendaDoc.distrito || '',
         departamento: agendaDoc.departamento || '',
       });
-    } else if (!selectedAgendaId && user?.profile) {
-        setFormData(prev => ({
-            ...prev,
-            lugar_divulgacion: '',
-            fecha: '',
-            hora_desde: '',
-            hora_hasta: '',
-            nombre_divulgador: user.profile?.username || '',
-            cedula_divulgador: user.profile?.cedula || '',
-            vinculo: user.profile?.vinculo || '',
-            oficina: user.profile?.distrito || '',
-            distrito: user.profile?.distrito || '',
-            departamento: user.profile?.departamento || '',
-        }));
     }
   }, [agendaDoc, selectedAgendaId, user]);
 
@@ -420,7 +423,7 @@ function InformeContent() {
         <Card className="border-primary/20 shadow-md">
             <CardHeader className="py-4 bg-primary/5">
                 <CardTitle className="text-[10px] font-black flex items-center gap-2 uppercase tracking-widest text-primary">
-                    <DatabaseZap className="h-4 w-4" /> VINCULAR CON ACTIVIDAD PENDIENTE
+                    <DatabaseZap className="h-4 w-4" /> VINCULAR CON ACTIVIDAD ASIGNADA
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
@@ -431,7 +434,7 @@ function InformeContent() {
                         </SelectTrigger>
                         <SelectContent>
                             {agendaItems.length === 0 ? (
-                                <div className="p-4 text-center text-xs font-bold text-muted-foreground uppercase">No hay actividades pendientes</div>
+                                <div className="p-4 text-center text-xs font-bold text-muted-foreground uppercase">No hay actividades asignadas pendientes</div>
                             ) : (
                                 agendaItems.map(item => (
                                     <SelectItem key={item.id} value={item.id}>
@@ -450,16 +453,11 @@ function InformeContent() {
             </CardContent>
         </Card>
 
-        {selectedAgendaId && surveysCount > 0 && (
-            <Card className="bg-green-50 border-green-200 border-2">
+        {selectedAgendaId && !currentUserAssignment && user?.profile?.role === 'funcionario' && (
+            <Card className="bg-destructive/5 border-destructive/20 border-2">
                 <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-green-600 text-white flex items-center justify-center shadow-lg animate-pulse">
-                        <Users className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-[10px] font-black text-green-800 uppercase tracking-widest">Sincronización Digital Detectada</p>
-                        <p className="text-xs font-bold text-green-700 uppercase">Se han detectado {surveysCount} ciudadanos con encuesta QR completada. Se han sugerido marcaciones en el tablero.</p>
-                    </div>
+                    <AlertTriangle className="h-6 w-6 text-destructive" />
+                    <p className="text-xs font-bold text-destructive uppercase">ADVERTENCIA: Usted no figura como personal asignado a este evento en la Agenda oficial.</p>
                 </CardContent>
             </Card>
         )}
@@ -485,38 +483,31 @@ function InformeContent() {
                     <Label className="font-black uppercase text-xs shrink-0">LUGAR DE DIVULGACIÓN:</Label>
                     <Input 
                         value={formData.lugar_divulgacion} 
-                        onChange={e => setFormData(p => ({...p, lugar_divulgacion: e.target.value}))} 
-                        readOnly={!!selectedAgendaId}
-                        className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
+                        readOnly 
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0 opacity-70" 
                     />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="flex items-center gap-3">
                         <Label className="font-black uppercase text-xs shrink-0">FECHA:</Label>
                         <Input 
-                            type="date"
-                            value={formData.fecha} 
-                            onChange={e => setFormData(p => ({...p, fecha: e.target.value}))} 
-                            readOnly={!!selectedAgendaId}
-                            className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
+                            value={formatDateToDDMMYYYY(formData.fecha)} 
+                            readOnly 
+                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0 opacity-70" 
                         />
                     </div>
                     <div className="flex items-center gap-3">
                         <Label className="font-black uppercase text-xs shrink-0">HORARIO DE:</Label>
                         <Input 
-                            type="time"
                             value={formData.hora_desde} 
-                            onChange={e => setFormData(p => ({...p, hora_desde: e.target.value}))} 
-                            readOnly={!!selectedAgendaId}
-                            className={cn("border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center", !!selectedAgendaId && "opacity-70")} 
+                            readOnly 
+                            className="border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center opacity-70" 
                         />
                         <Label className="font-black uppercase text-xs">A</Label>
                         <Input 
-                            type="time"
                             value={formData.hora_hasta} 
-                            onChange={e => setFormData(p => ({...p, hora_hasta: e.target.value}))} 
-                            readOnly={!!selectedAgendaId}
-                            className={cn("border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center", !!selectedAgendaId && "opacity-70")} 
+                            readOnly 
+                            className="border-0 border-b-2 border-black rounded-none h-8 w-20 font-bold focus-visible:ring-0 bg-transparent px-0 text-center opacity-70" 
                         />
                         <Label className="font-black uppercase text-xs">HS.</Label>
                     </div>
@@ -528,9 +519,8 @@ function InformeContent() {
                     <Label className="font-black uppercase text-xs shrink-0">NOMBRE COMPLETO DIVULGADOR:</Label>
                     <Input 
                         value={formData.nombre_divulgador} 
-                        onChange={e => setFormData(p => ({...p, nombre_divulgador: e.target.value}))} 
-                        readOnly={!!selectedAgendaId}
-                        className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
+                        readOnly 
+                        className="border-0 border-b-2 border-black rounded-none h-8 font-black uppercase focus-visible:ring-0 bg-transparent px-0 text-primary" 
                     />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -538,18 +528,16 @@ function InformeContent() {
                         <Label className="font-black uppercase text-xs shrink-0">C.I.C. N.º:</Label>
                         <Input 
                             value={formData.cedula_divulgador} 
-                            onChange={e => setFormData(p => ({...p, cedula_divulgador: e.target.value}))} 
-                            readOnly={!!selectedAgendaId}
-                            className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
+                            readOnly 
+                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold focus-visible:ring-0 bg-transparent px-0" 
                         />
                     </div>
                     <div className="flex items-center gap-3">
                         <Label className="font-black uppercase text-xs shrink-0">VÍNCULO:</Label>
                         <Input 
                             value={formData.vinculo} 
-                            onChange={e => setFormData(p => ({...p, vinculo: e.target.value}))} 
-                            readOnly={!!selectedAgendaId}
-                            className={cn("border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0", !!selectedAgendaId && "opacity-70")} 
+                            readOnly 
+                            className="border-0 border-b-2 border-black rounded-none h-8 font-bold uppercase focus-visible:ring-0 bg-transparent px-0" 
                         />
                     </div>
                 </div>
@@ -631,7 +619,7 @@ function InformeContent() {
                     )}
                     <div className="flex items-center p-6 bg-muted/20 rounded-2xl border-2 border-dashed border-black/5">
                         <p className="text-[10px] font-bold uppercase text-muted-foreground italic leading-relaxed">
-                            <span className="text-destructive font-black">IMPORTANTE:</span> Este campo es obligatorio para validar el reporte. Capture una imagen clara o suba el archivo PDF del formulario físico firmado y sellado.
+                            <span className="text-destructive font-black">IMPORTANTE:</span> Este reporte es individual. Capture una imagen clara o suba el archivo PDF del formulario físico con su firma y el sello de la oficina.
                         </p>
                     </div>
                 </div>
@@ -682,7 +670,7 @@ function InformeContent() {
                 className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-widest"
             >
               {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <CheckCircle2 className="mr-3 h-6 w-6" />}
-              GUARDAR REPORTE OFICIAL
+              GUARDAR REPORTE INDIVIDUAL
             </Button>
           </CardFooter>
         </Card>

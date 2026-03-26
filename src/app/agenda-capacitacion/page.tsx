@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -5,8 +6,8 @@ import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
+import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type Asignado } from '@/lib/data';
 import { 
   Loader2, 
   MapPin, 
@@ -33,7 +34,9 @@ import {
   FileText,
   Navigation,
   Phone,
-  Download
+  Download,
+  Users,
+  X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -148,15 +151,14 @@ export default function AgendaCapacitacionPage() {
     return null;
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulgadoresQuery);
+  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divuladoresQuery);
 
   useEffect(() => {
     if (!rawSolicitudes || !movimientosData || !informesData) return;
 
     rawSolicitudes.forEach(sol => {
       const mov = movimientosData.find(m => m.solicitud_id === sol.id);
-      const inf = informesData.find(i => i.solicitud_id === sol.id);
-      const isClosed = !!(mov?.devolucion && inf);
+      const isClosed = !!(mov?.maquinas.every(m => !!m.lacre_estado) && informesData.some(i => i.solicitud_id === sol.id));
 
       if (isClosed && !hiddenIds.has(sol.id) && !pendingArchiveIds.has(sol.id)) {
         setPendingArchiveIds(prev => new Set(prev).add(sol.id));
@@ -194,25 +196,45 @@ export default function AgendaCapacitacionPage() {
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
   }, [rawSolicitudes, datosData, hiddenIds]);
 
-  const handleAssignDivulgador = (divulgador: Divulgador) => {
+  const handleAddDivulgador = (divulgador: Divulgador) => {
     if (!assigningSolicitud || !firestore) return;
     setIsUpdating(true);
-    const updateData = {
-      divulgador_id: divulgador.id,
-      divulgador_nombre: divulgador.nombre,
-      divulgador_cedula: divulgador.cedula,
-      divulgador_vinculo: divulgador.vinculo
+    
+    const newAsignado: Asignado = {
+      id: divulgador.id,
+      nombre: divulgador.nombre,
+      cedula: divulgador.cedula,
+      vinculo: divulgador.vinculo
     };
+
     const docRef = doc(firestore, 'solicitudes-capacitacion', assigningSolicitud.id);
     
-    updateDoc(docRef, updateData)
+    updateDoc(docRef, {
+      asignados: arrayUnion(newAsignado)
+    })
       .then(() => {
-        toast({ title: "Personal Asignado" });
-        setAssigningSolicitud(null);
+        toast({ title: "Personal Agregado" });
         setIsUpdating(false);
       })
       .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData }));
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
+        setIsUpdating(false);
+      });
+  };
+
+  const handleRemoveDivulgador = (solId: string, asignado: Asignado) => {
+    if (!firestore) return;
+    setIsUpdating(true);
+    const docRef = doc(firestore, 'solicitudes-capacitacion', solId);
+    updateDoc(docRef, {
+      asignados: arrayRemove(asignado)
+    })
+      .then(() => {
+        toast({ title: "Personal Removido" });
+        setIsUpdating(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
         setIsUpdating(false);
       });
   };
@@ -361,8 +383,10 @@ export default function AgendaCapacitacionPage() {
   const filteredDivul = useMemo(() => {
     if (!rawDivulgadores || !assigningSolicitud) return [];
     const term = divulSearch.toLowerCase().trim();
+    const alreadyAsignados = new Set(assigningSolicitud.asignados?.map(a => a.id) || []);
     return rawDivulgadores.filter(d => 
       d.distrito === assigningSolicitud.distrito &&
+      !alreadyAsignados.has(d.id) &&
       (d.nombre.toLowerCase().includes(term) || d.cedula.includes(term))
     );
   }, [rawDivulgadores, divulSearch, assigningSolicitud]);
@@ -475,13 +499,14 @@ export default function AgendaCapacitacionPage() {
                                                         <div className="space-y-4">
                                                             {batch.sort((a,b) => a.fecha.localeCompare(b.fecha)).map((item) => {
                                                                 const mov = movimientosData?.find(m => m.solicitud_id === item.id);
-                                                                const inf = informesData?.find(i => i.solicitud_id === item.id);
-                                                                const isClosed = !!(mov?.devolucion && inf);
+                                                                const inf = informesData?.filter(i => i.solicitud_id === item.id);
+                                                                
+                                                                // Evento cumplido si hay informe por cada asignado y máquinas devueltas
+                                                                const asignadosCount = item.asignados?.length || 0;
+                                                                const isClosed = !!(mov?.maquinas.every(m => !!m.lacre_estado) && inf && inf.length >= asignadosCount && asignadosCount > 0);
+                                                                
                                                                 const today = new Date().toISOString().split('T')[0];
                                                                 const hasAlert = item.fecha < today && !isClosed;
-
-                                                                const missingF02 = !mov?.devolucion;
-                                                                const missingAnexoIII = !inf;
 
                                                                 return (
                                                                     <div key={item.id} className={cn(
@@ -496,11 +521,18 @@ export default function AgendaCapacitacionPage() {
                                                                         </div>
 
                                                                         <div className="flex-1 flex flex-col gap-1">
-                                                                            <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL OPERATIVO</p>
-                                                                            {item.divulgador_nombre ? (
-                                                                                <div className="flex items-center gap-2 text-green-600">
-                                                                                    <User className="h-3 w-3" />
-                                                                                    <span className="font-black text-[10px] uppercase">{item.divulgador_nombre}</span>
+                                                                            <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL OPERATIVO ({item.asignados?.length || 0})</p>
+                                                                            {item.asignados && item.asignados.length > 0 ? (
+                                                                                <div className="flex flex-wrap gap-1.5">
+                                                                                    {item.asignados.map(a => (
+                                                                                        <Badge key={a.id} variant="secondary" className="bg-white border-2 border-primary/5 text-[8px] font-black uppercase flex items-center gap-1.5 py-1">
+                                                                                            <User className="h-2.5 w-2.5" />
+                                                                                            {a.nombre}
+                                                                                            <button onClick={() => handleRemoveDivulgador(item.id, a)} className="hover:text-destructive">
+                                                                                                <X className="h-2.5 w-2.5" />
+                                                                                            </button>
+                                                                                        </Badge>
+                                                                                    ))}
                                                                                 </div>
                                                                             ) : (
                                                                                 <span className="font-black text-[9px] text-destructive uppercase italic">SIN ASIGNAR</span>
@@ -516,12 +548,9 @@ export default function AgendaCapacitacionPage() {
                                                                                 </div>
                                                                             ) : hasAlert ? (
                                                                                 <div className="flex flex-col gap-0.5">
-                                                                                    <span className="text-[6px] font-black text-destructive uppercase tracking-tighter leading-none animate-pulse">
-                                                                                        {(missingF02 && missingAnexoIII) ? "FALTA F02 Y ANEXO III" : missingF02 ? "FALTA F02 (DEVOLUCIÓN)" : "FALTA ANEXO III"}
-                                                                                    </span>
                                                                                     <div className="flex items-center gap-1.5 text-destructive animate-pulse">
                                                                                         <AlertCircle className="h-3.5 w-3.5" />
-                                                                                        <span className="font-black text-[9px] uppercase tracking-tighter">INCUMPLIMIENTO</span>
+                                                                                        <span className="font-black text-[9px] uppercase tracking-tighter">PENDIENTE</span>
                                                                                     </div>
                                                                                 </div>
                                                                             ) : (
@@ -541,7 +570,7 @@ export default function AgendaCapacitacionPage() {
                                                                                     onClick={() => setAssigningSolicitud(item)} 
                                                                                     disabled={isClosed}
                                                                                 >
-                                                                                    <UserPlus className="h-3 w-3" /> {item.divulgador_nombre ? 'REASIGNAR' : 'ASIGNAR'}
+                                                                                    <UserPlus className="h-3 w-3" /> ASIGNAR PERSONAL
                                                                                 </Button>
                                                                                 <div className="flex gap-1">
                                                                                     <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-2 border-destructive/10 text-destructive/60 hover:text-destructive" onClick={() => setCancellingSolicitud(item)} disabled={isClosed}>
@@ -578,8 +607,8 @@ export default function AgendaCapacitacionPage() {
                                                                                     </Button>
                                                                                 </div>
                                                                                 <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex-1 flex items-center">
-                                                                                    <Button className={cn("h-full w-full rounded-lg font-black uppercase text-[9px] shadow-sm", inf ? "bg-green-600 hover:bg-green-700" : "bg-black hover:bg-black/90")}>
-                                                                                        {inf ? 'ANEXO III' : 'INFORME'}
+                                                                                    <Button className={cn("h-full w-full rounded-lg font-black uppercase text-[9px] shadow-sm", inf && inf.length > 0 ? "bg-green-600 hover:bg-green-700" : "bg-black hover:bg-black/90")}>
+                                                                                        {inf && inf.length > 0 ? `ANEXO III (${inf.length})` : 'INFORME'}
                                                                                     </Button>
                                                                                 </Link>
                                                                             </div>
@@ -595,12 +624,7 @@ export default function AgendaCapacitacionPage() {
                                     })}
                                 </AccordionContent>
                             </AccordionItem>
-                        );
-                    })}
-                  </Accordion>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+                        ))}
           </Accordion>
         )}
       </main>
@@ -609,7 +633,7 @@ export default function AgendaCapacitacionPage() {
         <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
           <DialogHeader className="bg-black text-white p-6">
             <DialogTitle className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
-              <UserPlus className="h-4 w-4" /> ASIGNAR PERSONAL - {assigningSolicitud?.distrito?.toUpperCase()}
+              <Users className="h-4 w-4" /> ASIGNAR EQUIPO - {assigningSolicitud?.distrito?.toUpperCase()}
             </DialogTitle>
           </DialogHeader>
           <div className="p-6 space-y-4 bg-white">
@@ -626,7 +650,7 @@ export default function AgendaCapacitacionPage() {
               {filteredDivul.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 opacity-20 text-center">
                   <UserPlus className="h-12 w-12 mb-2 mx-auto" />
-                  <p className="font-black text-[10px] uppercase">No se encontraron divulgadores en este distrito</p>
+                  <p className="font-black text-[10px] uppercase">No hay más divulgadores disponibles en este distrito</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -635,7 +659,7 @@ export default function AgendaCapacitacionPage() {
                       key={d.id}
                       variant="outline"
                       className="w-full justify-start h-auto p-4 rounded-2xl border-2 hover:border-primary hover:bg-primary/5 transition-all gap-4"
-                      onClick={() => handleAssignDivulgador(d)}
+                      onClick={() => handleAddDivulgador(d)}
                       disabled={isUpdating}
                     >
                       <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">

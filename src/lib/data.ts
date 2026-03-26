@@ -105,6 +105,13 @@ export type AnexoI = {
   fecha_creacion: string;
 }
 
+export type Asignado = {
+  id: string;
+  nombre: string;
+  cedula: string;
+  vinculo: string;
+}
+
 export type SolicitudCapacitacion = {
   id: string;
   solicitante_entidad: string;
@@ -125,10 +132,13 @@ export type SolicitudCapacitacion = {
   gps: string;
   foto_firma?: string;
   usuario_id: string;
+  // Campos antiguos para retrocompatibilidad
   divulgador_id?: string;
   divulgador_nombre?: string;
   divulgador_cedula?: string;
   divulgador_vinculo?: string;
+  // Nueva estructura multi-personal
+  asignados?: Asignado[];
   fecha_creacion: string;
   cancelada?: boolean;
   motivo_cancelacion?: string;
@@ -176,61 +186,14 @@ export type InformeDivulgador = {
   solicitud_id: string;
 }
 
-export type InformeSemanalFila = {
-  lugar: string;
-  fecha: string;
-  hora_desde: string;
-  hora_hasta: string;
-  nombre_divulgador: string;
-  cedula: string;
-  vinculo: string;
-  cantidad_personas: number;
-}
-
-export type InformeSemanalAnexoIV = {
-  id: string;
-  semana_desde: string;
-  semana_hasta: string;
-  departamento: string;
-  distrito: string;
-  filas: InformeSemanalFila[];
-  usuario_id: string;
-  fecha_creacion: string;
-}
-
-export type InformeSemanalRegistro = {
-  id: string;
-  departamento: string;
-  distrito: string;
-  fecha_desde: string;
-  fecha_hasta: string;
-  inscripciones_1ra_vez: number;
-  actualizacion_datos: number;
-  cambio_local: number;
-  cambio_distrito: number;
-  organizaciones_asistidas: { tipo: string, nombre: string }[];
-  fotos?: string[];
-  usuario_id: string;
-  fecha_creacion: string;
-  archivado?: boolean;
-  id_archivo?: string;
-}
-
-export type MovimientoMaquinaRegistro = {
-  nombre: string;
-  cedula: string;
-  vinculo: string;
-  fecha: string;
-  hora: string;
-  codigo_maquina: string;
-  lugar: string;
-  pendrive_serie?: string;
-  credencial?: boolean;
-  auricular?: boolean;
-  acrilico?: boolean;
-  boletas?: boolean;
+export type MaquinaMovimiento = {
+  codigo: string;
+  pendrive_serie: string;
+  credencial: boolean;
+  auricular: boolean;
+  acrilico: boolean;
+  boletas: boolean;
   lacre_estado?: 'correcto' | 'violentado';
-  foto_respaldo?: string;
 }
 
 export type MovimientoMaquina = {
@@ -238,25 +201,18 @@ export type MovimientoMaquina = {
   solicitud_id: string;
   departamento: string;
   distrito: string;
-  salida?: MovimientoMaquinaRegistro;
-  devolucion?: MovimientoMaquinaRegistro;
+  // Multiples máquinas (hasta 3)
+  maquinas: MaquinaMovimiento[];
+  // Datos comunes
+  fecha_salida: string;
+  hora_salida: string;
+  fecha_devolucion?: string;
+  hora_devolucion?: string;
+  foto_salida?: string;
+  foto_devolucion?: string;
   fecha_creacion: string;
-}
-
-export type PadronItem = {
-  id: string;
-  cedula: string;
-  nombre: string;
-  apellido: string;
-  departamento: string;
-  distrito: string;
-  local: string;
-}
-
-export type PartidoPolitico = {
-  id: string;
-  nombre: string;
-  siglas: string;
+  // Responsables (Copia de la lista de la agenda en ese momento)
+  responsables: Asignado[];
 }
 
 export const initialDepartments: Department[] = [];
