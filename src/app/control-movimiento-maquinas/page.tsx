@@ -211,6 +211,35 @@ export default function ControlMovimientoMaquinasPage() {
     }
   }, [currentMovimiento]);
 
+  const handleAddMaquina = () => {
+    setMovimientoData(prev => ({
+      ...prev,
+      maquinas: [
+        ...prev.maquinas,
+        { 
+          codigo: '', 
+          pendrive_serie: '', 
+          credencial: false, 
+          auricular: false, 
+          acrilico: false, 
+          boletas: false,
+          retorno_credencial: false,
+          retorno_auricular: false,
+          retorno_acrilico: false,
+          retorno_boletas: false
+        }
+      ]
+    }));
+  };
+
+  const handleRemoveMaquina = (index: number) => {
+    if (movimientoData.maquinas.length <= 1) return;
+    setMovimientoData(prev => ({
+      ...prev,
+      maquinas: prev.maquinas.filter((_, i) => i !== index)
+    }));
+  };
+
   const startCamera = async (target: any) => {
     setActiveCameraTarget(target);
     setIsCameraOpen(true);
@@ -472,9 +501,9 @@ export default function ControlMovimientoMaquinasPage() {
                                     <User className="h-3 w-3 text-primary" />
                                     <span className="text-[11px] font-black uppercase truncate">{a.nombre}</span>
                                 </div>
-                                <div className="flex justify-between items-center">
+                                <div className="flex justify-between items-center px-1">
                                     <span className="text-[9px] font-bold text-muted-foreground">C.I. {a.cedula}</span>
-                                    <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/20">{a.vinculo}</Badge>
+                                    <Badge variant="outline" className="text-[7px] font-black uppercase py-0 px-2 h-4 border-primary/20">{a.vinculo}</Badge>
                                 </div>
                             </div>
                         ))}
@@ -496,7 +525,14 @@ export default function ControlMovimientoMaquinasPage() {
 
                         {movimientoData.maquinas.map((maq, idx) => (
                             <div key={idx} className="p-8 border-2 border-black rounded-[2rem] space-y-6 bg-muted/5 relative">
-                                <div className="absolute -top-3 left-8 bg-black text-white px-4 py-1 rounded-full text-[10px] font-black uppercase">EQUIPO #{idx + 1}</div>
+                                <div className="absolute -top-3 left-8 bg-black text-white px-4 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-3">
+                                    EQUIPO #{idx + 1}
+                                    {movimientoData.maquinas.length > 1 && (
+                                        <Button variant="ghost" className="h-4 p-0 text-white hover:text-red-400" onClick={() => handleRemoveMaquina(idx)}>
+                                            <Minus className="h-3 w-3" />
+                                        </Button>
+                                    )}
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-2">
                                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Serie de Máquina</Label>
@@ -524,6 +560,17 @@ export default function ControlMovimientoMaquinasPage() {
                                 </div>
                             </div>
                         ))}
+
+                        <div className="flex justify-center pt-4">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                className="rounded-full border-2 font-black uppercase text-[10px] gap-2 h-10 px-6 hover:bg-black hover:text-white transition-all shadow-md"
+                                onClick={handleAddMaquina}
+                            >
+                                <Plus className="h-4 w-4" /> AGREGAR OTRA MÁQUINA
+                            </Button>
+                        </div>
 
                         <div className="p-8 border-2 border-dashed border-primary/20 rounded-[2rem] space-y-4 bg-muted/5">
                             <Label className="font-black uppercase text-xs flex items-center gap-2"><FileText className="h-4 w-4" /> Respaldo F01 (Firma Jefatura) *</Label>
