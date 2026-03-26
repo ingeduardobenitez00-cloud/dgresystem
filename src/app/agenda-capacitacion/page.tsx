@@ -129,7 +129,7 @@ export default function AgendaCapacitacionPage() {
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
         const isPast = sol.fecha < today;
-        const isClosed = mov?.devolucion && inf;
+        const isClosed = mov?.fecha_devolucion && inf;
         return !(isPast && isClosed);
     });
 
@@ -401,10 +401,10 @@ export default function AgendaCapacitacionPage() {
                                 const isPast = item.fecha < today;
                                 const mov = movimientosData?.find(m => m.solicitud_id === item.id);
                                 const inf = informesData?.find(i => i.solicitud_id === item.id);
-                                const hasAlert = isPast && (!mov?.devolucion || !inf);
+                                const hasAlert = isPast && (!mov?.fecha_devolucion || !inf);
 
                                 const missing = [];
-                                if (!mov?.devolucion) missing.push("DEVOLUCIÓN DE MÁQUINA");
+                                if (!mov?.fecha_devolucion) missing.push("DEVOLUCIÓN DE MÁQUINA");
                                 if (!inf) missing.push("INFORME ANEXO III");
                                 const alertLabel = `ALERTA: ACTIVIDAD VENCIDA - FALTA COMPLETAR: ${missing.join(" Y ")}`;
 

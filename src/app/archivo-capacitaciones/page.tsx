@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo, useState } from 'react';
@@ -67,7 +68,7 @@ export default function ArchivoCapacitacionesPage() {
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
         
         // El registro se considera "archivado" si está cancelado o si el ciclo logístico está cerrado
-        const isFinished = mov?.devolucion && inf;
+        const isFinished = mov?.fecha_devolucion && inf;
         const matchesSearch = sol.lugar_local.toLowerCase().includes(term) || 
                              sol.solicitante_entidad.toLowerCase().includes(term) ||
                              sol.divulgador_nombre?.toLowerCase().includes(term);
@@ -120,7 +121,7 @@ export default function ArchivoCapacitacionesPage() {
                     placeholder="Buscar en archivo..." 
                     className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={e => setSearchTerm(e.target.value)}
                 />
             </div>
         </div>
