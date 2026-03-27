@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -495,14 +494,14 @@ export default function ControlMovimientoMaquinasPage() {
     for (let i = 0; i < 3; i++) {
         const cx = margin + (i * (cardW + 5));
         const resp = responsibles[i];
-        doc.setDrawColor(200);
+        doc.setDrawColor(200, 200, 200);
         doc.setLineWidth(0.1);
         doc.roundedRect(cx, y, cardW, cardH, 3, 3, 'D');
         if (resp) {
             doc.setFontSize(7); doc.setFont('helvetica', 'bold');
             doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 5, { align: 'center', maxWidth: cardW - 4 });
             doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-            doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 11);
+            doc.text(`C.I. {resp.cedula}`, cx + 4, y + 11);
             doc.text(resp.vinculo.toUpperCase(), cx + cardW - 4, y + 11, { align: 'right' });
         }
     }
@@ -522,7 +521,7 @@ export default function ControlMovimientoMaquinasPage() {
     // Stack machines - Section A
     movimientoData.maquinas.forEach((maq, idx) => {
         y += 2;
-        doc.setDrawColor(200);
+        doc.setDrawColor(200, 200, 200);
         doc.roundedRect(margin, y, boxWidth, 16, 4, 4);
         
         doc.setFontSize(7); doc.setFont('helvetica', 'bold');
@@ -578,7 +577,11 @@ export default function ControlMovimientoMaquinasPage() {
             y += 2;
             const isViolentado = maq.lacre_estado === 'violentado';
             
-            doc.setDrawColor(isViolentado ? [200, 0, 0] : [200, 200, 200]);
+            if (isViolentado) {
+                doc.setDrawColor(200, 0, 0);
+            } else {
+                doc.setDrawColor(200, 200, 200);
+            }
             doc.setLineWidth(isViolentado ? 0.5 : 0.1);
             doc.roundedRect(margin, y, boxWidth, 22, 4, 4);
             
