@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -30,7 +31,8 @@ import {
   PackageCheck,
   Power,
   PowerOff,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -53,6 +55,7 @@ export default function ControlMovimientoMaquinasPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [logoDGREBase64, setLogoDGREBase64] = useState<string | null>(null);
+  const [logoCIDEEBase64, setLogoCIDEEBase64] = useState<string | null>(null);
   const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(null);
   const [isDevolucionGuardada, setIsDevolucionGuardada] = useState(false);
   
@@ -102,11 +105,12 @@ export default function ControlMovimientoMaquinasPage() {
   useEffect(() => {
     const fetchLogos = async () => {
       try {
-        const [r1, r2] = await Promise.all([
+        const [r1, r2, r3] = await Promise.all([
           fetch('/logo.png'),
-          fetch('/logo3.png')
+          fetch('/logo3.png'),
+          fetch('/logo1.png')
         ]);
-        const [b1, b2] = await Promise.all([r1.blob(), r2.blob()]);
+        const [b1, b2, b3] = await Promise.all([r1.blob(), r2.blob(), r3.blob()]);
         
         const readBlob = (blob: Blob): Promise<string> => new Promise((resolve) => {
           const reader = new FileReader();
@@ -114,9 +118,9 @@ export default function ControlMovimientoMaquinasPage() {
           reader.readAsDataURL(blob);
         });
 
-        const [l1, l2] = await Promise.all([readBlob(b1), readBlob(b2)]);
-        setLogoBase64(l1);
-        setLogoDGREBase64(l2);
+        setLogoBase64(await readBlob(b1));
+        setLogoDGREBase64(await readBlob(b2));
+        setLogoCIDEEBase64(await readBlob(b3));
       } catch (error) {
         console.error("Error fetching logos:", error);
       }
@@ -452,6 +456,113 @@ export default function ControlMovimientoMaquinasPage() {
         });
   };
 
+  const generateDenunciaPDF = () => {
+    if (!logoBase64 || !logoCIDEEBase64 || !logoDGREBase64 || !selectedSolicitud) return;
+    const doc = new jsPDF();
+    const margin = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const tampered = movimientoData.maquinas.filter(m => m.lacre_estado === 'violentado').map(m => m.codigo);
+
+    doc.addImage(logoBase64, 'PNG', margin, 10, 20, 20);
+    doc.addImage(logoCIDEEBase64, 'PNG', pageWidth/2 - 12, 10, 24, 20);
+    doc.addImage(logoDGREBase64, 'PNG', pageWidth - margin - 35, 10, 35, 20);
+
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+    doc.text("FORMULARIO DE DENUNCIA DE ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, 40, { align: "center" });
+
+    doc.setDrawColor(0); doc.setLineWidth(0.3);
+    doc.roundedRect(margin, 45, pageWidth - (margin * 2), pageHeight - 60, 10, 10);
+
+    doc.setFontSize(11);
+    doc.text("ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, 55, { align: 'center' });
+    doc.setLineWidth(0.5); doc.line(pageWidth/2 - 50, 57, pageWidth/2 + 50, 57);
+
+    let y = 70;
+    doc.setFontSize(9);
+    const directors = [
+        "Señores:",
+        "Lic. Benjamín Díaz, Director",
+        "Director Gral. del Registro Electoral",
+        "Ing. Adalberto Morinigo, Vicedirector",
+        "Vicedirector del Registro Electoral",
+        "Abg. Francisco Olmedo, Director",
+        "Dirección de Recursos Electorales",
+        "Abg. Victorina Fretes, Directora",
+        "Dirección de Logística"
+    ];
+
+    directors.forEach((line, i) => {
+        if(i === 0) doc.setFont('helvetica', 'bold');
+        else doc.setFont('helvetica', i % 2 === 0 ? 'normal' : 'bold');
+        doc.text(line, margin + 10, y);
+        y += 5;
+    });
+
+    y += 5; doc.setFont('helvetica', 'bold'); doc.text("Presente", margin + 10, y);
+    doc.setLineWidth(0.2); doc.line(margin + 10, y + 1, margin + 25, y + 1);
+
+    y += 12; doc.setFont('helvetica', 'normal');
+    const intro = `Los Jefes / Encargados del Registro Electoral de ${selectedSolicitud.distrito.toUpperCase()}, del departamento de ${selectedSolicitud.departamento.toUpperCase()}, se dirigen a Uds, y a donde corresponda, a fin de informar la manipulación de la máquina de votación (adulteración de los 3 (tres) lacres), con los datos que a continuación se detalla:`;
+    const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2) - 20);
+    doc.text(introLines, margin + 10, y);
+
+    y += (introLines.length * 5) + 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FECHA ${formatDateToDDMMYYYY(new Date().toISOString().split('T')[0]).replace(/-/g, ' / ')}`, pageWidth - margin - 10, y, { align: 'right' });
+
+    y += 10;
+    doc.text("NOMBRE Y APELLIDO DEL JEFE/ENCARGADO RESPONSABLE", margin + 10, y);
+
+    y += 5;
+    const responsibles = selectedSolicitud.divulgadores || selectedSolicitud.asignados || [];
+    const cardW = (pageWidth - (margin * 2) - 30) / 3;
+    const cardH = 15;
+    for(let i = 0; i < 3; i++) {
+        const rx = margin + 10 + (i * (cardW + 5));
+        doc.setDrawColor(200); doc.roundedRect(rx, y, cardW, cardH, 3, 3);
+        const resp = responsibles[i];
+        if(resp) {
+            doc.setFontSize(6); doc.setFont('helvetica', 'bold');
+            doc.text(resp.nombre.toUpperCase(), rx + 2, y + 6, { maxWidth: cardW - 4 });
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(5);
+            doc.text(`C.I. ${resp.cedula}`, rx + 2, y + 12);
+            doc.text(resp.vinculo.toUpperCase(), rx + cardW - 2, y + 12, { align: 'right' });
+        }
+    }
+
+    y += cardH + 10;
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    
+    for(let i = 0; i < 3; i++) {
+        doc.text("NÚMERO DE SERIE DE LA MÁQUINA DE VOTACIÓN", margin + 10, y + 4);
+        doc.setDrawColor(0); doc.roundedRect(pageWidth - margin - 70, y, 60, 7, 3.5, 3.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(tampered[i] || '', pageWidth - margin - 40, y + 4.5, { align: 'center' });
+        y += 10;
+    }
+
+    y += 5; doc.setFont('helvetica', 'bold');
+    doc.text("MOTIVO DEL DESLACRE (FORMULARIO DE DENUNCIA DE ADULTERACIÓN DEL LACRE DE SEGURIDAD)", margin + 10, y);
+    y += 5;
+    doc.roundedRect(margin + 10, y, pageWidth - (margin * 2) - 20, 8, 4, 4);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text(denunciaDetalles.toUpperCase(), margin + 15, y + 5, { maxWidth: pageWidth - (margin * 2) - 30 });
+
+    y = pageHeight - 35;
+    doc.setLineWidth(0.3);
+    doc.line(margin + 20, y, margin + 80, y);
+    doc.line(pageWidth - margin - 80, y, pageWidth - margin - 20, y);
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text("FIRMA JEFE", margin + 50, y + 5, { align: 'center' });
+    doc.text("ACLARACIÓN:", margin + 50, y + 9, { align: 'center' });
+    doc.text("FIRMA JEFE", pageWidth - margin - 50, y + 5, { align: 'center' });
+    doc.text("ACLARACIÓN:", pageWidth - margin - 50, y + 9, { align: 'center' });
+
+    doc.save(`Denuncia-Lacres-${selectedSolicitud.distrito}.pdf`);
+  };
+
   const generatePDF = () => {
     if (!selectedSolicitud || !logoBase64 || !logoDGREBase64) {
       toast({ variant: 'destructive', title: "Cargando recursos...", description: "Espere a que los logos se carguen." });
@@ -502,7 +613,7 @@ export default function ControlMovimientoMaquinasPage() {
             doc.setFontSize(7); doc.setFont('helvetica', 'bold');
             doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 5, { align: 'center', maxWidth: cardW - 4 });
             doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-            doc.text(`C.I. {resp.cedula}`, cx + 4, y + 11);
+            doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 11);
             doc.text(resp.vinculo.toUpperCase(), cx + cardW - 4, y + 11, { align: 'right' });
         }
     }
@@ -739,7 +850,7 @@ export default function ControlMovimientoMaquinasPage() {
                                     <span className="text-[11px] font-black uppercase truncate">{a.nombre}</span>
                                 </div>
                                 <div className="flex justify-between items-center px-1">
-                                    <span className="text-[9px] font-bold text-muted-foreground">C.I. {a.cedula}</span>
+                                    <span className="text-[9px] font-bold text-muted-foreground">C.I. ${a.cedula}</span>
                                     <Badge variant="outline" className="text-[7px] font-black uppercase py-0 px-2 h-4 border-primary/20">{a.vinculo}</Badge>
                                 </div>
                             </div>
@@ -950,12 +1061,17 @@ export default function ControlMovimientoMaquinasPage() {
             {isDevolucionGuardada && movimientoData.maquinas.some(m => m.lacre_estado === 'violentado') && (
                 <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white animate-in zoom-in duration-500">
                     <CardHeader className="p-8 border-b bg-destructive text-white">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-full border-4 border-white flex items-center justify-center font-black text-xl">C</div>
-                            <div>
-                                <CardTitle className="uppercase font-black text-xl leading-none">ACTA DE DENUNCIA POR VIOLENTACIÓN</CardTitle>
-                                <CardDescription className="text-[10px] font-bold uppercase mt-1 text-white/80">REQUERIMIENTO OBLIGATORIO DE SEGURIDAD</CardDescription>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-full border-4 border-white flex items-center justify-center font-black text-xl">C</div>
+                                <div>
+                                    <CardTitle className="uppercase font-black text-xl leading-none">ACTA DE DENUNCIA POR VIOLENTACIÓN</CardTitle>
+                                    <CardDescription className="text-[10px] font-bold uppercase mt-1 text-white/80">REQUERIMIENTO OBLIGATORIO DE SEGURIDAD</CardDescription>
+                                </div>
                             </div>
+                            <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-black uppercase text-[10px] h-11 gap-2 rounded-xl shadow-lg" onClick={generateDenunciaPDF}>
+                                <Download className="h-4 w-4" /> DESCARGAR PROFORMA DENUNCIA
+                            </Button>
                         </div>
                     </CardHeader>
                     <CardContent className="p-10 space-y-10">

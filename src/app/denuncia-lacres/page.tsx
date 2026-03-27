@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus } from 'lucide-react';
+import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download } from 'lucide-react';
 import { useUser, useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
@@ -435,8 +435,8 @@ function DenunciaContent() {
                     <FileWarning className="h-4 w-4" /> Reporte oficial de lacres violentados detectados en el retorno.
                 </p>
             </div>
-            <Button variant="outline" className="font-bold border-primary text-primary" onClick={generatePDF} disabled={!selectedSolicitud}>
-                <Printer className="mr-2 h-4 w-4" /> PROFORMA PDF
+            <Button className="font-black uppercase text-[10px] h-12 px-8 bg-black hover:bg-black/90 shadow-2xl gap-3 rounded-xl" onClick={generatePDF} disabled={!selectedSolicitud}>
+                <Printer className="h-5 w-5" /> DESCARGAR PROFORMA PDF
             </Button>
         </div>
 
@@ -515,9 +515,7 @@ function DenunciaContent() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-4">
-                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                                <Camera className="h-4 w-4" /> Evidencias del Daño *
-                            </Label>
+                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2"><Camera className="h-4 w-4" /> Evidencias del Daño *</Label>
                             <div className="grid grid-cols-2 gap-3">
                                 {denunciaFotos.map((foto, idx) => (
                                     <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border-2 border-white shadow-md group">
@@ -544,15 +542,13 @@ function DenunciaContent() {
                         </div>
 
                         <div className="space-y-4">
-                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                                <FileText className="h-4 w-4" /> Respaldo Formulario Físico *
-                            </Label>
+                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2"><FileText className="h-4 w-4" /> Respaldo Formulario Físico *</Label>
                             {respaldoFoto ? (
                                 <div className="relative aspect-video rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
                                     {respaldoFoto.startsWith('data:application/pdf') ? (
                                         <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
                                             <FileText className="h-12 w-12 text-primary opacity-40 mb-2" />
-                                            <p className="text-[9px] font-black uppercase text-primary/60">Documento PDF</p>
+                                            <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF</p>
                                         </div>
                                     ) : (
                                         <Image src={respaldoFoto} alt="Respaldo" fill className="object-cover" />
