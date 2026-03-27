@@ -12,7 +12,7 @@ import { useFirebase, useUser, useCollection, useMemoFirebase } from '@/firebase
 import { collection, doc, setDoc, query, where } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark, ImageIcon } from 'lucide-react';
+import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark, ImageIcon, FileUp, Images } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
@@ -45,8 +45,12 @@ function InformeContent() {
   
   const [markedCells, setMarkedCells] = useState<Set<number>>(new Set());
 
+  // Photos state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [activeCameraTarget, setActiveCameraTarget] = useState<'respaldo' | 'evidencia' | null>(null);
+  const [respaldoPhoto, setRespaldoPhoto] = useState<string | null>(null);
+  const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -119,7 +123,8 @@ function InformeContent() {
     });
   };
 
-  const startCamera = async () => {
+  const startCamera = async (target: 'respaldo' | 'evidencia') => {
+    setActiveCameraTarget(target);
     setIsCameraOpen(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -139,28 +144,44 @@ function InformeContent() {
       streamRef.current = null;
     }
     setIsCameraOpen(false);
+    setActiveCameraTarget(null);
   };
 
   const takePhoto = () => {
-    if (videoRef.current) {
+    if (videoRef.current && activeCameraTarget) {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        setPhoto(canvas.toDataURL('image/jpeg', 0.7));
+        const dataUri = canvas.toDataURL('image/jpeg', 0.7);
+        if (activeCameraTarget === 'respaldo') {
+            setRespaldoPhoto(dataUri);
+        } else {
+            setEvidencePhotos(prev => [...prev, dataUri].slice(0, 5));
+        }
         stopCamera();
       }
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setPhoto(reader.result as string);
-      reader.readAsDataURL(file);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'respaldo' | 'evidencia') => {
+    const files = e.target.files;
+    if (files) {
+        if (target === 'respaldo') {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => setRespaldoPhoto(reader.result as string);
+            reader.readAsDataURL(file);
+        } else {
+            const selection = Array.from(files).slice(0, 5 - evidencePhotos.length);
+            for (const file of selection) {
+                const reader = new FileReader();
+                reader.onloadend = () => setEvidencePhotos(prev => [...prev, reader.result as string].slice(0, 5));
+                reader.readAsDataURL(file);
+            }
+        }
     }
   };
 
@@ -169,6 +190,11 @@ function InformeContent() {
     if (!firestore || !user || !selectedEntry) {
       toast({ variant: 'destructive', title: 'Error', description: 'Seleccione una actividad válida.' });
       return;
+    }
+
+    if (!respaldoPhoto) {
+        toast({ variant: 'destructive', title: 'Falta Respaldo', description: 'Debe adjuntar la foto del Anexo III firmado.' });
+        return;
     }
 
     setIsSubmitting(true);
@@ -190,7 +216,8 @@ function InformeContent() {
       total_personas: markedCells.size,
       marcaciones: Array.from(markedCells),
       observaciones: (formData.get('observaciones') as string || '').toUpperCase(),
-      foto_respaldo_documental: photo || '',
+      foto_respaldo_documental: respaldoPhoto,
+      fotos: evidencePhotos, // ESTE CAMPO ALIMENTA LA GALERÍA
       fecha_creacion: new Date().toISOString(),
       usuario_id: user.uid
     };
@@ -206,7 +233,8 @@ function InformeContent() {
         setSubmitSuccess(false);
         setSelectedActivityKey(undefined);
         setMarkedCells(new Set());
-        setPhoto(null);
+        setRespaldoPhoto(null);
+        setEvidencePhotos([]);
         if (formRef.current) formRef.current.reset();
         setIsSubmitting(false);
       }, 2000);
@@ -325,17 +353,6 @@ function InformeContent() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 border border-black rounded-lg overflow-hidden bg-white">
-                    <div className="p-2 border-r border-black">
-                        <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">OFICINA:</Label>
-                        <p className="font-black text-xs uppercase">{selectedEntry.activityData.distrito}</p>
-                    </div>
-                    <div className="p-3">
-                        <Label className="text-[7px] font-black uppercase text-muted-foreground tracking-widest block mb-0.5">DEPARTAMENTO:</Label>
-                        <p className="font-black text-xs uppercase">{selectedEntry.activityData.departamento}</p>
-                    </div>
-                </div>
-
                 <div className="space-y-2">
                     <div className="bg-black text-white p-1 rounded-md text-center">
                         <h4 className="font-black uppercase text-[8px] tracking-widest">MARCACIÓN CIUDADANA (X)</h4>
@@ -367,17 +384,55 @@ function InformeContent() {
                     </div>
                 </div>
 
-                <div className="space-y-2 pt-1 border-t border-dashed">
+                {/* NUEVA SECCIÓN: EVIDENCIAS DE CAMPO (ALIMENTA LA GALERÍA) */}
+                <div className="space-y-2 pt-2 border-t-2 border-dashed">
                     <div className="flex items-center gap-2">
-                        <Camera className="h-3.5 w-3.5 text-primary" />
-                        <Label className="font-black uppercase text-[8px]">Respaldo Documental *</Label>
+                        <Images className="h-3.5 w-3.5 text-primary" />
+                        <Label className="font-black uppercase text-[8px]">Evidencias de Campo (Galería)</Label>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="flex gap-2">
+                            <Button type="button" variant="outline" className="h-14 flex-1 flex flex-col items-center justify-center border-dashed rounded-lg gap-1" onClick={() => startCamera('evidencia')}>
+                                <Camera className="h-4 w-4 opacity-40" />
+                                <span className="text-[7px] font-black uppercase">CÁMARA</span>
+                            </Button>
+                            <label className="h-14 flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-lg gap-1 cursor-pointer hover:bg-muted/50 transition-all bg-white text-muted-foreground">
+                                <FileUp className="h-4 w-4 opacity-40" />
+                                <span className="text-[7px] font-black uppercase">SUBIR</span>
+                                <Input type="file" multiple accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'evidencia')} />
+                            </label>
+                        </div>
+                        <div className="p-2 bg-muted/20 rounded-lg flex items-center justify-center border border-dashed">
+                            <p className="text-[7px] font-bold text-muted-foreground uppercase leading-tight italic text-center">Capture fotos de la actividad para alimentar la Galería Nacional.</p>
+                        </div>
+                    </div>
+
+                    {evidencePhotos.length > 0 && (
+                        <div className="grid grid-cols-5 gap-2 pt-2">
+                            {evidencePhotos.map((p, i) => (
+                                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border shadow-sm group">
+                                    <Image src={p} alt={`Evidencia ${i}`} fill className="object-cover" />
+                                    <Button variant="destructive" size="icon" className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEvidencePhotos(prev => prev.filter((_, idx) => idx !== i))}>
+                                        <X className="h-2 w-2" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-dashed">
+                    <div className="flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
+                        <Label className="font-black uppercase text-[8px]">Respaldo Documental (Anexo III Firmado) *</Label>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {photo ? (
+                        {respaldoPhoto ? (
                             <div className="relative aspect-video rounded-lg overflow-hidden border border-muted shadow-md group">
-                                <Image src={photo} alt="Respaldo" fill className="object-cover" />
-                                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setPhoto(null)}>
+                                <Image src={respaldoPhoto} alt="Respaldo" fill className="object-cover" />
+                                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoPhoto(null)}>
                                     <Trash2 className="h-3 w-3" />
                                 </Button>
                             </div>
@@ -385,7 +440,7 @@ function InformeContent() {
                             <div className="grid grid-cols-2 gap-2">
                                 <div 
                                     className="flex flex-col items-center justify-center h-16 border border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-all bg-white"
-                                    onClick={startCamera}
+                                    onClick={() => startCamera('respaldo')}
                                 >
                                     <Camera className="h-5 w-5 text-muted-foreground mb-0.5" />
                                     <span className="font-black uppercase text-[7px] text-muted-foreground">CÁMARA</span>
@@ -393,7 +448,7 @@ function InformeContent() {
                                 <label className="flex flex-col items-center justify-center h-16 border border-dashed rounded-lg cursor-pointer hover:bg-muted transition-all bg-white text-muted-foreground">
                                     <ImageIcon className="h-5 w-5 mb-0.5" />
                                     <span className="font-black uppercase text-[7px] text-muted-foreground">GALERÍA / PDF</span>
-                                    <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileUpload} />
+                                    <Input type="file" accept="image/*,.pdf" className="hidden" onChange={e => handleFileUpload(e, 'respaldo')} />
                                 </label>
                             </div>
                         )}
@@ -419,7 +474,7 @@ function InformeContent() {
                         "w-full h-12 font-black uppercase text-xs tracking-widest shadow-lg transition-all",
                         submitSuccess ? "bg-green-600 hover:bg-green-600" : "bg-black hover:bg-black/90"
                     )} 
-                    disabled={isSubmitting || !photo || markedCells.size === 0 || submitSuccess}
+                    disabled={isSubmitting || !respaldoPhoto || markedCells.size === 0 || submitSuccess}
                 >
                   {isSubmitting ? (
                     submitSuccess ? <span className="animate-in zoom-in duration-300">¡ENVIADO CORRECTAMENTE!</span> : <Loader2 className="animate-spin mr-2 h-4 w-4" />
