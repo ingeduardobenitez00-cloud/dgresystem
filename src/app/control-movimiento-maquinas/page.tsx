@@ -470,15 +470,15 @@ export default function ControlMovimientoMaquinasPage() {
         if (index > 0) doc.addPage();
 
         // HEADER COMPACTO
-        doc.addImage(logoBase64, 'PNG', margin, 10, 15, 15);
-        doc.addImage(logoDGREBase64, 'PNG', pageWidth - margin - 35, 10, 35, 15);
+        doc.addImage(logoBase64, 'PNG', margin, 8, 15, 15);
+        doc.addImage(logoDGREBase64, 'PNG', pageWidth - margin - 35, 8, 35, 15);
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        doc.text("FORMULARIO SALIDA / DEVOLUCIÓN DE MAQUINAS DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, 30, { align: "center" });
+        doc.text("FORMULARIO SALIDA / DEVOLUCIÓN DE MAQUINAS DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, 28, { align: "center" });
 
         // SECCION A: SALIDA
-        let y = 38;
+        let y = 35;
         doc.setDrawColor(0);
         doc.setLineWidth(0.3);
         doc.circle(margin + 8, y, 4);
@@ -596,16 +596,16 @@ export default function ControlMovimientoMaquinasPage() {
             y += 10;
         }
 
-        // SIGNATURES AREA - CONDICIONAL
+        // SIGNATURES AREA - DINÁMICA SEGÚN REQUERIMIENTO
         y += 15;
         const sigH = 15;
         const sigW_Jefe = (boxWidth - 10) / 2;
         const sigW_Divul = (boxWidth - 10) / 3;
 
         if (isOnlySalida) {
-            // Solo Firmas de Entrega
+            // FIRMAS DE SALIDA (A)
             doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-            doc.text("RECEPCIÓN / ENTREGA DE EQUIPOS - SALIDA", margin + boxWidth/2, y - 2, { align: 'center' });
+            doc.text("FIRMAS DE DESPACHO (SECCIÓN A - SALIDA)", margin + boxWidth/2, y - 2, { align: 'center' });
             
             // Jefatura (Entrega)
             doc.rect(margin, y, sigW_Jefe, sigH);
@@ -613,8 +613,8 @@ export default function ControlMovimientoMaquinasPage() {
             doc.text("ENTREGA (JEFATURA): ___________________", margin + 4, y + 6);
             doc.text("ACLARACIÓN: __________________________", margin + 4, y + 11);
 
-            // Divulgadores (Reciben)
-            y += sigH + 8;
+            // Divulgadores (Reciben conforme)
+            y += sigH + 10;
             doc.setFontSize(8); doc.text("RESPONSABLES DE DIVULGACIÓN (RECIBEN CONFORME)", margin + boxWidth/2, y - 2, { align: 'center' });
             for (let i = 0; i < 3; i++) {
                 const sx = margin + (i * (sigW_Divul + 5));
@@ -624,18 +624,23 @@ export default function ControlMovimientoMaquinasPage() {
                 doc.text("ACLARACIÓN: ______________", sx + 3, y + 11);
             }
         } else {
-            // Firmas para el proceso completo (A y B)
+            // FIRMAS DE PROCESO COMPLETO (A + B)
             doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-            doc.text("FIRMAS DE RECEPCIÓN (DEVOLUCIÓN DE EQUIPOS)", margin + boxWidth/2, y - 2, { align: 'center' });
+            doc.text("MATRIZ DE FIRMAS INSTITUCIONALES (JEFATURAS)", margin + boxWidth/2, y - 2, { align: 'center' });
             
-            // Jefatura (Recibe)
+            // JEFE A (Entrega)
             doc.rect(margin, y, sigW_Jefe, sigH);
             doc.setFontSize(6);
-            doc.text("RECIBE (JEFATURA): _____________________", margin + 4, y + 6);
+            doc.text("JEFE ENTREGA (A): _____________________", margin + 4, y + 6);
             doc.text("ACLARACIÓN: __________________________", margin + 4, y + 11);
 
-            // Divulgadores (Entregan)
-            y += sigH + 8;
+            // JEFE B (Recibe)
+            doc.rect(margin + sigW_Jefe + 10, y, sigW_Jefe, sigH);
+            doc.text("JEFE RECIBE (B): _______________________", margin + sigW_Jefe + 14, y + 6);
+            doc.text("ACLARACIÓN: __________________________", margin + sigW_Jefe + 14, y + 11);
+
+            // Divulgadores (Entregan al regresar)
+            y += sigH + 10;
             doc.setFontSize(8); doc.text("RESPONSABLES DE DIVULGACIÓN (ENTREGAN EQUIPOS)", margin + boxWidth/2, y - 2, { align: 'center' });
             for (let i = 0; i < 3; i++) {
                 const sx = margin + (i * (sigW_Divul + 5));
@@ -651,7 +656,7 @@ export default function ControlMovimientoMaquinasPage() {
         doc.text("OBS: ANEXAR A ESTE FORMULARIO: ANEXO I LUGAR FIJO DE DIVULGACIÓN | ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y, { align: 'center' });
 
         doc.setFontSize(7); doc.setFont('helvetica', 'italic');
-        doc.text(`Hoja ${index + 1} de ${totalPages} | Estado: ${isOnlySalida ? 'DESPACHO (A)' : 'RECIBIDO (B)'}`, pageWidth - margin, 285, { align: 'right' });
+        doc.text(`Hoja ${index + 1} de ${totalPages} | Documento Oficial CIDEE`, pageWidth - margin, 285, { align: 'right' });
     };
 
     movimientoData.maquinas.forEach((maq, i) => drawPage(maq, i));
