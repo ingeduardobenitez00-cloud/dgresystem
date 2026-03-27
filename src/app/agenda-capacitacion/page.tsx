@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,7 +8,40 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
-import { Loader2, MapPin, Calendar, Clock, UserPlus, QrCode, Building2, LayoutList, Globe, UserCheck, Search, ChevronRight, Copy, Check, AlertTriangle, FileWarning, PackageSearch, CalendarX, Trash2, FileDown, Printer, Users, Power, PowerOff, MessageSquarePlus, MessageSquareHeart, ShieldAlert } from 'lucide-react';
+import { 
+  Loader2, 
+  MapPin, 
+  Calendar, 
+  Clock, 
+  UserPlus, 
+  QrCode, 
+  Building2, 
+  LayoutList, 
+  Globe, 
+  UserCheck, 
+  Search, 
+  ChevronRight, 
+  Copy, 
+  Check, 
+  AlertTriangle, 
+  FileWarning, 
+  PackageSearch, 
+  CalendarX, 
+  Trash2, 
+  FileDown, 
+  Printer, 
+  Users, 
+  Power, 
+  PowerOff, 
+  MessageSquarePlus, 
+  MessageSquareHeart, 
+  ShieldAlert,
+  Eye,
+  FileText,
+  User,
+  Activity,
+  ClipboardCheck
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -32,6 +66,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Separator } from '@/components/ui/separator';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -39,6 +74,7 @@ export default function AgendaCapacitacionPage() {
   const { toast } = useToast();
 
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [viewingActivity, setViewingActivity] = useState<SolicitudCapacitacion | null>(null);
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [cancellingSolicitud, setCancellingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [deletingSolicitud, setDeletingSolicitud] = useState<SolicitudCapacitacion | null>(null);
@@ -524,6 +560,9 @@ export default function AgendaCapacitacionPage() {
                                                         <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}>
                                                           <UserPlus className="h-4 w-4 mr-2" /> GESTIONAR
                                                         </Button>
+                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)}>
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
                                                         <Button variant="outline" size="icon" className={cn("h-11 w-11 rounded-xl border-2", item.qr_enabled ? "border-green-500/50 text-green-600" : "border-muted/30")} onClick={() => handleToggleQrStatus(item)}>
                                                             {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
                                                         </Button>
@@ -573,6 +612,170 @@ export default function AgendaCapacitacionPage() {
           </Accordion>
         )}
       </main>
+
+      {/* MODAL DE FICHA TÉCNICA DE ACTIVIDAD */}
+      <Dialog open={!!viewingActivity} onOpenChange={(o) => !o && setViewingActivity(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 border-none shadow-2xl overflow-hidden rounded-[2.5rem]">
+          {viewingActivity && (
+            <div className="flex flex-col h-full bg-white">
+                <div className="bg-black text-white p-8 shrink-0">
+                    <DialogHeader>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
+                                    <FileText className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-2xl font-black uppercase leading-none tracking-tight">FICHA TÉCNICA DE ACTIVIDAD</DialogTitle>
+                                    <DialogDescription className="text-white/60 font-bold uppercase text-[10px] mt-2 tracking-widest">
+                                        ID DE CONTROL: {viewingActivity.id}
+                                    </DialogDescription>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setViewingActivity(null)} className="text-white/40 hover:text-white"><X className="h-6 w-6" /></Button>
+                        </div>
+                    </DialogHeader>
+                </div>
+
+                <ScrollArea className="flex-1 p-8">
+                    <div className="space-y-10">
+                        {/* SECCIÓN 1: PLANIFICACIÓN ORIGEN */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-3">
+                                <ClipboardCheck className="h-5 w-5 text-primary" />
+                                <h3 className="font-black uppercase text-xs tracking-widest">Datos de Planificación (Anexo V)</h3>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="space-y-1 p-4 bg-muted/20 rounded-2xl border">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase">Solicitante</p>
+                                    <p className="text-xs font-black uppercase">{viewingActivity.solicitante_entidad || viewingActivity.otra_entidad}</p>
+                                </div>
+                                <div className="space-y-1 p-4 bg-muted/20 rounded-2xl border">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase">Fecha Programada</p>
+                                    <p className="text-xs font-black uppercase">{formatDateToDDMMYYYY(viewingActivity.fecha)}</p>
+                                </div>
+                                <div className="space-y-1 p-4 bg-muted/20 rounded-2xl border">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase">Horario Pactado</p>
+                                    <p className="text-xs font-black uppercase">{viewingActivity.hora_desde} A {viewingActivity.hora_hasta} HS</p>
+                                </div>
+                                <div className="md:col-span-2 space-y-1 p-4 bg-muted/20 rounded-2xl border">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase">Lugar / Local</p>
+                                    <p className="text-xs font-black uppercase">{viewingActivity.lugar_local}</p>
+                                </div>
+                                <div className="space-y-1 p-4 bg-muted/20 rounded-2xl border">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase">Tipo Solicitud</p>
+                                    <Badge variant="secondary" className="bg-black text-white text-[8px] font-black uppercase">{viewingActivity.tipo_solicitud}</Badge>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Separator className="border-dashed" />
+
+                        {/* SECCIÓN 2: ESTADO LOGÍSTICO */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-3">
+                                <Activity className="h-5 w-5 text-primary" />
+                                <h3 className="font-black uppercase text-xs tracking-widest">Trazabilidad Logística</h3>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {(() => {
+                                    const mov = movimientosData?.find(m => m.solicitud_id === viewingActivity.id);
+                                    const inf = informesData?.find(i => i.solicitud_id === viewingActivity.id);
+                                    
+                                    return (
+                                        <>
+                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                                                    <Check className="h-4 w-4" />
+                                                </div>
+                                                <p className="text-[9px] font-black uppercase">SALIDA MV (F01)</p>
+                                                <span className="text-[8px] font-bold">{mov ? "COMPLETADO" : "PENDIENTE"}</span>
+                                            </div>
+                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov?.fecha_devolucion ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov?.fecha_devolucion ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                                                    <Check className="h-4 w-4" />
+                                                </div>
+                                                <p className="text-[9px] font-black uppercase">RETORNO MV (F02)</p>
+                                                <span className="text-[8px] font-bold">{mov?.fecha_devolucion ? "COMPLETADO" : "PENDIENTE"}</span>
+                                            </div>
+                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", inf ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", inf ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                                                    <Check className="h-4 w-4" />
+                                                </div>
+                                                <p className="text-[9px] font-black uppercase">INFORME (ANEXO III)</p>
+                                                <span className="text-[8px] font-bold">{inf ? "CUMPLIDO" : "PENDIENTE"}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+
+                        <Separator className="border-dashed" />
+
+                        {/* SECCIÓN 3: PERSONAL */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-3">
+                                <Users className="h-5 w-5 text-primary" />
+                                <h3 className="font-black uppercase text-xs tracking-widest">Personal Operativo Responsable</h3>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {(viewingActivity.divulgadores || viewingActivity.asignados || []).length === 0 ? (
+                                    <div className="col-span-full py-8 text-center border-2 border-dashed rounded-2xl opacity-30">
+                                        <p className="text-[10px] font-black uppercase">No hay personal asignado a esta actividad</p>
+                                    </div>
+                                ) : (
+                                    (viewingActivity.divulgadores || viewingActivity.asignados).map(d => (
+                                        <div key={d.id} className="p-4 bg-white border-2 rounded-2xl flex items-center gap-4 shadow-sm">
+                                            <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center">
+                                                <User className="h-5 w-5 text-primary opacity-40" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-black uppercase leading-none mb-1">{d.nombre}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[9px] font-bold text-muted-foreground">C.I. {d.cedula}</span>
+                                                    <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/10 h-4">{d.vinculo}</Badge>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* SECCIÓN 4: RESULTADOS SI EXISTE INFORME */}
+                        {(() => {
+                            const inf = informesData?.find(i => i.solicitud_id === viewingActivity.id);
+                            if (!inf) return null;
+                            return (
+                                <div className="space-y-6 pt-4">
+                                    <Separator className="border-dashed" />
+                                    <div className="flex items-center gap-3">
+                                        <UserCheck className="h-5 w-5 text-[#16A34A]" />
+                                        <h3 className="font-black uppercase text-xs tracking-widest">Resultados de Capacitación</h3>
+                                    </div>
+                                    <Card className="bg-black text-white p-8 rounded-3xl flex items-center justify-between shadow-2xl">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase opacity-60 tracking-[0.2em] mb-1">TOTAL CIUDADANOS CAPACITADOS</p>
+                                            <p className="text-4xl font-black">{inf.total_personas}</p>
+                                        </div>
+                                        <div className="h-16 w-16 rounded-full border-4 border-white/20 flex items-center justify-center">
+                                            <CheckCircle2 className="h-8 w-8 text-white" />
+                                        </div>
+                                    </Card>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </ScrollArea>
+
+                <div className="p-8 bg-white border-t flex justify-end">
+                    <Button onClick={() => setViewingActivity(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl bg-black hover:bg-black/90 rounded-xl">Cerrar Ficha</Button>
+                </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!assigningSolicitud} onOpenChange={(o) => !o && setAssigningSolicitud(null)}>
         <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden [&>button]:text-white [&>button]:opacity-100">
