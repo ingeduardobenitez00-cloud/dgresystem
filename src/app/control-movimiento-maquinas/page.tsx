@@ -501,7 +501,7 @@ export default function ControlMovimientoMaquinasPage() {
             doc.setFontSize(7); doc.setFont('helvetica', 'bold');
             doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 5, { align: 'center', maxWidth: cardW - 4 });
             doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-            doc.text(`C.I. {resp.cedula}`, cx + 4, y + 11);
+            doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 11);
             doc.text(resp.vinculo.toUpperCase(), cx + cardW - 4, y + 11, { align: 'right' });
         }
     }
@@ -815,7 +815,14 @@ export default function ControlMovimientoMaquinasPage() {
                             <Label className="font-black uppercase text-xs flex items-center gap-2"><FileText className="h-4 w-4" /> Respaldo F01 (Firma Jefatura) *</Label>
                             {salidaFoto ? (
                                 <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-white shadow-xl group">
-                                    <Image src={salidaFoto} alt="F01" fill className="object-cover" />
+                                    {salidaFoto.startsWith('data:application/pdf') ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                            <FileText className="h-12 w-12 text-primary opacity-40 mb-2" />
+                                            <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF</p>
+                                        </div>
+                                    ) : (
+                                        <Image src={salidaFoto} alt="F01" fill className="object-cover" />
+                                    )}
                                     <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setSalidaFoto(null)}><Trash2 className="h-4 w-4" /></Button>
                                 </div>
                             ) : (
@@ -823,7 +830,7 @@ export default function ControlMovimientoMaquinasPage() {
                                     <Button variant="outline" className="h-24 flex-col border-dashed rounded-xl gap-2 hover:bg-white transition-all" onClick={() => startCamera('salida')}><Camera className="h-6 w-6 opacity-40" /> <span className="text-[8px] font-black uppercase">CÁMARA</span></Button>
                                     <label className="h-24 flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-2 cursor-pointer hover:bg-white transition-all">
                                         <FileUp className="h-6 w-6 opacity-40" /> <span className="text-[8px] font-black uppercase">SUBIR</span>
-                                        <Input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'salida')} />
+                                        <Input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileUpload(e, 'salida')} />
                                     </label>
                                 </div>
                             )}
@@ -901,7 +908,14 @@ export default function ControlMovimientoMaquinasPage() {
                     <Label className="font-black uppercase text-xs flex items-center gap-2"><FileText className="h-4 w-4" /> Respaldo F02 (Recibido conforme) *</Label>
                     {devolucionFoto ? (
                         <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-white shadow-xl group">
-                            <Image src={devolucionFoto} alt="F02" fill className="object-cover" />
+                            {devolucionFoto.startsWith('data:application/pdf') ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                    <FileText className="h-12 w-12 text-primary opacity-40 mb-2" />
+                                    <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF</p>
+                                </div>
+                            ) : (
+                                <Image src={devolucionFoto} alt="F02" fill className="object-cover" />
+                            )}
                             <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setDevolucionFoto(null)}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                     ) : (
@@ -909,7 +923,7 @@ export default function ControlMovimientoMaquinasPage() {
                             <Button variant="outline" className="h-24 flex-col border-dashed rounded-xl gap-2 hover:bg-white transition-all" onClick={() => startCamera('devolucion')}><Camera className="h-6 w-6 opacity-40" /> <span className="text-[8px] font-black uppercase">CÁMARA</span></Button>
                             <label className="h-24 flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-2 cursor-pointer hover:bg-white transition-all">
                                 <FileUp className="h-6 w-6 opacity-40" /> <span className="text-[8px] font-black uppercase">SUBIR</span>
-                                <Input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'devolucion')} />
+                                <Input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileUpload(e, 'devolucion')} />
                             </label>
                         </div>
                     )}
@@ -983,7 +997,14 @@ export default function ControlMovimientoMaquinasPage() {
                                 <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2"><FileText className="h-4 w-4" /> Formulario de Denuncia Firmado *</Label>
                                 {denunciaRespaldo ? (
                                     <div className="relative aspect-video rounded-2xl overflow-hidden border-4 border-white shadow-xl group">
-                                        <Image src={denunciaRespaldo} alt="Respaldo Denuncia" fill className="object-cover" />
+                                        {denunciaRespaldo.startsWith('data:application/pdf') ? (
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                                <FileText className="h-12 w-12 text-primary opacity-40 mb-2" />
+                                                <p className="text-[10px] font-black uppercase text-primary/60">Documento PDF</p>
+                                            </div>
+                                        ) : (
+                                            <Image src={denunciaRespaldo} alt="Respaldo Denuncia" fill className="object-cover" />
+                                        )}
                                         <Button variant="destructive" size="icon" className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" onClick={() => setDenunciaRespaldo(null)}><Trash2 className="h-4 w-4" /></Button>
                                     </div>
                                 ) : (
@@ -991,7 +1012,7 @@ export default function ControlMovimientoMaquinasPage() {
                                         <Button variant="outline" className="h-32 flex-col border-dashed rounded-xl gap-2 hover:bg-muted/10 transition-all" onClick={() => startCamera('denuncia_respaldo')}><Camera className="h-8 w-8 opacity-40" /> <span className="text-[8px] font-black uppercase">CÁMARA</span></Button>
                                         <label className="h-32 flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-2 cursor-pointer hover:bg-muted/10 transition-all">
                                             <FileUp className="h-8 w-8 opacity-40" /> <span className="text-[8px] font-black uppercase">SUBIR</span>
-                                            <Input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'denuncia_respaldo')} />
+                                            <Input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileUpload(e, 'denuncia_respaldo')} />
                                         </label>
                                     </div>
                                 )}
