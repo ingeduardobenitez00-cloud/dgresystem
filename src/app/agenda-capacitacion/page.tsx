@@ -40,7 +40,9 @@ import {
   FileText,
   User,
   Activity,
-  ClipboardCheck
+  ClipboardCheck,
+  X,
+  CheckCircle2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
