@@ -22,22 +22,26 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { recordAuditLog } from '@/lib/audit';
 
 function DenunciaContent() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const agendaId = searchParams.get('solicitudId');
+  const solicitudIdFromUrl = searchParams.get('solicitudId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [denunciaFotos, setDenunciaFotos] = useState<string[]>([]);
   const [respaldoFoto, setRespaldoPhoto] = useState<string | null>(null);
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(agendaId);
+  
+  const [logoTSJE, setLogoTSJE] = useState<string | null>(null);
+  const [logoCIDEE, setLogoCIDEE] = useState<string | null>(null);
+  const [logoDGRE, setLogoDGRE] = useState<string | null>(null);
+
+  const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(solicitudIdFromUrl);
   const [reportedMaquinas, setReportedMaquinas] = useState<string[]>([]);
   
-  // Camera States
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [activeCameraTarget, setActiveCameraTarget] = useState<'evidencia' | 'respaldo' | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,18 +61,29 @@ function DenunciaContent() {
       hora_denuncia: now.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false })
     }));
 
-    const fetchLogo = async () => {
+    const fetchLogos = async () => {
       try {
-        const response = await fetch('/logo.png');
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = () => setLogoBase64(reader.result as string);
-        reader.readAsDataURL(blob);
+        const [r1, r2, r3] = await Promise.all([
+          fetch('/logo.png'),
+          fetch('/logo1.png'),
+          fetch('/logo3.png')
+        ]);
+        const [b1, b2, b3] = await Promise.all([r1.blob(), r2.blob(), r3.blob()]);
+        
+        const read = (b: Blob): Promise<string> => new Promise(res => {
+          const reader = new FileReader();
+          reader.onloadend = () => res(reader.result as string);
+          reader.readAsDataURL(b);
+        });
+
+        setLogoTSJE(await read(b1));
+        setLogoCIDEE(await read(b2));
+        setLogoDGRE(await read(b3));
       } catch (error) {
-        console.error("Error fetching logo:", error);
+        console.error("Error fetching logos:", error);
       }
     };
-    fetchLogo();
+    fetchLogos();
   }, []);
 
   const compressImage = (file: File): Promise<string> => {
@@ -99,7 +114,6 @@ function DenunciaContent() {
     });
   };
 
-  // Cargar Movimientos y Denuncias para filtrado
   const movsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
   const { data: allMovimientos } = useCollection<MovimientoMaquina>(movsQuery);
 
@@ -110,8 +124,8 @@ function DenunciaContent() {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const profile = user.profile;
-    
     const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    
     if (isAdminGlobal) return colRef;
     if (profile.departamento && profile.distrito) {
         return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
@@ -123,19 +137,12 @@ function DenunciaContent() {
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems || !allMovimientos || !allDenuncias) return [];
-    
-    // Filtrar solo actividades que tienen una irregularidad reportada en el retorno y NO tienen denuncia oficial aún
     return [...rawAgendaItems].filter(item => {
         if (item.cancelada) return false;
-        
         const mov = allMovimientos.find(m => m.solicitud_id === item.id);
         const den = allDenuncias.find(d => d.solicitud_id === item.id);
-        
         if (!mov || !mov.fecha_devolucion) return false;
-        
         const hasTampering = mov.maquinas.some(m => m.lacre_estado === 'violentado');
-        
-        // Mostrar solo si hubo adulteración y NO hay denuncia registrada
         return hasTampering && !den;
     }).sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [rawAgendaItems, allMovimientos, allDenuncias]);
@@ -154,7 +161,6 @@ function DenunciaContent() {
   }, [currentMov]);
 
   useEffect(() => {
-    // Al seleccionar una actividad, auto-seleccionar todas las máquinas violentadas por defecto
     if (tamperedMaquinas.length > 0) {
         setReportedMaquinas(tamperedMaquinas.map(m => m.codigo));
     } else {
@@ -200,14 +206,11 @@ function DenunciaContent() {
   const takePhoto = () => {
     if (videoRef.current && activeCameraTarget) {
       const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 1200;
-      const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
-      canvas.width = videoRef.current.videoWidth * scaleSize;
-      canvas.height = videoRef.current.videoHeight * scaleSize;
-      
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(videoRef.current, 0, 0);
         const dataUri = canvas.toDataURL('image/jpeg', 0.7);
         if (activeCameraTarget === 'evidencia') {
             setDenunciaFotos(prev => [...prev, dataUri].slice(0, 5));
@@ -275,14 +278,23 @@ function DenunciaContent() {
       foto_respaldo_documental: respaldoFoto,
       usuario_id: user.uid,
       username: user.profile?.username || '',
-      divulgador_nombre: selectedSolicitud.divulgador_nombre || '',
-      divulgador_cedula: selectedSolicitud.divulgador_cedula || '',
+      divulgadores: selectedSolicitud.divulgadores || selectedSolicitud.asignados || [],
       fecha_creacion: new Date().toISOString(),
       server_timestamp: serverTimestamp(),
     };
 
     addDoc(collection(firestore, 'denuncias-lacres'), docData)
-      .then(() => {
+      .then((docRef) => {
+        recordAuditLog(firestore, {
+            usuario_id: user.uid,
+            usuario_nombre: user.profile?.username || user.email || 'Usuario',
+            usuario_rol: user.profile?.role || 'funcionario',
+            accion: 'CREAR',
+            modulo: 'denuncia-lacres',
+            documento_id: docRef.id,
+            detalles: `Denuncia oficial de lacres para ${selectedSolicitud.lugar_local} (${reportedMaquinas.join(', ')})`
+        });
+
         toast({ title: "¡Denuncia Oficial Registrada!" });
         setFormData(p => ({ ...p, detalles: '' }));
         setDenunciaFotos([]);
@@ -301,45 +313,113 @@ function DenunciaContent() {
   };
 
   const generatePDF = () => {
-    if (!logoBase64 || !selectedSolicitud) return;
+    if (!logoTSJE || !logoCIDEE || !logoDGRE || !selectedSolicitud) return;
     const doc = new jsPDF();
-    const margin = 20;
+    const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
 
-    doc.addImage(logoBase64, 'PNG', margin, 5, 20, 20);
-    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-    doc.text("FORMULARIO DE DENUNCIA DE ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, 35, { align: "center" });
+    // HEADER LOGOS
+    doc.addImage(logoTSJE, 'PNG', margin, 10, 20, 20);
+    doc.addImage(logoCIDEE, 'PNG', pageWidth/2 - 12, 10, 24, 20);
+    doc.addImage(logoDGRE, 'PNG', pageWidth - margin - 35, 10, 35, 20);
 
-    const boxY = 40;
-    const boxH = 230;
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(margin - 5, boxY, pageWidth - (margin * 2) + 10, boxH, 5, 5);
+    // TITLE
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+    doc.text("FORMULARIO DE DENUNCIA DE ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, 40, { align: "center" });
 
-    let y = boxY + 10;
-    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-    doc.text("ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, y, { align: 'center' });
+    // MAIN ROUNDED BORDER
+    doc.setDrawColor(0); doc.setLineWidth(0.3);
+    doc.roundedRect(margin, 45, pageWidth - (margin * 2), pageHeight - 60, 10, 10);
 
-    y += 15; doc.setFontSize(10); doc.text("Señores Directores - DGRE / Logística / RR.EE.", margin, y);
-    y += 15; doc.setFont('helvetica', 'normal');
-    const intro = `Los Jefes del Registro Electoral de ${selectedSolicitud.distrito.toUpperCase()}, informan la manipulación de la máquina de votación (adulteración de lacres) en las siguientes unidades: ${reportedMaquinas.join(", ")}.`;
-    const splitIntro = doc.splitTextToSize(intro, pageWidth - (margin * 2));
-    doc.text(splitIntro, margin, y);
+    // SUBTITLE BOX
+    doc.setFontSize(11);
+    doc.text("ADULTERACIÓN DE LOS LACRES DE SEGURIDAD", pageWidth / 2, 55, { align: 'center' });
+    doc.setLineWidth(0.5); doc.line(pageWidth/2 - 50, 57, pageWidth/2 + 50, 57);
 
-    y += 20; doc.setFont('helvetica', 'bold');
-    const todayParts = formData.fecha_denuncia.split('-');
-    doc.text(`FECHA ${todayParts[2]} / ${todayParts[1]} / 2026`, pageWidth - margin - 10, y, { align: 'right' });
+    let y = 70;
+    doc.setFontSize(9);
+    const directors = [
+        "Señores:",
+        "Lic. Benjamín Díaz, Director",
+        "Director Gral. del Registro Electoral",
+        "Ing. Adalberto Morinigo, Vicedirector",
+        "Vicedirector del Registro Electoral",
+        "Abg. Francisco Olmedo, Director",
+        "Dirección de Recursos Electorales",
+        "Abg. Victorina Fretes, Directora",
+        "Dirección de Logística"
+    ];
 
-    y += 10; doc.setFontSize(9); doc.text("RESPONSABLE: " + (selectedSolicitud.divulgador_nombre || '').toUpperCase(), margin, y);
-    y += 15; doc.text("DETALLES DEL DESLACRE:", margin, y);
-    y += 5; doc.setFont('helvetica', 'normal');
-    const splitDetalles = doc.splitTextToSize(formData.detalles.toUpperCase(), pageWidth - (margin * 2) - 10);
-    doc.text(splitDetalles, margin, y);
+    directors.forEach((line, i) => {
+        if(i === 0) doc.setFont('helvetica', 'bold');
+        else doc.setFont('helvetica', i % 2 === 0 ? 'normal' : 'bold');
+        doc.text(line, margin + 10, y);
+        y += 5;
+    });
 
-    y = 240; doc.line(margin + 10, y, margin + 70, y); doc.text("FIRMA JEFE", margin + 25, y + 5);
-    doc.line(pageWidth - margin - 70, y, pageWidth - margin - 10, y); doc.text("FIRMA JEFE", pageWidth - margin - 55, y + 5);
+    y += 5; doc.setFont('helvetica', 'bold'); doc.text("Presente", margin + 10, y);
+    doc.setLineWidth(0.2); doc.line(margin + 10, y + 1, margin + 25, y + 1);
 
-    doc.save(`Denuncia-Lacre-${Date.now()}.pdf`);
+    y += 12; doc.setFont('helvetica', 'normal');
+    const intro = `Los Jefes / Encargados del Registro Electoral de ${selectedSolicitud.distrito.toUpperCase()}, del departamento de ${selectedSolicitud.departamento.toUpperCase()}, se dirigen a Uds, y a donde corresponda, a fin de informar la manipulación de la máquina de votación (adulteración de los 3 (tres) lacres), con los datos que a continuación se detalla:`;
+    const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2) - 20);
+    doc.text(introLines, margin + 10, y);
+
+    y += (introLines.length * 5) + 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FECHA ${formatDateToDDMMYYYY(formData.fecha_denuncia).replace(/-/g, ' / ')}`, pageWidth - margin - 10, y, { align: 'right' });
+
+    y += 10;
+    doc.text("NOMBRE Y APELLIDO DEL JEFE/ENCARGADO RESPONSABLE", margin + 10, y);
+
+    y += 5;
+    const responsibles = selectedSolicitud.divulgadores || selectedSolicitud.asignados || [];
+    const cardW = (pageWidth - (margin * 2) - 30) / 3;
+    const cardH = 15;
+    for(let i = 0; i < 3; i++) {
+        const rx = margin + 10 + (i * (cardW + 5));
+        doc.setDrawColor(200); doc.roundedRect(rx, y, cardW, cardH, 3, 3);
+        const resp = responsibles[i];
+        if(resp) {
+            doc.setFontSize(6); doc.setFont('helvetica', 'bold');
+            doc.text(resp.nombre.toUpperCase(), rx + 2, y + 6, { maxWidth: cardW - 4 });
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(5);
+            doc.text(`C.I. ${resp.cedula}`, rx + 2, y + 12);
+            doc.text(resp.vinculo.toUpperCase(), rx + cardW - 2, y + 12, { align: 'right' });
+        }
+    }
+
+    y += cardH + 10;
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    
+    // SERIES BLOCKS
+    for(let i = 0; i < 3; i++) {
+        doc.text("NÚMERO DE SERIE DE LA MÁQUINA DE VOTACIÓN", margin + 10, y + 4);
+        doc.setDrawColor(0); doc.roundedRect(pageWidth - margin - 70, y, 60, 7, 3.5, 3.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(reportedMaquinas[i] || '', pageWidth - margin - 40, y + 4.5, { align: 'center' });
+        y += 10;
+    }
+
+    y += 5; doc.setFont('helvetica', 'bold');
+    doc.text("MOTIVO DEL DESLACRE (FORMULARIO DE DENUNCIA DE ADULTERACIÓN DEL LACRE DE SEGURIDAD)", margin + 10, y);
+    y += 5;
+    doc.roundedRect(margin + 10, y, pageWidth - (margin * 2) - 20, 8, 4, 4);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text(formData.detalles.toUpperCase(), margin + 15, y + 5, { maxWidth: pageWidth - (margin * 2) - 30 });
+
+    y = pageHeight - 35;
+    doc.setLineWidth(0.3);
+    doc.line(margin + 20, y, margin + 80, y);
+    doc.line(pageWidth - margin - 80, y, pageWidth - margin - 20, y);
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text("FIRMA JEFE", margin + 50, y + 5, { align: 'center' });
+    doc.text("ACLARACIÓN:", margin + 50, y + 9, { align: 'center' });
+    doc.text("FIRMA JEFE", pageWidth - margin - 50, y + 5, { align: 'center' });
+    doc.text("ACLARACIÓN:", pageWidth - margin - 50, y + 9, { align: 'center' });
+
+    doc.save(`Denuncia-Lacres-${selectedSolicitud.distrito}.pdf`);
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -396,7 +476,6 @@ function DenunciaContent() {
             {selectedSolicitud && (
                 <div className="space-y-10 animate-in fade-in duration-500">
                     
-                    {/* SECCIÓN DE SELECCIÓN DE MÁQUINAS */}
                     <div className="p-8 border-2 border-destructive/20 rounded-[2rem] bg-destructive/[0.02] space-y-6">
                         <Label className="text-[11px] font-black uppercase text-destructive tracking-widest flex items-center gap-3">
                             <Cpu className="h-5 w-5" /> IDENTIFICACIÓN DE EQUIPOS VIOLENTADOS *
@@ -421,7 +500,6 @@ function DenunciaContent() {
                                 </div>
                             ))}
                         </div>
-                        <p className="text-[9px] font-bold text-destructive/60 uppercase italic">* Marque los códigos de máquina que desea incluir en este reporte de denuncia.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -430,7 +508,7 @@ function DenunciaContent() {
                             name="detalles"
                             value={formData.detalles} 
                             onChange={handleInputChange}
-                            placeholder="Describa el estado de los lacres al momento de la recepción. Ejemplo: Lacre lateral nro 123456 cortado..."
+                            placeholder="Describa el estado de los lacres al momento de la recepción..."
                             className="min-h-[120px] font-bold border-2 rounded-2xl uppercase p-6 shadow-inner"
                         />
                     </div>
@@ -474,7 +552,7 @@ function DenunciaContent() {
                                     {respaldoFoto.startsWith('data:application/pdf') ? (
                                         <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
                                             <FileText className="h-12 w-12 text-primary opacity-40 mb-2" />
-                                            <p className="text-[9px] font-black uppercase">PDF Cargado</p>
+                                            <p className="text-[9px] font-black uppercase text-primary/60">Documento PDF</p>
                                         </div>
                                     ) : (
                                         <Image src={respaldoFoto} alt="Respaldo" fill className="object-cover" />
@@ -502,7 +580,7 @@ function DenunciaContent() {
             )}
           </CardContent>
           <CardFooter className="bg-black p-0 overflow-hidden">
-            <Button onClick={handleSubmit} disabled={isSubmitting || !selectedAgendaId || reportedMaquinas.length === 0} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-destructive hover:bg-destructive/90 rounded-none tracking-widest">
+            <Button onClick={handleSubmit} disabled={isSubmitting || !selectedAgendaId || reportedMaquinas.length === 0} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-destructive hover:bg-destructive/90 rounded-none tracking-widest text-white shadow-2xl">
               {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <ShieldAlert className="mr-3 h-6 w-6" />}
               REGISTRAR DENUNCIA OFICIAL
             </Button>
