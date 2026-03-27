@@ -29,7 +29,8 @@ import {
   CheckCircle2,
   PackageCheck,
   Power,
-  PowerOff
+  PowerOff,
+  AlertTriangle
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -306,7 +307,7 @@ export default function ControlMovimientoMaquinasPage() {
     if (target === 'salida' || target === 'devolucion' || target === 'denuncia_respaldo') {
       const file = files[0];
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const result = reader.result as string;
         if (target === 'salida') setSalidaFoto(result);
         else if (target === 'devolucion') setDevolucionFoto(result);
@@ -501,7 +502,7 @@ export default function ControlMovimientoMaquinasPage() {
             doc.setFontSize(7); doc.setFont('helvetica', 'bold');
             doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 5, { align: 'center', maxWidth: cardW - 4 });
             doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-            doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 11);
+            doc.text(`C.I. {resp.cedula}`, cx + 4, y + 11);
             doc.text(resp.vinculo.toUpperCase(), cx + cardW - 4, y + 11, { align: 'right' });
         }
     }
@@ -928,6 +929,15 @@ export default function ControlMovimientoMaquinasPage() {
                         </div>
                     )}
                 </div>
+
+                {movimientoData.maquinas.some(m => !m.lacre_estado) && (
+                    <div className="p-4 bg-amber-50 border-2 border-dashed border-amber-200 rounded-xl flex items-center gap-3 animate-pulse">
+                        <AlertTriangle className="h-5 w-5 text-amber-600" />
+                        <p className="text-[10px] font-black uppercase text-amber-700 leading-tight">
+                            Asegúrese de marcar el estado del lacre (Correcto o Violentado) en TODOS los equipos para habilitar el botón de recepción.
+                        </p>
+                    </div>
+                )}
               </CardContent>
               <CardFooter className="p-0 border-t">
                 <Button onClick={handleSaveDevolucion} disabled={isSubmitting || !devolucionFoto || movimientoData.maquinas.some(m => !m.lacre_estado)} className="w-full h-20 text-xl font-black uppercase bg-primary hover:bg-primary/90 rounded-none tracking-widest">
