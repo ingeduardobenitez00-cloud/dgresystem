@@ -464,6 +464,7 @@ export default function ControlMovimientoMaquinasPage() {
     const boxWidth = pageWidth - (margin * 2);
     const responsibles = selectedSolicitud.divulgadores || selectedSolicitud.asignados || [];
     const totalPages = movimientoData.maquinas.length;
+    const isOnlySalida = !currentMovimiento;
 
     const drawPage = (maq: MaquinaMovimiento, index: number) => {
         if (index > 0) doc.addPage();
@@ -493,7 +494,7 @@ export default function ControlMovimientoMaquinasPage() {
 
         y += 4;
         const cardW = (boxWidth - 10) / 3;
-        const cardH = 14;
+        const cardH = 12;
         for (let i = 0; i < 3; i++) {
             const cx = margin + (i * (cardW + 5));
             const resp = responsibles[i];
@@ -502,10 +503,10 @@ export default function ControlMovimientoMaquinasPage() {
             doc.roundedRect(cx, y, cardW, cardH, 2, 2, 'D');
             if (resp) {
                 doc.setFontSize(7); doc.setFont('helvetica', 'bold');
-                doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 5, { align: 'center' });
+                doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 4.5, { align: 'center' });
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-                doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 10);
-                doc.text(resp.vinculo.toUpperCase(), cx + cardW - 12, y + 10, { align: 'center' });
+                doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 9);
+                doc.text(resp.vinculo.toUpperCase(), cx + cardW - 12, y + 9, { align: 'center' });
             }
         }
 
@@ -518,119 +519,143 @@ export default function ControlMovimientoMaquinasPage() {
         doc.setFont('helvetica', 'bold');
         doc.text(`FECHA SALIDA: ${formatDateToDDMMYYYY(movimientoData.fecha_salida)}`, pageWidth - margin, y, { align: 'right' });
 
-        y += 10;
+        y += 8;
         doc.text("IDENTIFICACIÓN DEL EQUIPO", margin, y);
-        y += 3;
-        doc.roundedRect(margin, y, 70, 7, 3, 3);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`SERIE: ${maq.codigo || ''}`, margin + 4, y + 4.5);
+        y += 2;
+        doc.setDrawColor(200);
+        doc.roundedRect(margin, y, boxWidth, 18, 4, 4);
         
-        doc.setFont('helvetica', 'bold');
-        doc.text("LUGAR:", margin + 75, y + 4.5);
-        doc.roundedRect(margin + 88, y, boxWidth - 88, 7, 3, 3);
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+        doc.text(`SERIE:`, margin + 5, y + 6);
+        doc.roundedRect(margin + 15, y + 2, 40, 6, 3, 3);
         doc.setFont('helvetica', 'normal');
-        doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 92, y + 4.5);
+        doc.text(maq.codigo || '', margin + 18, y + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(`LUGAR:`, margin + 65, y + 6);
+        doc.roundedRect(margin + 78, y + 2, boxWidth - 83, 6, 3, 3);
+        doc.setFont('helvetica', 'normal');
+        doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 82, y + 6);
 
         // KITS SALIDA COMPACTO
-        y += 12;
-        doc.setDrawColor(200); doc.roundedRect(margin, y, boxWidth, 10, 3, 3);
+        y += 10;
         const kitLabels = ["CREDENCIAL", "AURICULAR", "ACRILICO", "BOLETAS"];
         const kitVals = [maq.credencial, maq.auricular, maq.acrilico, maq.boletas];
         kitLabels.forEach((lbl, i) => {
             const kx = margin + 10 + (i * 45);
-            doc.setDrawColor(0); doc.rect(kx, y + 3, 4, 4);
-            if (kitVals[i]) doc.text("X", kx + 1, y + 6.5);
-            doc.setFontSize(7); doc.text(lbl, kx + 6, y + 6);
+            doc.setDrawColor(0); doc.rect(kx, y, 4, 4);
+            if (kitVals[i]) doc.text("X", kx + 1, y + 3.5);
+            doc.setFontSize(7); doc.text(lbl, kx + 6, y + 3);
         });
 
-        // SECCION B: DEVOLUCION COMPACTO
-        y += 20;
-        doc.setDrawColor(0); doc.setLineWidth(0.3);
-        doc.circle(margin + 8, y, 4);
-        doc.setFontSize(10);
-        doc.text("B", margin + 8, y + 1, { align: 'center' });
-        doc.setFontSize(9);
-        doc.text("DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, y + 1, { align: 'center' });
+        if (!isOnlySalida) {
+            // SECCION B: DEVOLUCION COMPACTO
+            y += 15;
+            doc.setDrawColor(0); doc.setLineWidth(0.3);
+            doc.circle(margin + 8, y, 4);
+            doc.setFontSize(10); doc.text("B", margin + 8, y + 1, { align: 'center' });
+            doc.setFontSize(9); doc.text("DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, y + 1, { align: 'center' });
 
-        y += 10;
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-        doc.text(`HORA REGRESO:`, margin, y);
-        doc.roundedRect(margin + 25, y - 4, 20, 6, 3, 3);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${movimientoData.hora_devolucion || '__:__'} HS`, margin + 35, y - 0.5, { align: 'center' });
-        doc.setFont('helvetica', 'bold');
-        doc.text(`FECHA REGRESO: ${movimientoData.fecha_devolucion ? formatDateToDDMMYYYY(movimientoData.fecha_devolucion) : '__/__/____'}`, pageWidth - margin, y, { align: 'right' });
+            y += 8;
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+            doc.text(`HORA REGRESO:`, margin, y);
+            doc.roundedRect(margin + 25, y - 4, 20, 6, 3, 3);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${movimientoData.hora_devolucion || '__:__'} HS`, margin + 35, y - 0.5, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+            doc.text(`FECHA REGRESO: ${movimientoData.fecha_devolucion ? formatDateToDDMMYYYY(movimientoData.fecha_devolucion) : '__/__/____'}`, pageWidth - margin, y, { align: 'right' });
 
-        // LACRE STATUS BOX COMPACTO
-        y += 8;
-        doc.setDrawColor(0); doc.setLineWidth(0.2);
-        doc.roundedRect(margin, y, 90, 18, 4, 4);
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-        doc.text("ESTADO DE LOS LACRES A LA DEVOLUCIÓN", margin + 10, y + 6);
-        
-        const isCorrecto = maq.lacre_estado === 'correcto';
-        doc.circle(margin + 15, y + 12, 2);
-        if (isCorrecto) { doc.setFillColor(0); doc.circle(margin + 15, y + 12, 1.2, 'F'); }
-        doc.setFontSize(7); doc.text("CORRECTO", margin + 20, y + 13);
+            // LACRE STATUS BOX COMPACTO
+            y += 6;
+            doc.setDrawColor(0); doc.setLineWidth(0.2);
+            doc.roundedRect(margin, y, 90, 15, 4, 4);
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+            doc.text("ESTADO DE LOS LACRES A LA DEVOLUCIÓN", margin + 10, y + 5);
+            
+            const isCorrecto = maq.lacre_estado === 'correcto';
+            doc.circle(margin + 15, y + 10, 2);
+            if (isCorrecto) { doc.setFillColor(0); doc.circle(margin + 15, y + 10, 1.2, 'F'); }
+            doc.setFontSize(7); doc.text("CORRECTO", margin + 20, y + 11);
 
-        const isViolentado = maq.lacre_estado === 'violentado';
-        doc.circle(margin + 50, y + 12, 2);
-        if (isViolentado) { doc.setFillColor(0); doc.circle(margin + 50, y + 12, 1.2, 'F'); }
-        doc.text("VIOLENTADO", margin + 55, y + 13);
+            const isViolentado = maq.lacre_estado === 'violentado';
+            doc.circle(margin + 50, y + 10, 2);
+            if (isViolentado) { doc.setFillColor(0); doc.circle(margin + 50, y + 10, 1.2, 'F'); }
+            doc.text("VIOLENTADO", margin + 55, y + 11);
 
-        // KITS RETORNO COMPACTO
-        y += 24;
-        doc.setDrawColor(200); doc.roundedRect(margin, y, boxWidth, 10, 3, 3);
-        doc.setFontSize(7); doc.setFont('helvetica', 'bold');
-        doc.text("RETORNO:", margin + 2, y - 2);
-        const kitRetLabels = ["RET. CREDENCIAL", "RET. AURICULAR", "RET. ACRILICO", "RET. 5 BOLETAS"];
-        const kitRetVals = [maq.retorno_credencial, maq.retorno_auricular, maq.retorno_acrilico, maq.retorno_boletas];
-        kitRetLabels.forEach((lbl, i) => {
-            const kx = margin + 10 + (i * 45);
-            doc.setDrawColor(0); doc.rect(kx, y + 3, 4, 4);
-            if (kitRetVals[i]) doc.text("X", kx + 1, y + 6.5);
-            doc.setFontSize(7); doc.text(lbl, kx + 6, y + 6);
-        });
+            // KITS RETORNO COMPACTO
+            y += 20;
+            doc.setDrawColor(200); doc.roundedRect(margin, y, boxWidth, 10, 3, 3);
+            const kitRetLabels = ["RET. CREDENCIAL", "RET. AURICULAR", "RET. ACRILICO", "RET. 5 BOLETAS"];
+            const kitRetVals = [maq.retorno_credencial, maq.retorno_auricular, maq.retorno_acrilico, maq.retorno_boletas];
+            kitRetLabels.forEach((lbl, i) => {
+                const kx = margin + 10 + (i * 45);
+                doc.setDrawColor(0); doc.rect(kx, y + 3, 4, 4);
+                if (kitRetVals[i]) doc.text("X", kx + 1, y + 6.5);
+                doc.setFontSize(7); doc.text(lbl, kx + 6, y + 6);
+            });
+            y += 10;
+        }
 
-        // SIGNATURES AREA - 2 FILAS
-        y += 20;
-        const sigH = 18;
+        // SIGNATURES AREA - CONDICIONAL
+        y += 15;
+        const sigH = 15;
         const sigW_Jefe = (boxWidth - 10) / 2;
         const sigW_Divul = (boxWidth - 10) / 3;
 
-        // Fila 1: Jefatura
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-        doc.text("RECEPCIÓN / ENTREGA (JEFATURA)", margin + boxWidth/2, y - 2, { align: 'center' });
-        for (let i = 0; i < 2; i++) {
-            const sx = margin + (i * (sigW_Jefe + 10));
-            doc.rect(sx, y, sigW_Jefe, sigH);
+        if (isOnlySalida) {
+            // Solo Firmas de Entrega
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+            doc.text("RECEPCIÓN / ENTREGA DE EQUIPOS - SALIDA", margin + boxWidth/2, y - 2, { align: 'center' });
+            
+            // Jefatura (Entrega)
+            doc.rect(margin, y, sigW_Jefe, sigH);
             doc.setFontSize(6);
-            doc.text("FIRMA: ___________________", sx + 4, y + 8);
-            doc.text("ACLARACIÓN: ______________", sx + 4, y + 14);
-        }
+            doc.text("ENTREGA (JEFATURA): ___________________", margin + 4, y + 6);
+            doc.text("ACLARACIÓN: __________________________", margin + 4, y + 11);
 
-        y += sigH + 12;
-        // Fila 2: Divulgadores
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-        doc.text("RESPONSABLES DE DIVULGACIÓN", margin + boxWidth/2, y - 2, { align: 'center' });
-        for (let i = 0; i < 3; i++) {
-            const sx = margin + (i * (sigW_Divul + 5));
-            doc.rect(sx, y, sigW_Divul, sigH);
+            // Divulgadores (Reciben)
+            y += sigH + 8;
+            doc.setFontSize(8); doc.text("RESPONSABLES DE DIVULGACIÓN (RECIBEN CONFORME)", margin + boxWidth/2, y - 2, { align: 'center' });
+            for (let i = 0; i < 3; i++) {
+                const sx = margin + (i * (sigW_Divul + 5));
+                doc.rect(sx, y, sigW_Divul, sigH);
+                doc.setFontSize(5);
+                doc.text("FIRMA: ___________________", sx + 3, y + 6);
+                doc.text("ACLARACIÓN: ______________", sx + 3, y + 11);
+            }
+        } else {
+            // Firmas para el proceso completo (A y B)
+            doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+            doc.text("FIRMAS DE RECEPCIÓN (DEVOLUCIÓN DE EQUIPOS)", margin + boxWidth/2, y - 2, { align: 'center' });
+            
+            // Jefatura (Recibe)
+            doc.rect(margin, y, sigW_Jefe, sigH);
             doc.setFontSize(6);
-            doc.text("FIRMA: ___________________", sx + 3, y + 8);
-            doc.text("ACLARACIÓN: ______________", sx + 3, y + 14);
+            doc.text("RECIBE (JEFATURA): _____________________", margin + 4, y + 6);
+            doc.text("ACLARACIÓN: __________________________", margin + 4, y + 11);
+
+            // Divulgadores (Entregan)
+            y += sigH + 8;
+            doc.setFontSize(8); doc.text("RESPONSABLES DE DIVULGACIÓN (ENTREGAN EQUIPOS)", margin + boxWidth/2, y - 2, { align: 'center' });
+            for (let i = 0; i < 3; i++) {
+                const sx = margin + (i * (sigW_Divul + 5));
+                doc.rect(sx, y, sigW_Divul, sigH);
+                doc.setFontSize(5);
+                doc.text("FIRMA: ___________________", sx + 3, y + 6);
+                doc.text("ACLARACIÓN: ______________", sx + 3, y + 11);
+            }
         }
 
         // FOOTER COMPACTO
-        y = 270; doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+        y = 275; doc.setFontSize(7); doc.setFont('helvetica', 'bold');
         doc.text("OBS: ANEXAR A ESTE FORMULARIO: ANEXO I LUGAR FIJO DE DIVULGACIÓN | ANEXO V PROFORMA DE SOLICITUD", pageWidth / 2, y, { align: 'center' });
 
         doc.setFontSize(7); doc.setFont('helvetica', 'italic');
-        doc.text(`Hoja ${index + 1} de ${totalPages}`, pageWidth - margin, 285, { align: 'right' });
+        doc.text(`Hoja ${index + 1} de ${totalPages} | Estado: ${isOnlySalida ? 'DESPACHO (A)' : 'RECIBIDO (B)'}`, pageWidth - margin, 285, { align: 'right' });
     };
 
     movimientoData.maquinas.forEach((maq, i) => drawPage(maq, i));
-    doc.save(`F01-F02-Control-Logistico-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
+    doc.save(`${isOnlySalida ? 'F01-Salida' : 'F02-Devolucion'}-${selectedSolicitud.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
   if (isUserLoading || isLoadingAgenda || isLoadingMaquinas) {
@@ -651,7 +676,7 @@ export default function ControlMovimientoMaquinasPage() {
             </div>
             {selectedSolicitudId && (
                 <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-11 gap-2 shadow-xl bg-white" onClick={generatePDF}>
-                    <Printer className="h-4 w-4" /> EXPORTAR PROFORMA F01/F02
+                    <Printer className="h-4 w-4" /> EXPORTAR PROFORMA {currentMovimiento ? 'F02' : 'F01'}
                 </Button>
             )}
         </div>
@@ -996,4 +1021,117 @@ export default function ControlMovimientoMaquinasPage() {
       </Dialog>
     </div>
   );
+}
+
+function drawSectionA(doc: jsPDF, margin: number, pageWidth: number, y: number, movementData: any, selectedSolicitud: any, responsibles: any[], maq: any, boxWidth: number) {
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.3);
+    doc.circle(margin + 8, y, 4);
+    doc.setFontSize(10);
+    doc.text("A", margin + 8, y + 1, { align: 'center' });
+    doc.setFontSize(9);
+    doc.text("SALIDA DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, y + 1, { align: 'center' });
+
+    y += 8;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text("NOMBRE Y APELLIDO DEL FUNCIONARIO RESPONSABLE DE LA DIVULGACIÓN", margin, y);
+
+    y += 4;
+    const cardW = (boxWidth - 10) / 3;
+    const cardH = 12;
+    for (let i = 0; i < 3; i++) {
+        const cx = margin + (i * (cardW + 5));
+        const resp = responsibles[i];
+        doc.setDrawColor(220);
+        doc.setLineWidth(0.1);
+        doc.roundedRect(cx, y, cardW, cardH, 2, 2, 'D');
+        if (resp) {
+            doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+            doc.text(resp.nombre.toUpperCase(), cx + (cardW / 2), y + 4.5, { align: 'center' });
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
+            doc.text(`C.I. ${resp.cedula}`, cx + 4, y + 9);
+            doc.text(resp.vinculo.toUpperCase(), cx + cardW - 12, y + 9, { align: 'center' });
+        }
+    }
+
+    y += cardH + 6;
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text(`HORA SALIDA:`, margin, y);
+    doc.roundedRect(margin + 22, y - 4, 20, 6, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${movementData.hora_salida} HS`, margin + 32, y - 0.5, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FECHA SALIDA: ${formatDateToDDMMYYYY(movementData.fecha_salida)}`, pageWidth - margin, y, { align: 'right' });
+
+    y += 8;
+    doc.text("IDENTIFICACIÓN DEL EQUIPO", margin, y);
+    y += 2;
+    doc.setDrawColor(200);
+    doc.roundedRect(margin, y, boxWidth, 18, 4, 4);
+    
+    doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    doc.text(`SERIE:`, margin + 5, y + 6);
+    doc.roundedRect(margin + 15, y + 2, 40, 6, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(maq.codigo || '', margin + 18, y + 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`LUGAR:`, margin + 65, y + 6);
+    doc.roundedRect(margin + 78, y + 2, boxWidth - 83, 6, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(selectedSolicitud.lugar_local.toUpperCase(), margin + 82, y + 6);
+
+    y += 10;
+    const kitLabels = ["CREDENCIAL", "AURICULAR", "ACRILICO", "BOLETAS"];
+    const kitVals = [maq.credencial, maq.auricular, maq.acrilico, maq.boletas];
+    kitLabels.forEach((lbl, i) => {
+        const kx = margin + 10 + (i * 45);
+        doc.setDrawColor(0); doc.rect(kx, y, 4, 4);
+        if (kitVals[i]) doc.text("X", kx + 1, y + 3.5);
+        doc.setFontSize(7); doc.text(lbl, kx + 6, y + 3);
+    });
+}
+
+function drawSectionB(doc: jsPDF, margin: number, pageWidth: number, y: number, movementData: any, maq: any, boxWidth: number) {
+    doc.setDrawColor(0); doc.setLineWidth(0.3);
+    doc.circle(margin + 8, y, 4);
+    doc.setFontSize(10); doc.text("B", margin + 8, y + 1, { align: 'center' });
+    doc.setFontSize(9); doc.text("DEVOLUCIÓN DE MÁQUINA DE VOTACIÓN PARA DIVULGACIÓN", pageWidth / 2, y + 1, { align: 'center' });
+
+    y += 8;
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text(`HORA REGRESO:`, margin, y);
+    doc.roundedRect(margin + 25, y - 4, 20, 6, 3, 3);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${movementData.hora_devolucion || '__:__'} HS`, margin + 35, y - 0.5, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FECHA REGRESO: ${movementData.fecha_devolucion ? formatDateToDDMMYYYY(movementData.fecha_devolucion) : '__/__/____'}`, pageWidth - margin, y, { align: 'right' });
+
+    y += 6;
+    doc.setDrawColor(0); doc.setLineWidth(0.2);
+    doc.roundedRect(margin, y, 90, 15, 4, 4);
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.text("ESTADO DE LOS LACRES A LA DEVOLUCIÓN", margin + 10, y + 5);
+    
+    const isCorrecto = maq.lacre_estado === 'correcto';
+    doc.circle(margin + 15, y + 10, 2);
+    if (isCorrecto) { doc.setFillColor(0); doc.circle(margin + 15, y + 10, 1.2, 'F'); }
+    doc.setFontSize(7); doc.text("CORRECTO", margin + 20, y + 11);
+
+    const isViolentado = maq.lacre_estado === 'violentado';
+    doc.circle(margin + 50, y + 10, 2);
+    if (isViolentado) { doc.setFillColor(0); doc.circle(margin + 50, y + 10, 1.2, 'F'); }
+    doc.text("VIOLENTADO", margin + 55, y + 11);
+
+    y += 20;
+    doc.setDrawColor(200); doc.roundedRect(margin, y, boxWidth, 10, 3, 3);
+    const kitRetLabels = ["RET. CREDENCIAL", "RET. AURICULAR", "RET. ACRILICO", "RET. 5 BOLETAS"];
+    const kitRetVals = [maq.retorno_credencial, maq.retorno_auricular, maq.retorno_acrilico, maq.retorno_boletas];
+    kitRetLabels.forEach((lbl, i) => {
+        const kx = margin + 10 + (i * 45);
+        doc.setDrawColor(0); doc.rect(kx, y + 3, 4, 4);
+        if (kitRetVals[i]) doc.text("X", kx + 1, y + 6.5);
+        doc.setFontSize(7); doc.text(lbl, kx + 6, y + 6);
+    });
 }
