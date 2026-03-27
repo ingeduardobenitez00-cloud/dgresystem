@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -508,7 +507,7 @@ export default function UsersPage() {
       permissions: Array.from(selectedPerms), 
       departamento: regDepartamento || '', 
       distrito: regDistrito || '',
-      active: regRole !== 'jefe'
+      active: true // Todos los usuarios creados por administrador aparecen activos por defecto
     };
 
     const tempAppName = 'temp-creation-' + Math.random().toString(36).substring(7);

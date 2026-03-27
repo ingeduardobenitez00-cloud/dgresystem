@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -144,7 +143,7 @@ export default function LoginPage() {
         modules: jefeModules,
         permissions: jefePermissions,
         fecha_registro: new Date().toISOString(),
-        active: false // El usuario inicia inactivo por requerimiento
+        active: true // Los jefes ahora inician activos por defecto
       });
 
       // Auditoría de nuevo registro
@@ -154,17 +153,15 @@ export default function LoginPage() {
         usuario_rol: 'jefe',
         accion: 'CREAR',
         modulo: 'seguridad',
-        detalles: `Auto-registro de Jefe para ${regData.distrito} (Pendiente de aprobación)`
+        detalles: `Auto-registro de Jefe para ${regData.distrito} (Activo)`
       });
 
-      await signOut(auth);
-      
       setLoginEmail(email);
       setMode('login');
       
       toast({ 
-        title: 'Solicitud enviada', 
-        description: 'Su cuenta ha sido creada. Un administrador nacional debe aprobar su acceso antes de que pueda ingresar al sistema.' 
+        title: 'Cuenta creada con éxito', 
+        description: 'Ya puede ingresar al sistema con sus credenciales.' 
       });
     } catch (error: any) {
       toast({
