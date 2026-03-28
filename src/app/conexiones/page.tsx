@@ -6,7 +6,25 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, deleteDoc, doc, writeBatch } from 'firebase/firestore';
-import { Loader2, Activity, Globe, Clock, UserCheck, ShieldCheck, MapPin, Trash2, Search, Mail, UserPlus, ShieldAlert, UserX } from 'lucide-react';
+import { 
+    Loader2, 
+    Activity, 
+    Globe, 
+    Clock, 
+    UserCheck, 
+    ShieldCheck, 
+    MapPin, 
+    Trash2, 
+    Search, 
+    Mail, 
+    UserPlus, 
+    ShieldAlert, 
+    UserX, 
+    Landmark, 
+    Building2,
+    MonitorPlay,
+    ChevronRight
+} from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +44,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { recordAuditLog } from '@/lib/audit';
 
 type PresenceRecord = {
@@ -63,20 +87,42 @@ export default function ConexionesPage() {
 
   const { data: presenceData, isLoading } = useCollection<PresenceRecord>(presenceQuery);
 
-  const filteredRecords = useMemo(() => {
+  const groupedData = useMemo(() => {
     if (!presenceData) return [];
-    const term = searchTerm.toLowerCase().trim();
     
-    return presenceData
-      .filter(p => 
-        p.username.toLowerCase().includes(term) || 
-        p.email.toLowerCase().includes(term)
-      )
-      .sort((a, b) => {
-        const timeA = a.ultima_actividad?.toMillis?.() || 0;
-        const timeB = b.ultima_actividad?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
+    const term = searchTerm.toLowerCase().trim();
+    const filtered = presenceData.filter(p => 
+      p.username.toLowerCase().includes(term) || 
+      p.email.toLowerCase().includes(term) ||
+      p.departamento?.toLowerCase().includes(term) ||
+      p.distrito?.toLowerCase().includes(term)
+    );
+
+    const depts: Record<string, Record<string, PresenceRecord[]>> = {};
+
+    filtered.forEach(p => {
+      const dpt = p.departamento || 'ALCANCE NACIONAL';
+      const dst = p.distrito || 'TODOS LOS DISTRITOS';
+      if (!depts[dpt]) depts[dpt] = {};
+      if (!depts[dpt][dst]) depts[dpt][dst] = [];
+      depts[dpt][dst].push(p);
+    });
+
+    return Object.entries(depts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, dists]) => ({
+        name,
+        districts: Object.entries(dists)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([dName, items]) => ({
+            name: dName,
+            items: items.sort((a, b) => {
+                const timeA = a.ultima_actividad?.toMillis?.() || 0;
+                const timeB = b.ultima_actividad?.toMillis?.() || 0;
+                return timeB - timeA;
+            })
+          }))
+      }));
   }, [presenceData, searchTerm]);
 
   const activeCount = useMemo(() => {
@@ -153,14 +199,14 @@ export default function ConexionesPage() {
             <div>
                 <h1 className="text-3xl font-black tracking-tight text-primary uppercase leading-none">Control de Presencia</h1>
                 <p className="text-muted-foreground text-[10px] font-bold uppercase flex items-center gap-2 mt-2 tracking-widest">
-                    <Activity className="h-3.5 w-3.5" /> Monitoreo de actividad de usuarios en tiempo real
+                    <Activity className="h-3.5 w-3.5" /> Monitoreo geográfico de usuarios en tiempo real
                 </p>
             </div>
             <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
                 <div className="relative w-full md:w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
                     <Input 
-                        placeholder="Buscar por email o nombre..." 
+                        placeholder="Filtrar por nombre, email o zona..." 
                         className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
@@ -184,137 +230,176 @@ export default function ConexionesPage() {
             </div>
         </div>
 
-        <Card className="shadow-2xl border-none overflow-hidden rounded-[2rem] bg-white">
-            <CardHeader className="bg-muted/5 border-b p-8">
-                <CardTitle className="uppercase font-black text-sm tracking-widest flex items-center gap-3">
-                    <UserCheck className="h-5 w-5 text-primary" /> LISTADO DE ACTIVIDAD RECIENTE
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader className="bg-muted/30">
-                            <TableRow>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest px-8">Estado</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest">Funcionario / Registro</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest">Origen Registro</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest">Jurisdicción</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest">Última Actividad</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest">Sección Actual</TableHead>
-                                <TableHead className="text-right text-[9px] font-black uppercase tracking-widest px-8">Acción</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredRecords.map((record) => {
-                                const lastMillis = record.ultima_actividad?.toMillis?.() || 0;
-                                const isOnline = Math.abs(now - lastMillis) < ONLINE_THRESHOLD_MS;
-                                
-                                return (
-                                    <TableRow key={record.id} className="hover:bg-muted/20 transition-colors border-b">
-                                        <TableCell className="px-8 py-6">
-                                            <div className="flex items-center gap-2">
-                                                <div className={cn(
-                                                    "h-2.5 w-2.5 rounded-full transition-all",
-                                                    isOnline ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" : "bg-muted-foreground/30"
-                                                )} />
-                                                <span className={cn(
-                                                    "text-[10px] font-black uppercase",
-                                                    isOnline ? "text-green-600" : "text-muted-foreground"
-                                                )}>
-                                                    {isOnline ? "Online" : "Offline"}
-                                                </span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center font-black text-xs text-primary border border-primary/10">
-                                                    {record.username.substring(0, 2).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="font-black text-xs uppercase text-primary leading-tight">{record.username}</p>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <Mail className="h-2.5 w-2.5 text-muted-foreground opacity-40" />
-                                                        <span className="text-[9px] font-bold text-muted-foreground lowercase">{record.email}</span>
-                                                    </div>
-                                                    <Badge variant="outline" className="mt-1 bg-muted/20 text-[7px] font-black uppercase border-primary/10 h-4 px-1.5">
-                                                        ROL: {record.role}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            {record.registration_method === 'auto_registro_jefe' ? (
-                                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[8px] font-black uppercase gap-1.5 py-1 px-3">
-                                                    <UserPlus className="h-3 w-3" /> AUTO-REGISTRO (JEFE)
-                                                </Badge>
-                                            ) : record.registration_method === 'creado_por_admin' ? (
-                                                <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[8px] font-black uppercase gap-1.5 py-1 px-3">
-                                                    <ShieldCheck className="h-3 w-3" /> CREADO POR ADMIN
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-muted-foreground/40 border-muted text-[8px] font-black uppercase py-1 px-3">
-                                                    NO ESPECIFICADO
-                                                </Badge>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <MapPin className="h-3 w-3 opacity-30" />
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase leading-tight">{record.departamento}</p>
-                                                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{record.distrito}</p>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-40" />
-                                                <span className="text-[10px] font-black text-[#1A1A1A]">
-                                                    {record.ultima_actividad ? (
-                                                        format(record.ultima_actividad.toDate(), "dd/MM/yyyy HH:mm:ss", { locale: es })
-                                                    ) : "SIN REGISTRO"}
-                                                </span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="secondary" className="bg-primary/5 text-primary border-none text-[8px] font-black uppercase px-3 py-1">
-                                                {record.ruta_actual === '/' ? 'INICIO' : record.ruta_actual.replace('/', '').toUpperCase()}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right px-8">
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/5 rounded-full" disabled={isDeleting === record.usuario_id}>
-                                                        {isDeleting === record.usuario_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-5 w-5" />}
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-8">
-                                                    <AlertDialogHeader className="space-y-4">
-                                                        <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
-                                                            <ShieldAlert className="h-8 w-8 text-destructive" />
-                                                        </div>
-                                                        <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR Y EXPULSAR USUARIO?</AlertDialogTitle>
-                                                        <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
-                                                            ADVERTENCIA: Esta acción es definitiva. Se borrará el perfil de <span className="text-primary">{record.username}</span> y se le revocará todo permiso de acceso al sistema de forma inmediata.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
-                                                        <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteIntruder(record)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl">
-                                                            SÍ, EXPULSAR DEFINITIVAMENTE
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
+        {groupedData.length === 0 ? (
+            <Card className="p-20 text-center border-dashed bg-white rounded-[2.5rem]">
+                <div className="flex flex-col items-center justify-center opacity-20">
+                    <UserCheck className="h-20 w-20 mb-4" />
+                    <p className="font-black uppercase tracking-widest text-sm">No se encontraron usuarios conectados</p>
                 </div>
-            </CardContent>
-        </Card>
+            </Card>
+        ) : (
+            <Accordion type="multiple" className="space-y-6">
+                {groupedData.map((dept) => (
+                    <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
+                        <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
+                            <div className="flex items-center gap-4 text-left">
+                                <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+                                    <Landmark className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                        {dept.districts.length} DISTRITOS CON ACTIVIDAD
+                                    </p>
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-8 pb-8 pt-2">
+                            <Accordion type="multiple" className="space-y-4">
+                                {dept.districts.map((dist) => (
+                                    <AccordionItem key={dist.name} value={dist.name} className="border-none">
+                                        <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed">
+                                            <div className="flex items-center gap-3">
+                                                <Building2 className="h-5 w-5 text-muted-foreground" />
+                                                <h3 className="font-black uppercase text-sm tracking-tight text-foreground/80">
+                                                    {dist.name}
+                                                </h3>
+                                                <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">
+                                                    {dist.items.length} USUARIOS
+                                                </Badge>
+                                            </div>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="pt-6 px-2">
+                                            <div className="overflow-x-auto border-2 rounded-2xl">
+                                                <Table>
+                                                    <TableHeader className="bg-muted/30">
+                                                        <TableRow>
+                                                            <TableHead className="text-[9px] font-black uppercase px-8">Estado</TableHead>
+                                                            <TableHead className="text-[9px] font-black uppercase">Funcionario / Registro</TableHead>
+                                                            <TableHead className="text-[9px] font-black uppercase">Origen Registro</TableHead>
+                                                            <TableHead className="text-[9px] font-black uppercase">Última Actividad</TableHead>
+                                                            <TableHead className="text-[9px] font-black uppercase">Sección Actual</TableHead>
+                                                            <TableHead className="text-right text-[9px] font-black uppercase px-8">Acción</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {dist.items.map((record) => {
+                                                            const lastMillis = record.ultima_actividad?.toMillis?.() || 0;
+                                                            const isOnline = Math.abs(now - lastMillis) < ONLINE_THRESHOLD_MS;
+                                                            
+                                                            return (
+                                                                <TableRow key={record.id} className="hover:bg-muted/20 transition-colors border-b last:border-0">
+                                                                    <TableCell className="px-8 py-6">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className={cn(
+                                                                                "h-2.5 w-2.5 rounded-full transition-all",
+                                                                                isOnline ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse" : "bg-muted-foreground/30"
+                                                                            )} />
+                                                                            <span className={cn(
+                                                                                "text-[10px] font-black uppercase",
+                                                                                isOnline ? "text-green-600" : "text-muted-foreground"
+                                                                            )}>
+                                                                                {isOnline ? "En Línea" : "Offline"}
+                                                                            </span>
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center font-black text-xs text-primary border border-primary/10">
+                                                                                {record.username.substring(0, 2).toUpperCase()}
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="font-black text-xs uppercase text-primary leading-tight">{record.username}</p>
+                                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                                    <Mail className="h-2.5 w-2.5 text-muted-foreground opacity-40" />
+                                                                                    <span className="text-[9px] font-bold text-muted-foreground lowercase">{record.email}</span>
+                                                                                </div>
+                                                                                <Badge variant="outline" className="mt-1 bg-muted/20 text-[7px] font-black uppercase border-primary/10 h-4 px-1.5">
+                                                                                    ROL: {record.role}
+                                                                                </Badge>
+                                                                            </div>
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {record.registration_method === 'auto_registro_jefe' ? (
+                                                                            <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[8px] font-black uppercase gap-1.5 py-1 px-3">
+                                                                                <UserPlus className="h-3 w-3" /> AUTO-REGISTRO (JEFE)
+                                                                            </Badge>
+                                                                        ) : record.registration_method === 'creado_por_admin' ? (
+                                                                            <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[8px] font-black uppercase gap-1.5 py-1 px-3">
+                                                                                <ShieldCheck className="h-3 w-3" /> CREADO POR ADMIN
+                                                                            </Badge>
+                                                                        ) : (
+                                                                            <Badge variant="outline" className="text-muted-foreground/40 border-muted text-[8px] font-black uppercase py-1 px-3">
+                                                                                NO ESPECIFICADO
+                                                                            </Badge>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-40" />
+                                                                            <span className="text-[10px] font-black text-[#1A1A1A]">
+                                                                                {record.ultima_actividad ? (
+                                                                                    format(record.ultima_actividad.toDate(), "dd/MM/yyyy HH:mm:ss", { locale: es })
+                                                                                ) : "SIN REGISTRO"}
+                                                                            </span>
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <MonitorPlay className="h-3.5 w-3.5 text-primary/40" />
+                                                                            <Badge variant="secondary" className="bg-primary/5 text-primary border-none text-[8px] font-black uppercase px-3 py-1">
+                                                                                {record.ruta_actual === '/' ? 'INICIO' : record.ruta_actual.replace('/', '').toUpperCase()}
+                                                                            </Badge>
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right px-8">
+                                                                        <AlertDialog>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/5 rounded-full" disabled={isDeleting === record.usuario_id}>
+                                                                                    {isDeleting === record.usuario_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-5 w-5" />}
+                                                                                </Button>
+                                                                            </AlertDialogTrigger>
+                                                                            <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-8">
+                                                                                <AlertDialogHeader className="space-y-4">
+                                                                                    <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
+                                                                                        <ShieldAlert className="h-8 w-8 text-destructive" />
+                                                                                    </div>
+                                                                                    <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR Y EXPULSAR USUARIO?</AlertDialogTitle>
+                                                                                    <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
+                                                                                        ADVERTENCIA: Esta acción es definitiva. Se borrará el perfil de <span className="text-primary font-black">{record.username}</span> y se le revocará todo permiso de acceso al sistema de forma inmediata.
+                                                                                    </AlertDialogDescription>
+                                                                                </AlertDialogHeader>
+                                                                                <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
+                                                                                    <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
+                                                                                    <AlertDialogAction onClick={() => handleDeleteIntruder(record)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl">
+                                                                                        SÍ, EXPULSAR DEFINITIVAMENTE
+                                                                                    </AlertDialogAction>
+                                                                                </AlertDialogFooter>
+                                                                            </AlertDialogContent>
+                                                                        </AlertDialog>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
+        )}
+
+        <div className="text-center pb-12 pt-8">
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40 italic leading-relaxed">
+                * Monitor de seguridad institucional. La expulsión de usuarios revoca permisos de acceso en tiempo real.
+            </p>
+        </div>
       </main>
     </div>
   );
