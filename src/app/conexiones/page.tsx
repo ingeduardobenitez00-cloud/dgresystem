@@ -111,20 +111,37 @@ export default function ConexionesPage() {
 
     return Object.entries(depts)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, dists]) => ({
-        name,
-        districts: Object.entries(dists)
+      .map(([name, dists]) => {
+        const districtGroups = Object.entries(dists)
           .sort(([a], [b]) => a.localeCompare(b))
-          .map(([dName, items]) => ({
-            name: dName,
-            items: items.sort((a, b) => {
-                const timeA = a.ultima_actividad?.toMillis?.() || 0;
-                const timeB = b.ultima_actividad?.toMillis?.() || 0;
-                return timeB - timeA;
-            })
-          }))
-      }));
-  }, [presenceData, searchTerm]);
+          .map(([dName, items]) => {
+            // Verificar si hay algún usuario en línea en este distrito
+            const hasOnlineUser = items.some(p => {
+                const last = p.ultima_actividad?.toMillis?.() || 0;
+                return Math.abs(now - last) < ONLINE_THRESHOLD_MS;
+            });
+
+            return {
+                name: dName,
+                items: items.sort((a, b) => {
+                    const timeA = a.ultima_actividad?.toMillis?.() || 0;
+                    const timeB = b.ultima_actividad?.toMillis?.() || 0;
+                    return timeB - timeA;
+                }),
+                hasOnline: hasOnlineUser
+            };
+          });
+
+        // Verificar si hay algún usuario en línea en todo el departamento
+        const hasOnlineInDept = districtGroups.some(dg => dg.hasOnline);
+
+        return {
+            name,
+            districts: districtGroups,
+            hasOnline: hasOnlineInDept
+        };
+      });
+  }, [presenceData, searchTerm, now]);
 
   const activeCount = useMemo(() => {
     if (!presenceData) return 0;
@@ -140,10 +157,7 @@ export default function ConexionesPage() {
     setIsDeleting(record.usuario_id);
     const batch = writeBatch(firestore);
     
-    // Eliminar perfil de usuario
     batch.delete(doc(firestore, 'users', record.usuario_id));
-    
-    // Eliminar registro de presencia
     batch.delete(doc(firestore, 'presencia', record.usuario_id));
 
     try {
@@ -244,8 +258,13 @@ export default function ConexionesPage() {
                     <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
                         <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
                             <div className="flex items-center gap-4 text-left">
-                                <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+                                <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner relative">
                                     <Landmark className="h-6 w-6" />
+                                    {dept.hasOnline && (
+                                        <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-white flex items-center justify-center shadow-sm">
+                                            <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
@@ -261,7 +280,12 @@ export default function ConexionesPage() {
                                     <AccordionItem key={dist.name} value={dist.name} className="border-none">
                                         <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed">
                                             <div className="flex items-center gap-3">
-                                                <Building2 className="h-5 w-5 text-muted-foreground" />
+                                                <div className="relative">
+                                                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                                                    {dist.hasOnline && (
+                                                        <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)] animate-pulse" />
+                                                    )}
+                                                </div>
                                                 <h3 className="font-black uppercase text-sm tracking-tight text-foreground/80">
                                                     {dist.name}
                                                 </h3>
