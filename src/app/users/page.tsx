@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -632,7 +633,25 @@ export default function UsersPage() {
                                                                             <Button variant="ghost" size="icon" className={cn("h-7 w-7", u.active === false ? "text-green-600" : "text-amber-600")} title={u.active === false ? "Activar" : "Desactivar"} onClick={() => toggleUserStatus(u)}>
                                                                                 {u.active === false ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
                                                                             </Button>
-                                                                            <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button></AlertDialogTrigger><AlertDialogContent className="rounded-[2rem]"><AlertDialogHeader><AlertDialogTitle className="font-black uppercase">¿ELIMINAR?</AlertDialogTitle><AlertDialogDescription className="text-xs font-medium uppercase">Se borrará el perfil de {u.username} permanentemente.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter className="pt-6"><AlertDialogCancel className="rounded-xl text-[10px]">CANCELAR</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteUser(u)} className="bg-destructive text-white rounded-xl text-[10px]">ELIMINAR</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div></TableCell>
+                                                                            <AlertDialog>
+                                                                                <AlertDialogTrigger asChild>
+                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
+                                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                                                    </Button>
+                                                                                </AlertDialogTrigger>
+                                                                                <AlertDialogContent className="rounded-[2rem]">
+                                                                                    <AlertDialogHeader>
+                                                                                        <AlertDialogTitle className="font-black uppercase">¿ELIMINAR?</AlertDialogTitle>
+                                                                                        <AlertDialogDescription className="text-xs font-medium uppercase">
+                                                                                            Se borrará el perfil de {u.username} permanentemente.
+                                                                                        </AlertDialogDescription>
+                                                                                    </AlertDialogHeader>
+                                                                                    <AlertDialogFooter className="pt-6">
+                                                                                        <AlertDialogCancel className="rounded-xl text-[10px]">CANCELAR</AlertDialogCancel>
+                                                                                        <AlertDialogAction onClick={() => handleDeleteUser(u)} className="bg-destructive text-white rounded-xl text-[10px]">ELIMINAR</AlertDialogAction>
+                                                                                    </AlertDialogFooter>
+                                                                                </AlertDialogContent>
+                                                                            </AlertDialog></div></TableCell>
                                                                     </TableRow>
                                                                 ))}</TableBody>
                                                             </Table>

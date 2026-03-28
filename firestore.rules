@@ -5,7 +5,7 @@ service cloud.firestore {
 
     /** 
      * REGLAS DE SEGURIDAD INSTITUCIONAL CIDEE 2026 
-     * Protocolo de Blindaje y Recuperación Maestra - V3.0
+     * Protocolo de Blindaje y Recuperación Maestra - V3.1
      */
 
     function isSignedIn() {
@@ -13,6 +13,7 @@ service cloud.firestore {
     }
 
     function isOwner() {
+      // Bypass absoluto para el administrador maestro basado en correo electrónico verificado
       return isSignedIn() && request.auth.token.email == 'edubtz11@gmail.com';
     }
 
