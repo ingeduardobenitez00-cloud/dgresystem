@@ -299,11 +299,24 @@ export default function UsersPage() {
   }, [datosData, regDepartamento]);
 
   const stats = useMemo(() => {
-    if (!users) return { active: 0 };
+    if (!users || !datosData) return { total: 0, active: 0, coverage: 0 };
+    
+    const userDistricts = new Set();
+    users.forEach(u => {
+        if (u.departamento && u.distrito && u.departamento !== 'ALCANCE NACIONAL') {
+            userDistricts.add(`${u.departamento}-${u.distrito}`);
+        }
+    });
+
+    const totalDistricts = datosData.filter(d => d.departamento !== 'SEDE CENTRAL').length;
+    const coverage = totalDistricts > 0 ? Math.round((userDistricts.size / totalDistricts) * 100) : 0;
+
     return {
-        active: users.filter(u => u.active !== false).length
+        total: users.length,
+        active: users.filter(u => u.active !== false).length,
+        coverage
     };
-  }, [users]);
+  }, [users, datosData]);
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
@@ -511,13 +524,22 @@ export default function UsersPage() {
                     <ShieldCheck className="h-3 w-3" /> Control de identidades y validación de roles
                 </p>
             </div>
-            <Card className="bg-black text-white p-4 rounded-2xl flex items-center gap-4 min-w-[180px] shadow-xl">
-                <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
-                <div>
-                    <p className="text-[8px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">PERSONAL REGISTRADO</p>
-                    <p className="text-2xl font-black">{stats.active}</p>
-                </div>
-            </Card>
+            <div className="flex flex-col md:flex-row items-end gap-4">
+                <Card className="bg-white border-2 border-primary/10 p-4 rounded-2xl flex items-center gap-4 min-w-[180px] shadow-sm">
+                    <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center"><Building2 className="h-5 w-5 text-primary" /></div>
+                    <div>
+                        <p className="text-[8px] font-black uppercase text-muted-foreground leading-none mb-1">COBERTURA NACIONAL</p>
+                        <p className="text-2xl font-black text-primary">{stats.coverage}%</p>
+                    </div>
+                </Card>
+                <Card className="bg-black text-white p-4 rounded-2xl flex items-center gap-4 min-w-[180px] shadow-xl">
+                    <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
+                    <div>
+                        <p className="text-[8px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">PERSONAL REGISTRADO</p>
+                        <p className="text-2xl font-black">{stats.total}</p>
+                    </div>
+                </Card>
+            </div>
         </div>
 
         <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
