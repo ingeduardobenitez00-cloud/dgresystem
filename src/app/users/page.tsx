@@ -450,7 +450,7 @@ export default function UsersPage() {
   const handleDeleteUser = (user: UserProfile) => {
     if (!firestore || user.email === 'edubtz11@gmail.com') return;
     const userDocRef = doc(firestore, 'users', user.id);
-    deleteDoc(userDocRef).then(() => toast({ title: 'Usuario Eliminado' }))
+    deleteDoc(userDocRef).then(() => toast({ title: 'Usuario Elimnado' }))
       .catch((error) => errorEmitter.emit('permission-error', new FirestorePermissionError({ path: userDocRef.path, operation: 'delete' })));
   };
 
@@ -650,6 +650,9 @@ export default function UsersPage() {
                                                             </TableHeader>
                                                             <TableBody>
                                                                 {dist.users.map(u => {
+                                                                    const isUserOwner = u.email === 'edubtz11@gmail.com';
+                                                                    const isActive = u.active === true || isUserOwner;
+                                                                    
                                                                     return (
                                                                         <TableRow key={u.id} className="hover:bg-primary/5">
                                                                             <TableCell className="px-6 py-3">
@@ -660,7 +663,7 @@ export default function UsersPage() {
                                                                             </TableCell>
                                                                             <TableCell><Badge variant="secondary" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-none">{u.role}</Badge></TableCell>
                                                                             <TableCell>
-                                                                                {u.active === true ? (
+                                                                                {isActive ? (
                                                                                     <Badge className="bg-green-600 text-white text-[7px] font-black uppercase">ACTIVO</Badge>
                                                                                 ) : u.registration_method === 'auto_registro_jefe' ? (
                                                                                     <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[7px] font-black uppercase">PENDIENTE</Badge>
@@ -671,12 +674,12 @@ export default function UsersPage() {
                                                                             <TableCell className="text-right px-6">
                                                                                 <div className="flex justify-end gap-2">
                                                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingUser({...u}); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
-                                                                                    <Button variant="ghost" size="icon" className={cn("h-8 w-8", u.active === false ? "text-green-600" : "text-amber-600")} title={u.active === false ? "Habilitar Acceso" : "Deshabilitar Acceso"} onClick={() => toggleUserStatus(u)}>
-                                                                                        {u.active === false ? <CheckCircle2 className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+                                                                                    <Button variant="ghost" size="icon" className={cn("h-8 w-8", isActive ? "text-amber-600" : "text-green-600")} title={isActive ? "Deshabilitar Acceso" : "Habilitar Acceso"} onClick={() => toggleUserStatus(u)} disabled={isUserOwner}>
+                                                                                        {isActive ? <ShieldAlert className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                                                                                     </Button>
                                                                                     <AlertDialog>
                                                                                         <AlertDialogTrigger asChild>
-                                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={isUserOwner}>
                                                                                                 <Trash2 className="h-4 w-4" />
                                                                                             </Button>
                                                                                         </AlertDialogTrigger>

@@ -47,18 +47,18 @@ export const useUser = (): UserHookResult => {
     const isAdmin = isOwner || profileData?.role === 'admin';
 
     // PERFIL SINTÉTICO DE EMERGENCIA PARA EL PROPIETARIO
-    // Si el documento en Firestore no existe o fue borrado por un intruso,
-    // inyectamos un perfil con todos los privilegios para evitar errores de null en el sistema.
+    // Se fuerza el estado ACTIVO y todos los permisos para el administrador maestro.
     let finalProfile = profileData;
     
-    if (isOwner && !profileData) {
+    if (isOwner) {
       finalProfile = {
-        username: 'ADMINISTRADOR MAESTRO',
+        ...profileData,
+        username: profileData?.username || 'ADMINISTRADOR MAESTRO',
         role: 'admin',
-        departamento: 'SEDE CENTRAL',
-        distrito: 'ASUNCIÓN',
-        active: true,
-        modules: [
+        active: true, // Forzar activo visual y funcionalmente
+        departamento: profileData?.departamento || 'SEDE CENTRAL',
+        distrito: profileData?.distrito || 'ASUNCIÓN',
+        modules: profileData?.modules || [
           'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
           'agenda-anexo-v', 'control-movimiento-maquinas', 'denuncia-lacres', 
           'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
@@ -69,7 +69,7 @@ export const useUser = (): UserHookResult => {
           'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
           'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria'
         ],
-        permissions: ['admin_filter', 'department_filter', 'district_filter', 'assign_staff', 'generar_pdf']
+        permissions: profileData?.permissions || ['admin_filter', 'department_filter', 'district_filter', 'assign_staff', 'generar_pdf']
       };
     }
     
