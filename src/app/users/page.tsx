@@ -62,7 +62,6 @@ import { firebaseConfig } from '@/firebase/config';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { Progress } from '@/components/ui/progress';
 
 type UserProfile = {
   id: string;
@@ -300,9 +299,8 @@ export default function UsersPage() {
   }, [datosData, regDepartamento]);
 
   const stats = useMemo(() => {
-    if (!users) return { pending: 0, active: 0 };
+    if (!users) return { active: 0 };
     return {
-        pending: users.filter(u => u.active === false && u.registration_method === 'auto_registro_jefe').length,
         active: users.filter(u => u.active !== false).length
     };
   }, [users]);
@@ -513,24 +511,13 @@ export default function UsersPage() {
                     <ShieldCheck className="h-3 w-3" /> Control de identidades y validación de roles
                 </p>
             </div>
-            <div className="flex gap-4">
-                <Card className={cn("bg-white border-2 shadow-sm p-4 rounded-2xl flex items-center gap-4 transition-all", stats.pending > 0 && "border-amber-400 bg-amber-50 animate-pulse")}>
-                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", stats.pending > 0 ? "bg-amber-100" : "bg-primary/5")}>
-                        <AlertTriangle className={cn("h-5 w-5", stats.pending > 0 ? "text-amber-600" : "text-primary")} />
-                    </div>
-                    <div>
-                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">SOLICITUDES PENDIENTES</p>
-                        <p className={cn("text-2xl font-black leading-none", stats.pending > 0 ? "text-amber-600" : "text-primary")}>{stats.pending}</p>
-                    </div>
-                </Card>
-                <Card className="bg-black text-white p-4 rounded-2xl flex items-center gap-4 min-w-[180px] shadow-xl">
-                    <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
-                    <div>
-                        <p className="text-[8px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">PERSONAL ACTIVO</p>
-                        <p className="text-2xl font-black">{stats.active}</p>
-                    </div>
-                </Card>
-            </div>
+            <Card className="bg-black text-white p-4 rounded-2xl flex items-center gap-4 min-w-[180px] shadow-xl">
+                <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
+                <div>
+                    <p className="text-[8px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">PERSONAL REGISTRADO</p>
+                    <p className="text-2xl font-black">{stats.active}</p>
+                </div>
+            </Card>
         </div>
 
         <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
@@ -609,12 +596,7 @@ export default function UsersPage() {
                                             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{dept.districts.length} OFICINAS</p>
                                         </div>
                                     </div>
-                                    <div className="flex gap-3">
-                                        {dept.districts.some(d => d.users.some(u => u.active === false && u.registration_method === 'auto_registro_jefe')) && (
-                                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[8px] font-black uppercase animate-pulse">PENDIENTES</Badge>
-                                        )}
-                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} TOTAL</Badge>
-                                    </div>
+                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} TOTAL</Badge>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="px-8 pb-8 pt-2">
@@ -639,7 +621,6 @@ export default function UsersPage() {
                                                             <TableHeader className="bg-muted/30">
                                                                 <TableRow>
                                                                     <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
-                                                                    <TableHead className="text-[8px] font-black uppercase">Origen</TableHead>
                                                                     <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
                                                                     <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
                                                                     <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
@@ -647,31 +628,19 @@ export default function UsersPage() {
                                                             </TableHeader>
                                                             <TableBody>
                                                                 {dist.users.map(u => {
-                                                                    const isPending = u.active === false && u.registration_method === 'auto_registro_jefe';
                                                                     return (
-                                                                        <TableRow key={u.id} className={cn("hover:bg-primary/5", isPending && "bg-amber-50/30")}>
+                                                                        <TableRow key={u.id} className="hover:bg-primary/5">
                                                                             <TableCell className="px-6 py-3">
                                                                                 <div className="flex flex-col">
                                                                                     <span className="font-black text-[11px] uppercase text-primary leading-none">{u.username}</span>
                                                                                     <span className="text-[9px] font-bold text-muted-foreground mt-1">{u.email}</span>
                                                                                 </div>
                                                                             </TableCell>
-                                                                            <TableCell>
-                                                                                {u.registration_method === 'auto_registro_jefe' ? (
-                                                                                    <Badge variant="outline" className="text-[7px] font-black uppercase text-amber-600 border-amber-200">WEB (EXTERNO)</Badge>
-                                                                                ) : (
-                                                                                    <Badge variant="outline" className="text-[7px] font-black uppercase text-blue-600 border-blue-200">CENTRAL</Badge>
-                                                                                )}
-                                                                            </TableCell>
                                                                             <TableCell><Badge variant="secondary" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-none">{u.role}</Badge></TableCell>
                                                                             <TableCell>
-                                                                                {isPending ? (
-                                                                                    <Badge className="bg-amber-500 text-white text-[7px] font-black uppercase">SOLICITANTE</Badge>
-                                                                                ) : (
-                                                                                    <Badge variant={u.active === false ? "destructive" : "default"} className="text-[7px] font-black uppercase">
-                                                                                        {u.active === false ? "INACTIVO" : "ACTIVO"}
-                                                                                    </Badge>
-                                                                                )}
+                                                                                <Badge variant={u.active === false ? "destructive" : "default"} className="text-[7px] font-black uppercase">
+                                                                                    {u.active === false ? "INACTIVO" : "ACTIVO"}
+                                                                                </Badge>
                                                                             </TableCell>
                                                                             <TableCell className="text-right px-6">
                                                                                 <div className="flex justify-end gap-2">
