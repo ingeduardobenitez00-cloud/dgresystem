@@ -25,8 +25,8 @@ import {
   Activity,
   ClipboardCheck,
   X,
-  CheckCircle2,
-  Copy
+  Copy,
+  CheckCircle2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -121,6 +121,18 @@ export default function AgendaAnexoIPage() {
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
   const { data: rawDivulgadores } = useCollection<Divulgador>(divulgadoresQuery);
+
+  const filteredDivul = useMemo(() => {
+    if (!rawDivulgadores || !assigningSolicitud) return [];
+    const term = divulSearch.toLowerCase().trim();
+    const assignedIds = new Set((assigningSolicitud.divulgadores || []).map(d => d.id));
+
+    return rawDivulgadores.filter(d => 
+      d.distrito === assigningSolicitud.distrito &&
+      !assignedIds.has(d.id) &&
+      (d.nombre.toLowerCase().includes(term) || d.cedula.includes(term))
+    );
+  }, [rawDivulgadores, divulSearch, assigningSolicitud]);
 
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
@@ -412,7 +424,11 @@ export default function AgendaAnexoIPage() {
                       </AccordionItem>
                     ))}
                   </Accordion>
-                )}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        )}
       </main>
 
       <Dialog open={!!viewingActivity} onOpenChange={(o) => !o && setViewingActivity(null)}>
@@ -471,19 +487,19 @@ export default function AgendaAnexoIPage() {
                                         <>
                                             <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
                                                 <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <Check className="h-4 w-4" />
+                                                    <CheckCircle2 className="h-4 w-4" />
                                                 </div>
                                                 <p className="text-[9px] font-black uppercase">SALIDA MV</p>
                                             </div>
                                             <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov?.fecha_devolucion ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
                                                 <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov?.fecha_devolucion ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <Check className="h-4 w-4" />
+                                                    <CheckCircle2 className="h-4 w-4" />
                                                 </div>
                                                 <p className="text-[9px] font-black uppercase">RETORNO MV</p>
                                             </div>
                                             <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", inf ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
                                                 <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", inf ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <Check className="h-4 w-4" />
+                                                    <CheckCircle2 className="h-4 w-4" />
                                                 </div>
                                                 <p className="text-[9px] font-black uppercase">INFORME</p>
                                             </div>
@@ -551,7 +567,7 @@ export default function AgendaAnexoIPage() {
             </div>
             <div className="w-full space-y-3">
                 <Button variant="outline" className="w-full h-12 rounded-xl font-black uppercase text-[10px] border-2 gap-2" onClick={copyToClipboard}>
-                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} {copied ? "COPIADO" : "COPIAR ENLACE"}
+                    {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} {copied ? "COPIADO" : "COPIAR ENLACE"}
                 </Button>
                 <Button className="w-full h-12 rounded-xl font-black uppercase text-[10px] bg-black text-white" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
             </div>
