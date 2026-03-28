@@ -11,20 +11,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import type { ImageData } from '@/lib/data';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { cleanFileName } from '@/lib/utils';
-import { useState, useRef, type MouseEvent } from 'react';
-import { ZoomIn, ZoomOut, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
+import { useState, useRef, type MouseEvent, useEffect } from 'react';
+import { ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
 type ImageViewerDialogProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  image: ImageData | null;
+  image: ImageData | string | null;
   onNext?: () => void;
   onPrevious?: () => void;
   canNavigateNext?: boolean;
@@ -41,6 +36,7 @@ export function ImageViewerDialog({
   canNavigatePrevious = false,
 }: ImageViewerDialogProps) {
   const [scale, setScale] = useState(1);
+  const [rotation, setRotation] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const imageRef = useRef<HTMLDivElement>(null);
@@ -48,20 +44,22 @@ export function ImageViewerDialog({
 
   const resetState = () => {
     setScale(1);
+    setRotation(0);
     setOffset({ x: 0, y: 0 });
     setIsDragging(false);
   };
   
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
+  useEffect(() => {
+    if (isOpen) {
       resetState();
     }
-    onOpenChange(open);
-  }
+  }, [isOpen, image]);
 
   if (!image) return null;
   
-  const cleanedTitle = cleanFileName(image.alt);
+  const imgSrc = typeof image === 'string' ? image : image.src;
+  const imgAlt = typeof image === 'string' ? 'Respaldo Documental' : image.alt;
+  const cleanedTitle = typeof image === 'string' ? 'VISOR DE DOCUMENTO' : cleanFileName(image.alt);
 
   const handleZoomIn = () => setScale(s => Math.min(s + 0.2, 3));
   const handleZoomOut = () => {
@@ -71,10 +69,10 @@ export function ImageViewerDialog({
     }
     setScale(newScale);
   };
-  const handleResetZoom = () => {
-    setScale(1);
-    setOffset({ x: 0, y: 0 });
-  };
+  
+  const handleRotate = () => setRotation(r => (r + 90) % 360);
+  
+  const handleReset = () => resetState();
   
   const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
     if (scale > 1) {
@@ -86,7 +84,7 @@ export function ImageViewerDialog({
 
   const handleMouseUp = (e: MouseEvent<HTMLDivElement>) => {
     setIsDragging(false);
-    e.currentTarget.style.cursor = 'grab';
+    if (e.currentTarget) e.currentTarget.style.cursor = scale > 1 ? 'grab' : 'default';
   };
   
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
@@ -105,18 +103,18 @@ export function ImageViewerDialog({
     }
   };
 
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle>{cleanedTitle}</DialogTitle>
-          <DialogDescription>
-            {image.alt}
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 border-none shadow-2xl overflow-hidden bg-black/95">
+        <DialogHeader className="p-6 bg-black text-white shrink-0">
+          <DialogTitle className="font-black uppercase tracking-widest text-sm">{cleanedTitle}</DialogTitle>
+          <DialogDescription className="text-white/40 font-bold uppercase text-[9px]">
+            {imgAlt}
           </DialogDescription>
         </DialogHeader>
+        
         <div 
-            className="flex-1 relative overflow-hidden bg-muted/20"
+            className="flex-1 relative overflow-hidden flex items-center justify-center"
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
             onMouseMove={handleMouseMove}
@@ -124,16 +122,20 @@ export function ImageViewerDialog({
             ref={imageRef}
             style={{ cursor: scale > 1 ? 'grab' : 'default' }}
         >
-            <Image
-              src={image.src}
-              alt={image.alt}
-              fill
-              className="object-contain transition-transform duration-200"
+            <div 
+              className="relative w-full h-full transition-transform duration-300 ease-out"
               style={{
-                transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px)`,
+                transform: `scale(${scale}) translate(${offset.x / scale}px, ${offset.y / scale}px) rotate(${rotation}deg)`,
               }}
-              data-ai-hint={image.hint}
-            />
+            >
+              <Image
+                src={imgSrc}
+                alt={imgAlt}
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
 
             {onPrevious && (
                  <Button
@@ -141,9 +143,9 @@ export function ImageViewerDialog({
                     size="icon"
                     onClick={onPrevious}
                     disabled={!canNavigatePrevious}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 text-white hover:bg-black/75 hover:text-white disabled:opacity-30 h-10 w-10"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-10 h-12 w-12 border border-white/10"
                 >
-                    <ChevronLeft className="h-6 w-6" />
+                    <ChevronLeft className="h-8 w-8" />
                 </Button>
             )}
             {onNext && (
@@ -152,22 +154,29 @@ export function ImageViewerDialog({
                     size="icon"
                     onClick={onNext}
                     disabled={!canNavigateNext}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 text-white hover:bg-black/75 hover:text-white disabled:opacity-30 h-10 w-10"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-10 h-12 w-12 border border-white/10"
                 >
-                    <ChevronRight className="h-6 w-6" />
+                    <ChevronRight className="h-8 w-8" />
                 </Button>
             )}
-
         </div>
-         <DialogFooter className="bg-muted/50 p-3 flex-row justify-center sm:justify-center border-t">
-            <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={handleZoomOut} disabled={scale <= 1}>
+
+        <DialogFooter className="bg-black/80 p-4 flex-row justify-center sm:justify-center border-t border-white/10 gap-4 shrink-0">
+            <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
+                <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={scale <= 1} className="text-white hover:bg-white/10">
                     <ZoomOut className="h-5 w-5" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={handleZoomIn} disabled={scale >= 3}>
+                <div className="w-12 text-center text-[10px] font-black text-white/60">{Math.round(scale * 100)}%</div>
+                <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={scale >= 3} className="text-white hover:bg-white/10">
                     <ZoomIn className="h-5 w-5" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={handleResetZoom} disabled={scale === 1}>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10">
+                <Button variant="ghost" size="icon" onClick={handleRotate} className="text-white hover:bg-white/10" title="Girar Imagen">
+                    <RotateCw className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleReset} className="text-white hover:bg-white/10" title="Restablecer">
                     <RefreshCw className="h-5 w-5" />
                 </Button>
             </div>

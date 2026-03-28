@@ -6,7 +6,7 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
-import { type AnexoI, type Dato, type SolicitudCapacitacion } from '@/lib/data';
+import { type AnexoI, type SolicitudCapacitacion } from '@/lib/data';
 import { 
     Loader2, 
     Eye, 
@@ -17,12 +17,11 @@ import {
     Landmark, 
     Search, 
     ClipboardList,
-    Download,
     ImageIcon,
-    Clock,
     CheckCircle2,
     Activity,
-    X
+    X,
+    Maximize2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,12 +32,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
+import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 export default function ListaAnexoIPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingAnexo, setViewingAnexo] = useState<AnexoI | null>(null);
+  const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
   const profile = user?.profile;
 
@@ -233,7 +234,7 @@ export default function ListaAnexoIPage() {
                                 <h3 className="font-black uppercase text-xs">Respaldo Documental Firmado del Lote</h3>
                             </div>
                             {viewingAnexo.foto_respaldo ? (
-                                <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-muted">
+                                <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-muted group">
                                     {viewingAnexo.foto_respaldo.startsWith('data:application/pdf') || viewingAnexo.foto_respaldo.includes('.pdf') ? (
                                         <div className="w-full h-full flex flex-col items-center justify-center bg-white">
                                             <FileText className="h-20 w-20 text-primary opacity-40 mb-4" />
@@ -243,7 +244,20 @@ export default function ListaAnexoIPage() {
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Image src={viewingAnexo.foto_respaldo} alt="Respaldo" fill className="object-cover" />
+                                        <>
+                                            <Image 
+                                                src={viewingAnexo.foto_respaldo} 
+                                                alt="Respaldo" 
+                                                fill 
+                                                className="object-cover cursor-pointer transition-transform hover:scale-[1.02]" 
+                                                onClick={() => setFullViewerImage(viewingAnexo.foto_respaldo)}
+                                            />
+                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                                <div className="bg-white/20 backdrop-blur-md p-4 rounded-full">
+                                                    <Maximize2 className="h-10 w-10 text-white" />
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             ) : (
@@ -257,12 +271,18 @@ export default function ListaAnexoIPage() {
                 </ScrollArea>
 
                 <div className="p-8 bg-white border-t flex justify-end">
-                    <Button onClick={() => setViewingAnexo(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl bg-black hover:bg-black/90">Cerrar Control</Button>
+                    <Button onClick={() => setViewingAnexo(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl bg-black hover:bg-black/90 rounded-xl">Cerrar Control</Button>
                 </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <ImageViewerDialog 
+        isOpen={!!fullViewerImage}
+        onOpenChange={(o) => !o && setFullViewerImage(null)}
+        image={fullViewerImage}
+      />
     </div>
   );
 }

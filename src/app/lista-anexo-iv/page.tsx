@@ -6,39 +6,38 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
-import { type AnexoIV, type Dato } from '@/lib/data';
+import { type AnexoIV } from '@/lib/data';
 import { 
     Loader2, 
     Eye, 
     FileText, 
-    MapPin, 
     Calendar, 
     Building2, 
     Landmark, 
     Search, 
-    ClipboardList,
-    Download,
     ImageIcon,
-    Clock,
     Users,
     TableProperties,
     CheckCircle2,
-    X
+    X,
+    Maximize2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDateToDDMMYYYY, cn } from '@/lib/utils';
+import { formatDateToDDMMYYYY } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Image from 'next/image';
+import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 export default function ListaAnexoIVPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingAnexo, setViewingAnexo] = useState<AnexoIV | null>(null);
+  const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
   const profile = user?.profile;
 
@@ -148,16 +147,19 @@ export default function ListaAnexoIVPage() {
             <div className="flex flex-col h-full bg-[#F8F9FA]">
                 <div className="bg-black text-white p-8 shrink-0">
                     <DialogHeader>
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
-                                <TableProperties className="h-6 w-6" />
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
+                                    <TableProperties className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-2xl font-black uppercase leading-none">CONSOLIDADO SEMANAL - ANEXO IV</DialogTitle>
+                                    <DialogDescription className="text-white/60 font-bold uppercase text-[10px] mt-2">
+                                        {viewingAnexo.distrito} | {viewingAnexo.departamento} | PERIODO: {formatDateToDDMMYYYY(viewingAnexo.semana_desde)} al {formatDateToDDMMYYYY(viewingAnexo.semana_hasta)}
+                                    </DialogDescription>
+                                </div>
                             </div>
-                            <div>
-                                <DialogTitle className="text-2xl font-black uppercase leading-none">CONSOLIDADO SEMANAL - ANEXO IV</DialogTitle>
-                                <DialogDescription className="text-white/60 font-bold uppercase text-[10px] mt-2">
-                                    {viewingAnexo.distrito} | {viewingAnexo.departamento} | PERIODO: {formatDateToDDMMYYYY(viewingAnexo.semana_desde)} al {formatDateToDDMMYYYY(viewingAnexo.semana_hasta)}
-                                </DialogDescription>
-                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setViewingAnexo(null)} className="text-white/40 hover:text-white"><X className="h-6 w-6" /></Button>
                         </div>
                     </DialogHeader>
                 </div>
@@ -204,7 +206,7 @@ export default function ListaAnexoIVPage() {
                                 <h3 className="font-black uppercase text-xs">Respaldo Documental Firmado</h3>
                             </div>
                             {viewingAnexo.foto_respaldo_documental ? (
-                                <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-muted">
+                                <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl bg-muted group">
                                     {viewingAnexo.foto_respaldo_documental.startsWith('data:application/pdf') ? (
                                         <div className="w-full h-full flex flex-col items-center justify-center bg-white">
                                             <FileText className="h-20 w-20 text-primary opacity-40 mb-4" />
@@ -214,7 +216,20 @@ export default function ListaAnexoIVPage() {
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Image src={viewingAnexo.foto_respaldo_documental} alt="Respaldo" fill className="object-cover" />
+                                        <>
+                                            <Image 
+                                                src={viewingAnexo.foto_respaldo_documental} 
+                                                alt="Respaldo" 
+                                                fill 
+                                                className="object-cover cursor-pointer transition-transform hover:scale-[1.02]" 
+                                                onClick={() => setFullViewerImage(viewingAnexo.foto_respaldo_documental)}
+                                            />
+                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                                <div className="bg-white/20 backdrop-blur-md p-4 rounded-full">
+                                                    <Maximize2 className="h-10 w-10 text-white" />
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             ) : (
@@ -228,12 +243,18 @@ export default function ListaAnexoIVPage() {
                 </ScrollArea>
 
                 <div className="p-8 bg-white border-t flex justify-end">
-                    <Button onClick={() => setViewingAnexo(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl">Cerrar Visualización</Button>
+                    <Button onClick={() => setViewingAnexo(null)} className="font-black uppercase text-xs h-12 px-10 shadow-xl bg-black hover:bg-black/90 rounded-xl">Cerrar Visualización</Button>
                 </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <ImageViewerDialog 
+        isOpen={!!fullViewerImage}
+        onOpenChange={(o) => !o && setFullViewerImage(null)}
+        image={fullViewerImage}
+      />
     </div>
   );
 }
