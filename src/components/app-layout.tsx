@@ -1,4 +1,3 @@
-
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -35,6 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       role: user.profile?.role || 'funcionario',
       departamento: user.profile?.departamento || 'N/A',
       distrito: user.profile?.distrito || 'N/A',
+      registration_method: user.profile?.registration_method || 'no_especificado', // TRANSMISIÓN DE ORIGEN
       ultima_actividad: serverTimestamp(),
       ruta_actual: pathname || '/'
     };

@@ -143,7 +143,8 @@ export default function LoginPage() {
         modules: jefeModules,
         permissions: jefePermissions,
         fecha_registro: new Date().toISOString(),
-        active: true // Los jefes ahora inician activos por defecto
+        active: true,
+        registration_method: 'auto_registro_jefe' // IDENTIFICADOR DE ORIGEN
       });
 
       // Auditoría de nuevo registro

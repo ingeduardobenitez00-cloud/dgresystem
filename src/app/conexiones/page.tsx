@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo, useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
-import { Loader2, Activity, Globe, Clock, UserCheck, ShieldCheck, MapPin, Trash2, Search, Mail } from 'lucide-react';
+import { Loader2, Activity, Globe, Clock, UserCheck, ShieldCheck, MapPin, Trash2, Search, Mail, UserPlus, ShieldAlert } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,6 +36,7 @@ type PresenceRecord = {
   distrito: string;
   ultima_actividad: any;
   ruta_actual: string;
+  registration_method?: string;
 };
 
 /**
@@ -175,6 +175,7 @@ export default function ConexionesPage() {
                             <TableRow>
                                 <TableHead className="text-[9px] font-black uppercase tracking-widest px-8">Estado</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase tracking-widest">Funcionario / Registro</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest">Origen Registro</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase tracking-widest">Jurisdicción</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase tracking-widest">Última Actividad</TableHead>
                                 <TableHead className="text-[9px] font-black uppercase tracking-widest">Sección Actual</TableHead>
@@ -218,6 +219,21 @@ export default function ConexionesPage() {
                                                     </Badge>
                                                 </div>
                                             </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {record.registration_method === 'auto_registro_jefe' ? (
+                                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[8px] font-black uppercase gap-1.5 py-1 px-3">
+                                                    <UserPlus className="h-3 w-3" /> AUTO-REGISTRO (JEFE)
+                                                </Badge>
+                                            ) : record.registration_method === 'creado_por_admin' ? (
+                                                <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[8px] font-black uppercase gap-1.5 py-1 px-3">
+                                                    <ShieldCheck className="h-3 w-3" /> CREADO POR ADMIN
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-muted-foreground/40 border-muted text-[8px] font-black uppercase py-1 px-3">
+                                                    NO ESPECIFICADO
+                                                </Badge>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">

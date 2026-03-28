@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -71,6 +70,7 @@ type UserProfile = {
   departamento?: string;
   distrito?: string;
   active?: boolean;
+  registration_method?: string;
 };
 
 const ACTION_LABELS = [
@@ -467,7 +467,17 @@ export default function UsersPage() {
     const email = (formData.get('email') as string || '').trim();
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
-    const newUserProfile = { username, email, role: regRole, modules: Array.from(selectedModules), permissions: Array.from(selectedPerms), departamento: regDepartamento || '', distrito: regDistrito || '', active: true };
+    const newUserProfile = { 
+      username, 
+      email, 
+      role: regRole, 
+      modules: Array.from(selectedModules), 
+      permissions: Array.from(selectedPerms), 
+      departamento: regDepartamento || '', 
+      distrito: regDistrito || '', 
+      active: true,
+      registration_method: 'creado_por_admin' // IDENTIFICADOR DE ORIGEN
+    };
     const tempAppName = 'temp-creation-' + Math.random().toString(36).substring(7);
     let tempApp: FirebaseApp | undefined = undefined;
     try {
