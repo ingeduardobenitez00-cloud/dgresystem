@@ -24,7 +24,7 @@ import {
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Loader2, UserPlus, LogIn, MapPin } from 'lucide-react';
+import { Eye, EyeOff, Loader2, UserPlus, LogIn, MapPin, ShieldAlert } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Dato } from '@/lib/data';
 import { recordAuditLog } from '@/lib/audit';
@@ -77,10 +77,10 @@ export default function LoginPage() {
       recordAuditLog(firestore, {
         usuario_id: userCredential.user.uid,
         usuario_nombre: email,
-        usuario_rol: 'desconocido', // Se actualizará tras cargar el perfil
+        usuario_rol: 'verificando', 
         accion: 'LOGIN',
         modulo: 'seguridad',
-        detalles: `Inicio de sesión exitoso desde el portal principal.`
+        detalles: `Intento de acceso al portal principal.`
       });
 
       toast({ title: 'Inicio de sesión exitoso' });
@@ -89,7 +89,7 @@ export default function LoginPage() {
       toast({
         variant: 'destructive',
         title: 'Error de inicio de sesión',
-        description: 'Credenciales incorrectas. Por favor, intenta de nuevo.',
+        description: 'Credenciales incorrectas o cuenta no autorizada.',
       });
     } finally {
         setIsLoading(false);
@@ -100,19 +100,13 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !firestore) return;
     
-    // VALIDACIÓN ESTRICTA: Los campos geográficos son obligatorios
     if (!regData.departamento || !regData.distrito || regData.departamento === 'N/A') {
       toast({ 
         variant: 'destructive', 
         title: 'Jurisdicción Obligatoria', 
-        description: 'Debe seleccionar su Departamento y Distrito para registrarse como Jefe de Oficina.' 
+        description: 'Debe seleccionar su Departamento y Distrito.' 
       });
       return;
-    }
-
-    if (!regData.username || !regData.email || !regData.password) {
-        toast({ variant: 'destructive', title: 'Faltan datos', description: 'Complete todos los campos del formulario.' });
-        return;
     }
 
     setIsLoading(true);
@@ -140,13 +134,13 @@ export default function LoginPage() {
         'district_filter'
       ];
 
-      // Asignar permisos automáticos para cada módulo
       jefeModules.forEach(mod => {
         jefePermissions.push(`${mod}:view`);
         jefePermissions.push(`${mod}:add`);
         jefePermissions.push(`${mod}:pdf`);
       });
 
+      // POLÍTICA DE SEGURIDAD: active: false por defecto. Requiere aprobación manual.
       await setDoc(doc(firestore, 'users', user.uid), {
         username: regData.username.toUpperCase(), 
         email: email,
@@ -156,26 +150,25 @@ export default function LoginPage() {
         modules: jefeModules,
         permissions: jefePermissions,
         fecha_registro: new Date().toISOString(),
-        active: true,
+        active: false, 
         registration_method: 'auto_registro_jefe'
       });
 
-      // Auditoría de nuevo registro
       recordAuditLog(firestore, {
         usuario_id: user.uid,
         usuario_nombre: regData.username,
         usuario_rol: 'jefe',
         accion: 'CREAR',
         modulo: 'seguridad',
-        detalles: `Auto-registro de Jefe para ${regData.distrito} (Jurisdicción Obligatoria)`
+        detalles: `Auto-registro pendiente de aprobación para ${regData.distrito}.`
       });
 
       setLoginEmail(email);
       setMode('login');
       
       toast({ 
-        title: 'Cuenta creada con éxito', 
-        description: 'Ya puede ingresar al sistema con sus credenciales.' 
+        title: 'Registro enviado', 
+        description: 'Su cuenta ha sido creada pero requiere activación por la Dirección General para acceder.' 
       });
     } catch (error: any) {
       toast({
@@ -190,28 +183,16 @@ export default function LoginPage() {
   
   const handlePasswordReset = async () => {
     if (!auth) return;
-    const emailRaw = mode === 'login' ? loginEmail : regData.email;
-    const email = emailRaw.trim();
+    const email = (mode === 'login' ? loginEmail : regData.email).trim();
     if (!email) {
-      toast({
-        variant: 'destructive',
-        title: 'Correo requerido',
-        description: 'Por favor, ingresa tu correo electrónico.',
-      });
+      toast({ variant: 'destructive', title: 'Correo requerido' });
       return;
     }
     try {
       await sendPasswordResetEmail(auth, email);
-      toast({
-        title: 'Correo enviado',
-        description: 'Revisa tu bandeja de entrada para restablecer tu contraseña. Si no lo ves, revisa la carpeta SPAM.',
-      });
+      toast({ title: 'Correo enviado', description: 'Revise su bandeja de entrada.' });
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'No se pudo enviar el correo.',
-      });
+      toast({ variant: 'destructive', title: 'Error al enviar' });
     }
   };
 
@@ -221,42 +202,24 @@ export default function LoginPage() {
         <div className="flex flex-col items-center">
             <div className="flex items-center justify-center gap-6 mb-6">
                 <div className="h-16 w-16 relative">
-                   <Image 
-                    src="/logo.png" 
-                    alt="Logo Izquierdo" 
-                    fill 
-                    className="object-contain" 
-                    priority 
-                  />
+                   <Image src="/logo.png" alt="Logo" fill className="object-contain" priority />
                 </div>
                 <div className="h-16 w-16 relative">
-                   <Image 
-                    src="/logo1.png" 
-                    alt="Logo Medio" 
-                    fill 
-                    className="object-contain" 
-                    priority 
-                  />
+                   <Image src="/logo1.png" alt="Logo" fill className="object-contain" priority />
                 </div>
                 <div className="h-16 w-16 relative">
-                   <Image 
-                    src="/logo3.png" 
-                    alt="Logo Derecho" 
-                    fill 
-                    className="object-contain" 
-                    priority 
-                  />
+                   <Image src="/logo3.png" alt="Logo" fill className="object-contain" priority />
                 </div>
             </div>
              <div className="space-y-1 text-center">
-                <h3 className="text-[10px] sm:text-xs font-black tracking-tight uppercase text-[#1A1A1A] leading-none opacity-80">
+                <h3 className="text-[10px] font-black tracking-tight uppercase text-[#1A1A1A] leading-none opacity-80">
                     DIRECCION GENERAL DEL REGISTRO ELECTORAL
                 </h3>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
+                <h1 className="text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
                     JUSTICIA ELECTORAL
                 </h1>
-                <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">
-                    SISTEMA DE GESTIÓN
+                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">
+                    PORTAL DE SEGURIDAD CIDEE
                 </p>
              </div>
         </div>
@@ -267,7 +230,7 @@ export default function LoginPage() {
               {mode === 'login' ? 'Acceso al Sistema' : 'Registro de Jefe'}
             </CardTitle>
             <CardDescription className="text-center font-bold uppercase text-[9px] tracking-widest opacity-60">
-              {mode === 'login' ? 'Ingrese sus credenciales oficiales' : 'Cree su perfil regional con acceso a Anexos I-V'}
+              {mode === 'login' ? 'Ingrese sus credenciales oficiales' : 'Cree su perfil institucional (Requiere Validación)'}
             </CardDescription>
           </CardHeader>
 
@@ -283,7 +246,7 @@ export default function LoginPage() {
                     autoCapitalize="none"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="font-bold border-2 h-11 focus-visible:ring-primary/20"
+                    className="font-bold border-2 h-11"
                   />
                 </div>
                 <div className="space-y-2">
@@ -304,7 +267,7 @@ export default function LoginPage() {
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
-                        className="font-bold border-2 h-11 focus-visible:ring-primary/20"
+                        className="font-bold border-2 h-11"
                       />
                       <Button
                           type="button"
@@ -319,7 +282,7 @@ export default function LoginPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-4 pt-2">
-                <Button type="submit" className="w-full h-12 font-black uppercase shadow-xl tracking-widest transition-transform active:scale-95" disabled={isLoading}>
+                <Button type="submit" className="w-full h-12 font-black uppercase shadow-xl tracking-widest bg-black hover:bg-black/90" disabled={isLoading}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
                   Ingresar al sistema
                 </Button>
@@ -398,11 +361,18 @@ export default function LoginPage() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="p-4 bg-amber-50 border-2 border-dashed border-amber-200 rounded-xl flex items-start gap-3">
+                    <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[8px] font-bold text-amber-800 uppercase leading-tight">
+                        ADVERTENCIA: Su cuenta se creará en estado INACTIVO. Un administrador deberá verificar su identidad y habilitar el acceso antes de que pueda operar el sistema.
+                    </p>
+                </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-3 pt-2">
-                <Button type="submit" className="w-full h-12 font-black uppercase shadow-xl tracking-widest" disabled={isLoading}>
+                <Button type="submit" className="w-full h-12 font-black uppercase shadow-xl tracking-widest bg-black hover:bg-black/90" disabled={isLoading}>
                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  Completar Registro
+                  Solicitar Registro
                 </Button>
                 <Button 
                   type="button" 

@@ -1,8 +1,9 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { AlertTriangle, RefreshCw, ShieldAlert, LogOut, UserX } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ShieldAlert, LogOut, UserX, Clock, Lock } from 'lucide-react';
 import { useUser, useFirebase } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/app-sidebar';
@@ -86,36 +87,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // OPTIMIZACIÓN: Bloqueo de renderizado para rutas privadas
   if (!mounted || isUserLoading || (user && isProfileLoading && !isPublicRoute)) {
     return <Loading />;
   }
 
-  // VALIDACIÓN DE USUARIO ACTIVO O ELIMINADO CON PROTECCIÓN AL PROPIETARIO
+  // VALIDACIÓN DE USUARIO ACTIVO CON PANTALLA DE "PENDIENTE DE APROBACIÓN"
   const isOwner = user?.email === 'edubtz11@gmail.com';
   const isRestricted = !isOwner && user && !isPublicRoute && (user.profile?.active === false || !user.profile);
 
   if (isRestricted) {
+    const isPending = user.profile?.registration_method === 'auto_registro_jefe';
+
     return (
-      <div className="flex min-h-screen w-full flex-col items-center justify-center p-6 bg-muted/10">
+      <div className="flex min-h-screen w-full flex-col items-center justify-center p-6 bg-[#F8F9FA]">
         <div className="max-w-md w-full text-center space-y-8 animate-in fade-in zoom-in duration-500">
-          <div className="bg-destructive/10 h-24 w-24 rounded-full flex items-center justify-center mx-auto border-4 border-destructive/20">
-            <UserX className="h-12 w-12 text-destructive" />
+          <div className={cn(
+            "h-24 w-24 rounded-full flex items-center justify-center mx-auto border-4",
+            isPending ? "bg-amber-100 border-amber-200" : "bg-destructive/10 border-destructive/20"
+          )}>
+            {isPending ? <Clock className="h-12 w-12 text-amber-600" /> : <UserX className="h-12 w-12 text-destructive" />}
           </div>
+          
           <div className="space-y-4">
-            <h1 className="text-3xl font-black uppercase text-primary tracking-tighter leading-none">Acceso Denegado</h1>
-            <div className="p-6 bg-white border-2 border-destructive/20 rounded-2xl shadow-xl">
+            <h1 className="text-3xl font-black uppercase text-primary tracking-tighter leading-none">
+                {isPending ? "Acceso en Revisión" : "Acceso Denegado"}
+            </h1>
+            <div className="p-8 bg-white border-2 rounded-[2rem] shadow-2xl space-y-6">
               <p className="text-sm font-bold uppercase text-muted-foreground leading-relaxed">
-                Su cuenta ha sido <span className="text-destructive font-black">EXPULSADA</span> o se encuentra inactiva.
+                {isPending 
+                    ? "Su solicitud de registro ha sido recibida pero su cuenta aún no ha sido activada." 
+                    : "Su cuenta institucional ha sido desactivada por el departamento de seguridad."}
               </p>
-              <p className="text-xs font-medium uppercase text-muted-foreground mt-4 leading-relaxed">
-                El sistema de seguridad ha revocado sus permisos de acceso. Si considera que esto es un error, contacte a la Dirección General.
-              </p>
+              
+              <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-xl text-left border">
+                <Lock className="h-5 w-5 text-primary opacity-40 shrink-0" />
+                <p className="text-[10px] font-medium uppercase text-muted-foreground italic">
+                    El Administrador Maestro debe verificar su identidad y otorgar los permisos de acceso correspondientes.
+                </p>
+              </div>
             </div>
           </div>
           <Button 
             variant="outline" 
-            className="font-black uppercase text-xs h-12 border-2 gap-2"
+            className="font-black uppercase text-xs h-12 border-2 gap-2 shadow-sm"
             onClick={() => auth.signOut()}
           >
             <LogOut className="h-4 w-4" /> Salir del Sistema
@@ -123,7 +137,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <footer className="fixed bottom-0 w-full py-6 px-4 text-center">
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-60">
-            © 2026 Dpto. Informática DGRE - TSJE | Ing. Eduardo Benítez Reservados todos los derechos.
+            © 2026 Dpto. Informática DGRE - TSJE | PROTOCOLO DE SEGURIDAD CIDEE
           </p>
         </footer>
       </div>
@@ -135,8 +149,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isPublicView = isEncuestaPage && !user;
   const showSimpleLayout = isLoginPage || isPublicView;
 
-  const copyrightText = "© 2026 Dpto. Informática DGRE - TSJE | Ing. Eduardo Benítez Reservados todos los derechos.";
-
   return (
     <SidebarProvider defaultOpen={false}>
       {showSimpleLayout ? (
@@ -146,7 +158,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <footer className="w-full py-6 px-4 text-center">
             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-60">
-              {copyrightText}
+              © 2026 Dpto. Informática DGRE - TSJE | Reservados todos los derechos.
             </p>
           </footer>
         </div>
@@ -162,7 +174,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <footer className="py-6 px-4 text-center border-t bg-muted/5">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-60">
-                  {copyrightText}
+                  © 2026 Dpto. Informática DGRE - TSJE | Reservados todos los derechos.
                 </p>
               </footer>
             </div>

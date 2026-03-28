@@ -31,7 +31,8 @@ import {
   Zap,
   Activity,
   Power,
-  PowerOff
+  PowerOff,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -298,20 +299,13 @@ export default function UsersPage() {
     return [...new Set(datosData.filter(d => d.departamento === regDepartamento).map(d => d.distrito))].sort();
   }, [datosData, regDepartamento]);
 
-  const districtCoverage = useMemo(() => {
-    if (!datosData || !users) return { percent: 0, total: 0, covered: 0 };
-    const allDistricts = new Set(datosData.map(d => `${d.departamento}-${d.distrito}`));
-    const totalCount = allDistricts.size;
-    const coveredDistricts = new Set();
-    users.forEach(u => {
-      if (u.departamento && u.distrito && u.departamento !== 'N/A' && u.distrito !== 'N/A') {
-        coveredDistricts.add(`${u.departamento}-${u.distrito}`);
-      }
-    });
-    const coveredCount = coveredDistricts.size;
-    const percent = totalCount > 0 ? Math.round((coveredCount / totalCount) * 100) : 0;
-    return { percent, total: totalCount, covered: coveredCount };
-  }, [datosData, users]);
+  const stats = useMemo(() => {
+    if (!users) return { pending: 0, active: 0 };
+    return {
+        pending: users.filter(u => u.active === false && u.registration_method === 'auto_registro_jefe').length,
+        active: users.filter(u => u.active !== false).length
+    };
+  }, [users]);
 
   const filteredUsers = useMemo(() => {
     if (!users) return [];
@@ -433,23 +427,17 @@ export default function UsersPage() {
   };
   
   const toggleUserStatus = (user: UserProfile) => {
-    if (!firestore || user.email === 'edubtz11@gmail.com') {
-        if(user.email === 'edubtz11@gmail.com') toast({ variant: 'destructive', title: 'Acción Bloqueada', description: 'No se puede desactivar la cuenta del propietario.' });
-        return;
-    }
+    if (!firestore || user.email === 'edubtz11@gmail.com') return;
     const currentStatus = user.active !== false;
     const newStatus = !currentStatus;
     const docRef = doc(firestore, 'users', user.id);
     updateDoc(docRef, { active: newStatus })
-      .then(() => toast({ title: newStatus ? 'Usuario Activado' : 'Usuario Desactivado' }))
+      .then(() => toast({ title: newStatus ? 'Usuario Habilitado' : 'Usuario Desactivado' }))
       .catch((error) => errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' })));
   };
 
   const handleDeleteUser = (user: UserProfile) => {
-    if (!firestore || user.email === 'edubtz11@gmail.com') {
-        if(user.email === 'edubtz11@gmail.com') toast({ variant: 'destructive', title: 'Acción Bloqueada', description: 'No se puede eliminar la cuenta del propietario.' });
-        return;
-    }
+    if (!firestore || user.email === 'edubtz11@gmail.com') return;
     const userDocRef = doc(firestore, 'users', user.id);
     deleteDoc(userDocRef).then(() => toast({ title: 'Usuario Eliminado' }))
       .catch((error) => errorEmitter.emit('permission-error', new FirestorePermissionError({ path: userDocRef.path, operation: 'delete' })));
@@ -515,26 +503,34 @@ export default function UsersPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/5">
-      <Header title="Gestión de Usuarios" />
+      <Header title="Administración de Accesos" />
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8">
+        
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
                 <h1 className="text-3xl font-black tracking-tight uppercase text-primary leading-none">Matriz de Personal</h1>
                 <p className="text-muted-foreground text-[10px] font-bold uppercase flex items-center gap-2 mt-2 tracking-widest">
-                    <ShieldCheck className="h-3 w-3" /> Configuración de perfiles y accesos de seguridad
+                    <ShieldCheck className="h-3 w-3" /> Control de identidades y validación de roles
                 </p>
             </div>
-            <Card className="bg-white border-2 shadow-sm p-4 rounded-2xl flex items-center gap-4 min-w-[240px]">
-                <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center"><Activity className="h-5 w-5 text-primary" /></div>
-                <div>
-                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">COBERTURA DISTRITAL</p>
-                    <div className="flex items-baseline gap-2">
-                        <p className="text-2xl font-black leading-none">{districtCoverage.percent}%</p>
-                        <p className="text-[10px] font-bold text-muted-foreground">({districtCoverage.covered}/{districtCoverage.total})</p>
+            <div className="flex gap-4">
+                <Card className={cn("bg-white border-2 shadow-sm p-4 rounded-2xl flex items-center gap-4 transition-all", stats.pending > 0 && "border-amber-400 bg-amber-50 animate-pulse")}>
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", stats.pending > 0 ? "bg-amber-100" : "bg-primary/5")}>
+                        <AlertTriangle className={cn("h-5 w-5", stats.pending > 0 ? "text-amber-600" : "text-primary")} />
                     </div>
-                    <Progress value={districtCoverage.percent} className="h-1 w-24 mt-2" />
-                </div>
-            </Card>
+                    <div>
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">SOLICITUDES PENDIENTES</p>
+                        <p className={cn("text-2xl font-black leading-none", stats.pending > 0 ? "text-amber-600" : "text-primary")}>{stats.pending}</p>
+                    </div>
+                </Card>
+                <Card className="bg-black text-white p-4 rounded-2xl flex items-center gap-4 min-w-[180px] shadow-xl">
+                    <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center"><Users className="h-5 w-5" /></div>
+                    <div>
+                        <p className="text-[8px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">PERSONAL ACTIVO</p>
+                        <p className="text-2xl font-black">{stats.active}</p>
+                    </div>
+                </Card>
+            </div>
         </div>
 
         <Card className="shadow-2xl border-none overflow-hidden rounded-xl bg-white">
@@ -562,14 +558,14 @@ export default function UsersPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                    <Label className="text-[9px] font-black uppercase">Departamento <span className="text-destructive font-black">*</span></Label>
+                    <Label className="text-[9px] font-black uppercase">Departamento</Label>
                     <Select onValueChange={setRegDepartamento} value={regDepartamento}>
                         <SelectTrigger className="font-black h-11 border-2 uppercase text-[10px]"><SelectValue placeholder="Elegir..." /></SelectTrigger>
                         <SelectContent><SelectItem value="N/A">ALCANCE NACIONAL</SelectItem>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
                 <div className="space-y-2">
-                    <Label className="text-[9px] font-black uppercase">Distrito <span className="text-destructive font-black">*</span></Label>
+                    <Label className="text-[9px] font-black uppercase">Distrito</Label>
                     <Select onValueChange={setRegDistrito} value={regDistrito} disabled={!regDepartamento || regDepartamento === 'N/A'}>
                         <SelectTrigger className="font-black h-11 border-2 uppercase text-[10px]"><SelectValue placeholder="Elegir..." /></SelectTrigger>
                         <SelectContent><SelectItem value="N/A">TODOS LOS DISTRITOS</SelectItem>{districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
@@ -585,78 +581,130 @@ export default function UsersPage() {
 
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-primary p-6 rounded-xl shadow-lg">
-                <div className="flex items-center gap-3"><Users className="h-6 w-6 text-white opacity-50" /><div><h2 className="text-white font-black uppercase text-sm">Matriz de Distribución Nacional</h2><p className="text-white/60 font-bold uppercase text-[9px]">Supervisión de cobertura por oficina regional</p></div></div>
-                <div className="relative w-full md:w-80"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" /><Input placeholder="Filtrar por nombre, correo o zona..." className="h-10 pl-10 text-[10px] font-bold bg-white/10 border-white/20 text-white rounded-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                <div className="flex items-center gap-3">
+                    <Users className="h-6 w-6 text-white opacity-50" />
+                    <div>
+                        <h2 className="text-white font-black uppercase text-sm">Directorio de Usuarios</h2>
+                        <p className="text-white/60 font-bold uppercase text-[9px]">Gestión jerárquica de permisos y estados</p>
+                    </div>
+                </div>
+                <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                    <Input placeholder="Buscar por nombre, email o zona..." className="h-10 pl-10 text-[10px] font-bold bg-white/10 border-white/20 text-white rounded-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
             </div>
+
             {isLoadingUsers ? <div className="flex justify-center items-center py-20 bg-white rounded-xl shadow-md"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div> : (
                 <Accordion type="multiple" className="space-y-4">
                     {userHierarchy.map((dept) => (
                         <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-xl shadow-md overflow-hidden">
                             <AccordionTrigger className="hover:no-underline px-8 py-5 bg-white group">
                                 <div className="flex items-center justify-between w-full pr-6 text-left">
-                                    <div className="flex items-center gap-4"><div className="h-10 w-10 rounded-lg bg-primary/5 text-primary flex items-center justify-center font-black border border-primary/10"><Landmark className="h-5 w-5" /></div><div><h2 className="text-lg font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2><p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{dept.districts.length} OFICINAS</p></div></div>
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} PERSONAL ACTIVADO</Badge>
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-10 w-10 rounded-lg bg-primary/5 text-primary flex items-center justify-center font-black border border-primary/10">
+                                            <Landmark className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-lg font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
+                                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{dept.districts.length} OFICINAS</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        {dept.districts.some(d => d.users.some(u => u.active === false && u.registration_method === 'auto_registro_jefe')) && (
+                                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[8px] font-black uppercase animate-pulse">PENDIENTES</Badge>
+                                        )}
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} TOTAL</Badge>
+                                    </div>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="px-8 pb-8 pt-2">
                                 <Accordion type="multiple" className="space-y-3 pt-4">
                                     {dept.districts.map((dist) => {
                                         const hasUsers = dist.users.length > 0;
+                                        if (!hasUsers) return null;
                                         return (
                                             <AccordionItem key={dist.name} value={dist.name} className="border-2 rounded-xl overflow-hidden transition-all hover:border-primary/10">
                                                 <AccordionTrigger className="hover:no-underline px-6 py-3 bg-muted/5 group">
-                                                    <div className="flex items-center justify-between w-full pr-4"><div className="flex items-center gap-3"><Building2 className={cn("h-4 w-4", hasUsers ? "text-primary" : "text-muted-foreground/40")} /><span className="font-black uppercase text-xs">{dist.name}</span></div>{hasUsers && <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} PERSONAL</Badge>}</div>
+                                                    <div className="flex items-center justify-between w-full pr-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <Building2 className="h-4 w-4 text-primary" />
+                                                            <span className="font-black uppercase text-xs">{dist.name}</span>
+                                                        </div>
+                                                        <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} PERSONAL</Badge>
+                                                    </div>
                                                 </AccordionTrigger>
                                                 <AccordionContent className="p-0 bg-white">
-                                                    {!hasUsers ? <div className="py-10 text-center opacity-30"><UserCircle className="h-10 w-10 mx-auto" /><p className="text-[10px] font-bold uppercase">Sin personal asignado</p></div> : (
-                                                        <div className="overflow-x-auto">
-                                                            <Table>
-                                                                <TableHeader className="bg-muted/30">
-                                                                    <TableRow>
-                                                                        <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
-                                                                        <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
-                                                                        <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
-                                                                        <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
-                                                                    </TableRow>
-                                                                </TableHeader>
-                                                                <TableBody>{dist.users.map(u => (
-                                                                    <TableRow key={u.id} className={cn("hover:bg-primary/5", u.active === false && "bg-amber-50/50")}>
-                                                                        <TableCell className="px-6 py-3"><div className="flex flex-col"><span className="font-black text-[11px] uppercase text-primary leading-tight">{u.username}</span><span className="text-[9px] font-bold text-muted-foreground">{u.email}</span></div></TableCell>
-                                                                        <TableCell><Badge variant="outline" className="text-[7px] font-black uppercase">{u.role}</Badge></TableCell>
-                                                                        <TableCell>
-                                                                            <Badge variant={u.active === false ? "destructive" : "default"} className="text-[7px] font-black uppercase">
-                                                                                {u.active === false ? "INACTIVO" : "ACTIVO"}
-                                                                            </Badge>
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right px-6"><div className="flex justify-end gap-2">
-                                                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingUser({...u}); setEditModalOpen(true); }}><Edit className="h-3.5 w-3.5" /></Button>
-                                                                            <Button variant="ghost" size="icon" className={cn("h-7 w-7", u.active === false ? "text-green-600" : "text-amber-600")} title={u.active === false ? "Activar" : "Desactivar"} onClick={() => toggleUserStatus(u)}>
-                                                                                {u.active === false ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-                                                                            </Button>
-                                                                            <AlertDialog>
-                                                                                <AlertDialogTrigger asChild>
-                                                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
-                                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    <div className="overflow-x-auto">
+                                                        <Table>
+                                                            <TableHeader className="bg-muted/30">
+                                                                <TableRow>
+                                                                    <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
+                                                                    <TableHead className="text-[8px] font-black uppercase">Origen</TableHead>
+                                                                    <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
+                                                                    <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
+                                                                    <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {dist.users.map(u => {
+                                                                    const isPending = u.active === false && u.registration_method === 'auto_registro_jefe';
+                                                                    return (
+                                                                        <TableRow key={u.id} className={cn("hover:bg-primary/5", isPending && "bg-amber-50/30")}>
+                                                                            <TableCell className="px-6 py-3">
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="font-black text-[11px] uppercase text-primary leading-none">{u.username}</span>
+                                                                                    <span className="text-[9px] font-bold text-muted-foreground mt-1">{u.email}</span>
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell>
+                                                                                {u.registration_method === 'auto_registro_jefe' ? (
+                                                                                    <Badge variant="outline" className="text-[7px] font-black uppercase text-amber-600 border-amber-200">WEB (EXTERNO)</Badge>
+                                                                                ) : (
+                                                                                    <Badge variant="outline" className="text-[7px] font-black uppercase text-blue-600 border-blue-200">CENTRAL</Badge>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell><Badge variant="secondary" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-none">{u.role}</Badge></TableCell>
+                                                                            <TableCell>
+                                                                                {isPending ? (
+                                                                                    <Badge className="bg-amber-500 text-white text-[7px] font-black uppercase">SOLICITANTE</Badge>
+                                                                                ) : (
+                                                                                    <Badge variant={u.active === false ? "destructive" : "default"} className="text-[7px] font-black uppercase">
+                                                                                        {u.active === false ? "INACTIVO" : "ACTIVO"}
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-right px-6">
+                                                                                <div className="flex justify-end gap-2">
+                                                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingUser({...u}); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
+                                                                                    <Button variant="ghost" size="icon" className={cn("h-8 w-8", u.active === false ? "text-green-600" : "text-amber-600")} title={u.active === false ? "Habilitar Acceso" : "Deshabilitar Acceso"} onClick={() => toggleUserStatus(u)}>
+                                                                                        {u.active === false ? <CheckCircle2 className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
                                                                                     </Button>
-                                                                                </AlertDialogTrigger>
-                                                                                <AlertDialogContent className="rounded-[2rem]">
-                                                                                    <AlertDialogHeader>
-                                                                                        <AlertDialogTitle className="font-black uppercase">¿ELIMINAR?</AlertDialogTitle>
-                                                                                        <AlertDialogDescription className="text-xs font-medium uppercase">
-                                                                                            Se borrará el perfil de {u.username} permanentemente.
-                                                                                        </AlertDialogDescription>
-                                                                                    </AlertDialogHeader>
-                                                                                    <AlertDialogFooter className="pt-6">
-                                                                                        <AlertDialogCancel className="rounded-xl text-[10px]">CANCELAR</AlertDialogCancel>
-                                                                                        <AlertDialogAction onClick={() => handleDeleteUser(u)} className="bg-destructive text-white rounded-xl text-[10px]">ELIMINAR</AlertDialogAction>
-                                                                                    </AlertDialogFooter>
-                                                                                </AlertDialogContent>
-                                                                            </AlertDialog></div></TableCell>
-                                                                    </TableRow>
-                                                                ))}</TableBody>
-                                                            </Table>
-                                                        </div>
-                                                    )}
+                                                                                    <AlertDialog>
+                                                                                        <AlertDialogTrigger asChild>
+                                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                                                                <Trash2 className="h-4 w-4" />
+                                                                                            </Button>
+                                                                                        </AlertDialogTrigger>
+                                                                                        <AlertDialogContent className="rounded-[2rem]">
+                                                                                            <AlertDialogHeader>
+                                                                                                <AlertDialogTitle className="font-black uppercase">¿ELIMINAR ACCESO?</AlertDialogTitle>
+                                                                                                <AlertDialogDescription className="text-xs font-medium uppercase">
+                                                                                                    Esta acción es permanente. Se borrará el perfil de {u.username} del sistema central.
+                                                                                                </AlertDialogDescription>
+                                                                                            </AlertDialogHeader>
+                                                                                            <AlertDialogFooter className="pt-6">
+                                                                                                <AlertDialogCancel className="rounded-xl text-[10px] font-black">CANCELAR</AlertDialogCancel>
+                                                                                                <AlertDialogAction onClick={() => handleDeleteUser(u)} className="bg-destructive text-white rounded-xl text-[10px] font-black">ELIMINAR DEFINITIVAMENTE</AlertDialogAction>
+                                                                                            </AlertDialogFooter>
+                                                                                        </AlertDialogContent>
+                                                                                    </AlertDialog>
+                                                                                </div>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    );
+                                                                })}</TableBody>
+                                                        </Table>
+                                                    </div>
                                                 </AccordionContent>
                                             </AccordionItem>
                                         );
@@ -674,9 +722,28 @@ export default function UsersPage() {
         <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">
           {editingUser && (
             <form onSubmit={handleUpdateUser} className="flex flex-col h-full bg-white">
-              <DialogHeader className="p-8 bg-black text-white shrink-0"><div className="flex justify-between items-center"><div className="flex items-center gap-4"><div className="h-12 w-12 bg-white/10 rounded-xl flex items-center justify-center"><Settings className="h-6 w-6" /></div><div><DialogTitle className="text-2xl font-black uppercase">Editar Perfil</DialogTitle><DialogDescription className="text-white/60 font-bold uppercase text-[9px]">ID: {editingUser.id}</DialogDescription></div></div><Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] h-9" onClick={() => handleApplyCIDEEProfile(true)}><Zap className="h-3.5 w-3.5 fill-white" /> PERFIL CIDEE</Button></div></DialogHeader>
-              <ScrollArea className="flex-1"><div className="p-8 space-y-10"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><div className="space-y-3"><Label className="text-[10px] font-black uppercase">Nombre</Label><Input value={editingUser.username} onChange={(e) => setEditingUser({...editingUser, username: e.target.value})} className="font-bold h-12 border-2 uppercase" /></div><div className="space-y-3"><Label className="text-[10px] font-black uppercase">Rol</Label><Select onValueChange={(v: any) => setEditingUser({...editingUser, role: v})} value={editingUser.role}><SelectTrigger className="font-black h-12 border-2 text-[10px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="admin">ADMIN</SelectItem><SelectItem value="director">DIRECTOR</SelectItem><SelectItem value="coordinador">COORDINADOR</SelectItem><SelectItem value="jefe">JEFE</SelectItem><SelectItem value="funcionario">FUNCIONARIO</SelectItem><SelectItem value="viewer">VIEWER</SelectItem></SelectContent></Select></div><div className="space-y-3"><Label className="text-[10px] font-black uppercase">Dpto</Label><Select onValueChange={(v) => setEditingUser({...editingUser, departamento: v, distrito: ''})} value={editingUser.departamento || 'N/A'}><SelectTrigger className="font-black h-12 border-2 text-[10px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="N/A">NACIONAL</SelectItem>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div><div className="space-y-3"><Label className="text-[10px] font-black uppercase">Distrito</Label><Select onValueChange={(v) => setEditingUser({...editingUser, distrito: v})} value={editingUser.distrito || 'N/A'} disabled={!editingUser.departamento || editingUser.departamento === 'N/A'}><SelectTrigger className="font-black h-12 border-2 text-[10px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="N/A">TODOS</SelectItem>{datosData?.filter(d => d.departamento === editingUser.departamento).map(d => <SelectItem key={d.distrito} value={d.distrito}>{d.distrito}</SelectItem>)}</SelectContent></Select></div></div><Separator /><PermissionMatrix userObj={editingUser} isEditing={true} selectedPerms={selectedPerms} selectedModules={selectedModules} onTogglePerm={handleTogglePerm} onToggleModuleAction={handleToggleModuleAction} onToggleColumn={handleToggleColumn} /></div></ScrollArea>
-              <DialogFooter className="p-8 bg-muted/30 border-t"><DialogClose asChild><Button variant="outline" type="button" className="font-black uppercase text-[10px] px-8 h-14">CANCELAR</Button></DialogClose><Button type="submit" disabled={isSubmitting} className="font-black uppercase text-xs h-14 flex-1 shadow-xl">{isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : "ACTUALIZAR MATRIZ"}</Button></DialogFooter>
+              <DialogHeader className="p-8 bg-black text-white shrink-0">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-white/10 rounded-xl flex items-center justify-center"><Settings className="h-6 w-6" /></div>
+                        <div><DialogTitle className="text-2xl font-black uppercase">Editar Perfil</DialogTitle><DialogDescription className="text-white/60 font-bold uppercase text-[9px]">ID: {editingUser.id}</DialogDescription></div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] h-9" onClick={() => handleApplyCIDEEProfile(true)}><Zap className="h-3.5 w-3.5 fill-white" /> PERFIL CIDEE</Button>
+                </div>
+              </DialogHeader>
+              <ScrollArea className="flex-1">
+                <div className="p-8 space-y-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="space-y-3"><Label className="text-[10px] font-black uppercase">Nombre</Label><Input value={editingUser.username} onChange={(e) => setEditingUser({...editingUser, username: e.target.value})} className="font-bold h-12 border-2 uppercase" /></div>
+                        <div className="space-y-3"><Label className="text-[10px] font-black uppercase">Rol</Label><Select onValueChange={(v: any) => setEditingUser({...editingUser, role: v})} value={editingUser.role}><SelectTrigger className="font-black h-12 border-2 text-[10px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="admin">ADMIN</SelectItem><SelectItem value="director">DIRECTOR</SelectItem><SelectItem value="coordinador">COORDINADOR</SelectItem><SelectItem value="jefe">JEFE</SelectItem><SelectItem value="funcionario">FUNCIONARIO</SelectItem><SelectItem value="viewer">VIEWER</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-3"><Label className="text-[10px] font-black uppercase">Dpto</Label><Select onValueChange={(v) => setEditingUser({...editingUser, departamento: v, distrito: ''})} value={editingUser.departamento || 'N/A'}><SelectTrigger className="font-black h-12 border-2 text-[10px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="N/A">NACIONAL</SelectItem>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-3"><Label className="text-[10px] font-black uppercase">Distrito</Label><Select onValueChange={(v) => setEditingUser({...editingUser, distrito: v})} value={editingUser.distrito || 'N/A'} disabled={!editingUser.departamento || editingUser.departamento === 'N/A'}><SelectTrigger className="font-black h-12 border-2 text-[10px] uppercase"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="N/A">TODOS</SelectItem>{datosData?.filter(d => d.departamento === editingUser.departamento).map(d => <SelectItem key={d.distrito} value={d.distrito}>{d.distrito}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                    <Separator />
+                    <PermissionMatrix userObj={editingUser} isEditing={true} selectedPerms={selectedPerms} selectedModules={selectedModules} onTogglePerm={handleTogglePerm} onToggleModuleAction={handleToggleModuleAction} onToggleColumn={handleToggleColumn} />
+                </div>
+              </ScrollArea>
+              <DialogFooter className="p-8 bg-muted/30 border-t"><DialogClose asChild><Button variant="outline" type="button" className="font-black uppercase text-[10px] px-8 h-14">CANCELAR</Button></DialogClose><Button type="submit" disabled={isSubmitting} className="font-black uppercase text-xs h-14 flex-1 shadow-xl bg-black hover:bg-black/90">{isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : "ACTUALIZAR MATRIZ"}</Button></DialogFooter>
             </form>
           )}
         </DialogContent>
