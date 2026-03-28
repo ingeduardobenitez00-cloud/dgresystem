@@ -92,6 +92,15 @@
         "distrito": { "type": "string" }
       }
     },
+    "PartidoPolitico": {
+      "title": "Partido Político",
+      "type": "object",
+      "description": "Entidad política para solicitudes de capacitación.",
+      "properties": {
+        "nombre": { "type": "string" },
+        "siglas": { "type": "string" }
+      }
+    },
     "SolicitudCapacitacion": {
       "title": "Solicitud de Capacitación",
       "type": "object",
@@ -172,6 +181,12 @@
         "$ref": "#/entities/Divulgador"
       },
       "description": "Stores operational staff information."
+    },
+    "/partidos-politicos/{partidoId}": {
+      "schema": {
+        "$ref": "#/entities/PartidoPolitico"
+      },
+      "description": "Directory of political parties and movements."
     },
     "/solicitudes-capacitacion/{solicitudId}": {
       "schema": {

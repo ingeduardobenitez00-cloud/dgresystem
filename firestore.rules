@@ -104,6 +104,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /partidos-politicos/{partidoId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /config/{configId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
