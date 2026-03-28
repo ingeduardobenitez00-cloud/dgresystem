@@ -1,18 +1,4 @@
 /** @type {import('next').NextConfig} */
-const cspHeader = `
-    default-src 'self' https://*.cloudworkstations.dev;
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://*.cloudworkstations.dev;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
-    img-src 'self' blob: data: https://images.unsplash.com https://picsum.photos https://api.qrserver.com https://placehold.co https://*.googleusercontent.com https://*.gstatic.com;
-    font-src 'self' https://fonts.gstatic.com data:;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'self' https://*.cloudworkstations.dev;
-    frame-src 'self' https://*.firebaseapp.com https://*.cloudworkstations.dev;
-    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com wss://*.cloudworkstations.dev https://*.cloudworkstations.dev;
-`.replace(/\s{2,}/g, ' ').trim();
-
 const nextConfig = {
   /* config options here */
   typescript: {
@@ -65,10 +51,6 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: cspHeader,
-          },
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
