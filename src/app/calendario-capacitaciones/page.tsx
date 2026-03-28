@@ -43,6 +43,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import Link from 'next/link';
 
 export default function CalendarioCapacitacionesPage() {
   const { user, isUserLoading } = useUser();
@@ -189,12 +190,15 @@ export default function CalendarioCapacitacionesPage() {
                                             "bg-green-50 border-l-green-600"
                                         )}
                                     >
-                                        <p className="text-[8px] font-black uppercase truncate text-[#1A1A1A]">
+                                        <p className="text-[7px] font-bold text-primary/60 uppercase truncate">
+                                            {act.distrito}
+                                        </p>
+                                        <p className="text-[8px] font-black uppercase truncate text-[#1A1A1A] leading-tight">
                                             {act.lugar_local}
                                         </p>
                                         <div className="flex items-center gap-1 mt-0.5 opacity-60">
                                             <Clock className="h-2 w-2" />
-                                            <span className="text-[7px] font-bold">{act.hora_desde} HS</span>
+                                            <span className="text-[7px] font-bold uppercase">{act.hora_desde} A {act.hora_hasta} HS</span>
                                         </div>
                                     </div>
                                 ))}
@@ -286,5 +290,3 @@ export default function CalendarioCapacitacionesPage() {
     </div>
   );
 }
-
-import Link from 'next/link';
