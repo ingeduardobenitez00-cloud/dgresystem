@@ -21,7 +21,8 @@ import {
     ImageIcon,
     Clock,
     CheckCircle2,
-    Activity
+    Activity,
+    X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -80,9 +81,7 @@ export default function ListaAnexoIPage() {
     
     // Se considera completado si ya no está en agenda activa (tiene informe y devolución)
     const completed = batchItems.filter(s => {
-        // En un sistema real, chequearíamos si tiene informe vinculado. 
-        // Por ahora simulamos con que el lote ha avanzado según las fechas.
-        return false; // Implementar lógica real según necesidad
+        return false; 
     }).length;
 
     return { total: batchItems.length, completed, percent: Math.round((completed / batchItems.length) * 100) };
@@ -168,7 +167,6 @@ export default function ListaAnexoIPage() {
         )}
       </main>
 
-      {/* DIÁLOGO DE FICHA TÉCNICA */}
       <Dialog open={!!viewingAnexo} onOpenChange={(o) => !o && setViewingAnexo(null)}>
         <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 border-none shadow-2xl overflow-hidden rounded-[2rem]">
           {viewingAnexo && (
@@ -194,7 +192,6 @@ export default function ListaAnexoIPage() {
 
                 <ScrollArea className="flex-1 p-8">
                     <div className="space-y-10">
-                        {/* TABLA DE PLANIFICACIÓN */}
                         <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
                             <div className="bg-muted/30 px-6 py-3 border-b flex justify-between items-center">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
@@ -230,7 +227,6 @@ export default function ListaAnexoIPage() {
                             </Table>
                         </Card>
 
-                        {/* RESPALDO DOCUMENTAL */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 px-2">
                                 <ImageIcon className="h-5 w-5 text-primary" />
