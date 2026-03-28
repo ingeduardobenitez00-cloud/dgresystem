@@ -1,14 +1,19 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /** 
      * REGLAS DE SEGURIDAD INSTITUCIONAL CIDEE 2026 
-     * Protocolo de Blindaje y Recuperación Maestra.
+     * Protocolo de Blindaje y Recuperación Maestra - V3.0
      */
 
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn() && request.auth.token.email == 'edubtz11@gmail.com';
     }
 
     function getUserData() {
@@ -18,36 +23,35 @@ service cloud.firestore {
 
     function isActive() {
       let data = getUserData();
-      return isSignedIn() && (request.auth.token.email == 'edubtz11@gmail.com' || (data != null && data.active == true));
+      return isOwner() || (isSignedIn() && data != null && data.active == true);
     }
 
     function isAdmin() {
       let data = getUserData();
-      return isSignedIn() && (request.auth.token.email == 'edubtz11@gmail.com' || (data != null && data.role == 'admin'));
+      return isOwner() || (isSignedIn() && data != null && data.role == 'admin');
     }
 
     function isDirector() {
       let data = getUserData();
-      return isSignedIn() && (request.auth.token.email == 'edubtz11@gmail.com' || (data != null && (data.role == 'admin' || data.role == 'director')));
+      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director'));
     }
 
     /** Gestión de Usuarios - Blindaje de Lista **/
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin() || isDirector();
-      // El administrador maestro (propietario) puede crear/editar cualquier cuenta.
-      // Otros administradores no pueden borrar ni editar la cuenta del propietario.
       allow create: if isAdmin();
       allow update: if (request.auth.uid == userId) || isAdmin();
+      // El propietario no puede ser borrado bajo ninguna circunstancia
       allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
     }
 
-    /** Regla para el Padrón Electoral - Solo lectura para personal activo **/
+    /** Regla para el Padrón Electoral **/
     match /padron/{document=**} {
       allow read: if isActive();
     }
 
-    /** Monitoreo de Presencia - Control de Auditoría **/
+    /** Monitoreo de Presencia **/
     match /presencia/{userId} {
       allow read: if isAdmin() || isDirector() || (isSignedIn() && request.auth.uid == userId);
       allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
@@ -57,8 +61,8 @@ service cloud.firestore {
     /** CIDEE - Colecciones Transaccionales **/
     
     match /solicitudes-capacitacion/{solicitudId} {
-      allow get: if true; 
-      allow list, create, update: if isActive();
+      allow read: if isActive();
+      allow create, update: if isActive();
       allow delete: if isAdmin();
     }
 

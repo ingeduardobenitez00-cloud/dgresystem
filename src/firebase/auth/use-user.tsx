@@ -1,3 +1,4 @@
+
 'use client';
 import { useMemo } from 'react';
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
@@ -14,6 +15,7 @@ export interface UserProfile {
   cedula?: string;
   vinculo?: 'PERMANENTE' | 'CONTRATADO' | 'COMISIONADO' | string;
   active?: boolean;
+  registration_method?: string;
 }
 
 export type AppUser = User & {
@@ -41,12 +43,39 @@ export const useUser = (): UserHookResult => {
   const enrichedUser = useMemo(() => {
     if (!authUser) return null;
     
-    // Bypass Maestro por Correo Propietario
-    const isAdmin = authUser.email === 'edubtz11@gmail.com' || profileData?.role === 'admin';
+    const isOwner = authUser.email === 'edubtz11@gmail.com';
+    const isAdmin = isOwner || profileData?.role === 'admin';
+
+    // PERFIL SINTÉTICO DE EMERGENCIA PARA EL PROPIETARIO
+    // Si el documento en Firestore no existe o fue borrado por un intruso,
+    // inyectamos un perfil con todos los privilegios para evitar errores de null en el sistema.
+    let finalProfile = profileData;
+    
+    if (isOwner && !profileData) {
+      finalProfile = {
+        username: 'ADMINISTRADOR MAESTRO',
+        role: 'admin',
+        departamento: 'SEDE CENTRAL',
+        distrito: 'ASUNCIÓN',
+        active: true,
+        modules: [
+          'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+          'agenda-anexo-v', 'control-movimiento-maquinas', 'denuncia-lacres', 
+          'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
+          'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
+          'archivo-capacitaciones', 'divulgadores', 'estadisticas-capacitacion',
+          'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
+          'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+          'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
+          'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria'
+        ],
+        permissions: ['admin_filter', 'department_filter', 'district_filter', 'assign_staff', 'generar_pdf']
+      };
+    }
     
     return {
       ...authUser,
-      profile: profileData,
+      profile: finalProfile,
       isAdmin
     };
   }, [authUser, profileData]);
