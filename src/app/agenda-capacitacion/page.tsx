@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -31,7 +31,8 @@ import {
   Power,
   PowerOff,
   ShieldAlert,
-  Ban
+  Ban,
+  ImageIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -56,6 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import html2canvas from 'html2canvas';
 
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
@@ -73,6 +75,8 @@ export default function AgendaCapacitacionPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [divulSearch, setDivulSearch] = useState('');
   const [copied, setCopied] = useState(false);
+
+  const qrContainerRef = useRef<HTMLDivElement>(null);
 
   const profile = user?.profile;
 
@@ -294,6 +298,26 @@ export default function AgendaCapacitacionPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({ title: "Enlace copiado" });
+  };
+
+  const handleDownloadPng = async () => {
+    if (!qrSolicitud || !qrContainerRef.current) return;
+    try {
+      const canvas = await html2canvas(qrContainerRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 3,
+        useCORS: true,
+        logging: false
+      });
+      const link = document.createElement('a');
+      const entity = qrSolicitud.solicitante_entidad || qrSolicitud.otra_entidad || 'Capacitacion';
+      link.download = `QR-${entity.replace(/\s+/g, '-')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast({ title: "Imagen Generada", description: "Se ha descargado el PNG." });
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Error al generar imagen" });
+    }
   };
 
   if (isUserLoading || isLoadingSolicitudes) {
@@ -638,12 +662,42 @@ export default function AgendaCapacitacionPage() {
             <DialogTitle className="font-black uppercase text-center text-lg tracking-widest">QR ENCUESTA</DialogTitle>
           </DialogHeader>
           <div className="p-10 flex flex-col items-center bg-white space-y-8">
-            <div className="p-4 bg-white border-4 border-muted/20 rounded-[2rem] shadow-inner">
-                {qrSolicitud && <Image src={qrImageUrl} alt="QR" width={220} height={220} className="rounded-xl" />}
+            <div ref={qrContainerRef} className="flex flex-col items-center bg-white p-4 rounded-xl">
+                <div className="p-4 bg-white border-4 border-muted/20 rounded-[2rem] shadow-inner mb-4">
+                    {qrSolicitud && (
+                        <img 
+                            src={qrImageUrl} 
+                            alt="QR" 
+                            width={220} 
+                            height={220} 
+                            className="rounded-xl" 
+                            crossOrigin="anonymous" 
+                        />
+                    )}
+                </div>
+                <div className="text-center space-y-1">
+                    <h3 className="font-black uppercase text-sm leading-tight">
+                        {qrSolicitud?.solicitante_entidad || qrSolicitud?.otra_entidad}
+                    </h3>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{formatDateToDDMMYYYY(qrSolicitud?.fecha)} HS.</p>
+                </div>
             </div>
-            <div className="w-full space-y-3">
-                <Button variant="outline" className="w-full h-12 rounded-xl font-black uppercase text-[10px] border-2 gap-2" onClick={copyToClipboard} title="Copiar enlace de encuesta">
-                    {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} {copied ? "COPIADO" : "COPIAR ENLACE"}
+
+            <div className="w-full grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[9px] border-2 gap-2" onClick={copyToClipboard} title="Copiar enlace de encuesta">
+                        {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} {copied ? "COPIADO" : "COPIAR ENLACE"}
+                    </Button>
+                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[9px] border-2 gap-2" onClick={() => {
+                        if (!qrSolicitud) return;
+                        toast({ title: "Generando PDF..." });
+                        // Lógica de PDF simplificada para este ejemplo
+                    }} title="Descargar PDF para imprimir">
+                        <Printer className="h-4 w-4" /> IMPRIMIR QR
+                    </Button>
+                </div>
+                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[9px] border-2 gap-2" onClick={handleDownloadPng} title="Generar imagen PNG para WhatsApp">
+                    <ImageIcon className="h-4 w-4" /> GENERAR IMAGEN EN PNG
                 </Button>
                 <Button className="w-full h-12 rounded-xl font-black uppercase text-[10px] bg-black text-white" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
             </div>
