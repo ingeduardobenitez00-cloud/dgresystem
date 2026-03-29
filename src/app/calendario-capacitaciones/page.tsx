@@ -292,9 +292,10 @@ export default function CalendarioCapacitacionesPage() {
                                                 </p>
                                                 <Badge variant="outline" className={cn(
                                                     "text-[5.5px] font-black px-1 py-0 h-3 border-primary/10",
-                                                    isAnexoI ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+                                                    isAnexoI ? "bg-green-100 text-green-800" : 
+                                                    act.tipo_solicitud === 'divulgacion' ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"
                                                 )}>
-                                                    {isAnexoI ? 'ANEXO I' : 'ANEXO V'}
+                                                    {isAnexoI ? 'ANEXO I' : act.tipo_solicitud === 'divulgacion' ? 'DIV. MV' : 'CAP. MM'}
                                                 </Badge>
                                             </div>
                                             <p className="text-[8px] font-black uppercase truncate text-[#1A1A1A] leading-tight mt-0.5">
@@ -322,15 +323,15 @@ export default function CalendarioCapacitacionesPage() {
         <div className="flex justify-center gap-8 py-4 px-8 bg-white border-2 rounded-3xl border-dashed">
             <div className="flex items-center gap-2">
                 <div className="h-3 w-3 rounded-full bg-blue-600" />
-                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Divulgación MV</span>
+                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">DIVULGACIÓN MV</span>
             </div>
             <div className="flex items-center gap-2">
                 <div className="h-3 w-3 rounded-full bg-purple-600" />
-                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Capacitación MM</span>
+                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">CAPACITACIÓN MM</span>
             </div>
             <div className="flex items-center gap-2">
                 <div className="h-3 w-3 rounded-full bg-green-600" />
-                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Lugar Fijo (Anexo I)</span>
+                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">LUGAR FIJO (ANEXO I)</span>
             </div>
         </div>
       </main>
@@ -360,7 +361,7 @@ export default function CalendarioCapacitacionesPage() {
                         <div className="space-y-1">
                             <div className="flex items-center justify-between mb-2">
                                 <Badge variant="secondary" className="font-black text-[8px] uppercase tracking-widest bg-muted/50">
-                                    {act.tipo_solicitud}
+                                    {act.tipo_solicitud === 'divulgacion' ? 'DIVULGACIÓN MV' : act.tipo_solicitud === 'capacitacion' ? 'CAPACITACIÓN MM' : 'LUGAR FIJO'}
                                 </Badge>
                                 <Badge className={cn(
                                     "text-[8px] font-black uppercase",
