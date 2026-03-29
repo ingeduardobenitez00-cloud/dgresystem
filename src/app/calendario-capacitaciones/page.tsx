@@ -87,7 +87,11 @@ export default function CalendarioCapacitacionesPage() {
     [profile, hasAdminFilter, hasDeptFilter]
   );
 
-  // Consulta de Solicitudes con lógica de filtrado reactiva
+  /**
+   * OPTIMIZACIÓN CRÍTICA: 
+   * Para evitar errores de "Missing Index", solo filtramos por fecha en Firestore.
+   * El filtrado geográfico se realiza en memoria (client-side) en el useMemo posterior.
+   */
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
@@ -96,45 +100,37 @@ export default function CalendarioCapacitacionesPage() {
     const start = format(startOfWeek(startOfMonth(currentMonth)), 'yyyy-MM-dd');
     const end = format(endOfWeek(endOfMonth(currentMonth)), 'yyyy-MM-dd');
 
-    let q;
-    
-    if (hasAdminFilter) {
-        if (filterDept !== 'all') {
-            q = query(colRef, where('departamento', '==', filterDept));
-            if (filterDist !== 'all') {
-                q = query(q, where('distrito', '==', filterDist));
-            }
-        } else {
-            q = colRef;
-        }
-    } else if (hasDeptFilter && profile.departamento) {
-        q = query(colRef, where('departamento', '==', profile.departamento));
-    } else if (hasDistFilter && profile.departamento && profile.distrito) {
-        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
-    } else {
-        return null;
-    }
+    // Consulta simplificada para evitar necesidad de índices compuestos
+    return query(colRef, where('fecha', '>=', start), where('fecha', '<=', end));
+  }, [firestore, isUserLoading, profile, currentMonth]);
 
-    // Aplicar filtro de fecha sobre la base filtrada
-    return query(q, where('fecha', '>=', start), where('fecha', '<=', end));
-  }, [firestore, isUserLoading, profile, currentMonth, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist]);
-
-  const { data: activities, isLoading: isLoadingActivities, error: activityError } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: rawActivities, isLoading: isLoadingActivities, error: activityError } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
-  // Notificar si hay error en la consulta (posible falta de índice)
-  useEffect(() => {
-    if (activityError) {
-        console.error("Error en calendario:", activityError);
-        toast({
-            variant: 'destructive',
-            title: "Error de Sincronización",
-            description: "No se pudieron recuperar las actividades para el filtro seleccionado. Verifique los índices de la base de datos."
-        });
-    }
-  }, [activityError, toast]);
+  /**
+   * Filtrado Geográfico en Cliente
+   */
+  const filteredActivities = useMemo(() => {
+    if (!rawActivities || !profile) return [];
+
+    return rawActivities.filter(act => {
+        // 1. Filtrado por permisos de usuario (Seguridad)
+        if (!hasAdminFilter) {
+            if (hasDeptFilter && act.departamento !== profile.departamento) return false;
+            if (hasDistFilter && (act.departamento !== profile.departamento || act.distrito !== profile.distrito)) return false;
+        }
+
+        // 2. Filtrado por UI (Filtros del Administrador)
+        if (hasAdminFilter) {
+            if (filterDept !== 'all' && act.departamento !== filterDept) return false;
+            if (filterDist !== 'all' && act.distrito !== filterDist) return false;
+        }
+
+        return true;
+    });
+  }, [rawActivities, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist]);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -246,7 +242,7 @@ export default function CalendarioCapacitacionesPage() {
             <div className="grid grid-cols-7 auto-rows-[minmax(140px,auto)]">
                 {calendarDays.map((day, idx) => {
                     const dateKey = format(day, 'yyyy-MM-dd');
-                    const dayActivities = activities?.filter(a => a.fecha === dateKey && !a.cancelada) || [];
+                    const dayActivities = filteredActivities.filter(a => a.fecha === dateKey && !a.cancelada) || [];
                     const isToday = isSameDay(day, new Date());
                     const isCurrentMonth = isSameMonth(day, currentMonth);
 
