@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { FileUp, Loader2, CheckCircle2, TableIcon, Flag } from 'lucide-react';
+import { FileUp, Loader2, CheckCircle2, TableIcon, Flag, Download } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import {
@@ -36,14 +35,15 @@ export default function ImportarPartidosPage() {
   const [previewData, setPreviewData] = useState<Omit<PartidoPolitico, 'id'>[]>([]);
   const { toast } = useToast();
 
-  const { firestore, user: currentUser } = useFirebase();
+  const { firestore } = useFirebase();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (
         file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-        file.type === 'text/csv'
+        file.type === 'text/csv' ||
+        file.name.endsWith('.csv')
       ) {
         setFileName(file.name);
         parseFile(file);
@@ -84,20 +84,22 @@ export default function ImportarPartidosPage() {
 
         const partidoHeader = findHeader(['PARTIDOS_POLITICOS', 'PARTIDO', 'NOMBRE']);
         const siglasHeader = findHeader(['SIGLAS', 'SIGLA']);
+        const movimientoHeader = findHeader(['MOVIMIENTO POLITICO', 'MOVIMIENTO', 'INTERNO']);
 
         if (!partidoHeader) {
           throw new Error('No se encontró la columna "PARTIDOS_POLITICOS".');
         }
 
         const parsedData: Omit<PartidoPolitico, 'id'>[] = json.map((row) => ({
-          nombre: String(row[partidoHeader]).trim(),
-          siglas: siglasHeader ? String(row[siglasHeader]).trim() : '',
+          nombre: String(row[partidoHeader] || '').trim(),
+          siglas: siglasHeader ? String(row[siglasHeader] || '').trim() : '',
+          movimiento: movimientoHeader ? String(row[movimientoHeader] || '').trim() : '',
         })).filter(p => p.nombre !== "");
 
         setPreviewData(parsedData);
         toast({
           title: 'Vista previa generada',
-          description: `Se han detectado ${parsedData.length} partidos/movimientos.`,
+          description: `Se han detectado ${parsedData.length} registros listos para importar.`,
         });
       } catch (error: any) {
         toast({
@@ -134,7 +136,7 @@ export default function ImportarPartidosPage() {
 
       toast({
         title: 'Carga Completada',
-        description: 'El directorio de partidos ha sido actualizado.',
+        description: 'El directorio de partidos y movimientos ha sido actualizado.',
         action: <CheckCircle2 className="text-green-500" />,
       });
       setPreviewData([]);
@@ -150,10 +152,30 @@ export default function ImportarPartidosPage() {
     }
   };
 
+  const downloadTemplate = () => {
+    const headers = "PARTIDOS_POLITICOS,SIGLAS,MOVIMIENTO POLITICO\n";
+    const example = "PARTIDO COLORADO,ANR,MOVIMIENTO HONOR COLORADO\nPARTIDO LIBERAL,PLRA,MOVIMIENTO NUEVO PAIS";
+    const blob = new Blob([headers + example], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "proforma_partidos_movimientos.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/10">
       <Header title="Importar Partidos Políticos" />
       <main className="flex flex-1 flex-col items-center p-4 md:p-8 gap-8">
+        <div className="w-full max-w-4xl flex justify-end">
+            <Button variant="outline" className="font-black uppercase text-[10px] gap-2 h-10 border-2" onClick={downloadTemplate}>
+                <Download className="h-4 w-4" /> Descargar Plantilla (Proforma)
+            </Button>
+        </div>
+
         <Card className="w-full max-w-4xl shadow-md">
           <CardHeader className="bg-primary/5">
             <CardTitle className="flex items-center gap-2 uppercase font-black text-primary">
@@ -161,7 +183,7 @@ export default function ImportarPartidosPage() {
               Importar Directorio de Partidos
             </CardTitle>
             <CardDescription>
-              Sube un archivo Excel con los nombres y siglas de las organizaciones políticas (Columnas: PARTIDOS_POLITICOS, SIGLAS).
+              Sube un archivo Excel con los nombres, siglas y movimientos internos (Columnas: PARTIDOS_POLITICOS, SIGLAS, MOVIMIENTO POLITICO).
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
@@ -199,8 +221,9 @@ export default function ImportarPartidosPage() {
                 <Table>
                   <TableHeader className="bg-muted sticky top-0">
                     <TableRow>
-                      <TableHead className="uppercase font-black text-[10px]">Partido / Movimiento Político</TableHead>
+                      <TableHead className="uppercase font-black text-[10px]">Partido / Organización</TableHead>
                       <TableHead className="uppercase font-black text-[10px]">Siglas</TableHead>
+                      <TableHead className="uppercase font-black text-[10px]">Movimiento Político</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -208,6 +231,7 @@ export default function ImportarPartidosPage() {
                       <TableRow key={index}>
                         <TableCell className="text-xs font-bold uppercase">{row.nombre}</TableCell>
                         <TableCell className="text-xs font-black text-primary">{row.siglas}</TableCell>
+                        <TableCell className="text-xs font-medium text-muted-foreground uppercase italic">{row.movimiento || '---'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -219,7 +243,7 @@ export default function ImportarPartidosPage() {
                 disabled={isUploading}
               >
                 {isUploading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5" />}
-                Guardar Directorio de Partidos
+                Guardar Directorio Actualizado
               </Button>
             </CardContent>
           </Card>

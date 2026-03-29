@@ -1,4 +1,3 @@
-
 export interface ImageData {
   id: string;
   src: string;
@@ -242,6 +241,13 @@ export type MovimientoMaquina = {
   fecha_creacion: string;
   // Responsables (Copia de la lista de la agenda en ese momento)
   responsables: Asignado[];
+}
+
+export type PartidoPolitico = {
+  id: string;
+  nombre: string;
+  siglas: string;
+  movimiento?: string;
 }
 
 export const initialDepartments: Department[] = [];
