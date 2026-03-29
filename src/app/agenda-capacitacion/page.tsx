@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -657,49 +658,79 @@ export default function AgendaCapacitacionPage() {
       </Dialog>
 
       <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
-        <DialogContent className="max-w-sm rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
-          <DialogHeader className="bg-primary p-8 text-white">
-            <DialogTitle className="font-black uppercase text-center text-lg tracking-widest">QR ENCUESTA</DialogTitle>
-          </DialogHeader>
-          <div className="p-10 flex flex-col items-center bg-white space-y-8">
-            <div ref={qrContainerRef} className="flex flex-col items-center bg-white p-4 rounded-xl">
-                <div className="p-4 bg-white border-4 border-muted/20 rounded-[2rem] shadow-inner mb-4">
+        <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
+          <div className="p-8 flex flex-col items-center bg-white space-y-6">
+            <div ref={qrContainerRef} className="flex flex-col items-center bg-white p-8 rounded-[2rem] w-full">
+                {/* Logos Row */}
+                <div className="flex items-center justify-center gap-6 mb-8 w-full">
+                    <img src="/logo.png" alt="Logo 1" width={40} height={40} className="object-contain" />
+                    <img src="/logo1.png" alt="Logo 2" width={40} height={40} className="object-contain" />
+                    <img src="/logo3.png" alt="Logo 3" width={40} height={40} className="object-contain" />
+                </div>
+
+                <div className="p-4 bg-white border-4 border-muted/20 rounded-[3rem] shadow-inner mb-8">
                     {qrSolicitud && (
                         <img 
                             src={qrImageUrl} 
                             alt="QR" 
                             width={220} 
                             height={220} 
-                            className="rounded-xl" 
+                            className="rounded-[2rem]" 
                             crossOrigin="anonymous" 
                         />
                     )}
                 </div>
-                <div className="text-center space-y-1">
-                    <h3 className="font-black uppercase text-sm leading-tight">
-                        {qrSolicitud?.solicitante_entidad || qrSolicitud?.otra_entidad}
-                    </h3>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{formatDateToDDMMYYYY(qrSolicitud?.fecha)} HS.</p>
+                
+                <div className="text-center space-y-4 w-full">
+                    <div className="space-y-1">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">SOLICITANTE / ENTIDAD</p>
+                        <h3 className="font-black uppercase text-base leading-tight text-primary">
+                            {qrSolicitud?.solicitante_entidad || qrSolicitud?.otra_entidad}
+                        </h3>
+                    </div>
+
+                    <div className="h-px bg-muted w-1/3 mx-auto" />
+
+                    <div className="space-y-1">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">LOCAL Y DIRECCIÓN</p>
+                        <p className="text-[11px] font-black uppercase text-primary">
+                            {qrSolicitud?.lugar_local}
+                            {qrSolicitud?.direccion_calle ? ` - ${qrSolicitud.direccion_calle}` : ''}
+                        </p>
+                    </div>
+
+                    <div className="flex justify-center gap-8 pt-2">
+                        <div className="space-y-0.5 text-center">
+                            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">FECHA</p>
+                            <p className="text-xs font-black text-primary">{formatDateToDDMMYYYY(qrSolicitud?.fecha)}</p>
+                        </div>
+                        <div className="space-y-0.5 text-center">
+                            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">HORARIO</p>
+                            <p className="text-xs font-black text-primary">{qrSolicitud?.hora_desde} A {qrSolicitud?.hora_hasta} HS</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div className="w-full grid grid-cols-1 gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[9px] border-2 gap-2" onClick={copyToClipboard} title="Copiar enlace de encuesta">
-                        {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />} {copied ? "COPIADO" : "COPIAR ENLACE"}
+                    <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={copyToClipboard} title="Copiar enlace de encuesta">
+                        <Copy className={cn("h-4 w-4", copied ? "text-green-600" : "text-muted-foreground")} />
+                        <span>COPIAR ENLACE</span>
                     </Button>
-                    <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[9px] border-2 gap-2" onClick={() => {
+                    <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={() => {
                         if (!qrSolicitud) return;
                         toast({ title: "Generando PDF..." });
-                        // Lógica de PDF simplificada para este ejemplo
                     }} title="Descargar PDF para imprimir">
-                        <Printer className="h-4 w-4" /> IMPRIMIR QR
+                        <Printer className="h-4 w-4 text-muted-foreground" />
+                        <span>IMPRIMIR QR</span>
                     </Button>
                 </div>
-                <Button variant="outline" className="h-12 rounded-xl font-black uppercase text-[9px] border-2 gap-2" onClick={handleDownloadPng} title="Generar imagen PNG para WhatsApp">
-                    <ImageIcon className="h-4 w-4" /> GENERAR IMAGEN EN PNG
+                <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={handleDownloadPng} title="Generar imagen PNG para WhatsApp">
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                    <span>GENERAR IMAGEN EN PNG</span>
                 </Button>
-                <Button className="w-full h-12 rounded-xl font-black uppercase text-[10px] bg-black text-white" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
+                <Button className="w-full h-14 rounded-2xl font-black uppercase text-xs bg-black text-white shadow-xl" onClick={() => setQrSolicitud(null)}>CERRAR</Button>
             </div>
           </div>
         </DialogContent>

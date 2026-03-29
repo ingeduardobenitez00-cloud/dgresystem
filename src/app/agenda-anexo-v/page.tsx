@@ -830,27 +830,57 @@ export default function AgendaAnexoVPage() {
       </Dialog>
 
       <Dialog open={!!qrSolicitud} onOpenChange={(o) => !o && setQrSolicitud(null)}>
-        <DialogContent className="max-w-sm rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
-          <div className="p-10 flex flex-col items-center bg-white space-y-6">
-            <div ref={qrContainerRef} className="flex flex-col items-center bg-white p-4 rounded-xl">
-                <div className="p-4 bg-white border-4 border-muted/20 rounded-[2rem] shadow-inner mb-4">
+        <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
+          <div className="p-8 flex flex-col items-center bg-white space-y-6">
+            <div ref={qrContainerRef} className="flex flex-col items-center bg-white p-8 rounded-[2rem] w-full">
+                {/* Logos Row */}
+                <div className="flex items-center justify-center gap-6 mb-8 w-full">
+                    <img src="/logo.png" alt="Logo 1" width={40} height={40} className="object-contain" />
+                    <img src="/logo1.png" alt="Logo 2" width={40} height={40} className="object-contain" />
+                    <img src="/logo3.png" alt="Logo 3" width={40} height={40} className="object-contain" />
+                </div>
+
+                <div className="p-4 bg-white border-4 border-muted/20 rounded-[3rem] shadow-inner mb-8">
                     {qrSolicitud && (
                         <img 
                             src={qrImageUrl} 
                             alt="QR" 
                             width={220} 
                             height={220} 
-                            className="rounded-xl" 
+                            className="rounded-[2rem]" 
                             crossOrigin="anonymous" 
                         />
                     )}
                 </div>
                 
-                <div className="text-center space-y-1">
-                    <h3 className="font-black uppercase text-sm leading-tight">
-                        {qrSolicitud?.solicitante_entidad || qrSolicitud?.otra_entidad}
-                    </h3>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{formatDateToDDMMYYYY(qrSolicitud?.fecha)} HS.</p>
+                <div className="text-center space-y-4 w-full">
+                    <div className="space-y-1">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">SOLICITANTE / ENTIDAD</p>
+                        <h3 className="font-black uppercase text-base leading-tight text-primary">
+                            {qrSolicitud?.solicitante_entidad || qrSolicitud?.otra_entidad}
+                        </h3>
+                    </div>
+
+                    <div className="h-px bg-muted w-1/3 mx-auto" />
+
+                    <div className="space-y-1">
+                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">LOCAL Y DIRECCIÓN</p>
+                        <p className="text-[11px] font-black uppercase text-primary">
+                            {qrSolicitud?.lugar_local}
+                            {qrSolicitud?.direccion_calle ? ` - ${qrSolicitud.direccion_calle}` : ''}
+                        </p>
+                    </div>
+
+                    <div className="flex justify-center gap-8 pt-2">
+                        <div className="space-y-0.5 text-center">
+                            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">FECHA</p>
+                            <p className="text-xs font-black text-primary">{formatDateToDDMMYYYY(qrSolicitud?.fecha)}</p>
+                        </div>
+                        <div className="space-y-0.5 text-center">
+                            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">HORARIO</p>
+                            <p className="text-xs font-black text-primary">{qrSolicitud?.hora_desde} A {qrSolicitud?.hora_hasta} HS</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
