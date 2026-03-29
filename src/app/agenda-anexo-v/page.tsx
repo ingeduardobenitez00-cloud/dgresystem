@@ -446,6 +446,7 @@ export default function AgendaAnexoVPage() {
                                         size="sm" 
                                         className="text-[9px] font-black uppercase text-destructive hover:bg-destructive/10 h-8 gap-2"
                                         onClick={() => setDeletingDistrict({ dept: dept.label, dist: dist.label, items: dist.items })}
+                                        title="Eliminar todas las solicitudes de este distrito"
                                     >
                                         <Trash2 className="h-3 w-3" /> VACIAR DISTRITO
                                     </Button>
@@ -529,16 +530,16 @@ export default function AgendaAnexoVPage() {
                                                     )}
 
                                                     <div className="flex gap-2 w-full max-w-[220px]">
-                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}>
+                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
                                                           <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
                                                         </Button>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)}>
+                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)} title="Ver Ficha de Detalles">
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50 transition-all" onClick={() => setSuspendingSolicitud(item)}>
+                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50 transition-all" onClick={() => setSuspendingSolicitud(item)} title="Suspender Solicitud">
                                                             <Ban className="h-4 w-4" />
                                                         </Button>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-white transition-all" onClick={() => setDeletingSolicitud(item)}>
+                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-white transition-all" onClick={() => setDeletingSolicitud(item)} title="Eliminar Registro Definitivamente">
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </div>
@@ -549,11 +550,11 @@ export default function AgendaAnexoVPage() {
                                                             size="icon" 
                                                             className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 border-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} 
                                                             onClick={() => handleToggleQr(item)}
-                                                            title={item.qr_enabled ? "Encuesta Habilitada" : "Habilitar Encuesta QR"}
+                                                            title={item.qr_enabled ? "Deshabilitar Encuesta Pública" : "Habilitar Encuesta Pública vía QR"}
                                                         >
                                                             {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
                                                         </Button>
-                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setQrSolicitud(item)} disabled={!item.qr_enabled}>
+                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setQrSolicitud(item)} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
                                                             <QrCode className="h-4 w-4 mr-2" /> QR
                                                         </Button>
                                                         <Button 
@@ -562,7 +563,9 @@ export default function AgendaAnexoVPage() {
                                                               if (!inf) {
                                                                   window.location.href = `/informe-divulgador?solicitudId=${item.id}`;
                                                               }
-                                                          }}>
+                                                          }}
+                                                          title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
+                                                        >
                                                           {inf ? 'CUMPLIDO' : 'INFORME'}
                                                         </Button>
                                                     </div>
@@ -601,7 +604,7 @@ export default function AgendaAnexoVPage() {
                                     </DialogDescription>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setViewingActivity(null)} className="text-white/40 hover:text-white"><X className="h-6 w-6" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setViewingActivity(null)} className="text-white/40 hover:text-white" title="Cerrar Ventana"><X className="h-6 w-6" /></Button>
                         </div>
                     </DialogHeader>
                 </div>
@@ -684,7 +687,7 @@ export default function AgendaAnexoVPage() {
                                 <p className="font-black text-xs uppercase">{d.nombre}</p>
                                 <span className="text-[8px] font-bold text-muted-foreground uppercase">{d.vinculo}</span>
                             </div>
-                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleRemoveDivulgador(d.id)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleRemoveDivulgador(d.id)} title="Quitar Personal"><Trash2 className="h-4 w-4" /></Button>
                         </div>
                     ))}
                 </ScrollArea>
@@ -697,7 +700,7 @@ export default function AgendaAnexoVPage() {
                 </div>
                 <ScrollArea className="h-[280px] pr-2">
                     {filteredDivul.map(d => (
-                        <div key={d.id} className="p-4 border-2 rounded-2xl cursor-pointer hover:bg-black hover:text-white transition-all group mb-2" onClick={() => handleAssignDivulgador(d)}>
+                        <div key={d.id} className="p-4 border-2 rounded-2xl cursor-pointer hover:bg-black hover:text-white transition-all group mb-2" onClick={() => handleAssignDivulgador(d)} title="Asignar a esta actividad">
                             <p className="font-black text-xs uppercase">{d.nombre}</p>
                             <span className="text-[8px] font-bold opacity-60 uppercase">{d.vinculo}</span>
                         </div>
@@ -723,11 +726,11 @@ export default function AgendaAnexoVPage() {
             </div>
 
             <div className="w-full grid grid-cols-2 gap-3">
-                <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={copyToClipboard}>
+                <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={copyToClipboard} title="Copiar enlace de encuesta">
                     <Copy className={cn("h-4 w-4", copied ? "text-green-600" : "text-muted-foreground")} />
                     <span>{copied ? "COPIADO" : "COPIAR ENLACE"}</span>
                 </Button>
-                <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={handlePrintQr}>
+                <Button variant="outline" className="h-14 rounded-2xl font-black uppercase text-[9px] border-2 flex flex-col gap-1 items-center justify-center p-2" onClick={handlePrintQr} title="Descargar PDF para imprimir">
                     <Printer className="h-4 w-4 text-muted-foreground" />
                     <span>IMPRIMIR QR</span>
                 </Button>
