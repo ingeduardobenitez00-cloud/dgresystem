@@ -417,7 +417,12 @@ export default function AgendaCapacitacionPage() {
                                                             <Badge className="bg-green-600 text-white font-black uppercase text-[7px] px-2 py-0 h-4">CICLO COMPLETADO</Badge>
                                                         )}
                                                     </div>
-                                                    <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.solicitante_entidad || item.otra_entidad}</p>
+                                                    <div className="space-y-1">
+                                                        <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.nombre_completo}</p>
+                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+                                                            {item.solicitante_entidad || item.otra_entidad}
+                                                        </p>
+                                                    </div>
                                                     <Badge className="bg-primary/5 text-primary border-primary/10 font-black uppercase text-[8px] px-3">{item.tipo_solicitud}</Badge>
                                                 </div>
 
