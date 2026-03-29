@@ -29,7 +29,8 @@ import {
   Power,
   PowerOff,
   ShieldAlert,
-  Printer
+  Printer,
+  Ban
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -38,6 +39,8 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY, cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Image from 'next/image';
@@ -63,6 +66,8 @@ export default function AgendaAnexoIPage() {
   const [viewingActivity, setViewingActivity] = useState<SolicitudCapacitacion | null>(null);
   const [qrSolicitud, setQrSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [deletingSolicitud, setDeletingSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [suspendingSolicitud, setSuspendingSolicitud] = useState<SolicitudCapacitacion | null>(null);
+  const [suspensionReason, setSuspensionReason] = useState('');
   const [deletingDistrict, setDeletingDistrict] = useState<{ dept: string, dist: string, items: SolicitudCapacitacion[] } | null>(null);
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -246,6 +251,29 @@ export default function AgendaAnexoIPage() {
       .catch(error => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
       });
+  };
+
+  const handleConfirmSuspend = () => {
+    if (!suspendingSolicitud || !firestore || !suspensionReason) return;
+    setIsUpdating(true);
+    const docRef = doc(firestore, 'solicitudes-capacitacion', suspendingSolicitud.id);
+    
+    updateDoc(docRef, {
+        cancelada: true,
+        motivo_cancelacion: suspensionReason.toUpperCase(),
+        fecha_cancelacion: new Date().toISOString(),
+        usuario_cancelacion: profile?.username || user?.email || 'SISTEMA'
+    })
+    .then(() => {
+        toast({ title: "Actividad Suspendida", description: "Se ha movido al historial de cancelaciones." });
+        setSuspendingSolicitud(null);
+        setSuspensionReason('');
+        setIsUpdating(false);
+    })
+    .catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
+        setIsUpdating(false);
+    });
   };
 
   const handleConfirmDelete = () => {
@@ -506,6 +534,9 @@ export default function AgendaAnexoIPage() {
                                                         <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)}>
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
+                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50 transition-all" onClick={() => setSuspendingSolicitud(item)}>
+                                                            <Ban className="h-4 w-4" />
+                                                        </Button>
                                                         <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-white transition-all" onClick={() => setDeletingSolicitud(item)}>
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
@@ -701,6 +732,33 @@ export default function AgendaAnexoIPage() {
             
             <Button className="w-full h-14 rounded-2xl font-black uppercase text-xs bg-black text-white shadow-xl" onClick={() => setQrSolicitud(null)}>CERRAR VENTANA</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!suspendingSolicitud} onOpenChange={(o) => !o && setSuspendingSolicitud(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+            <DialogHeader className="bg-orange-600 text-white p-6">
+                <DialogTitle className="font-black uppercase text-sm flex items-center gap-2">
+                    <Ban className="h-4 w-4" /> SUSPENDER ACTIVIDAD
+                </DialogTitle>
+            </DialogHeader>
+            <div className="p-8 space-y-6 bg-white">
+                <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Motivo de la Suspensión *</Label>
+                    <Textarea 
+                        placeholder="Describa el motivo por el cual se suspende esta actividad..." 
+                        className="min-h-[100px] border-2 font-bold uppercase rounded-xl"
+                        value={suspensionReason}
+                        onChange={e => setSuspensionReason(e.target.value)}
+                    />
+                </div>
+                <div className="flex gap-3 pt-2">
+                    <Button variant="outline" className="flex-1 h-12 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setSuspendingSolicitud(null)}>CANCELAR</Button>
+                    <Button className="flex-[2] h-12 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black uppercase text-[10px]" onClick={handleConfirmSuspend} disabled={!suspensionReason || isUpdating}>
+                        {isUpdating ? <Loader2 className="animate-spin h-4 w-4" /> : "CONFIRMAR SUSPENSIÓN"}
+                    </Button>
+                </div>
+            </div>
         </DialogContent>
       </Dialog>
 
