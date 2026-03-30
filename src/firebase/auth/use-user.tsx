@@ -70,9 +70,11 @@ export const useUser = (): UserHookResult => {
         ],
         permissions: profileData?.permissions || ['admin_filter', 'department_filter', 'district_filter', 'assign_staff', 'generar_pdf']
       };
-    } else if (finalProfile && finalProfile.active === undefined) {
-        // Por defecto, los usuarios creados son activos a menos que se indique lo contrario
-        finalProfile.active = true;
+    } else if (finalProfile) {
+        // Por defecto, los usuarios son activos a menos que se indique explícitamente lo contrario (false)
+        if (finalProfile.active === undefined) {
+            finalProfile.active = true;
+        }
     }
     
     return {

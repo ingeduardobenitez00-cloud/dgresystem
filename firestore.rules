@@ -5,7 +5,7 @@ service cloud.firestore {
 
     /** 
      * REGLAS DE SEGURIDAD INSTITUCIONAL CIDEE 2026 
-     * Protocolo de Blindaje y Recuperación Maestra - V3.2
+     * Protocolo de Blindaje y Recuperación Maestra - V3.3
      */
 
     function isSignedIn() {
@@ -24,8 +24,9 @@ service cloud.firestore {
 
     function isActive() {
       let data = getUserData();
-      // Un usuario es activo si no tiene el campo 'active' en 'false' explícitamente
-      return isOwner() || (isSignedIn() && data != null && data.active != false);
+      // Un usuario es activo si NO tiene el campo 'active' en 'false' explícitamente.
+      // Se utiliza .get() para manejar de forma segura la ausencia del campo.
+      return isOwner() || (isSignedIn() && data != null && data.get('active', true) != false);
     }
 
     function isAdmin() {
