@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -27,7 +26,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2, UserPlus, LogIn, MapPin, ShieldAlert } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Dato } from '@/lib/data';
-import { recordAuditLog } from '@/audit';
+import { recordAuditLog } from '@/lib/audit';
 
 export default function LoginPage() {
   const { auth, firestore } = useFirebase();
@@ -159,9 +158,10 @@ export default function LoginPage() {
       // NOTIFICACIÓN PARA EL ADMINISTRADOR - Envío garantizado
       addDoc(collection(firestore, 'notificaciones'), {
         tipo: 'NUEVO_USUARIO',
-        titulo: 'Nueva Solicitud de Acceso',
-        mensaje: `El usuario ${regData.username.toUpperCase()} ha solicitado acceso como Jefe para ${regData.distrito}.`,
+        titulo: 'NUEVA SOLICITUD DE ACCESO',
+        mensaje: `EL USUARIO ${regData.username.toUpperCase()} HA SOLICITADO ACCESO COMO JEFE PARA ${regData.distrito.toUpperCase()}.`,
         usuario_id: user.uid,
+        usuario_nombre: regData.username.toUpperCase(),
         leida: false,
         fecha_creacion: new Date().toISOString(),
         server_timestamp: serverTimestamp()
@@ -231,9 +231,9 @@ export default function LoginPage() {
                 <h1 className="text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
                     JUSTICIA ELECTORAL
                 </h1>
-                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">
+                <h2 className="text-sm font-black uppercase text-muted-foreground tracking-[0.2em]">
                     PORTAL DE SEGURIDAD CIDEE
-                </p>
+                </h2>
              </div>
         </div>
 
@@ -378,7 +378,7 @@ export default function LoginPage() {
                 <div className="p-4 bg-amber-50 border-2 border-dashed border-amber-200 rounded-xl flex items-start gap-3">
                     <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-[8px] font-bold text-amber-800 uppercase leading-tight">
-                        ADVERTENCIA: Su cuenta estará habilitada en 6 a 12 horas. Un administrador deberá verificar su identidad antes de que pueda operar el sistema.
+                        ADVERTENCIA: Acceso restringido su cuenta estará habilitada en 6 a 12 horas. Un administrador deberá verificar su identidad.
                     </p>
                 </div>
               </CardContent>

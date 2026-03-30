@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -10,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LogOut, User, Bell, Check, UserPlus, Info, Clock, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { recordAuditLog } from '@/audit';
+import { recordAuditLog } from '@/lib/audit';
 import { collection, query, where, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollArea } from "./ui/scroll-area";
@@ -79,6 +78,14 @@ export default function Header({ title }: { title?: string }) {
     }
   };
 
+  const handleNotificationClick = (noti: any) => {
+    handleMarkAsRead(noti.id);
+    if (noti.tipo === 'NUEVO_USUARIO' && noti.usuario_nombre) {
+        // Redirigir al módulo de usuarios con el filtro de búsqueda del usuario solicitado
+        router.push(`/users?search=${encodeURIComponent(noti.usuario_nombre)}`);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
@@ -136,7 +143,11 @@ export default function Header({ title }: { title?: string }) {
                             {sortedNotifications && sortedNotifications.length > 0 ? (
                                 <div className="divide-y">
                                     {sortedNotifications.map((noti) => (
-                                        <div key={noti.id} className="p-4 hover:bg-muted/30 transition-colors group relative">
+                                        <div 
+                                            key={noti.id} 
+                                            className="p-4 hover:bg-muted/30 transition-colors group relative cursor-pointer"
+                                            onClick={() => handleNotificationClick(noti)}
+                                        >
                                             <div className="flex items-start gap-3">
                                                 <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center shrink-0">
                                                     {noti.tipo === 'NUEVO_USUARIO' ? <UserPlus className="h-4 w-4 text-primary" /> : <Info className="h-4 w-4 text-primary" />}
@@ -156,7 +167,10 @@ export default function Header({ title }: { title?: string }) {
                                                 variant="ghost" 
                                                 size="icon" 
                                                 className="absolute top-2 right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                onClick={() => handleMarkAsRead(noti.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMarkAsRead(noti.id);
+                                                }}
                                             >
                                                 <Check className="h-3 w-3 text-green-600" />
                                             </Button>

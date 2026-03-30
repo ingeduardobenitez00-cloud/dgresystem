@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import Header from '@/components/header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -67,6 +66,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { format } from 'date-fns';
 import { es } from "date-fns/locale";
+import { useSearchParams } from 'next/navigation';
 
 type UserProfile = {
   id: string;
@@ -222,7 +222,7 @@ const PermissionMatrix = ({
                             <div className="flex items-center gap-1">
                                 <Checkbox 
                                     checked={allInColSelected}
-                                    onToggle={() => onToggleColumn(a.id, cat.items, isEditing)}
+                                    onCheckedChange={() => onToggleColumn(a.id, cat.items, isEditing)}
                                     className="h-3.5 w-3.5 border-primary/30"
                                 />
                                 <span className="text-[7px] font-black text-muted-foreground">ALL</span>
@@ -263,10 +263,11 @@ const PermissionMatrix = ({
   );
 };
 
-export default function UsersPage() {
+function UsersContent() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
   const { user: currentUser, isUserLoading: isAuthLoading, isProfileLoading } = useUser();
+  const searchParams = useSearchParams();
 
   const isAdminView = useMemo(() => {
     if (isProfileLoading || !currentUser?.profile) return false;
@@ -296,6 +297,14 @@ export default function UsersPage() {
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Inicializar búsqueda si viene por URL (desde notificaciones)
+  useEffect(() => {
+    const searchVal = searchParams.get('search');
+    if (searchVal) {
+        setSearchTerm(searchVal);
+    }
+  }, [searchParams]);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -637,10 +646,6 @@ export default function UsersPage() {
       .catch(async (error) => { errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' })); setIsSubmitting(false); });
   };
 
-  if (isAuthLoading || isProfileLoading) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-muted/5">
       <Header title="Administración de Accesos" />
@@ -925,5 +930,13 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>}>
+      <UsersContent />
+    </Suspense>
   );
 }
