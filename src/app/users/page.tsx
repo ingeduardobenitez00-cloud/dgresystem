@@ -221,7 +221,7 @@ const PermissionMatrix = ({
                             <div className="flex items-center gap-1">
                                 <Checkbox 
                                     checked={allInColSelected}
-                                    onCheckedChange={() => onToggleColumn(a.id, cat.items, editing)}
+                                    onCheckedChange={(checked) => onToggleColumn(a.id, cat.items, isEditing)}
                                     className="h-3.5 w-3.5 border-primary/30"
                                 />
                                 <span className="text-[7px] font-black text-muted-foreground">ALL</span>
@@ -343,7 +343,6 @@ export default function UsersPage() {
     const term = searchTerm.toLowerCase().trim();
     const depts: Record<string, { name: string, districts: Record<string, { name: string, users: UserProfile[] }> }> = {};
 
-    // Inicializar departamentos y distritos del maestro de geografía
     datosData.forEach(d => {
       if (!depts[d.departamento]) depts[d.departamento] = { name: d.departamento, districts: {} };
       if (!depts[d.departamento].districts[d.distrito]) {
@@ -351,7 +350,6 @@ export default function UsersPage() {
       }
     });
 
-    // Mapear usuarios filtrados
     filteredUsers.forEach(u => {
       const deptName = u.departamento || 'ALCANCE NACIONAL';
       const distName = u.distrito || 'TODOS LOS DISTRITOS';
@@ -461,8 +459,9 @@ export default function UsersPage() {
     const jefeModules = [
       'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion',
       'agenda-anexo-i', 'agenda-anexo-v', 'control-movimiento-maquinas', 'denuncia-lacres',
-      'informe-divulgador', 'informe-semanal-puntos-fijos', 'encuesta-satisfaccion',
-      'archivo-capacitaciones'
+      'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
+      'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'archivo-capacitaciones', 
+      'divulgadores', 'estadisticas-capacitacion', 'encuesta-satisfaccion', 'documentacion'
     ];
     const actions = ['view', 'add', 'pdf'];
     const newPerms = new Set<string>();

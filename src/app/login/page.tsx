@@ -124,10 +124,16 @@ export default function LoginPage() {
         'agenda-anexo-v',
         'control-movimiento-maquinas',
         'denuncia-lacres',
+        'informe-movimientos-denuncias',
         'informe-divulgador',
+        'galeria-capacitaciones',
         'informe-semanal-puntos-fijos',
+        'lista-anexo-iv',
+        'archivo-capacitaciones',
+        'divulgadores',
+        'estadisticas-capacitacion',
         'encuesta-satisfaccion',
-        'archivo-capacitaciones'
+        'documentacion'
       ];
 
       const jefePermissions = [
