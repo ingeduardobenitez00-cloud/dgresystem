@@ -51,7 +51,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/accordion";
+} from "@/components/ui/accordion";
 import { recordAuditLog } from '@/lib/audit';
 
 type PresenceRecord = {
