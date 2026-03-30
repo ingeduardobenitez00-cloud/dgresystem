@@ -101,7 +101,8 @@ service cloud.firestore {
 
     /** Reglas Generales de Configuración y Geografía **/
     match /datos/{datoId} {
-      allow read: if isSignedIn();
+      // Se permite lectura pública para que el formulario de registro (Login) pueda cargar la geografía
+      allow read: if true;
       allow write: if isAdmin();
     }
 
