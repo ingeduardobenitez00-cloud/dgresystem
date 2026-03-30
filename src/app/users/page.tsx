@@ -34,14 +34,15 @@ import {
   PowerOff,
   AlertTriangle,
   Clock,
-  Calendar
+  Calendar,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -281,8 +282,8 @@ export default function UsersPage() {
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
-  const presenceQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'presencia') : null), [firestore]);
-  const { data: presenceData } = useCollection<any>(presenceQuery);
+  const presenceDataQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'presencia') : null), [firestore]);
+  const { data: presenceData } = useCollection<any>(presenceDataQuery);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [regDepartamento, setRegDepartamento] = useState<string>('');
@@ -428,7 +429,7 @@ export default function UsersPage() {
     } else {
         setSelectedPerms(prev => {
             const next = new Set(prev);
-            const allSelected = items.every(item => next.has(`${item.id}:${actionId}`));
+            const allSelected = items.every(item => item.id && next.has(`${item.id}:${actionId}`));
             items.forEach(item => {
                 const key = `${item.id}:${actionId}`;
                 if (allSelected) next.delete(key);
@@ -486,6 +487,56 @@ export default function UsersPage() {
       setSelectedPerms(newPerms);
     }
     toast({ title: "Perfil Jefe de Oficina Aplicado" });
+  };
+
+  const handleSyncAllJefes = async () => {
+    if (!firestore || !users || !isAdminView) return;
+    
+    setIsSubmitting(true);
+    const batch = writeBatch(firestore);
+    
+    const jefeModules = [
+      'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion',
+      'agenda-anexo-i', 'agenda-anexo-v', 'control-movimiento-maquinas', 'denuncia-lacres',
+      'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
+      'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'archivo-capacitaciones', 
+      'divulgadores', 'estadisticas-capacitacion', 'encuesta-satisfaccion', 'documentacion'
+    ];
+    
+    const actions = ['view', 'add', 'pdf'];
+    const standardPerms: string[] = [];
+    jefeModules.forEach(m => {
+      actions.forEach(a => standardPerms.push(`${m}:${a}`));
+    });
+    standardPerms.push('district_filter');
+    standardPerms.push('assign_staff');
+
+    let count = 0;
+    users.forEach(u => {
+      if (u.role === 'jefe' && u.active !== false && u.email !== 'edubtz11@gmail.com') {
+        const docRef = doc(firestore, 'users', u.id);
+        batch.update(docRef, {
+          modules: jefeModules,
+          permissions: standardPerms
+        });
+        count++;
+      }
+    });
+
+    if (count === 0) {
+      toast({ title: "Sin Jefes Activos", description: "No se encontraron Jefes activos para actualizar." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      await batch.commit();
+      toast({ title: "Sincronización Completada", description: `Se han actualizado ${count} perfiles de Jefes.` });
+    } catch (e) {
+      toast({ variant: 'destructive', title: "Error al sincronizar" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const toggleUserStatus = (user: UserProfile) => {
@@ -651,9 +702,21 @@ export default function UsersPage() {
                         <p className="text-white/60 font-bold uppercase text-[9px]">Gestión jerárquica de permisos y estados</p>
                     </div>
                 </div>
-                <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                    <Input placeholder="Buscar por nombre, distrito o dpto..." className="h-10 pl-10 text-[10px] font-bold bg-white/10 border-white/20 text-white rounded-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-black uppercase text-[10px] gap-2 h-10 px-4 rounded-xl shadow-lg"
+                        onClick={handleSyncAllJefes}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} 
+                        Sincronizar todos los Jefes
+                    </Button>
+                    <div className="relative flex-1 md:w-80">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                        <Input placeholder="Buscar por nombre, distrito o dpto..." className="h-10 pl-10 text-[10px] font-bold bg-white/10 border-white/20 text-white rounded-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    </div>
                 </div>
             </div>
 
