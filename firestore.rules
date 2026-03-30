@@ -48,7 +48,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin() || isDirector();
-      allow create: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId; // Permitir auto-registro de perfil propio
       allow update: if (request.auth.uid == userId) || isAdmin();
       // El propietario no puede ser borrado bajo ninguna circunstancia
       allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
@@ -143,6 +143,7 @@ service cloud.firestore {
       allow write: if isActive() || isAdmin();
     }
 
+    /** Regla para Máquinas **/
     match /maquinas/{maquinaId} {
       allow read: if isActive() || isAdmin();
       allow write: if isAdmin();

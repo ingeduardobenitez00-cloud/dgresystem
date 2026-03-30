@@ -124,16 +124,11 @@ export default function LoginPage() {
         'agenda-anexo-v',
         'control-movimiento-maquinas',
         'denuncia-lacres',
-        'informe-movimientos-denuncias',
         'informe-divulgador',
-        'galeria-capacitaciones',
         'informe-semanal-puntos-fijos',
         'lista-anexo-iv',
-        'archivo-capacitaciones',
-        'divulgadores',
-        'estadisticas-capacitacion',
         'encuesta-satisfaccion',
-        'documentacion'
+        'archivo-capacitaciones'
       ];
 
       const jefePermissions = [
@@ -185,8 +180,8 @@ export default function LoginPage() {
       setMode('login');
       
       toast({ 
-        title: 'Registro enviado', 
-        description: 'Su cuenta ha sido creada pero requiere activación por la Dirección General para acceder.' 
+        title: 'Acceso restringido', 
+        description: 'Su cuenta estará habilitada en 6 a 12 horas.' 
       });
     } catch (error: any) {
       toast({
@@ -383,7 +378,7 @@ export default function LoginPage() {
                 <div className="p-4 bg-amber-50 border-2 border-dashed border-amber-200 rounded-xl flex items-start gap-3">
                     <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-[8px] font-bold text-amber-800 uppercase leading-tight">
-                        ADVERTENCIA: Su cuenta se creará en estado INACTIVO. Un administrador deberá verificar su identidad y habilitar el acceso antes de que pueda operar el sistema. su cuenta estará habilitada en 6 a 12 horas
+                        ADVERTENCIA: Su cuenta estará habilitada en 6 a 12 horas. Un administrador deberá verificar su identidad antes de que pueda operar el sistema.
                     </p>
                 </div>
               </CardContent>

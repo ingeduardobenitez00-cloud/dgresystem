@@ -98,27 +98,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isRestricted = !isOwner && user && !isPublicRoute && user.profile?.active === false;
 
   if (isRestricted) {
-    const isPending = user.profile?.registration_method === 'auto_registro_jefe';
-
     return (
       <div className="flex min-h-screen w-full flex-col items-center justify-center p-6 bg-[#F8F9FA]">
         <div className="max-w-md w-full text-center space-y-8 animate-in fade-in zoom-in duration-500">
-          <div className={cn(
-            "h-24 w-24 rounded-full flex items-center justify-center mx-auto border-4",
-            isPending ? "bg-amber-100 border-amber-200" : "bg-destructive/10 border-destructive/20"
-          )}>
-            {isPending ? <Clock className="h-12 w-12 text-amber-600" /> : <UserX className="h-12 w-12 text-destructive" />}
+          <div className="h-24 w-24 rounded-full flex items-center justify-center mx-auto border-4 bg-amber-100 border-amber-200">
+            <Clock className="h-12 w-12 text-amber-600" />
           </div>
           
           <div className="space-y-4">
             <h1 className="text-3xl font-black uppercase text-primary tracking-tighter leading-none">
-                {isPending ? "Acceso en Revisión" : "Acceso Denegado"}
+                Acceso Restringido
             </h1>
             <div className="p-8 bg-white border-2 rounded-[2rem] shadow-2xl space-y-6">
               <p className="text-sm font-bold uppercase text-muted-foreground leading-relaxed">
-                {isPending 
-                    ? "Su solicitud de registro ha sido recibida pero su cuenta aún no ha sido activada." 
-                    : "Su cuenta institucional ha sido desactivada por el departamento de seguridad."}
+                Su cuenta estará habilitada en 6 a 12 horas.
               </p>
               
               <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-xl text-left border">
