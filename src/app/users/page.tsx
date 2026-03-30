@@ -64,7 +64,7 @@ import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es } from "date-fns/locale";
 
 type UserProfile = {
   id: string;
@@ -341,7 +341,7 @@ export default function UsersPage() {
     const term = searchTerm.toLowerCase().trim();
     const depts: Record<string, { name: string, districts: Record<string, { name: string, users: UserProfile[] }> }> = {};
 
-    // Inicializar departamentos y distritos del maestro de geografía (Para ver distritos pendientes)
+    // Inicializar departamentos y distritos del maestro de geografía
     datosData.forEach(d => {
       if (!depts[d.departamento]) depts[d.departamento] = { name: d.departamento, districts: {} };
       if (!depts[d.departamento].districts[d.distrito]) {
@@ -349,7 +349,7 @@ export default function UsersPage() {
       }
     });
 
-    // Mapear usuarios filtrados a sus respectivos departamentos y distritos
+    // Mapear usuarios filtrados
     filteredUsers.forEach(u => {
       const deptName = u.departamento || 'ALCANCE NACIONAL';
       const distName = u.distrito || 'TODOS LOS DISTRITOS';
@@ -359,16 +359,17 @@ export default function UsersPage() {
       depts[deptName].districts[distName].users.push(u);
     });
 
-    // Filtrar la jerarquía para que sea "directa" al buscar
     return Object.values(depts)
       .map(dept => {
         const districtsArray = Object.values(dept.districts);
-        const activeDistricts = districtsArray.filter(d => d.users.length > 0);
+        const activeDistrictsCount = districtsArray.filter(d => d.users.length > 0).length;
+        const totalDistrictsCount = districtsArray.length;
         
         return {
           ...dept,
-          activeCount: activeDistricts.length,
-          totalCount: districtsArray.length,
+          activeCount: activeDistrictsCount,
+          totalCount: totalDistrictsCount,
+          missingCount: totalDistrictsCount - activeDistrictsCount,
           districts: districtsArray.sort((a, b) => a.name.localeCompare(b.name))
         };
       })
@@ -635,9 +636,11 @@ export default function UsersPage() {
                                             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{dept.activeCount} OFICINAS ACTIVAS</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
                                         <Badge variant="secondary" className="bg-muted text-muted-foreground text-[8px] font-black uppercase">{dept.totalCount} TOTAL</Badge>
-                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} PERSONAL</Badge>
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.activeCount} CUBIERTOS</Badge>
+                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[8px] font-black uppercase">{dept.missingCount} FALTANTES</Badge>
+                                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} PERSONAL</Badge>
                                     </div>
                                 </div>
                             </AccordionTrigger>
