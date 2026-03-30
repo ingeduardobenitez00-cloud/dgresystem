@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { 
   format, 
   addMonths, 
@@ -69,6 +70,7 @@ export default function CalendarioCapacitacionesPage() {
   // Estados de Filtro
   const [filterDept, setFilterDept] = useState<string>('all');
   const [filterDist, setFilterDist] = useState<string>('all');
+  const [searchDistrito, setSearchDistrito] = useState<string>('');
 
   const profile = user?.profile;
 
@@ -88,9 +90,8 @@ export default function CalendarioCapacitacionesPage() {
   );
 
   /**
-   * OPTIMIZACIÓN CRÍTICA: 
-   * Para evitar errores de "Missing Index", solo filtramos por fecha en Firestore.
-   * El filtrado geográfico se realiza en memoria (client-side) en el useMemo posterior.
+   * OPTIMIZACIÓN: 
+   * Filtramos por fecha en Firestore. El filtrado geográfico y por nombre se realiza en memoria.
    */
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
@@ -100,20 +101,21 @@ export default function CalendarioCapacitacionesPage() {
     const start = format(startOfWeek(startOfMonth(currentMonth)), 'yyyy-MM-dd');
     const end = format(endOfWeek(endOfMonth(currentMonth)), 'yyyy-MM-dd');
 
-    // Consulta simplificada para evitar necesidad de índices compuestos
     return query(colRef, where('fecha', '>=', start), where('fecha', '<=', end));
   }, [firestore, isUserLoading, profile, currentMonth]);
 
-  const { data: rawActivities, isLoading: isLoadingActivities, error: activityError } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: rawActivities, isLoading: isLoadingActivities } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
 
   /**
-   * Filtrado Geográfico en Cliente
+   * Filtrado Geográfico y por Nombre en Cliente
    */
   const filteredActivities = useMemo(() => {
     if (!rawActivities || !profile) return [];
+
+    const term = searchDistrito.toLowerCase().trim();
 
     return rawActivities.filter(act => {
         // 1. Filtrado por permisos de usuario (Seguridad)
@@ -126,11 +128,12 @@ export default function CalendarioCapacitacionesPage() {
         if (hasAdminFilter) {
             if (filterDept !== 'all' && act.departamento !== filterDept) return false;
             if (filterDist !== 'all' && act.distrito !== filterDist) return false;
+            if (term && !act.distrito.toLowerCase().includes(term)) return false;
         }
 
         return true;
     });
-  }, [rawActivities, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist]);
+  }, [rawActivities, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist, searchDistrito]);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -179,29 +182,40 @@ export default function CalendarioCapacitacionesPage() {
 
             <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                 {hasAdminFilter && (
-                    <div className="flex items-center gap-2 bg-white border-2 rounded-2xl p-2 shadow-sm w-full md:w-auto">
+                    <div className="flex flex-col md:flex-row items-center gap-2 bg-white border-2 rounded-2xl p-2 shadow-sm w-full md:w-auto">
                         <div className="flex items-center gap-2 px-2 border-r pr-4">
                             <Filter className="h-3.5 w-3.5 text-muted-foreground" />
                             <span className="text-[9px] font-black uppercase text-muted-foreground">Filtros</span>
                         </div>
-                        <Select value={filterDept} onValueChange={(v) => { setFilterDept(v); setFilterDist('all'); }}>
-                            <SelectTrigger className="h-9 w-[140px] text-[10px] font-bold uppercase border-none focus:ring-0">
-                                <SelectValue placeholder="Dpto: Todos" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">DPTO: TODOS</SelectItem>
-                                {departments.map(d => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <Select value={filterDist} onValueChange={setFilterDist} disabled={filterDept === 'all'}>
-                            <SelectTrigger className="h-9 w-[140px] text-[10px] font-bold uppercase border-none focus:ring-0">
-                                <SelectValue placeholder="Dist: Todos" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">DIST: TODOS</SelectItem>
-                                {districts.map(d => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2 w-full">
+                            <Select value={filterDept} onValueChange={(v) => { setFilterDept(v); setFilterDist('all'); }}>
+                                <SelectTrigger className="h-9 w-[130px] text-[10px] font-bold uppercase border-none focus:ring-0">
+                                    <SelectValue placeholder="Dpto: Todos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">DPTO: TODOS</SelectItem>
+                                    {departments.map(d => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <Select value={filterDist} onValueChange={setFilterDist} disabled={filterDept === 'all'}>
+                                <SelectTrigger className="h-9 w-[130px] text-[10px] font-bold uppercase border-none focus:ring-0">
+                                    <SelectValue placeholder="Dist: Todos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">DIST: TODOS</SelectItem>
+                                    {districts.map(d => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <div className="relative w-full md:w-40 border-l pl-2">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground opacity-40" />
+                                <Input 
+                                    placeholder="BUSCAR DISTRITO..." 
+                                    className="h-8 pl-7 text-[9px] font-black border-none bg-muted/30 rounded-lg uppercase"
+                                    value={searchDistrito}
+                                    onChange={e => setSearchDistrito(e.target.value)}
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -271,8 +285,6 @@ export default function CalendarioCapacitacionesPage() {
 
                             <div className="space-y-1.5 overflow-hidden">
                                 {dayActivities.slice(0, 4).map((act) => {
-                                    const dato = datosData?.find(d => d.departamento === act.departamento && d.distrito === act.distrito);
-                                    const deptCode = dato?.departamento_codigo || '00';
                                     const isAnexoI = act.tipo_solicitud === 'Lugar Fijo';
 
                                     return (
@@ -287,8 +299,8 @@ export default function CalendarioCapacitacionesPage() {
                                             )}
                                         >
                                             <div className="flex justify-between items-start gap-1">
-                                                <p className="text-[6.5px] font-black text-primary/60 uppercase truncate">
-                                                    {deptCode} - 00 - 00 {act.distrito}
+                                                <p className="text-[8px] font-black text-primary uppercase truncate leading-none">
+                                                    {act.distrito}
                                                 </p>
                                                 <Badge variant="outline" className={cn(
                                                     "text-[5.5px] font-black px-1 py-0 h-3 border-primary/10",
@@ -297,7 +309,7 @@ export default function CalendarioCapacitacionesPage() {
                                                     {isAnexoI ? 'ANEXO I' : act.tipo_solicitud === 'divulgacion' ? 'DIV. MV' : 'CAP. MM'}
                                                 </Badge>
                                             </div>
-                                            <p className="text-[8px] font-black uppercase truncate text-[#1A1A1A] leading-tight mt-0.5">
+                                            <p className="text-[7.5px] font-bold uppercase truncate text-muted-foreground leading-tight mt-0.5">
                                                 {act.lugar_local}
                                             </p>
                                             <div className="flex items-center gap-1 mt-0.5 opacity-60">
@@ -319,7 +331,7 @@ export default function CalendarioCapacitacionesPage() {
             </div>
         </Card>
 
-        {/* LEYENDA INSTITUCIONAL SEGÚN REFERENCIA */}
+        {/* LEYENDA INSTITUCIONAL */}
         <div className="flex flex-col md:flex-row justify-center items-center gap-12 py-8 px-10 bg-white border-2 rounded-[2.5rem] border-dashed shadow-sm">
             <div className="flex flex-col items-center gap-3">
                 <span className="text-[11px] font-black uppercase italic tracking-wider text-primary">Solicitudes (ANEXO V)</span>
