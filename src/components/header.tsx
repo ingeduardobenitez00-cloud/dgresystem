@@ -7,7 +7,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, User, Bell, Check, UserPlus, Info, Clock } from "lucide-react";
+import { LogOut, User, Bell, Check, UserPlus, Info, Clock, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { recordAuditLog } from '@/lib/audit';
