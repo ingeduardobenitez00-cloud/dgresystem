@@ -5,7 +5,8 @@ service cloud.firestore {
 
     /** 
      * REGLAS DE SEGURIDAD INSTITUCIONAL CIDEE 2026 
-     * Protocolo de Blindaje y Recuperación Maestra - V3.3
+     * Protocolo de Blindaje y Recuperación Maestra - V3.4
+     * Optimizado para Importación Masiva (Bypass de validación de documento para Propietario)
      */
 
     function isSignedIn() {
@@ -13,7 +14,7 @@ service cloud.firestore {
     }
 
     function isOwner() {
-      // Bypass absoluto para el administrador maestro basado en correo electrónico verificado
+      // Verificación directa del token para evitar latencia y límites de 'get' en lotes grandes
       return isSignedIn() && request.auth.token.email == 'edubtz11@gmail.com';
     }
 
@@ -23,34 +24,29 @@ service cloud.firestore {
     }
 
     function isActive() {
-      let data = getUserData();
-      // Un usuario es activo si NO tiene el campo 'active' en 'false' explícitamente.
-      // Se utiliza .get() para manejar de forma segura la ausencia del campo.
-      return isOwner() || (isSignedIn() && data != null && data.get('active', true) != false);
+      // Priorizar isOwner para evitar consultas innecesarias a la colección 'users'
+      return isOwner() || (isSignedIn() && getUserData() != null && getUserData().get('active', true) != false);
     }
 
     function isAdmin() {
-      let data = getUserData();
-      return isOwner() || (isSignedIn() && data != null && data.role == 'admin');
+      // Priorizar isOwner para evitar consultas innecesarias a la colección 'users'
+      return isOwner() || (isSignedIn() && getUserData() != null && getUserData().role == 'admin');
     }
 
     function isDirector() {
-      let data = getUserData();
-      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director'));
+      return isOwner() || (isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director'));
     }
 
     function isStaff() {
-      let data = getUserData();
-      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director' || data.role == 'coordinador'));
+      return isOwner() || (isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director' || getUserData().role == 'coordinador'));
     }
 
     /** Gestión de Usuarios - Blindaje de Lista **/
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin() || isDirector();
-      allow create: if isSignedIn() && request.auth.uid == userId; // Permitir auto-registro de perfil propio
+      allow create: if isSignedIn() && request.auth.uid == userId; 
       allow update: if (request.auth.uid == userId) || isAdmin();
-      // El propietario no puede ser borrado bajo ninguna circunstancia
       allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
     }
 
@@ -61,10 +57,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /** Regla para el Padrón Electoral **/
+    /** Regla para el Padrón Electoral - OPTIMIZADA PARA IMPORTACIÓN **/
     match /padron/{document=**} {
       allow read: if isActive();
-      allow write: if isAdmin();
+      allow write: if isOwner() || isAdmin();
     }
 
     /** Monitoreo de Presencia **/
@@ -77,7 +73,6 @@ service cloud.firestore {
     /** CIDEE - Colecciones Transaccionales **/
     
     match /solicitudes-capacitacion/{solicitudId} {
-      // Se permite el 'get' público para que el portal ciudadano pueda cargar los metadatos de la encuesta (Lugar, Fecha, Hora)
       allow get: if true;
       allow list: if isActive();
       allow create, update: if isActive();
@@ -118,7 +113,6 @@ service cloud.firestore {
 
     /** Reglas Generales de Configuración y Geografía **/
     match /datos/{datoId} {
-      // Se permite lectura pública para que el formulario de registro (Login) pueda cargar la geografía
       allow read: if true;
       allow write: if isAdmin();
     }
