@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LogOut, User, Bell, Check, UserPlus, Info, Clock, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { recordAuditLog } from '@/lib/audit';
+import { recordAuditLog } from '@/audit';
 import { collection, query, where, orderBy, limit, updateDoc, doc } from 'firebase/firestore';
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollArea } from "./ui/scroll-area";
@@ -29,18 +29,27 @@ export default function Header({ title }: { title?: string }) {
     return role === 'admin' || role === 'director' || role === 'coordinador';
   }, [user]);
 
-  // NOTIFICACIONES EN TIEMPO REAL
+  // NOTIFICACIONES EN TIEMPO REAL - Simplificado para evitar requerir índices compuestos en Firestore
   const notiQuery = useMemoFirebase(() => {
     if (!firestore || !isStaff) return null;
+    // Solo filtramos por no leídas. El ordenamiento se hará en memoria para evitar errores de índice.
     return query(
         collection(firestore, 'notificaciones'), 
-        where('leida', '==', false), 
-        orderBy('fecha_creacion', 'desc'),
-        limit(10)
+        where('leida', '==', false),
+        limit(20)
     );
   }, [firestore, isStaff]);
 
-  const { data: notifications } = useCollection<any>(notiQuery);
+  const { data: rawNotifications } = useCollection<any>(notiQuery);
+
+  const sortedNotifications = useMemo(() => {
+    if (!rawNotifications) return [];
+    return [...rawNotifications].sort((a, b) => {
+        const dateA = a.fecha_creacion ? new Date(a.fecha_creacion).getTime() : 0;
+        const dateB = b.fecha_creacion ? new Date(b.fecha_creacion).getTime() : 0;
+        return dateB - dateA;
+    });
+  }, [rawNotifications]);
 
   const handleLogout = async () => {
     if (!auth || !firestore || !user) return;
@@ -110,9 +119,9 @@ export default function Header({ title }: { title?: string }) {
                     <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full hover:bg-muted">
                             <Bell className="h-5 w-5 text-muted-foreground" />
-                            {notifications && notifications.length > 0 && (
+                            {sortedNotifications && sortedNotifications.length > 0 && (
                                 <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-destructive text-white border-2 border-white animate-in zoom-in duration-300">
-                                    <span className="text-[10px] font-black">{notifications.length}</span>
+                                    <span className="text-[10px] font-black">{sortedNotifications.length}</span>
                                 </Badge>
                             )}
                         </Button>
@@ -124,9 +133,9 @@ export default function Header({ title }: { title?: string }) {
                             </p>
                         </div>
                         <ScrollArea className="h-80">
-                            {notifications && notifications.length > 0 ? (
+                            {sortedNotifications && sortedNotifications.length > 0 ? (
                                 <div className="divide-y">
-                                    {notifications.map((noti) => (
+                                    {sortedNotifications.map((noti) => (
                                         <div key={noti.id} className="p-4 hover:bg-muted/30 transition-colors group relative">
                                             <div className="flex items-start gap-3">
                                                 <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center shrink-0">

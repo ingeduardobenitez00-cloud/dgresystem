@@ -27,7 +27,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2, UserPlus, LogIn, MapPin, ShieldAlert } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Dato } from '@/lib/data';
-import { recordAuditLog } from '@/lib/audit';
+import { recordAuditLog } from '@/audit';
 
 export default function LoginPage() {
   const { auth, firestore } = useFirebase();
@@ -156,8 +156,8 @@ export default function LoginPage() {
         registration_method: 'auto_registro_jefe'
       });
 
-      // NOTIFICACIÓN PARA EL ADMINISTRADOR
-      await addDoc(collection(firestore, 'notificaciones'), {
+      // NOTIFICACIÓN PARA EL ADMINISTRADOR - Envío garantizado
+      addDoc(collection(firestore, 'notificaciones'), {
         tipo: 'NUEVO_USUARIO',
         titulo: 'Nueva Solicitud de Acceso',
         mensaje: `El usuario ${regData.username.toUpperCase()} ha solicitado acceso como Jefe para ${regData.distrito}.`,
@@ -165,7 +165,7 @@ export default function LoginPage() {
         leida: false,
         fecha_creacion: new Date().toISOString(),
         server_timestamp: serverTimestamp()
-      });
+      }).catch(err => console.error("Error al crear notificación:", err));
 
       recordAuditLog(firestore, {
         usuario_id: user.uid,
