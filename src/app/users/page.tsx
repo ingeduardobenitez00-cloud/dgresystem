@@ -33,7 +33,8 @@ import {
   Power,
   PowerOff,
   AlertTriangle,
-  Clock
+  Clock,
+  Calendar
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -91,6 +92,7 @@ const MODULE_STRUCTURE = [
   {
     category: "CIDEE - CAPACITACIONES",
     items: [
+      { id: 'calendario-capacitaciones', label: 'CALENDARIO MENSUAL' },
       { id: 'anexo-i', label: 'ANEXO I - LUGARES FIJOS' },
       { id: 'lista-anexo-i', label: 'LISTADO DE ANEXO I' },
       { id: 'solicitud-capacitacion', label: 'ANEXO V - SOLICITUDES' },
