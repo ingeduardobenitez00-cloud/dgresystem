@@ -221,7 +221,7 @@ const PermissionMatrix = ({
                             <div className="flex items-center gap-1">
                                 <Checkbox 
                                     checked={allInColSelected}
-                                    onCheckedChange={() => onToggleColumn(a.id, cat.items, isEditing)}
+                                    onCheckedChange={() => onToggleColumn(a.id, cat.items, editing)}
                                     className="h-3.5 w-3.5 border-primary/30"
                                 />
                                 <span className="text-[7px] font-black text-muted-foreground">ALL</span>
@@ -456,6 +456,38 @@ export default function UsersPage() {
     }
     toast({ title: "Perfil CIDEE Aplicado" });
   };
+
+  const handleApplyJefeProfile = (isEditing = false) => {
+    const jefeModules = [
+      'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion',
+      'agenda-anexo-i', 'agenda-anexo-v', 'control-movimiento-maquinas', 'denuncia-lacres',
+      'informe-divulgador', 'informe-semanal-puntos-fijos', 'encuesta-satisfaccion',
+      'archivo-capacitaciones'
+    ];
+    const actions = ['view', 'add', 'pdf'];
+    const newPerms = new Set<string>();
+    const newModules = new Set<string>(jefeModules);
+    
+    jefeModules.forEach(m => {
+      actions.forEach(a => newPerms.add(`${m}:${a}`));
+    });
+    newPerms.add('district_filter');
+    newPerms.add('assign_staff');
+
+    if (isEditing && editingUser) {
+      setEditingUser({
+        ...editingUser,
+        role: 'jefe',
+        modules: Array.from(newModules),
+        permissions: Array.from(newPerms)
+      });
+    } else {
+      setRegRole('jefe');
+      setSelectedModules(newModules);
+      setSelectedPerms(newPerms);
+    }
+    toast({ title: "Perfil Jefe de Oficina Aplicado" });
+  };
   
   const toggleUserStatus = (user: UserProfile) => {
     if (!firestore || user.email === 'edubtz11@gmail.com') return;
@@ -567,7 +599,10 @@ export default function UsersPage() {
             <CardHeader className="border-b py-6 bg-muted/10">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <CardTitle className="uppercase font-black text-xs flex items-center gap-2 tracking-widest text-primary"><UserPlus className="h-4 w-4" /> Registrar Funcionario</CardTitle>
-                <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] gap-2 h-9" onClick={() => handleApplyCIDEEProfile(false)}><Zap className="h-3.5 w-3.5 fill-primary" /> PERFIL CIDEE</Button>
+                <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] gap-2 h-9" onClick={() => handleApplyJefeProfile(false)}><UserCircle className="h-3.5 w-3.5" /> PERFIL JEFE</Button>
+                    <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] gap-2 h-9" onClick={() => handleApplyCIDEEProfile(false)}><Zap className="h-3.5 w-3.5 fill-primary" /> PERFIL CIDEE</Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-10 pt-8">
@@ -777,7 +812,10 @@ export default function UsersPage() {
                         <div className="h-12 w-12 bg-white/10 rounded-xl flex items-center justify-center"><Settings className="h-6 w-6" /></div>
                         <div><DialogTitle className="text-2xl font-black uppercase">Editar Perfil</DialogTitle><DialogDescription className="text-white/60 font-bold uppercase text-[9px]">ID: {editingUser.id}</DialogDescription></div>
                     </div>
-                    <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] h-9 bg-transparent border-white/20 text-white hover:bg-white/10" onClick={() => handleApplyCIDEEProfile(true)}><Zap className="h-3.5 w-3.5 fill-white" /> PERFIL CIDEE</Button>
+                    <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] h-9 bg-transparent border-white/20 text-white hover:bg-white/10" onClick={() => handleApplyJefeProfile(true)}><UserCircle className="h-3.5 w-3.5" /> PERFIL JEFE</Button>
+                        <Button type="button" variant="outline" size="sm" className="font-black uppercase text-[10px] h-9 bg-transparent border-white/20 text-white hover:bg-white/10" onClick={() => handleApplyCIDEEProfile(true)}><Zap className="h-3.5 w-3.5 fill-white" /> PERFIL CIDEE</Button>
+                    </div>
                 </div>
               </DialogHeader>
               <ScrollArea className="flex-1">
