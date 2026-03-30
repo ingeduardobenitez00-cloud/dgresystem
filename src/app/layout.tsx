@@ -57,14 +57,19 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="apple-touch-icon" href="/logo1.png" />
-        {/* SCRIPT DE AUTO-RECUPERACIÓN DE CACHÉ TRAS PUBLICACIÓN */}
+        {/* SCRIPT DE AUTO-RECUPERACIÓN DE VERSIÓN REFORZADO */}
         <script dangerouslySetInnerHTML={{ __html: `
-          window.addEventListener('error', function(e) {
-            if (e.message && (e.message.indexOf('chunk') > -1 || e.message.indexOf('Loading chunk') > -1)) {
-              console.log('Detectada inconsistencia de versión. Recargando...');
-              window.location.reload();
-            }
-          });
+          (function() {
+            var handleVersionError = function(e) {
+              var message = e.message || (e.reason && e.reason.message) || "";
+              if (/chunk|loading|manifest/i.test(message)) {
+                console.warn('Inconsistencia de versión detectada. Sincronizando...');
+                window.location.reload();
+              }
+            };
+            window.addEventListener('error', handleVersionError, true);
+            window.addEventListener('unhandledrejection', handleVersionError);
+          })();
         ` }} />
       </head>
       <body
