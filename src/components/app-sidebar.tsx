@@ -67,14 +67,17 @@ export default function AppSidebar() {
       items: [
         { href: "/calendario-capacitaciones", label: "Calendario Mensual", icon: Calendar },
         { href: "/anexo-i", label: "Anexo I - Lugares Fijos", icon: MapPin },
+        { href: "/lista-anexo-i", label: "Listado de Anexo I", icon: ClipboardList },
         { href: "/solicitud-capacitacion", label: "Anexo V - Solicitudes", icon: ClipboardCheck },
-        { href: "/agenda-capacitacion", label: "Agenda", icon: CalendarDays },
+        { href: "/agenda-anexo-i", label: "Agenda Anexo I", icon: CalendarDays },
+        { href: "/agenda-anexo-v", label: "Agenda Anexo V", icon: CalendarDays },
         { href: "/control-movimiento-maquinas", label: "Movimiento de Máquinas", icon: ArrowLeftRight },
         { href: "/denuncia-lacres", label: "Denuncia de Lacres", icon: ShieldAlert },
         { href: "/informe-movimientos-denuncias", label: "Trazabilidad Logística", icon: ArrowLeftRight },
         { href: "/informe-divulgador", label: "Anexo III - Informe del Divulgador", icon: UserCheck },
         { href: "/galeria-capacitaciones", label: "Galería Evidencias", icon: Images },
         { href: "/informe-semanal-puntos-fijos", label: "Anexo IV - Informe Semanal", icon: TableProperties },
+        { href: "/lista-anexo-iv", label: "Listado de Anexo IV", icon: ClipboardList },
         { href: "/archivo-capacitaciones", label: "Archivo / Historial", icon: History },
         { href: "/divulgadores", label: "Directorio Divulgadores", icon: UserCircle },
         { href: "/estadisticas-capacitacion", label: "Estadísticas", icon: PieChart },
@@ -130,7 +133,7 @@ export default function AppSidebar() {
   const isAccessible = (href: string) => {
     if (!user) return false;
     if (href === '/') return true;
-    // Bypass Maestro por Correo Propietario
+    // Bypass Maestro por Correo Propietario o Admin Role
     if (user.email === 'edubtz11@gmail.com' || user.profile?.role === 'admin') return true;
     const moduleName = href.substring(1);
     return user.profile?.modules?.includes(moduleName);
