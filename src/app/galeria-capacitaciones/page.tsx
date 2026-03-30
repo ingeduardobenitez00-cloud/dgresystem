@@ -7,7 +7,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { type InformeDivulgador } from '@/lib/data';
-import { Loader2, Images, MapPin, Calendar, Users, UserCheck, Search, ImageOff, Maximize2, Building2, Landmark, X } from 'lucide-react';
+import { 
+  Loader2, 
+  Images, 
+  MapPin, 
+  Calendar, 
+  Users, 
+  UserCheck, 
+  Search, 
+  ImageOff, 
+  Maximize2, 
+  Building2, 
+  Landmark, 
+  X,
+  Camera
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
@@ -22,7 +36,7 @@ export default function GaleriaCapacitacionesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
-  // Consulta directa a informes-divulgador sin ordenamiento en servidor para evitar errores de índice
+  // Consulta directa a informes-divulgador
   const informesRef = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
   const { data: informes, isLoading } = useCollection<InformeDivulgador>(informesRef);
 
@@ -32,9 +46,11 @@ export default function GaleriaCapacitacionesPage() {
 
     const term = searchTerm.toLowerCase().trim();
     
-    // Filtrar informes que tengan fotos y coincidan con el término de búsqueda
+    // Filtrar informes que tengan fotos (en campo 'fotos' o 'foto_evidencia')
     const filtered = informes.filter(inf => {
-        const hasPhotos = Array.isArray(inf.fotos) && inf.fotos.length > 0;
+        const reportPhotos = inf.fotos || (inf as any).foto_evidencia || [];
+        const hasPhotos = Array.isArray(reportPhotos) && reportPhotos.length > 0;
+        
         if (!hasPhotos) return false;
 
         if (!term) return true;
@@ -102,7 +118,7 @@ export default function GaleriaCapacitacionesPage() {
             <Card className="p-20 text-center border-dashed bg-white rounded-[2.5rem]">
                 <div className="flex flex-col items-center justify-center opacity-20">
                     <ImageOff className="h-20 w-20 mb-4" />
-                    <p className="font-black uppercase tracking-widest text-sm">No se encontraron informes con fotos</p>
+                    <p className="font-black uppercase tracking-widest text-sm">No se encontraron informes con evidencias fotográficas</p>
                 </div>
             </Card>
         ) : (
@@ -138,68 +154,71 @@ export default function GaleriaCapacitacionesPage() {
                                             </div>
                                         </AccordionTrigger>
                                         <AccordionContent className="pt-6 space-y-8 px-2">
-                                            {dist.items.map((inf) => (
-                                                <Card key={inf.id} className="border-none shadow-lg rounded-[2rem] overflow-hidden bg-white group/card">
-                                                    <div className="p-6 md:p-8 border-b bg-muted/5">
-                                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                                                            <div className="lg:col-span-6 space-y-4">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center shadow-lg">
-                                                                        <MapPin className="h-5 w-5" />
+                                            {dist.items.map((inf) => {
+                                                const reportPhotos = inf.fotos || (inf as any).foto_evidencia || [];
+                                                return (
+                                                    <Card key={inf.id} className="border-none shadow-lg rounded-[2rem] overflow-hidden bg-white group/card">
+                                                        <div className="p-6 md:p-8 border-b bg-muted/5">
+                                                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                                                                <div className="lg:col-span-6 space-y-4">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center shadow-lg">
+                                                                            <MapPin className="h-5 w-5" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">LOCAL DE CAPACITACIÓN</p>
+                                                                            <h2 className="text-lg font-black uppercase text-[#1A1A1A] leading-tight">{inf.lugar_divulgacion}</h2>
+                                                                        </div>
                                                                     </div>
-                                                                    <div>
-                                                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">LOCAL DE CAPACITACIÓN</p>
-                                                                        <h2 className="text-lg font-black uppercase text-[#1A1A1A] leading-tight">{inf.lugar_divulgacion}</h2>
+                                                                    <div className="flex flex-wrap gap-3">
+                                                                        <Badge variant="secondary" className="bg-white border-2 text-[9px] font-black uppercase py-1 px-3 rounded-lg shadow-sm gap-2">
+                                                                            <Calendar className="h-3 w-3" /> {formatDateToDDMMYYYY(inf.fecha)}
+                                                                        </Badge>
+                                                                        <Badge variant="secondary" className="bg-white border-2 text-[9px] font-black uppercase py-1 px-3 rounded-lg shadow-sm gap-2">
+                                                                            <UserCheck className="h-3 w-3" /> {inf.nombre_divulgador}
+                                                                        </Badge>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex flex-wrap gap-3">
-                                                                    <Badge variant="secondary" className="bg-white border-2 text-[9px] font-black uppercase py-1 px-3 rounded-lg shadow-sm gap-2">
-                                                                        <Calendar className="h-3 w-3" /> {formatDateToDDMMYYYY(inf.fecha)}
-                                                                    </Badge>
-                                                                    <Badge variant="secondary" className="bg-white border-2 text-[9px] font-black uppercase py-1 px-3 rounded-lg shadow-sm gap-2">
-                                                                        <UserCheck className="h-3 w-3" /> {inf.nombre_divulgador}
-                                                                    </Badge>
+
+                                                                <div className="lg:col-span-3 lg:border-l lg:pl-6 space-y-1">
+                                                                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL OPERATIVO</p>
+                                                                    <p className="font-black text-[11px] uppercase text-[#1A1A1A]">{inf.vinculo}</p>
+                                                                    <p className="text-[10px] font-bold text-muted-foreground uppercase">C.I. {inf.cedula_divulgador}</p>
                                                                 </div>
-                                                            </div>
 
-                                                            <div className="lg:col-span-3 lg:border-l lg:pl-6 space-y-1">
-                                                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL OPERATIVO</p>
-                                                                <p className="font-black text-[11px] uppercase text-[#1A1A1A]">{inf.vinculo}</p>
-                                                                <p className="text-[10px] font-bold text-muted-foreground uppercase">C.I. {inf.cedula_divulgador}</p>
-                                                            </div>
-
-                                                            <div className="lg:col-span-3 bg-black text-white p-5 rounded-2xl flex flex-col items-center justify-center shadow-xl">
-                                                                <Users className="h-5 w-5 mb-1 opacity-50" />
-                                                                <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-1">PERSONAS CAPACITADAS</p>
-                                                                <span className="text-3xl font-black leading-none">{inf.total_personas}</span>
+                                                                <div className="lg:col-span-3 bg-black text-white p-5 rounded-2xl flex flex-col items-center justify-center shadow-xl">
+                                                                    <Users className="h-5 w-5 mb-1 opacity-50" />
+                                                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-1">PERSONAS CAPACITADAS</p>
+                                                                    <span className="text-3xl font-black leading-none">{inf.total_personas}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
 
-                                                    <CardContent className="p-6 md:p-8">
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                                            {inf.fotos?.map((photo, pIdx) => (
-                                                                <div 
-                                                                    key={pIdx} 
-                                                                    className="relative aspect-video rounded-xl overflow-hidden border-2 border-white shadow-md group/photo cursor-pointer transition-transform hover:scale-[1.05]"
-                                                                    onClick={() => setSelectedPhoto(photo)}
-                                                                >
-                                                                    <Image 
-                                                                        src={photo} 
-                                                                        alt={`Evidencia ${pIdx}`} 
-                                                                        fill 
-                                                                        className="object-cover" 
-                                                                        sizes="200px"
-                                                                    />
-                                                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
-                                                                        <Maximize2 className="text-white h-6 w-6" />
+                                                        <CardContent className="p-6 md:p-8">
+                                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                                                {reportPhotos.map((photo: string, pIdx: number) => (
+                                                                    <div 
+                                                                        key={pIdx} 
+                                                                        className="relative aspect-video rounded-xl overflow-hidden border-2 border-white shadow-md group/photo cursor-pointer transition-transform hover:scale-[1.05]"
+                                                                        onClick={() => setSelectedPhoto(photo)}
+                                                                    >
+                                                                        <Image 
+                                                                            src={photo} 
+                                                                            alt={`Evidencia ${pIdx}`} 
+                                                                            fill 
+                                                                            className="object-cover" 
+                                                                            sizes="200px"
+                                                                        />
+                                                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                                                                            <Maximize2 className="text-white h-6 w-6" />
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
-                                            ))}
+                                                                ))}
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                );
+                                            })}
                                         </AccordionContent>
                                     </AccordionItem>
                                 ))}
