@@ -32,7 +32,8 @@ import {
   Activity,
   Power,
   PowerOff,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,6 +63,8 @@ import { firebaseConfig } from '@/firebase/config';
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 type UserProfile = {
   id: string;
@@ -276,6 +279,9 @@ export default function UsersPage() {
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
+  const presenceQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'presencia') : null), [firestore]);
+  const { data: presenceData } = useCollection<any>(presenceQuery);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [regDepartamento, setRegDepartamento] = useState<string>('');
   const [regDistrito, setRegDistrito] = useState<string>('');
@@ -335,7 +341,7 @@ export default function UsersPage() {
     const term = searchTerm.toLowerCase().trim();
     const depts: Record<string, { name: string, districts: Record<string, { name: string, users: UserProfile[] }> }> = {};
 
-    // Inicializar departamentos y distritos del maestro de geografía
+    // Inicializar departamentos y distritos del maestro de geografía (Para ver distritos pendientes)
     datosData.forEach(d => {
       if (!depts[d.departamento]) depts[d.departamento] = { name: d.departamento, districts: {} };
       if (!depts[d.departamento].districts[d.distrito]) {
@@ -355,20 +361,20 @@ export default function UsersPage() {
 
     // Filtrar la jerarquía para que sea "directa" al buscar
     return Object.values(depts)
-      .map(dept => ({
-        ...dept,
-        districts: Object.values(dept.districts)
-          .filter(d => {
-            if (!term) return d.users.length > 0; // Por defecto mostrar solo distritos con usuarios
-            // Si hay búsqueda, mostrar si el distrito coincide o si tiene usuarios que coinciden
-            return d.name.toLowerCase().includes(term) || d.users.length > 0;
-          })
-          .sort((a, b) => a.name.localeCompare(b.name))
-      }))
+      .map(dept => {
+        const districtsArray = Object.values(dept.districts);
+        const activeDistricts = districtsArray.filter(d => d.users.length > 0);
+        
+        return {
+          ...dept,
+          activeCount: activeDistricts.length,
+          totalCount: districtsArray.length,
+          districts: districtsArray.sort((a, b) => a.name.localeCompare(b.name))
+        };
+      })
       .filter(dept => {
-        if (!term) return dept.districts.length > 0;
-        // Si hay búsqueda, mostrar si el departamento coincide o si tiene distritos válidos después del filtro
-        return dept.name.toLowerCase().includes(term) || dept.districts.length > 0;
+        if (!term) return dept.districts.some(d => d.users.length > 0);
+        return dept.name.toLowerCase().includes(term) || dept.districts.some(d => d.name.toLowerCase().includes(term) || d.users.length > 0);
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [datosData, filteredUsers, searchTerm]);
@@ -626,10 +632,13 @@ export default function UsersPage() {
                                         </div>
                                         <div>
                                             <h2 className="text-lg font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
-                                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{dept.districts.length} OFICINAS ACTIVAS</p>
+                                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{dept.activeCount} OFICINAS ACTIVAS</p>
                                         </div>
                                     </div>
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} TOTAL</Badge>
+                                    <div className="flex items-center gap-3">
+                                        <Badge variant="secondary" className="bg-muted text-muted-foreground text-[8px] font-black uppercase">{dept.totalCount} TOTAL</Badge>
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[8px] font-black uppercase">{dept.districts.reduce((acc, d) => acc + d.users.length, 0)} PERSONAL</Badge>
+                                    </div>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="px-8 pb-8 pt-2">
@@ -640,78 +649,106 @@ export default function UsersPage() {
                                                 <AccordionTrigger className="hover:no-underline px-6 py-3 bg-muted/5 group">
                                                     <div className="flex items-center justify-between w-full pr-4">
                                                         <div className="flex items-center gap-3">
-                                                            <Building2 className="h-4 w-4 text-primary" />
-                                                            <span className="font-black uppercase text-xs">{dist.name}</span>
+                                                            <Building2 className={cn("h-4 w-4", dist.users.length > 0 ? "text-primary" : "text-muted-foreground/30")} />
+                                                            <span className={cn("font-black uppercase text-xs", dist.users.length === 0 && "text-muted-foreground/60")}>{dist.name}</span>
                                                         </div>
-                                                        <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} PERSONAL</Badge>
+                                                        {dist.users.length > 0 ? (
+                                                            <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} PERSONAL</Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="border-dashed border-primary/20 text-primary/40 text-[7px] font-black uppercase">PENDIENTE DE REGISTRO</Badge>
+                                                        )}
                                                     </div>
                                                 </AccordionTrigger>
                                                 <AccordionContent className="p-0 bg-white">
-                                                    <div className="overflow-x-auto">
-                                                        <Table>
-                                                            <TableHeader className="bg-muted/30">
-                                                                <TableRow>
-                                                                    <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
-                                                                    <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
-                                                                    <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
-                                                                    <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {dist.users.map(u => {
-                                                                    const isUserOwner = u.email === 'edubtz11@gmail.com';
-                                                                    const isActive = u.active === true || isUserOwner;
-                                                                    
-                                                                    return (
-                                                                        <TableRow key={u.id} className="hover:bg-primary/5">
-                                                                            <TableCell className="px-6 py-3">
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="font-black text-[11px] uppercase text-primary leading-none">{u.username}</span>
-                                                                                    <span className="text-[9px] font-bold text-muted-foreground mt-1">{u.email}</span>
-                                                                                </div>
-                                                                            </TableCell>
-                                                                            <TableCell><Badge variant="secondary" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-none">{u.role}</Badge></TableCell>
-                                                                            <TableCell>
-                                                                                {isActive ? (
-                                                                                    <Badge className="bg-green-600 text-white text-[7px] font-black uppercase">ACTIVO</Badge>
-                                                                                ) : u.registration_method === 'auto_registro_jefe' ? (
-                                                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[7px] font-black uppercase">PENDIENTE</Badge>
-                                                                                ) : (
-                                                                                    <Badge variant="destructive" className="text-[7px] font-black uppercase">INACTIVO</Badge>
-                                                                                )}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-right px-6">
-                                                                                <div className="flex justify-end gap-2">
-                                                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingUser({...u}); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
-                                                                                    <Button variant="ghost" size="icon" className={cn("h-8 w-8", isActive ? "text-amber-600" : "text-green-600")} title={isActive ? "Deshabilitar Acceso" : "Habilitar Acceso"} onClick={() => toggleUserStatus(u)} disabled={isUserOwner}>
-                                                                                        {isActive ? <ShieldAlert className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                                                                                    </Button>
-                                                                                    <AlertDialog>
-                                                                                        <AlertDialogTrigger asChild>
-                                                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={isUserOwner}>
-                                                                                                <Trash2 className="h-4 w-4" />
-                                                                                            </Button>
-                                                                                        </AlertDialogTrigger>
-                                                                                        <AlertDialogContent className="rounded-[2rem]">
-                                                                                            <AlertDialogHeader>
-                                                                                                <AlertDialogTitle className="font-black uppercase">¿ELIMINAR ACCESO?</AlertDialogTitle>
-                                                                                                <AlertDialogDescription className="text-xs font-medium uppercase">
-                                                                                                    Esta acción es permanente. Se borrará el perfil de {u.username} del sistema central.
-                                                                                                </AlertDialogDescription>
-                                                                                            </AlertDialogHeader>
-                                                                                            <AlertDialogFooter className="pt-6">
-                                                                                                <AlertDialogCancel className="rounded-xl text-[10px] font-black">CANCELAR</AlertDialogCancel>
-                                                                                                <AlertDialogAction onClick={() => handleDeleteUser(u)} className="bg-destructive text-white rounded-xl text-[10px] font-black">ELIMINAR DEFINITIVAMENTE</AlertDialogAction>
-                                                                                            </AlertDialogFooter>
-                                                                                        </AlertDialogContent>
-                                                                                    </AlertDialog>
-                                                                                </div>
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                    );
-                                                                })}</TableBody>
-                                                        </Table>
-                                                    </div>
+                                                    {dist.users.length > 0 ? (
+                                                        <div className="overflow-x-auto">
+                                                            <Table>
+                                                                <TableHeader className="bg-muted/30">
+                                                                    <TableRow>
+                                                                        <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
+                                                                        <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
+                                                                        <TableHead className="text-[8px] font-black uppercase px-6">Última Conexión</TableHead>
+                                                                        <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
+                                                                        <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {dist.users.map(u => {
+                                                                        const isUserOwner = u.email === 'edubtz11@gmail.com';
+                                                                        const isActive = u.active === true || isUserOwner;
+                                                                        
+                                                                        return (
+                                                                            <TableRow key={u.id} className="hover:bg-primary/5">
+                                                                                <TableCell className="px-6 py-3">
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="font-black text-[11px] uppercase text-primary leading-none">{u.username}</span>
+                                                                                        <span className="text-[9px] font-bold text-muted-foreground mt-1">{u.email}</span>
+                                                                                    </div>
+                                                                                </TableCell>
+                                                                                <TableCell><Badge variant="secondary" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-none">{u.role}</Badge></TableCell>
+                                                                                <TableCell className="px-6 py-3">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-40" />
+                                                                                        <span className="text-[9px] font-black uppercase text-muted-foreground">
+                                                                                            {(() => {
+                                                                                                const presence = presenceData?.find(p => p.usuario_id === u.id);
+                                                                                                if (!presence?.ultima_actividad) return 'SIN REGISTRO';
+                                                                                                try {
+                                                                                                    return format(presence.ultima_actividad.toDate(), "dd/MM/yy HH:mm", { locale: es });
+                                                                                                } catch (e) {
+                                                                                                    return 'SIN REGISTRO';
+                                                                                                }
+                                                                                            })()}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </TableCell>
+                                                                                <TableCell>
+                                                                                    {isActive ? (
+                                                                                        <Badge className="bg-green-600 text-white text-[7px] font-black uppercase">ACTIVO</Badge>
+                                                                                    ) : u.registration_method === 'auto_registro_jefe' ? (
+                                                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[7px] font-black uppercase">PENDIENTE</Badge>
+                                                                                    ) : (
+                                                                                        <Badge variant="destructive" className="text-[7px] font-black uppercase">INACTIVO</Badge>
+                                                                                    )}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right px-6">
+                                                                                    <div className="flex justify-end gap-2">
+                                                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingUser({...u}); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
+                                                                                        <Button variant="ghost" size="icon" className={cn("h-8 w-8", isActive ? "text-amber-600" : "text-green-600")} title={isActive ? "Deshabilitar Acceso" : "Habilitar Acceso"} onClick={() => toggleUserStatus(u)} disabled={isUserOwner}>
+                                                                                            {isActive ? <ShieldAlert className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                                                        </Button>
+                                                                                        <AlertDialog>
+                                                                                            <AlertDialogTrigger asChild>
+                                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={isUserOwner}>
+                                                                                                    <Trash2 className="h-4 w-4" />
+                                                                                                </Button>
+                                                                                            </AlertDialogTrigger>
+                                                                                            <AlertDialogContent className="rounded-[2rem]">
+                                                                                                <AlertDialogHeader>
+                                                                                                    <AlertDialogTitle className="font-black uppercase">¿ELIMINAR ACCESO?</AlertDialogTitle>
+                                                                                                    <AlertDialogDescription className="text-xs font-medium uppercase">
+                                                                                                        Esta acción es permanente. Se borrará el perfil de {u.username} del sistema central.
+                                                                                                    </AlertDialogDescription>
+                                                                                                </AlertDialogHeader>
+                                                                                                <AlertDialogFooter className="pt-6">
+                                                                                                    <AlertDialogCancel className="rounded-xl text-[10px] font-black">CANCELAR</AlertDialogCancel>
+                                                                                                    <AlertDialogAction onClick={() => handleDeleteUser(u)} className="bg-destructive text-white rounded-xl text-[10px] font-black">ELIMINAR DEFINITIVAMENTE</AlertDialogAction>
+                                                                                                </AlertDialogFooter>
+                                                                                            </AlertDialogContent>
+                                                                                        </AlertDialog>
+                                                                                    </div>
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        );
+                                                                    })}</TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="py-10 text-center space-y-2 opacity-30">
+                                                            <UserCircle className="h-8 w-8 mx-auto text-muted-foreground" />
+                                                            <p className="text-[10px] font-black uppercase">Oficina pendiente de asignación</p>
+                                                        </div>
+                                                    )}
                                                 </AccordionContent>
                                             </AccordionItem>
                                         );
