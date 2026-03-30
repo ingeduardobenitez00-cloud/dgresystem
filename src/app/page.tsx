@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -113,7 +112,6 @@ export default function Home() {
         <div className="space-y-4">
           <Accordion 
             type="multiple" 
-            defaultValue={isAdmin ? groupedModules.map(g => g.label) : undefined}
             className="space-y-3"
           >
             {groupedModules.map((group) => (
