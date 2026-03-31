@@ -8,11 +8,7 @@ service cloud.firestore {
     // Esta regla es la más importante. Si el correo coincide,
     // se ignora cualquier otra restricción posterior.
     function isMasterAdmin() {
-      return request.auth != null && (
-        request.auth.token.email == 'edubtz11@gmail.com' || 
-        request.auth.token.email == 'eduardobritz1@gmail.com' ||
-        request.auth.token.email == 'eduardobritz11@gmail.com'
-      );
+      return request.auth != null && request.auth.token.email == 'edubtz11@gmail.com';
     }
 
     // Aplicar acceso total inmediato a TODA la base de datos para Master Admins
