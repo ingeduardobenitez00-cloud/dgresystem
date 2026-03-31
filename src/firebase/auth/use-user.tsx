@@ -20,6 +20,7 @@ export interface UserProfile {
 export type AppUser = User & {
   profile?: UserProfile | null;
   isAdmin?: boolean;
+  isOwner?: boolean;
 };
 
 export interface UserHookResult {
@@ -39,15 +40,16 @@ export const useUser = (): UserHookResult => {
 
   const { data: profileData, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileDocRef);
   
+  const email = authUser?.email?.toLowerCase();
+  const isOwner = email === 'edubtz11@gmail.com' || email === 'eduardobritz1@gmail.com' || email === 'eduardobritz11@gmail.com';
+
   const enrichedUser = useMemo(() => {
     if (!authUser) return null;
     
-    const isOwner = authUser.email === 'edubtz11@gmail.com' || authUser.email === 'eduardobritz1@gmail.com' || authUser.email === 'eduardobritz11@gmail.com';
     const isAdmin = isOwner || profileData?.role === 'admin';
 
     // PERFIL SINTÉTICO DE EMERGENCIA PARA EL PROPIETARIO
-    let finalProfile = profileData;
-    
+    // Se genera automáticamente para evitar errores de permisos si el doc no existe o falla
     if (isOwner) {
       const allModules = [
         'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
@@ -65,41 +67,47 @@ export const useUser = (): UserHookResult => {
         'admin_filter', 'department_filter', 'district_filter', 'assign_staff', 'generar_pdf'
       ];
 
-      // Generar permisos granulares para todos los módulos
       allModules.forEach(m => {
         ['view', 'add', 'edit', 'delete', 'pdf'].forEach(a => {
           allPermissions.push(`${m}:${a}`);
         });
       });
 
-      finalProfile = {
-        ...profileData,
-        username: profileData?.username || 'ADMINISTRADOR MAESTRO',
-        role: 'admin',
-        active: true, 
-        departamento: profileData?.departamento || 'SEDE CENTRAL',
-        distrito: profileData?.distrito || 'ASUNCIÓN',
-        modules: allModules,
-        permissions: allPermissions
+      return {
+        ...authUser,
+        profile: {
+          username: profileData?.username || 'ADMINISTRADOR MAESTRO',
+          role: 'admin',
+          active: true, 
+          departamento: profileData?.departamento || 'SEDE CENTRAL',
+          distrito: profileData?.distrito || 'ASUNCIÓN',
+          modules: allModules,
+          permissions: allPermissions
+        },
+        isAdmin: true,
+        isOwner: true
       };
-    } else if (finalProfile) {
-        // Por defecto, los usuarios son activos a menos que se indique explícitamente lo contrario (false)
-        if (finalProfile.active === undefined) {
-            finalProfile.active = true;
-        }
+    }
+    
+    // Para usuarios normales, respetamos el estado del documento
+    let finalProfile = profileData;
+    if (finalProfile && finalProfile.active === undefined) {
+        finalProfile.active = true;
     }
     
     return {
       ...authUser,
       profile: finalProfile,
-      isAdmin
+      isAdmin,
+      isOwner: false
     };
-  }, [authUser, profileData]);
+  }, [authUser, profileData, isOwner]);
 
   return {
     user: enrichedUser,
     isUserLoading: isAuthLoading,
-    isProfileLoading: isProfileLoading,
-    userError: authError || profileError,
+    // Si es el dueño, no bloqueamos la interfaz esperando el perfil de Firestore
+    isProfileLoading: isOwner ? false : isProfileLoading,
+    userError: isOwner ? null : (authError || profileError),
   };
 };
