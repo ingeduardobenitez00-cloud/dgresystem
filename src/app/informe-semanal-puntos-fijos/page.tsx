@@ -104,7 +104,6 @@ export default function InformeSemanalAnexoIVPage() {
         if (profile.departamento) setSelectedDepartment(profile.departamento);
         if (isDistView && profile.distrito) setSelectedDistrict(profile.distrito);
       } else if (!selectedDepartment) {
-        // Inicializar en Nacional para Admins/Coordinadores
         setSelectedDepartment('ALL');
         setSelectedDistrict('ALL');
       }
@@ -128,14 +127,12 @@ export default function InformeSemanalAnexoIVPage() {
     if (!firestore) return null;
     const colRef = collection(firestore, 'informes-divulgador');
     
-    // Lógica de consulta flexible para Administradores/Coordinadores
     if (isAdminView) {
         if (!selectedDepartment || selectedDepartment === 'ALL') return colRef;
         if (!selectedDistrict || selectedDistrict === 'ALL') return query(colRef, where('departamento', '==', selectedDepartment));
         return query(colRef, where('departamento', '==', selectedDepartment), where('oficina', '==', selectedDistrict));
     }
 
-    // Lógica restrictiva para otros roles
     if (!selectedDepartment || !selectedDistrict) return null;
     return query(
         colRef, 
@@ -270,6 +267,12 @@ export default function InformeSemanalAnexoIVPage() {
         ];
     });
 
+    // Fila de Total Consolidado
+    tableBody.push([
+        { content: 'TOTAL GENERAL DE CAPACITADOS EN EL PERIODO', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold', fillColor: [240, 240, 240] } },
+        { content: totalCapacitados.toString(), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
+    ]);
+
     while (tableBody.length < 12) {
         tableBody.push([tableBody.length + 1, '', '', '', '', '', '', '']);
     }
@@ -294,15 +297,21 @@ export default function InformeSemanalAnexoIVPage() {
         body: tableBody,
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 20;
-    doc.line(pageWidth - margin - 60, finalY, pageWidth - margin, finalY);
+    const finalY = (doc as any).lastAutoTable.finalY + 25;
+    
+    // Matriz de firmas para Jefatura
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.2);
+    doc.line(pageWidth - margin - 70, finalY, pageWidth - margin - 10, finalY);
     doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-    doc.text("FIRMA Y SELLO DE LOS JEFES", pageWidth - margin - 30, finalY + 5, { align: 'center' });
+    doc.text("FIRMA Y SELLO JEFATURA DE OFICINA", pageWidth - margin - 40, finalY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.text("Aclaración: ____________________________________", pageWidth - margin - 40, finalY + 10, { align: 'center' });
 
-    doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.text("- Reporte generado a través del Sistema de Gestión CIDEE.", margin, finalY + 15);
-    doc.text("- El total consolidado de personas capacitadas en este periodo es: " + totalCapacitados, margin, finalY + 19);
+    doc.setFont('helvetica', 'bold');
+    doc.text("- TOTAL CONSOLIDADO DE CIUDADANOS CAPACITADOS: " + totalCapacitados, margin, finalY + 19);
 
     doc.save(`AnexoIV-${isGlobal ? 'NACIONAL' : selectedDistrict?.replace(/\s+/g, '-')}-Semana.pdf`);
   };
@@ -326,6 +335,7 @@ export default function InformeSemanalAnexoIVPage() {
       semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
       semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
       foto_respaldo_documental: respaldoPhoto,
+      total_capacitados: totalCapacitados,
       filas: informesAnexoIII.map(inf => ({
         lugar: inf.lugar_divulgacion,
         fecha: inf.fecha,
