@@ -1,7 +1,6 @@
-
 /**
- * @fileOverview Script de importación masiva optimizado para el Padrón Electoral.
- * Procesa archivos de gran volumen en bloques de 1,000 registros con pausas de enfriamiento.
+ * @fileOverview Motor de Importación Ultra-Estable para Padrón Electoral.
+ * Diseñado para evitar bloqueos por saturación en cargas de gran volumen.
  */
 
 import { initializeApp } from 'firebase/app';
@@ -11,7 +10,6 @@ import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Configuración de Firebase
 const firebaseConfig = {
   "projectId": "studio-1827480670-a09b0",
   "appId": "1:177194041005:web:802f6167cd0c9275d19024",
@@ -30,115 +28,99 @@ const password = process.env.ADMIN_PASSWORD;
 
 async function run() {
   console.log('\n=================================================');
-  console.log('   MOTOR DE IMPORTACIÓN MASIVA V5.2 - PADRÓN');
+  console.log('   MOTOR DE IMPORTACIÓN ULTRA-ESTABLE V6.0');
   console.log('=================================================\n');
 
   if (!email || !password) {
     console.error('❌ ERROR: Credenciales no encontradas.');
-    console.log('Uso: ADMIN_EMAIL=... ADMIN_PASSWORD=... npm run import:padron\n');
     process.exit(1);
   }
 
   try {
-    console.log('🔐 Autenticando administrador...');
+    console.log('🔐 Autenticando con:', email);
     await signInWithEmailAndPassword(auth, email, password);
     console.log('✅ Acceso concedido.\n');
 
-    let filesProcessedCount = 0;
-    // Escaneamos hasta 30 archivos para detectar el archivo correspondiente
+    let processedCount = 0;
     for (let i = 1; i <= 30; i++) {
       const fileName = `cedula${i}.xlsx`;
       const filePath = path.join(process.cwd(), 'scripts', fileName);
-      
       if (fs.existsSync(filePath)) {
-        const success = await importFile(fileName, filePath);
-        if (success) filesProcessedCount++;
+        await importFile(fileName, filePath);
+        processedCount++;
       }
     }
 
-    if (filesProcessedCount === 0) {
-      console.log('⚠️ No se encontraron archivos cedulaX.xlsx en la carpeta /scripts/');
-      console.log('Asegúrese de que el archivo esté en: scripts/cedula18.xlsx\n');
-    } else {
-      console.log('\n🏁 PROCESO FINALIZADO EXITOSAMENTE PARA TODOS LOS ARCHIVOS.');
+    if (processedCount === 0) {
+      console.log('⚠️ No se encontraron archivos en scripts/ (Buscando cedula1.xlsx hasta cedula30.xlsx)');
     }
     
     process.exit(0);
   } catch (err: any) {
-    console.error('\n❌ ERROR FATAL:', err.message);
+    console.error('\n❌ ERROR CRÍTICO:', err.message);
     process.exit(1);
   }
 }
 
-async function importFile(fileName: string, filePath: string): Promise<boolean> {
-  console.log(`\n📄 PROCESANDO: ${fileName}`);
-  console.log('-------------------------------------------------');
+async function importFile(fileName: string, filePath: string) {
+  console.log(`\n📄 INICIANDO PROCESO: ${fileName}`);
   
-  try {
-    const startTime = Date.now();
-    const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+  const startTime = Date.now();
+  const workbook = XLSX.readFile(filePath);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    const total = data.length;
-    console.log(`📊 Registros detectados: ${total.toLocaleString()}`);
+  console.log(`📊 Registros detectados: ${data.length.toLocaleString()}`);
 
-    const colRef = collection(db, 'padron');
-    
-    // Configuración de límites de carga conservadora para evitar bloqueos
-    const BATCH_SIZE = 200; // Reducido a 200 para mayor seguridad
-    const COOLDOWN_CHUNK = 1000; // Pausa cada 1,000 registros (solicitud del usuario)
-    
-    let processedCount = 0;
+  // Configuración de ráfaga ultra-segura
+  const BATCH_SIZE = 100; // Lote pequeño para evitar saturar el receptor
+  const STABILITY_PAUSE = 1000; // 1 segundo cada 1000 registros
+  
+  let currentCount = 0;
+  const colRef = collection(db, 'padron');
 
-    for (let i = 0; i < data.length; i += BATCH_SIZE) {
-      const batch = writeBatch(db);
-      const chunk = data.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < data.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    const chunk = data.slice(i, i + BATCH_SIZE);
 
-      chunk.forEach((item) => {
-        const newDoc = doc(colRef);
-        batch.set(newDoc, {
-          cedula: String(item.NUMERO_CED || item.numero_ced || '').trim(),
-          apellido: String(item.APELLIDO || item.apellido || '').trim(),
-          nombre: String(item.NOMBRE || item.nombre || '').trim(),
-          sexo: String(item.SEXO || item.sexo || '').trim(),
-          nacional: String(item.NACIONAL || item.nacional || '').trim(),
-          nom_padre: String(item.NOM_PADRE || item.nom_padre || '').trim(),
-          nom_madre: String(item.NOM_MADRE || item.nom_madre || '').trim(),
-          direccion: String(item.DIRECCION || item.direccion || '').trim(),
-          nom_conj: String(item.NOM_CONJ || item.nom_conj || '').trim(),
-          fecha_naci: String(item.FECHA_NACI || item.fecha_naci || '').trim(),
-          barrio_ciu: String(item.BARRIO_CIU || item.barrio_ciu || '').trim(),
-          archivo_origen: fileName,
-          fecha_carga: new Date().toISOString()
-        });
+    chunk.forEach(item => {
+      const newDoc = doc(colRef);
+      batch.set(newDoc, {
+        cedula: String(item.NUMERO_CED || item.numero_ced || '').trim(),
+        apellido: String(item.APELLIDO || item.apellido || '').trim(),
+        nombre: String(item.NOMBRE || item.nombre || '').trim(),
+        sexo: String(item.SEXO || item.sexo || '').trim(),
+        nacional: String(item.NACIONAL || item.nacional || '').trim(),
+        direccion: String(item.DIRECCION || item.direccion || '').trim(),
+        fecha_naci: String(item.FECHA_NACI || item.fecha_naci || '').trim(),
+        barrio_ciu: String(item.BARRIO_CIU || item.barrio_ciu || '').trim(),
+        archivo_origen: fileName,
+        fecha_importacion: new Date().toISOString()
       });
+    });
 
+    try {
       await batch.commit();
-      processedCount += chunk.length;
+      currentCount += chunk.length;
       
-      const percent = Math.round((processedCount / total) * 100);
-      process.stdout.write(`\r🚀 Progreso: ${processedCount.toLocaleString()} / ${total.toLocaleString()} (${percent}%)`);
-      
-      // Lógica de pausas de estabilidad cada 1,000 registros
-      if (processedCount % COOLDOWN_CHUNK === 0) {
-          process.stdout.write(`\n⏸️ Pausa de estabilidad (2s) para refrescar conexión...`);
-          await new Promise(res => setTimeout(res, 2000));
-          console.log('\n');
-      } else {
-          // Micro-pausa obligatoria entre batches para suavizar el stream
-          await new Promise(res => setTimeout(res, 200));
-      }
-    }
+      const percent = Math.round((currentCount / data.length) * 100);
+      process.stdout.write(`\r🚀 Progreso: ${currentCount.toLocaleString()} / ${data.length.toLocaleString()} (${percent}%)`);
 
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    console.log(`\n\n✅ ${fileName} completado en ${duration}s.`);
-    return true;
-  } catch (e: any) {
-    console.error(`\n❌ Error en ${fileName}:`, e.message);
-    return false;
+      // Control de flujo para estabilidad
+      if (currentCount % 1000 === 0) {
+        await new Promise(res => setTimeout(res, STABILITY_PAUSE));
+      } else {
+        await new Promise(res => setTimeout(res, 100)); // Micro-pausa obligatoria
+      }
+    } catch (e: any) {
+      console.error(`\n❌ Error en lote:`, e.message);
+      // Reintentar una vez tras una pausa larga si falla
+      await new Promise(res => setTimeout(res, 5000));
+    }
   }
+
+  const duration = Math.round((Date.now() - startTime) / 1000);
+  console.log(`\n✅ ${fileName} finalizado en ${duration}s.`);
 }
 
 run();

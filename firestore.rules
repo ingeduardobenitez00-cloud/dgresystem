@@ -1,17 +1,17 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /** 
-     * PROTOCOLO DE ACCESO MAESTRO - V5.0
-     * Bypass total e inmediato para el administrador principal.
-     * Esta regla evalúa el token JWT sin consultar la base de datos,
-     * permitiendo flujos de escritura masivos (Padrón Electoral) sin errores 
-     * de cuotas de evaluación o permisos denegados por saturación.
+     * BYPASS MAESTRO DE SEGURIDAD
+     * Acceso total inmediato para administradores del sistema.
+     * Esta regla debe ser la primera para evitar evaluaciones costosas en cargas masivas.
      */
     match /{document=**} {
-      allow read, write: if request.auth != null && (request.auth.token.email == 'edubtz11@gmail.com' || request.auth.token.email == 'eduardobritz1@gmail.com');
+      allow read, write: if request.auth != null && 
+        (request.auth.token.email == 'edubtz11@gmail.com' || 
+         request.auth.token.email == 'eduardobritz1@gmail.com' ||
+         request.auth.token.email == 'eduardobritz11@gmail.com');
     }
 
     function isSignedIn() {
