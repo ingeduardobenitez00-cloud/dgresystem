@@ -3,46 +3,38 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ======================================================
-    // 1. REGLA MAESTRA (BYPASS ABSOLUTO POR CORREO)
-    // PRIORIDAD TOTAL: Si el correo es administrador, no se evalúa nada más.
+    // 1. REGLA MAESTRA (BYPASS ABSOLUTO)
+    // PRIORIDAD TOTAL: Si el correo está en la lista, acceso total inmediato.
     // ======================================================
-
-    function isMaster() {
-      return request.auth != null && 
-             (
-               request.auth.token.email == 'edubtz11@gmail.com' || 
-               request.auth.token.email == 'ing.eduardobenitez00@gmail.com' ||
-               request.auth.token.email == 'eduardobritz1@gmail.com' || 
-               request.auth.token.email == 'eduardobritz11@gmail.com'
-             );
-    }
 
     match /{document=**} {
-      allow read, write: if isMaster();
+      allow read, write: if request.auth != null && 
+        (
+          request.auth.token.email == 'edubtz11@gmail.com' || 
+          request.auth.token.email == 'ing.eduardobenitez00@gmail.com' ||
+          request.auth.token.email == 'eduardobritz1@gmail.com' || 
+          request.auth.token.email == 'eduardobritz11@gmail.com'
+        );
     }
 
     // ======================================================
-    // 2. REGLAS ESPECÍFICAS PARA OTROS USUARIOS
+    // 2. REGLAS PARA OTROS USUARIOS (NO MAESTROS)
     // ======================================================
 
     match /users/{userId} {
-      // Lectura: Propia o por Admin/Master
-      allow read: if request.auth != null && (request.auth.uid == userId || isMaster());
-      
-      // Escritura: Solo Maestros (ya cubierto por el bypass global, pero se explicita)
-      allow create, update: if isMaster();
-      allow delete: if isMaster();
+      allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow create, update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Colecciones Operativas (Acceso general para usuarios logueados autorizados)
+    // Colecciones Operativas
     match /solicitudes-capacitacion/{id} { allow read, write: if request.auth != null; }
     match /informes-divulgador/{id} { allow read, write: if request.auth != null; }
     match /informes-semanales-anexo-iv/{id} { allow read, write: if request.auth != null; }
     match /movimientos-maquinas/{id} { allow read, write: if request.auth != null; }
     match /divulgadores/{id} { allow read, write: if request.auth != null; }
     match /maquinas/{id} { allow read, write: if request.auth != null; }
-    match /datos/{id} { allow read: if true; allow write: if isMaster(); }
-    match /partidos-politicos/{id} { allow read: if true; allow write: if isMaster(); }
+    match /datos/{id} { allow read: if true; }
+    match /partidos-politicos/{id} { allow read: if true; }
     match /encuestas-satisfaccion/{id} { allow read: if request.auth != null; allow create: if true; }
     match /notificaciones/{id} { allow read, write, create: if request.auth != null; }
     match /padron/{id} { allow read, write: if request.auth != null; }
@@ -51,7 +43,7 @@ service cloud.firestore {
     match /anexo-i/{id} { allow read, write: if request.auth != null; }
     match /config/{id} { allow read, write: if request.auth != null; }
     match /auditoria/{id} { allow create, read: if request.auth != null; }
-    match /presencia/{userId} { allow read, write: if request.auth != null && (request.auth.uid == userId || isMaster()); }
-    match /archivos-semanales-registro/{id} { allow read, write: if isMaster(); }
+    match /presencia/{userId} { allow read, write: if request.auth != null; }
+    match /archivos-semanales-registro/{id} { allow read, write: if request.auth != null; }
   }
 }

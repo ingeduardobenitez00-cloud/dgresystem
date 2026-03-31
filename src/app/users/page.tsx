@@ -37,7 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, updateDoc, writeBatch, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, writeBatch, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -297,7 +297,6 @@ function UsersContent() {
     return [...new Set(datosData.filter(d => d.departamento === regDepartamento).map(d => d.distrito))].sort();
   }, [datosData, regDepartamento]);
 
-  // RADAR DE INTEGRIDAD (RADAR DE FANTASMAS): Usuarios en Authentication pero no en Firestore
   const ghostUsers = useMemo(() => {
     if (!presenceData || !users) return [];
     const userEmails = new Set(users.map(u => u.email.toLowerCase()));
@@ -469,7 +468,7 @@ function UsersContent() {
     batch.delete(doc(firestore, 'presencia', user.id));
     try {
         await batch.commit();
-        toast({ title: 'Usuario eliminado de Firestore y Presencia' });
+        toast({ title: 'Usuario eliminado del directorio' });
     } catch (error) {
         toast({ variant: 'destructive', title: 'Error al eliminar' });
     } finally {
@@ -510,13 +509,15 @@ function UsersContent() {
       const newUid = userCredential.user.uid;
 
       const userDocRef = doc(firestore, 'users', newUid);
+      
+      // GUARDADO ATÓMICO: Primero Auth, luego Firestore
       await setDoc(userDocRef, {
         ...newUserProfile,
         id: newUid,
         fecha_creacion: new Date().toISOString()
       });
       
-      toast({ title: 'Usuario y Perfil creados con éxito' });
+      toast({ title: 'Usuario registrado con éxito' });
       form.reset(); 
       setSelectedModules(new Set()); 
       setSelectedPerms(new Set());
@@ -527,7 +528,7 @@ function UsersContent() {
       toast({ 
         variant: 'destructive', 
         title: 'Fallo al registrar usuario', 
-        description: error.message || 'Error desconocido' 
+        description: error.message || 'Error de permisos o red.' 
       });
     } finally { 
         if (tempApp) await deleteApp(tempApp).catch(() => {});
@@ -553,7 +554,7 @@ function UsersContent() {
 
     try {
         await setDoc(userDocRef, updateData, { merge: true });
-        toast({ title: "Perfil Sincronizado" });
+        toast({ title: "Perfil Actualizado" });
         setEditModalOpen(false);
     } catch (error) {
         toast({ variant: 'destructive', title: 'Error al actualizar' });
@@ -578,7 +579,7 @@ function UsersContent() {
             </div>
         </div>
 
-        {/* RADAR DE INTEGRIDAD (RADAR DE FANTASMAS) - POSICIÓN PRIORITARIA */}
+        {/* RADAR DE INTEGRIDAD */}
         {ghostUsers.length > 0 && (
             <div className="p-6 bg-amber-50 border-4 border-dashed border-amber-200 rounded-[2.5rem] space-y-6 animate-in slide-in-from-top duration-700 shadow-2xl">
                 <div className="flex items-center gap-4 text-amber-700">
@@ -587,7 +588,7 @@ function UsersContent() {
                     </div>
                     <div>
                         <span className="font-black uppercase text-lg tracking-tight">Radar de Integridad: Usuarios sin Perfil ({ghostUsers.length})</span>
-                        <p className="text-[10px] font-bold uppercase text-amber-600 tracking-widest">Se detectaron cuentas activas que no tienen un documento de perfil en la base de datos.</p>
+                        <p className="text-[10px] font-bold uppercase text-amber-600 tracking-widest">Cuentas en Authentication que requieren creación de perfil en Firestore.</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
