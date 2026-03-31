@@ -30,7 +30,8 @@ import {
   AlertCircle,
   AlertTriangle,
   RefreshCw,
-  UserCheck
+  UserCheck,
+  Shield
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -254,9 +255,13 @@ function UsersContent() {
   const { user: currentUser, isUserLoading: isAuthLoading } = useUser();
   const searchParams = useSearchParams();
 
-  const isAdminView = useMemo(() => {
-    return currentUser?.profile?.role === 'admin' || currentUser?.isOwner;
+  const isMasterAdmin = useMemo(() => {
+    return ['edubtz11@gmail.com', 'ing.eduardobenitez00@gmail.com', 'eduardobritz1@gmail.com'].includes(currentUser?.email?.toLowerCase() || '');
   }, [currentUser]);
+
+  const isAdminView = useMemo(() => {
+    return currentUser?.profile?.role === 'admin' || isMasterAdmin;
+  }, [currentUser, isMasterAdmin]);
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !isAdminView) return null;
@@ -577,6 +582,17 @@ function UsersContent() {
                     <ShieldCheck className="h-3.5 w-3.5" /> Control de acceso y permisos del sistema
                 </p>
             </div>
+            
+            {/* DIAGNÓSTICO MAESTRO */}
+            {isMasterAdmin && (
+                <div className="bg-green-600 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-xl animate-in zoom-in duration-500">
+                    <Shield className="h-5 w-5 text-white" />
+                    <div>
+                        <p className="text-[10px] font-black uppercase leading-none">Status: Súper Administrador</p>
+                        <p className="text-[8px] font-bold uppercase opacity-80 mt-1">Permisos Maestros Activados por Email</p>
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* RADAR DE INTEGRIDAD */}
