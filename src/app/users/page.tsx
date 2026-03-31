@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -240,7 +239,7 @@ const PermissionMatrix = ({
                           <TableCell key={action.id} className="text-center py-4">
                             <Checkbox 
                               checked={currentPerms.has(permKey)}
-                              onCheckedChange={() => onToggleModuleAction(module.id, action.id, isEditing)}
+                              onCheckedChange={() => handleToggleModuleAction(module.id, action.id, isEditing)}
                               className="mx-auto"
                             />
                           </TableCell>
