@@ -4,13 +4,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /** 
-     * PROTOCOLO DE ACCESO MAESTRO - V4.0
-     * Bypass total para el administrador principal por token de correo.
-     * Este bloque otorga permisos inmediatos sin consultas a la base de datos,
-     * eliminando el error PERMISSION_DENIED en cargas masivas (Write Batches).
+     * PROTOCOLO DE ACCESO MAESTRO - V5.0
+     * Bypass total e inmediato para el administrador principal.
+     * Esta regla evalúa el token JWT sin consultar la base de datos,
+     * permitiendo flujos de escritura masivos (Padrón Electoral) sin errores 
+     * de cuotas de evaluación o permisos denegados por saturación.
      */
     match /{document=**} {
-      allow read, write: if request.auth != null && request.auth.token.email == 'edubtz11@gmail.com';
+      allow read, write: if request.auth != null && (request.auth.token.email == 'edubtz11@gmail.com' || request.auth.token.email == 'eduardobritz1@gmail.com');
     }
 
     function isSignedIn() {

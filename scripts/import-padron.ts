@@ -1,7 +1,7 @@
 
 /**
  * @fileOverview Script de importación masiva optimizado para el Padrón Electoral.
- * Procesa archivos de 500k - 1M de registros uno a uno.
+ * Procesa archivos de gran volumen en bloques de 10,000 registros con pausas de enfriamiento.
  */
 
 import { initializeApp } from 'firebase/app';
@@ -30,7 +30,7 @@ const password = process.env.ADMIN_PASSWORD;
 
 async function run() {
   console.log('\n=================================================');
-  console.log('   MOTOR DE IMPORTACIÓN MASIVA - PADRÓN 2026');
+  console.log('   MOTOR DE IMPORTACIÓN MASIVA V5.0 - PADRÓN');
   console.log('=================================================\n');
 
   if (!email || !password) {
@@ -44,8 +44,8 @@ async function run() {
     await signInWithEmailAndPassword(auth, email, password);
     console.log('✅ Acceso concedido.\n');
 
-    // Procesar archivos del 1 al 30 si existen (Ampliamos rango para cedula18.xlsx)
     let filesProcessedCount = 0;
+    // Escaneamos hasta 30 archivos para detectar cedula18.xlsx
     for (let i = 1; i <= 30; i++) {
       const fileName = `cedula${i}.xlsx`;
       const filePath = path.join(process.cwd(), 'scripts', fileName);
@@ -60,7 +60,7 @@ async function run() {
       console.log('⚠️ No se encontraron archivos cedulaX.xlsx en la carpeta /scripts/');
       console.log('Asegúrese de que el archivo esté en: scripts/cedula18.xlsx\n');
     } else {
-      console.log('\n🏁 PROCESO FINALIZADO EXITOSAMENTE.');
+      console.log('\n🏁 PROCESO FINALIZADO EXITOSAMENTE PARA TODOS LOS ARCHIVOS.');
     }
     
     process.exit(0);
@@ -85,7 +85,11 @@ async function importFile(fileName: string, filePath: string): Promise<boolean> 
     console.log(`📊 Registros detectados: ${total.toLocaleString()}`);
 
     const colRef = collection(db, 'padron');
-    const BATCH_SIZE = 500;
+    
+    // Configuración de límites de carga
+    const BATCH_SIZE = 400; // Reducido para evitar saturación de payload
+    const COOLDOWN_CHUNK = 10000; // Pausa cada 10k registros como solicitó el usuario
+    
     let processedCount = 0;
 
     for (let i = 0; i < data.length; i += BATCH_SIZE) {
@@ -117,8 +121,15 @@ async function importFile(fileName: string, filePath: string): Promise<boolean> 
       const percent = Math.round((processedCount / total) * 100);
       process.stdout.write(`\r🚀 Progreso: ${processedCount.toLocaleString()} / ${total.toLocaleString()} (${percent}%)`);
       
-      // Breve pausa para estabilidad
-      await new Promise(res => setTimeout(res, 50));
+      // Lógica de pausas de estabilidad
+      if (processedCount % COOLDOWN_CHUNK === 0) {
+          process.stdout.write(`\n⏸️ Pausa de estabilidad (3s) para enfriar conexión...`);
+          await new Promise(res => setTimeout(res, 3000));
+          console.log('\n');
+      } else {
+          // Micro-pausa entre batches
+          await new Promise(res => setTimeout(res, 150));
+      }
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
