@@ -297,7 +297,7 @@ function UsersContent() {
     return [...new Set(datosData.filter(d => d.departamento === regDepartamento).map(d => d.distrito))].sort();
   }, [datosData, regDepartamento]);
 
-  // RADAR DE INTEGRIDAD: Usuarios en Authentication (detectados por presencia) pero no en Firestore
+  // RADAR DE INTEGRIDAD (RADAR DE FANTASMAS): Usuarios en Authentication pero no en Firestore
   const ghostUsers = useMemo(() => {
     if (!presenceData || !users) return [];
     const userEmails = new Set(users.map(u => u.email.toLowerCase()));
@@ -509,7 +509,6 @@ function UsersContent() {
       const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
       const newUid = userCredential.user.uid;
 
-      // ATOMICIDAD: Esperamos la confirmación de Firestore
       const userDocRef = doc(firestore, 'users', newUid);
       await setDoc(userDocRef, {
         ...newUserProfile,
@@ -553,7 +552,6 @@ function UsersContent() {
     };
 
     try {
-        // Usamos setDoc con merge para asegurar creación si no existía (Ghost repair)
         await setDoc(userDocRef, updateData, { merge: true });
         toast({ title: "Perfil Sincronizado" });
         setEditModalOpen(false);
@@ -580,37 +578,41 @@ function UsersContent() {
             </div>
         </div>
 
-        {/* RADAR DE INTEGRIDAD (GHOST USERS) */}
+        {/* RADAR DE INTEGRIDAD (RADAR DE FANTASMAS) - POSICIÓN PRIORITARIA */}
         {ghostUsers.length > 0 && (
-            <div className="p-6 bg-amber-50 border-2 border-dashed border-amber-200 rounded-[2rem] space-y-4 animate-in slide-in-from-top duration-500">
-                <div className="flex items-center gap-3 text-amber-700">
-                    <AlertTriangle className="h-6 w-6" />
-                    <span className="font-black uppercase text-sm">Alerta de Integridad: Usuarios sin Perfil ({ghostUsers.length})</span>
+            <div className="p-6 bg-amber-50 border-4 border-dashed border-amber-200 rounded-[2.5rem] space-y-6 animate-in slide-in-from-top duration-700 shadow-2xl">
+                <div className="flex items-center gap-4 text-amber-700">
+                    <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center border-2 border-amber-300">
+                        <AlertTriangle className="h-7 w-7 text-amber-600 animate-pulse" />
+                    </div>
+                    <div>
+                        <span className="font-black uppercase text-lg tracking-tight">Radar de Integridad: Usuarios sin Perfil ({ghostUsers.length})</span>
+                        <p className="text-[10px] font-bold uppercase text-amber-600 tracking-widest">Se detectaron cuentas activas que no tienen un documento de perfil en la base de datos.</p>
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {ghostUsers.map(ghost => (
-                        <Card key={ghost.id} className="bg-white border-none shadow-md overflow-hidden group">
-                            <div className="p-4 flex flex-col gap-2">
+                        <Card key={ghost.id} className="bg-white border-none shadow-lg overflow-hidden group hover:ring-2 hover:ring-amber-400 transition-all">
+                            <div className="p-5 flex flex-col gap-3">
                                 <div className="flex justify-between items-start">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase text-primary leading-none">{ghost.username}</span>
+                                        <span className="text-xs font-black uppercase text-primary leading-tight">{ghost.username}</span>
                                         <span className="text-[9px] font-bold text-muted-foreground lowercase">{ghost.email}</span>
                                     </div>
                                     <Button 
                                         onClick={() => handleRepairGhost(ghost)} 
-                                        className="h-8 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[8px] px-3 rounded-lg gap-2"
+                                        className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] px-4 rounded-xl gap-2 shadow-md"
                                     >
-                                        <RefreshCw className="h-3 w-3" /> REPARAR PERFIL
+                                        <RefreshCw className="h-3.5 w-3.5" /> REPARAR
                                     </Button>
                                 </div>
-                                <div className="flex items-center gap-2 text-[8px] font-bold text-muted-foreground uppercase pt-2 border-t border-dashed">
-                                    <MapPin className="h-2.5 w-2.5 opacity-40" /> {ghost.departamento} | {ghost.distrito}
+                                <div className="flex items-center gap-2 text-[9px] font-black text-muted-foreground uppercase pt-3 border-t border-dashed">
+                                    <MapPin className="h-3 w-3 opacity-40" /> {ghost.departamento} | {ghost.distrito}
                                 </div>
                             </div>
                         </Card>
                     ))}
                 </div>
-                <p className="text-[9px] font-bold text-amber-600 uppercase italic">* Se han detectado correos que existen en Authentication pero no tienen documento de perfil en Firestore.</p>
             </div>
         )}
 
@@ -697,7 +699,7 @@ function UsersContent() {
                     {hierarchy.map((dept) => {
                         const filledCount = dept.districts.filter(d => d.users.length > 0).length;
                         return (
-                            <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-[2.5rem] shadow-sm overflow-hidden">
+                            <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
                                 <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
                                     <div className="flex items-center justify-between w-full pr-6">
                                         <div className="flex items-center gap-6 text-left">
