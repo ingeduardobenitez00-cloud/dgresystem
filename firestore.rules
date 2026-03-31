@@ -3,10 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ======================================================
-    // 1. REGLA DE ORO: BYPASS ABSOLUTO PARA ADMINISTRADORES MAESTROS
+    // 1. REGLA MAESTRA: BYPASS ABSOLUTO POR CORREO
     // ======================================================
     // Otorga acceso total e incondicional a los correos autorizados.
-    // Se valida al inicio para asegurar que ninguna otra regla bloquee al Admin.
+    // Esta es la primera instrucción para garantizar que el Admin nunca sea bloqueado.
     
     match /{document=**} {
       allow read, write: if request.auth != null && (
@@ -118,6 +118,14 @@ service cloud.firestore {
     match /config/{id} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
+    }
+    
+    match /archivos-semanales-registro/{id} {
+      allow read, write: if isSignedIn();
+    }
+    
+    match /denuncias-lacres/{id} {
+      allow read, write: if isSignedIn();
     }
   }
 }

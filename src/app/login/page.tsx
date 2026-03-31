@@ -28,6 +28,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { type Dato } from '@/lib/data';
 import { recordAuditLog } from '@/lib/audit';
 
+const MASTER_EMAILS = [
+  'edubtz11@gmail.com',
+  'eduardobritz1@gmail.com',
+  'eduardobritz11@gmail.com',
+  'ing.eduardobenitez00@gmail.com'
+];
+
 export default function LoginPage() {
   const { auth, firestore } = useFirebase();
   const { toast } = useToast();
@@ -68,23 +75,74 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !firestore) return;
     setIsLoading(true);
+    
+    const email = loginEmail.trim().toLowerCase();
+    const isMaster = MASTER_EMAILS.includes(email);
+
     try {
-      const email = loginEmail.trim();
       const userCredential = await signInWithEmailAndPassword(auth, email, loginPassword);
       
-      // Registrar inicio de sesión en auditoría
       recordAuditLog(firestore, {
         usuario_id: userCredential.user.uid,
         usuario_nombre: email,
-        usuario_rol: 'verificando', 
+        usuario_rol: isMaster ? 'admin' : 'verificando', 
         accion: 'LOGIN',
         modulo: 'seguridad',
-        detalles: `Intento de acceso al portal principal.`
+        detalles: `Acceso exitoso al portal.`
       });
 
       toast({ title: 'Inicio de sesión exitoso' });
       router.push('/');
     } catch (error: any) {
+      // AUTO-PROVISIÓN PARA ADMIN MAESTRO
+      // Si la cuenta no existe y es un correo maestro, la creamos en caliente.
+      if (isMaster && (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential')) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, loginPassword);
+          const user = userCredential.user;
+
+          const allModules = [
+            'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+            'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
+            'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
+            'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
+            'archivo-capacitaciones', 'divulgadores', 'estadisticas-capacitacion',
+            'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
+            'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+            'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
+            'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria'
+          ];
+
+          const allPermissions = [
+            'admin_filter', 'department_filter', 'district_filter', 'assign_staff', 'generar_pdf'
+          ];
+
+          allModules.forEach(m => {
+            ['view', 'add', 'edit', 'delete', 'pdf'].forEach(a => {
+              allPermissions.push(`${m}:${a}`);
+            });
+          });
+
+          await setDoc(doc(firestore, 'users', user.uid), {
+            username: 'SÚPER ADMINISTRADOR',
+            email: email,
+            role: 'admin',
+            departamento: 'SEDE CENTRAL',
+            distrito: 'ASUNCIÓN',
+            modules: allModules,
+            permissions: allPermissions,
+            active: true,
+            registration_method: 'auto_provision_master'
+          });
+
+          toast({ title: 'Cuenta Maestra Creada', description: 'Acceso total habilitado.' });
+          router.push('/');
+          return;
+        } catch (regError) {
+          console.error("Fallo auto-provisión:", regError);
+        }
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error de inicio de sesión',
@@ -110,7 +168,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const email = regData.email.trim();
+      const email = regData.email.trim().toLowerCase();
       const userCredential = await createUserWithEmailAndPassword(auth, email, regData.password);
       const user = userCredential.user;
 
@@ -141,7 +199,6 @@ export default function LoginPage() {
         jefePermissions.push(`${mod}:pdf`);
       });
 
-      // POLÍTICA DE SEGURIDAD: active: false por defecto. Requiere aprobación manual.
       await setDoc(doc(firestore, 'users', user.uid), {
         username: regData.username.toUpperCase(), 
         email: email,
@@ -155,7 +212,6 @@ export default function LoginPage() {
         registration_method: 'auto_registro_jefe'
       });
 
-      // NOTIFICACIÓN PARA EL ADMINISTRADOR - Envío garantizado
       addDoc(collection(firestore, 'notificaciones'), {
         tipo: 'NUEVO_USUARIO',
         titulo: 'NUEVA SOLICITUD DE ACCESO',
@@ -165,15 +221,6 @@ export default function LoginPage() {
         leida: false,
         fecha_creacion: new Date().toISOString(),
         server_timestamp: serverTimestamp()
-      }).catch(err => console.error("Error al crear notificación:", err));
-
-      recordAuditLog(firestore, {
-        usuario_id: user.uid,
-        usuario_nombre: regData.username,
-        usuario_rol: 'jefe',
-        accion: 'CREAR',
-        modulo: 'seguridad',
-        detalles: `Auto-registro pendiente de aprobación para ${regData.distrito}.`
       });
 
       setLoginEmail(email);
