@@ -24,7 +24,8 @@ import {
   X,
   FileUp,
   Users,
-  Clock
+  Clock,
+  Globe
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
@@ -80,7 +81,7 @@ export default function InformeSemanalAnexoIVPage() {
 
   const profile = user?.profile;
   
-  const isAdminView = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+  const isAdminView = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
   const isDistView = !isAdminView && (profile?.permissions?.includes('district_filter') || profile?.role === 'funcionario');
   const isJefeView = !isAdminView && !isDistView && (profile?.role === 'jefe' || profile?.permissions?.includes('department_filter'));
 
@@ -93,7 +94,7 @@ export default function InformeSemanalAnexoIVPage() {
   }, [datosData]);
 
   const districts = useMemo(() => {
-    if (!datosData || !selectedDepartment) return [];
+    if (!datosData || !selectedDepartment || selectedDepartment === 'ALL') return [];
     return [...new Set(datosData.filter(d => d.departamento === selectedDepartment).map(d => d.distrito))].sort();
   }, [datosData, selectedDepartment]);
 
@@ -102,6 +103,10 @@ export default function InformeSemanalAnexoIVPage() {
       if (!isAdminView) {
         if (profile.departamento) setSelectedDepartment(profile.departamento);
         if (isDistView && profile.distrito) setSelectedDistrict(profile.distrito);
+      } else if (!selectedDepartment) {
+        // Inicializar en Nacional para Admins/Coordinadores
+        setSelectedDepartment('ALL');
+        setSelectedDistrict('ALL');
       }
     }
 
@@ -120,13 +125,24 @@ export default function InformeSemanalAnexoIVPage() {
   }, [isUserLoading, profile, isAdminView, isDistView]);
 
   const informesQuery = useMemoFirebase(() => {
-    if (!firestore || !selectedDepartment || !selectedDistrict) return null;
+    if (!firestore) return null;
+    const colRef = collection(firestore, 'informes-divulgador');
+    
+    // Lógica de consulta flexible para Administradores/Coordinadores
+    if (isAdminView) {
+        if (!selectedDepartment || selectedDepartment === 'ALL') return colRef;
+        if (!selectedDistrict || selectedDistrict === 'ALL') return query(colRef, where('departamento', '==', selectedDepartment));
+        return query(colRef, where('departamento', '==', selectedDepartment), where('oficina', '==', selectedDistrict));
+    }
+
+    // Lógica restrictiva para otros roles
+    if (!selectedDepartment || !selectedDistrict) return null;
     return query(
-        collection(firestore, 'informes-divulgador'), 
+        colRef, 
         where('departamento', '==', selectedDepartment), 
         where('oficina', '==', selectedDistrict)
     );
-  }, [firestore, selectedDepartment, selectedDistrict]);
+  }, [firestore, selectedDepartment, selectedDistrict, isAdminView]);
 
   const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
 
@@ -204,7 +220,7 @@ export default function InformeSemanalAnexoIVPage() {
   };
 
   const generatePDF = () => {
-    if (!logoBase64 || !selectedDistrict) return;
+    if (!logoBase64) return;
     const doc = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -231,8 +247,10 @@ export default function InformeSemanalAnexoIVPage() {
     const d1 = dateRange?.from ? format(dateRange.from, "dd/MM/yyyy") : '__/__/____';
     const d2 = dateRange?.to ? format(dateRange.to, "dd/MM/yyyy") : '__/__/____';
     doc.text(`SEMANA DEL LUNES:  ${d1}   AL DOMINGO:  ${d2}`, margin, 50);
-    doc.text(`DISTRITO:  ${(selectedDistrict || '').toUpperCase()}`, margin, 55);
-    doc.text(`DEPARTAMENTO:  ${(selectedDepartment || '').toUpperCase()}`, pageWidth / 2 - 20, 55);
+    
+    const isGlobal = selectedDepartment === 'ALL' || selectedDistrict === 'ALL';
+    doc.text(`DISTRITO:  ${isGlobal ? 'TODOS (REPORTE CONSOLIDADO)' : (selectedDistrict || '').toUpperCase()}`, margin, 55);
+    doc.text(`DEPARTAMENTO:  ${selectedDepartment === 'ALL' ? 'NACIONAL' : (selectedDepartment || '').toUpperCase()}`, pageWidth / 2 - 20, 55);
 
     const tableBody = informesAnexoIII.map((inf, idx) => {
         const nombre = inf.nombre_divulgador || (inf as any).divulgador_nombre || '';
@@ -242,7 +260,7 @@ export default function InformeSemanalAnexoIVPage() {
         
         return [
             idx + 1,
-            inf.lugar_divulgacion.toUpperCase(),
+            `${isGlobal ? '[' + inf.distrito + '] ' : ''}${inf.lugar_divulgacion.toUpperCase()}`,
             inf.fecha.split('-').reverse().join('/'),
             horario,
             nombre.toUpperCase(),
@@ -283,16 +301,19 @@ export default function InformeSemanalAnexoIVPage() {
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
-    doc.text("- Oficina del Registro Electoral o Centro Cívico remite a la Coordinación Departamental correspondiente hasta el martes posterior a la semana de divulgación realizada.", margin, finalY + 15);
-    doc.text("- Coordinación Departamental remite a la Dirección del CIDEE.", margin, finalY + 19);
+    doc.text("- Reporte generado a través del Sistema de Gestión CIDEE.", margin, finalY + 15);
+    doc.text("- El total consolidado de personas capacitadas en este periodo es: " + totalCapacitados, margin, finalY + 19);
 
-    doc.save(`AnexoIV-${selectedDistrict.replace(/\s+/g, '-')}-Semana.pdf`);
+    doc.save(`AnexoIV-${isGlobal ? 'NACIONAL' : selectedDistrict?.replace(/\s+/g, '-')}-Semana.pdf`);
   };
 
   const handleSubmit = () => {
     if (!firestore || !user) return;
     if (!informesAnexoIII || informesAnexoIII.length === 0) {
         toast({ variant: "destructive", title: "Sin datos", description: "No hay informes de Anexo III para consolidar." }); return;
+    }
+    if (selectedDepartment === 'ALL' || selectedDistrict === 'ALL') {
+        toast({ variant: "destructive", title: "Seleccione ubicación", description: "Para guardar el reporte oficial debe seleccionar un distrito específico." }); return;
     }
     if (!respaldoPhoto) {
         toast({ variant: "destructive", title: "Respaldo Requerido", description: "Debe adjuntar la foto del Anexo IV físico firmado." }); return;
@@ -363,9 +384,12 @@ export default function InformeSemanalAnexoIVPage() {
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">Departamento</Label>
                         {isAdminView ? (
-                          <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); }} value={selectedDepartment || undefined}>
+                          <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict('ALL'); }} value={selectedDepartment || undefined}>
                             <SelectTrigger className="h-11 font-bold border-2"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                            <SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                            <SelectContent>
+                                <SelectItem value="ALL" className="font-black text-primary flex items-center gap-2"><Globe className="h-3 w-3 mr-2" /> NACIONAL (TODOS)</SelectItem>
+                                {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            </SelectContent>
                           </Select>
                         ) : <Input value={selectedDepartment || ''} readOnly className="bg-muted/30 font-black uppercase text-xs h-11 border-2" />}
                     </div>
@@ -373,9 +397,12 @@ export default function InformeSemanalAnexoIVPage() {
                     <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground">Distrito / Oficina</Label>
                         {(isAdminView || isJefeView) ? (
-                          <Select onValueChange={setSelectedDistrict} value={selectedDistrict || undefined} disabled={!selectedDepartment}>
+                          <Select onValueChange={setSelectedDistrict} value={selectedDistrict || undefined} disabled={!selectedDepartment || selectedDepartment === 'ALL'}>
                             <SelectTrigger className="h-11 font-bold border-2"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                            <SelectContent>{districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                            <SelectContent>
+                                <SelectItem value="ALL" className="font-black text-primary">TODOS LOS DISTRITOS</SelectItem>
+                                {districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            </SelectContent>
                           </Select>
                         ) : <Input value={selectedDistrict || ''} readOnly className="bg-muted/30 font-black uppercase text-xs h-11 border-2" />}
                     </div>
@@ -455,7 +482,7 @@ export default function InformeSemanalAnexoIVPage() {
                     </div>
 
                     <div className="pt-4">
-                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0 || !respaldoPhoto} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
+                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0 || !respaldoPhoto || selectedDepartment === 'ALL'} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
                             {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
                             GUARDAR REPORTE
                         </Button>
@@ -476,10 +503,12 @@ export default function InformeSemanalAnexoIVPage() {
                     </Card>
                     <Card className="bg-black text-white p-6 rounded-2xl flex items-center gap-4 shadow-xl">
                         <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center">
-                            <CheckCircle2 className="h-6 w-6 text-white" />
+                            {selectedDepartment === 'ALL' ? <Globe className="h-6 w-6 text-white animate-pulse" /> : <CheckCircle2 className="h-6 w-6 text-white" />}
                         </div>
                         <div>
-                            <p className="text-[9px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">TOTAL CAPACITADOS</p>
+                            <p className="text-[9px] font-black uppercase opacity-60 tracking-widest leading-none mb-1">
+                                {selectedDepartment === 'ALL' ? 'TOTAL PAÍS CAPACITADOS' : 'TOTAL DISTRITO CAPACITADOS'}
+                            </p>
                             <p className="text-2xl font-black">{totalCapacitados}</p>
                         </div>
                     </Card>
@@ -514,7 +543,7 @@ export default function InformeSemanalAnexoIVPage() {
                                             <TableCell colSpan={8} className="text-center py-20">
                                                 <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
                                                 <p className="text-xs font-black text-muted-foreground uppercase">
-                                                    {!selectedDistrict ? "Seleccione un distrito para buscar informes" : `No hay informes individuales para este rango en ${selectedDistrict}`}
+                                                    {!selectedDepartment ? "Seleccione un departamento para buscar informes" : `No hay informes individuales para este rango en la selección actual`}
                                                 </p>
                                             </TableCell>
                                         </TableRow>
@@ -527,7 +556,12 @@ export default function InformeSemanalAnexoIVPage() {
                                             return (
                                                 <TableRow key={inf.id} className="hover:bg-muted/30 transition-colors border-b">
                                                     <TableCell className="font-black text-xs text-muted-foreground">{idx + 1}</TableCell>
-                                                    <TableCell className="font-black text-[10px] uppercase text-primary leading-tight">{inf.lugar_divulgacion}</TableCell>
+                                                    <TableCell className="font-black text-[10px] uppercase text-primary leading-tight">
+                                                        {(selectedDepartment === 'ALL' || selectedDistrict === 'ALL') && (
+                                                            <span className="block text-[7px] text-muted-foreground mb-0.5">[{inf.distrito}]</span>
+                                                        )}
+                                                        {inf.lugar_divulgacion}
+                                                    </TableCell>
                                                     <TableCell className="text-[9px] font-bold">{formatDateToDDMMYYYY(inf.fecha)}</TableCell>
                                                     <TableCell>
                                                         <div className="flex items-center gap-1 text-[9px] font-black uppercase text-muted-foreground">
@@ -547,7 +581,9 @@ export default function InformeSemanalAnexoIVPage() {
                         </div>
                     </CardContent>
                     <CardFooter className="bg-muted/30 p-4 flex justify-between border-t">
-                        <p className="text-[10px] font-black uppercase text-muted-foreground italic">Total consolidado en semana:</p>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground italic">
+                            Total {selectedDepartment === 'ALL' ? 'Nacional' : 'DISTRITO'} consolidado en periodo:
+                        </p>
                         <p className="text-xl font-black text-primary">{totalCapacitados} Ciudadanos</p>
                     </CardFooter>
                 </Card>
