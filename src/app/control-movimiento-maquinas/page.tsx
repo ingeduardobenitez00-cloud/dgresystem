@@ -141,10 +141,32 @@ export default function ControlMovimientoMaquinasPage() {
 
   const { data: rawAgendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
 
+  const selectedSolicitud = useMemo(() => {
+    return rawAgendaItems?.find(item => item.id === selectedSolicitudId);
+  }, [rawAgendaItems, selectedSolicitudId]);
+
+  // FIX: El inventario de máquinas debe cargarse basado en la ubicación de la solicitud seleccionada
+  // o en el perfil del usuario si no hay selección, pero permitiendo vista global para admins.
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
-    return query(collection(firestore, 'maquinas'), where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
-  }, [firestore, isUserLoading, profile]);
+    const colRef = collection(firestore, 'maquinas');
+    const isAdmin = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+
+    // Prioridad 1: Mostrar máquinas de la ubicación de la solicitud seleccionada
+    if (selectedSolicitud?.departamento && selectedSolicitud?.distrito) {
+      return query(colRef, where('departamento', '==', selectedSolicitud.departamento), where('distrito', '==', selectedSolicitud.distrito));
+    }
+
+    // Prioridad 2: Si es admin y no hay selección, permitir ver todas para poblar el dropdown preventivamente
+    if (isAdmin) return colRef;
+
+    // Prioridad 3: Filtrar por jurisdicción del funcionario
+    if (profile.departamento && profile.distrito) {
+      return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    }
+
+    return null;
+  }, [firestore, isUserLoading, profile, selectedSolicitud]);
 
   const { data: maquinasInventario, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
 
@@ -181,10 +203,6 @@ export default function ControlMovimientoMaquinasPage() {
   const currentMovimiento = useMemo(() => {
     return allMovimientos?.find(m => m.solicitud_id === selectedSolicitudId) || null;
   }, [allMovimientos, selectedSolicitudId]);
-
-  const selectedSolicitud = useMemo(() => {
-    return rawAgendaItems?.find(item => item.id === selectedSolicitudId);
-  }, [rawAgendaItems, selectedSolicitudId]);
 
   useEffect(() => {
     if (currentMovimiento) {
@@ -850,7 +868,7 @@ export default function ControlMovimientoMaquinasPage() {
                                     <span className="text-[11px] font-black uppercase truncate">{a.nombre}</span>
                                 </div>
                                 <div className="flex justify-between items-center px-1">
-                                    <span className="text-[9px] font-bold text-muted-foreground">C.I. ${a.cedula}</span>
+                                    <span className="text-[9px] font-bold text-muted-foreground">C.I. {a.cedula}</span>
                                     <Badge variant="outline" className="text-[7px] font-black uppercase py-0 px-2 h-4 border-primary/20">{a.vinculo}</Badge>
                                 </div>
                             </div>
@@ -891,6 +909,9 @@ export default function ControlMovimientoMaquinasPage() {
                                             <SelectTrigger className="h-12 border-2 rounded-xl font-black uppercase"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                                             <SelectContent>
                                                 {maquinasInventario?.map(m => <SelectItem key={m.id} value={m.codigo} className="font-black text-xs uppercase">{m.codigo}</SelectItem>)}
+                                                {(!maquinasInventario || maquinasInventario.length === 0) && (
+                                                    <div className="p-4 text-center text-[10px] font-black uppercase text-muted-foreground">Sin stock en este distrito</div>
+                                                )}
                                             </SelectContent>
                                         </Select>
                                     </div>
