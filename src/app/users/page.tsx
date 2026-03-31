@@ -666,10 +666,10 @@ function UsersContent() {
           toast({
             variant: 'destructive',
             title: 'Error de Escritura',
-            description: 'No se pudo crear el perfil en Firestore por falta de permisos de red.'
+            description: 'No se pudo crear el perfil en Firestore por falta de permisos.'
           });
           errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'users/NEW_UID',
+            path: `users/NEW_USER`,
             operation: 'create',
             requestResourceData: newUserProfile
           }));
@@ -693,7 +693,7 @@ function UsersContent() {
         role: editingUser.role, 
         modules: editingUser.modules || [], 
         permissions: editingUser.permissions || [], 
-        departamento: editingUser.departamento || 'ALCANCE NACIONAL', 
+        departamento: editingUser.departamento || 'ALCIONAL', 
         distrito: editingUser.distrito || 'TODOS LOS DISTRITOS' 
     };
     const docRef = doc(firestore, 'users', editingUser.id);

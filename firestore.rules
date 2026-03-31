@@ -3,12 +3,16 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ======================================================
-    // 1. BYPASS MAESTRO - PRIORIDAD ABSOLUTA
+    // 1. FUNCIONES DE APOYO CRÍTICAS
     // ======================================================
-    // Otorga acceso total de lectura y escritura a los correos administradores
-    // antes de evaluar cualquier otra regla restrictiva.
-    match /{document=**} {
-      allow read, write: if request.auth != null && (
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Validación directa por correo para evitar latencias de base de datos
+    function isMasterAdmin() {
+      return isSignedIn() && (
         request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
         request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
         request.auth.token.email.lower() == 'eduardobritz11@gmail.com'
@@ -16,127 +20,123 @@ service cloud.firestore {
     }
 
     // ======================================================
-    // 2. FUNCIONES DE APOYO
-    // ======================================================
-    
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      // Un usuario es admin si su correo está en la lista maestra o si tiene el rol en su perfil
-      return isSignedIn() && (
-        request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
-        request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
-        request.auth.token.email.lower() == 'eduardobritz11@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
-    }
-
-    // ======================================================
-    // 3. REGLAS POR COLECCIÓN
+    // 2. REGLAS POR COLECCIÓN (ORDEN DE PRIORIDAD)
     // ======================================================
 
     match /users/{userId} {
-      // Los administradores pueden gestionar todos los perfiles.
-      // Los usuarios pueden ver su propio perfil.
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      // Prioridad absoluta al Administrador Maestro
+      allow read, write: if isMasterAdmin();
+      
+      // Reglas para usuarios normales
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /solicitudes-capacitacion/{id} {
+      allow read, write: if isMasterAdmin();
       allow read, write: if isSignedIn();
     }
     
     match /informes-divulgador/{id} {
+      allow read, write: if isMasterAdmin();
       allow read, write: if isSignedIn();
     }
     
     match /informes-semanales-anexo-iv/{id} {
+      allow read, write: if isMasterAdmin();
       allow read, write: if isSignedIn();
     }
     
     match /movimientos-maquinas/{id} {
+      allow read, write: if isMasterAdmin();
       allow read, write: if isSignedIn();
     }
     
     match /denuncias-lacres/{id} {
+      allow read, write: if isMasterAdmin();
       allow read, write: if isSignedIn();
     }
     
     match /encuestas-satisfaccion/{id} {
-      allow read: if isSignedIn();
-      allow create: if true; // Acceso público para ciudadanos vía QR
+      allow read: if isMasterAdmin() || isSignedIn();
+      allow create: if true; 
     }
 
     match /datos/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isMasterAdmin();
     }
     
     match /partidos-politicos/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isMasterAdmin();
     }
     
     match /maquinas/{id} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isMasterAdmin();
     }
     
-    match /divulgadores/{document=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    match /divulgadores/{id} {
+      allow read, write: if isMasterAdmin();
+      allow read, write: if isSignedIn();
     }
 
     match /auditoria/{id} {
       allow create: if isSignedIn();
-      allow read: if isAdmin();
+      allow read: if isMasterAdmin();
     }
     
     match /presencia/{userId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isMasterAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
     
     match /notificaciones/{id} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isMasterAdmin();
+      allow create: if isSignedIn();
     }
 
     match /padron/{id} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isMasterAdmin();
     }
     
     match /reports/{id} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isMasterAdmin() || isSignedIn();
     }
     
     match /imagenes/{id} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isMasterAdmin() || isSignedIn();
     }
     
     match /locales-votacion/{id} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isMasterAdmin();
     }
     
     match /informes-semanales-registro/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isMasterAdmin();
+      allow read, write: if isSignedIn();
     }
     
     match /archivos-semanales-registro/{id} {
-      allow read, write: if isAdmin();
+      allow read, write: if isMasterAdmin();
     }
     
     match /anexo-i/{id} {
+      allow read, write: if isMasterAdmin();
       allow read, write: if isSignedIn();
     }
     
     match /config/{id} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow write: if isMasterAdmin();
+    }
+
+    // Respaldo global recursivo (Bypass Maestro Final)
+    match /{document=**} {
+      allow read, write: if isMasterAdmin();
     }
   }
 }
