@@ -3,11 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ======================================================
-    // 1. FUNCIONES DE AUTORIZACIÓN (JERARQUÍA)
+    // 1. FUNCIONES DE AUTORIZACIÓN (PODER ABSOLUTO)
     // ======================================================
 
-    // Bypass por Email (Para asegurar acceso inicial y emergencias)
-    function isMasterEmail() {
+    // Bypass por Email: Acceso total garantizado sin consultar la base de datos
+    function isMaster() {
       return request.auth != null && 
              (
                request.auth.token.email == 'edubtz11@gmail.com' || 
@@ -17,80 +17,66 @@ service cloud.firestore {
              );
     }
 
-    // Verifica si el usuario tiene un rol específico en la colección /users
-    function hasRole(roleName) {
-      return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == roleName;
-    }
-
-    // Super Administrador: Email maestro O rol 'admin' en la BD
-    function isSuperAdmin() {
-      return isMasterEmail() || hasRole('admin');
-    }
-
-    // Administrador: Rol 'admin' en la BD
+    // Administrador: Master OR usuario con role 'admin' en Firestore
     function isAdmin() {
-      return hasRole('admin');
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
+      return isMaster() || (
+        request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     // ======================================================
-    // 2. REGLA MAESTRA (BYPASS)
+    // 2. REGLA MAESTRA (PRIORIDAD 1)
     // ======================================================
 
     match /{document=**} {
-      allow read, write: if isSuperAdmin();
+      allow read, write: if isMaster();
     }
 
     // ======================================================
-    // 3. REGLAS ESPECÍFICAS
+    // 3. REGLAS ESPECÍFICAS POR COLECCIÓN
     // ======================================================
 
     match /users/{userId} {
-      // Lectura: Propia, o por parte de cualquier Admin/SuperAdmin
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSuperAdmin());
+      // Lectura: Propia o por cualquier administrador
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       
-      // Creación y Edición: Permitido para Admins y SuperAdmins
-      allow create, update: if isAdmin() || isSuperAdmin();
+      // Escritura: Solo administradores pueden crear o modificar perfiles
+      allow create, update: if isAdmin();
       
-      // Eliminación: Reservado para Super Administradores
-      allow delete: if isSuperAdmin();
+      // Borrado: Reservado para el Master
+      allow delete: if isMaster();
     }
 
-    // Colecciones Operativas
-    match /solicitudes-capacitacion/{id} { allow read, write: if isSignedIn(); }
-    match /informes-divulgador/{id} { allow read, write: if isSignedIn(); }
-    match /informes-semanales-anexo-iv/{id} { allow read, write: if isSignedIn(); }
-    match /movimientos-maquinas/{id} { allow read, write: if isSignedIn(); }
-    match /divulgadores/{id} { allow read, write: if isSignedIn(); }
-    match /maquinas/{id} { allow read, write: if isSignedIn(); }
+    // Colecciones Operativas (Acceso general para usuarios logueados)
+    match /solicitudes-capacitacion/{id} { allow read, write: if request.auth != null; }
+    match /informes-divulgador/{id} { allow read, write: if request.auth != null; }
+    match /informes-semanales-anexo-iv/{id} { allow read, write: if request.auth != null; }
+    match /movimientos-maquinas/{id} { allow read, write: if request.auth != null; }
+    match /divulgadores/{id} { allow read, write: if request.auth != null; }
+    match /maquinas/{id} { allow read, write: if request.auth != null; }
     
     // Colecciones Maestras
     match /datos/{id} { 
       allow read: if true; 
-      allow write: if isAdmin() || isSuperAdmin(); 
+      allow write: if isAdmin(); 
     }
     match /partidos-politicos/{id} { 
       allow read: if true; 
-      allow write: if isAdmin() || isSuperAdmin(); 
+      allow write: if isAdmin(); 
     }
     
-    // Encuestas y Notificaciones
-    match /encuestas-satisfaccion/{id} { allow read: if isSignedIn(); allow create: if true; }
-    match /notificaciones/{id} { allow read, write, create: if isSignedIn(); }
-    
     // Otros módulos
-    match /padron/{id} { allow read, write: if isSignedIn(); }
-    match /locales-votacion/{id} { allow read, write: if isSignedIn(); }
-    match /informes-semanales-registro/{id} { allow read, write: if isSignedIn(); }
-    match /anexo-i/{id} { allow read, write: if isSignedIn(); }
-    match /config/{id} { allow read, write: if isSignedIn(); }
-    match /auditoria/{id} { allow create, read: if isSignedIn(); }
-    match /presencia/{userId} { allow read, write: if isSignedIn() && request.auth.uid == userId; }
-    match /archivos-semanales-registro/{id} { allow read, write: if isAdmin() || isSuperAdmin(); }
+    match /encuestas-satisfaccion/{id} { allow read: if request.auth != null; allow create: if true; }
+    match /notificaciones/{id} { allow read, write, create: if request.auth != null; }
+    match /padron/{id} { allow read, write: if request.auth != null; }
+    match /locales-votacion/{id} { allow read, write: if request.auth != null; }
+    match /informes-semanales-registro/{id} { allow read, write: if request.auth != null; }
+    match /anexo-i/{id} { allow read, write: if request.auth != null; }
+    match /config/{id} { allow read, write: if request.auth != null; }
+    match /auditoria/{id} { allow create, read: if request.auth != null; }
+    match /presencia/{userId} { allow read, write: if request.auth != null && request.auth.uid == userId; }
+    match /archivos-semanales-registro/{id} { allow read, write: if isAdmin(); }
   }
 }

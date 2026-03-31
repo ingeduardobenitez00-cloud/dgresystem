@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
@@ -292,7 +291,6 @@ function UsersContent() {
     return [...new Set(datosData.filter(d => d.departamento === regDepartamento).map(d => d.distrito))].sort();
   }, [datosData, regDepartamento]);
 
-  // AGRUPACIÓN JERÁRQUICA PARA EL LISTADO
   const hierarchy = useMemo(() => {
     if (!datosData) return [];
     
@@ -301,7 +299,6 @@ function UsersContent() {
 
     const depts: Record<string, { name: string, districts: Record<string, { name: string, users: UserProfile[] }> }> = {};
 
-    // 1. Inicializar estructura desde geografía oficial
     datosData.forEach(d => {
       if (!depts[d.departamento]) depts[d.departamento] = { name: d.departamento, districts: {} };
       if (!depts[d.departamento].districts[d.distrito]) {
@@ -309,7 +306,6 @@ function UsersContent() {
       }
     });
 
-    // 2. Asignar usuarios a sus ubicaciones
     activeUsers.forEach(u => {
       const dept = u.departamento || 'ALCANCE NACIONAL';
       const dist = u.distrito || 'TODOS LOS DISTRITOS';
@@ -323,7 +319,6 @@ function UsersContent() {
       }
     });
 
-    // 3. Convertir a array y filtrar por búsqueda
     return Object.values(depts)
       .map(dept => ({
         ...dept,
@@ -457,7 +452,9 @@ function UsersContent() {
     const username = (formData.get('username') as string || '').toUpperCase();
     
     const newUserProfile = { 
-      username, email, role: regRole, 
+      username, 
+      email, 
+      role: regRole, 
       modules: Array.from(selectedModules), 
       permissions: Array.from(selectedPerms), 
       departamento: regDepartamento || 'ALCANCE NACIONAL', 
@@ -475,16 +472,27 @@ function UsersContent() {
       const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
       const newUid = userCredential.user.uid;
 
-      // GUARDADO CRÍTICO EN FIRESTORE
-      await setDoc(doc(firestore, 'users', newUid), newUserProfile);
+      // GUARDADO CRÍTICO EN FIRESTORE CON PATRÓN NO BLOQUEANTE REQUERIDO
+      const userDocRef = doc(firestore, 'users', newUid);
+      setDoc(userDocRef, newUserProfile)
+        .then(() => {
+            toast({ title: 'Usuario creado con éxito' });
+            form.reset(); 
+            setSelectedModules(new Set()); 
+            setSelectedPerms(new Set());
+        })
+        .catch(async (error) => {
+            const contextualError = new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'create',
+                requestResourceData: newUserProfile
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        });
 
-      toast({ title: 'Usuario creado con éxito' });
-      form.reset(); 
-      setSelectedModules(new Set()); 
-      setSelectedPerms(new Set());
       await signOut(tempAuth);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Fallo al crear usuario', description: error.message });
+      toast({ variant: 'destructive', title: 'Fallo al crear credenciales', description: error.message });
     } finally { 
         if (tempApp) await deleteApp(tempApp).catch(() => {});
         setIsSubmitting(false); 
@@ -495,21 +503,30 @@ function UsersContent() {
     e.preventDefault();
     if (!firestore || !editingUser) return;
     setIsSubmitting(true);
-    try {
-        await updateDoc(doc(firestore, 'users', editingUser.id), {
-            username: editingUser.username.toUpperCase(),
-            role: editingUser.role,
-            modules: editingUser.modules,
-            permissions: editingUser.permissions,
-            active: editingUser.active ?? true
+    const userDocRef = doc(firestore, 'users', editingUser.id);
+    const updateData = {
+        username: editingUser.username.toUpperCase(),
+        role: editingUser.role,
+        modules: editingUser.modules,
+        permissions: editingUser.permissions,
+        active: editingUser.active ?? true
+    };
+
+    updateDoc(userDocRef, updateData)
+        .then(() => {
+            toast({ title: "Perfil Actualizado" });
+            setEditModalOpen(false);
+            setIsSubmitting(false);
+        })
+        .catch(async (error) => {
+            const contextualError = new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'update',
+                requestResourceData: updateData
+            });
+            errorEmitter.emit('permission-error', contextualError);
+            setIsSubmitting(false);
         });
-        toast({ title: "Perfil Actualizado" });
-        setEditModalOpen(false);
-    } catch (e) {
-        toast({ variant: 'destructive', title: "Error al actualizar" });
-    } finally {
-        setIsSubmitting(false);
-    }
   };
 
   if (isAuthLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -580,7 +597,6 @@ function UsersContent() {
           </form>
         </Card>
 
-        {/* LISTADO JERÁRQUICO POR ACORDEONES */}
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-black uppercase text-primary flex items-center gap-3">
