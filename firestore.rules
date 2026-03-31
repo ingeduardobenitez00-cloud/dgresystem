@@ -5,14 +5,15 @@ service cloud.firestore {
     // ======================================================
     // 1. REGLA DE ORO: BYPASS ABSOLUTO PARA ADMINISTRADORES MAESTROS
     // ======================================================
-    // Esta regla se evalúa primero y otorga acceso total e incondicional
-    // a los correos autorizados, ignorando cualquier bloqueo posterior.
+    // Otorga acceso total e incondicional a los correos autorizados.
+    // Se valida al inicio para asegurar que ninguna otra regla bloquee al Admin.
     
     match /{document=**} {
       allow read, write: if request.auth != null && (
         request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
         request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
-        request.auth.token.email.lower() == 'eduardobritz11@gmail.com'
+        request.auth.token.email.lower() == 'eduardobritz11@gmail.com' ||
+        request.auth.token.email.lower() == 'ing.eduardobenitez00@gmail.com'
       );
     }
 
@@ -31,7 +32,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && (request.auth.uid == userId);
     }
 
     match /solicitudes-capacitacion/{id} {

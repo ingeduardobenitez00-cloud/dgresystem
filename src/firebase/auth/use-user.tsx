@@ -41,7 +41,12 @@ export const useUser = (): UserHookResult => {
   const { data: profileData, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileDocRef);
   
   const email = authUser?.email?.toLowerCase() || '';
-  const isOwner = email === 'edubtz11@gmail.com' || email === 'eduardobritz1@gmail.com' || email === 'eduardobritz11@gmail.com';
+  const isOwner = [
+    'edubtz11@gmail.com',
+    'eduardobritz1@gmail.com',
+    'eduardobritz11@gmail.com',
+    'ing.eduardobenitez00@gmail.com'
+  ].includes(email);
 
   const enrichedUser = useMemo(() => {
     if (!authUser) return null;
@@ -74,7 +79,7 @@ export const useUser = (): UserHookResult => {
       return {
         ...authUser,
         profile: {
-          username: profileData?.username || 'ADMINISTRADOR MAESTRO',
+          username: profileData?.username || 'SÚPER ADMINISTRADOR',
           role: 'admin' as const,
           active: true,
           departamento: profileData?.departamento || 'SEDE CENTRAL',
