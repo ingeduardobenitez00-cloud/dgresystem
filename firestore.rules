@@ -2,30 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /** 
-     * BYPASS MAESTRO DE SEGURIDAD
-     * Acceso total inmediato para administradores del sistema.
-     */
-    function isOwner() {
-      return request.auth != null && 
+    // REGLA MAESTRA: Acceso total absoluto para los propietarios por correo.
+    // Esta regla tiene prioridad sobre todas las demás.
+    match /{document=**} {
+      allow read, write: if request.auth != null && 
         (request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
          request.auth.token.email.lower() == 'eduardobritz1@gmail.com' ||
          request.auth.token.email.lower() == 'eduardobritz11@gmail.com');
     }
 
-    // El propietario tiene acceso absoluto a cualquier documento del sistema
-    match /{document=**} {
-      allow read, write: if isOwner();
-    }
-
-    /** 
-     * REGLA ESPECÍFICA PARA PADRÓN (ALTA DISPONIBILIDAD)
-     */
-    match /padron/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if isOwner();
-    }
-
+    // Funciones auxiliares para usuarios regulares
     function isSignedIn() {
       return request.auth != null;
     }
@@ -35,134 +21,93 @@ service cloud.firestore {
       return exists(path) ? get(path).data : null;
     }
 
-    function isActive() {
-      return isOwner() || (isSignedIn() && (getUserData() == null || getUserData().get('active', true) != false));
-    }
-
     function isAdmin() {
-      return isOwner() || (isSignedIn() && getUserData() != null && getUserData().role == 'admin');
-    }
-
-    function isDirector() {
-      return isOwner() || (isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director'));
-    }
-
-    function isStaff() {
-      return isOwner() || (isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director' || getUserData().role == 'coordinador'));
+      let data = getUserData();
+      return data != null && data.role == 'admin';
     }
 
     /** Gestión de Usuarios **/
     match /users/{userId} {
-      allow get: if isSignedIn() || isOwner();
-      allow list: if isOwner() || isAdmin() || isDirector();
-      allow create: if isOwner() || isAdmin(); 
-      allow update: if isOwner() || (request.auth.uid == userId) || isAdmin();
-      allow delete: if isOwner() || isAdmin();
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() && isAdmin();
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isSignedIn() && isAdmin();
     }
 
-    /** Notificaciones de Sistema **/
-    match /notificaciones/{notiId} {
-      allow read, update: if isStaff();
-      allow create: if isSignedIn();
-      allow delete: if isAdmin();
+    /** CIDEE - Colecciones **/
+    match /solicitudes-capacitacion/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    /** Monitoreo de Presencia **/
-    match /presencia/{userId} {
-      allow read: if isAdmin() || isDirector() || (isSignedIn() && request.auth.uid == userId);
-      allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
-      allow delete: if isAdmin();
+    match /informes-divulgador/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    /** CIDEE - Colecciones Transaccionales **/
-    
-    match /solicitudes-capacitacion/{solicitudId} {
-      allow get: if true;
-      allow list: if isActive();
-      allow create, update: if isActive();
-      allow delete: if isAdmin();
+    match /informes-semanales-anexo-iv/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /encuestas-satisfaccion/{encuestaId} {
-      allow read: if isActive();
-      allow create: if true; 
-      allow update: if isActive();
-      allow delete: if isAdmin();
+    match /movimientos-maquinas/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /anexo-i/{anexoId} {
-      allow read, write: if isActive();
-      allow delete: if isAdmin();
+    match /denuncias-lacres/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /informes-divulgador/{informeId} {
-      allow read, write: if isActive();
-      allow delete: if isAdmin();
-    }
-
-    match /informes-semanales-anexo-iv/{informeId} {
-      allow read, write: if isActive();
-      allow delete: if isAdmin();
-    }
-
-    match /movimientos-maquinas/{movimientoId} {
-      allow read, write: if isActive();
-      allow delete: if isAdmin();
-    }
-
-    match /denuncias-lacres/{denunciaId} {
-      allow read, write: if isActive();
-      allow delete: if isAdmin();
-    }
-
-    /** Reglas Generales de Configuración y Geografía **/
-    match /datos/{datoId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /partidos-politicos/{partidoId} {
+    match /encuestas-satisfaccion/{id} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if true;
     }
 
-    /** Auditoría **/
-    match /auditoria/{logId} {
-      allow read: if isAdmin() || isDirector();
-      allow create: if isSignedIn();
+    /** Configuración y Geografía **/
+    match /datos/{id} {
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
     }
-
+    match /partidos-politicos/{id} {
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
+    }
+    match /maquinas/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isAdmin();
+    }
     match /divulgadores/{document=**} {
-      allow read: if isActive();
-      allow write: if isActive() || isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
 
-    match /maquinas/{maquinaId} {
-      allow read: if isActive() || isAdmin();
-      allow write: if isAdmin();
+    /** Auditoría y Presencia **/
+    match /auditoria/{id} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && isAdmin();
+    }
+    match /presencia/{userId} {
+      allow read, write: if isSignedIn();
+    }
+    match /notificaciones/{id} {
+      allow read, write: if isSignedIn();
     }
 
-    match /locales-votacion/{localId} {
-      allow read: if isActive() || isAdmin();
-      allow write: if isAdmin();
+    /** Padrón (Alta Disponibilidad) **/
+    match /padron/{id} {
+      allow read: if isSignedIn();
+      allow write: if request.auth != null && request.auth.token.email.lower() == 'edubtz11@gmail.com';
     }
     
-    match /reports/{reportId} {
-      allow read, write: if isActive() || isAdmin();
+    /** Registros Edilicios **/
+    match /reports/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /imagenes/{imagenId} {
-      allow read, write: if isActive() || isAdmin();
+    match /imagenes/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /informes-semanales-registro/{informeId} {
-      allow read, write: if isActive() || isAdmin();
-      allow delete: if isAdmin();
+    match /locales-votacion/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isAdmin();
     }
-
-    match /archivos-semanales-registro/{archivoId} {
-      allow read: if isAdmin() || isDirector();
-      allow write: if isAdmin();
+    match /informes-semanales-registro/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /archivos-semanales-registro/{id} {
+      allow read, write: if isSignedIn() && isAdmin();
     }
   }
 }

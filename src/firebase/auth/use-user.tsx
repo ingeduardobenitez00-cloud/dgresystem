@@ -40,16 +40,14 @@ export const useUser = (): UserHookResult => {
 
   const { data: profileData, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileDocRef);
   
-  const email = authUser?.email?.toLowerCase();
+  const email = authUser?.email?.toLowerCase() || '';
   const isOwner = email === 'edubtz11@gmail.com' || email === 'eduardobritz1@gmail.com' || email === 'eduardobritz11@gmail.com';
 
   const enrichedUser = useMemo(() => {
     if (!authUser) return null;
     
-    const isAdmin = isOwner || profileData?.role === 'admin';
-
-    // PERFIL SINTÉTICO DE EMERGENCIA PARA EL PROPIETARIO
-    // Se genera automáticamente para evitar errores de permisos si el doc no existe o falla
+    // PERFIL SINTÉTICO DE EMERGENCIA PARA EL DUEÑO
+    // Si el correo coincide, ignoramos cualquier error de Firestore y otorgamos todo.
     if (isOwner) {
       const allModules = [
         'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
@@ -78,7 +76,7 @@ export const useUser = (): UserHookResult => {
         profile: {
           username: profileData?.username || 'ADMINISTRADOR MAESTRO',
           role: 'admin',
-          active: true, 
+          active: true,
           departamento: profileData?.departamento || 'SEDE CENTRAL',
           distrito: profileData?.distrito || 'ASUNCIÓN',
           modules: allModules,
@@ -89,16 +87,10 @@ export const useUser = (): UserHookResult => {
       };
     }
     
-    // Para usuarios normales, respetamos el estado del documento
-    let finalProfile = profileData;
-    if (finalProfile && finalProfile.active === undefined) {
-        finalProfile.active = true;
-    }
-    
     return {
       ...authUser,
-      profile: finalProfile,
-      isAdmin,
+      profile: profileData,
+      isAdmin: profileData?.role === 'admin',
       isOwner: false
     };
   }, [authUser, profileData, isOwner]);
@@ -106,7 +98,7 @@ export const useUser = (): UserHookResult => {
   return {
     user: enrichedUser,
     isUserLoading: isAuthLoading,
-    // Si es el dueño, no bloqueamos la interfaz esperando el perfil de Firestore
+    // Si es el dueño, los datos están listos inmediatamente gracias al perfil sintético.
     isProfileLoading: isOwner ? false : isProfileLoading,
     userError: isOwner ? null : (authError || profileError),
   };

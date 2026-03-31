@@ -260,15 +260,16 @@ const PermissionMatrix = ({
 function UsersContent() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
-  const { user: currentUser, isUserLoading: isAuthLoading, isProfileLoading } = useUser();
+  const { user: currentUser, isUserLoading: isAuthLoading } = useUser();
   const searchParams = useSearchParams();
 
+  // PRIORIDAD MÁXIMA: Si es el dueño, no esperar a Firestore.
   const isAdminView = useMemo(() => {
-    // OPTIMIZACIÓN: Si el correo es el del Administrador Maestro, habilitar vista inmediatamente
-    if (currentUser?.email?.toLowerCase() === 'edubtz11@gmail.com') return true;
-    if (isProfileLoading || !currentUser?.profile) return false;
-    return currentUser.profile.role === 'admin';
-  }, [currentUser, isProfileLoading]);
+    const email = currentUser?.email?.toLowerCase() || '';
+    const isOwner = email === 'edubtz11@gmail.com' || email === 'eduardobritz1@gmail.com' || email === 'eduardobritz11@gmail.com';
+    if (isOwner) return true;
+    return currentUser?.profile?.role === 'admin';
+  }, [currentUser]);
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !isAdminView) return null;
@@ -537,7 +538,8 @@ function UsersContent() {
 
     let count = 0;
     users.forEach(u => {
-      if (u.role === 'jefe' && u.active !== false && u.email !== 'edubtz11@gmail.com') {
+      const isOwner = u.email === 'edubtz11@gmail.com' || u.email === 'eduardobritz1@gmail.com' || u.email === 'eduardobritz11@gmail.com';
+      if (u.role === 'jefe' && u.active !== false && !isOwner) {
         const docRef = doc(firestore, 'users', u.id);
         batch.update(docRef, {
           modules: jefeModules,
@@ -565,7 +567,8 @@ function UsersContent() {
   };
   
   const toggleUserStatus = (user: UserProfile) => {
-    if (!firestore || user.email === 'edubtz11@gmail.com') return;
+    const isOwner = user.email === 'edubtz11@gmail.com' || user.email === 'eduardobritz1@gmail.com' || user.email === 'eduardobritz11@gmail.com';
+    if (!firestore || isOwner) return;
     const currentStatus = user.active !== false;
     const newStatus = !currentStatus;
     const docRef = doc(firestore, 'users', user.id);
@@ -575,7 +578,8 @@ function UsersContent() {
   };
 
   const handleDeleteUser = async (user: UserProfile) => {
-    if (!firestore || user.email === 'edubtz11@gmail.com') return;
+    const isOwner = user.email === 'edubtz11@gmail.com' || user.email === 'eduardobritz1@gmail.com' || user.email === 'eduardobritz11@gmail.com';
+    if (!firestore || isOwner) return;
     
     const batch = writeBatch(firestore);
     batch.delete(doc(firestore, 'users', user.id));
@@ -824,7 +828,7 @@ function UsersContent() {
                                                                 </TableHeader>
                                                                 <TableBody>
                                                                     {dist.users.map(u => {
-                                                                        const isUserOwner = u.email === 'edubtz11@gmail.com';
+                                                                        const isUserOwner = u.email === 'edubtz11@gmail.com' || u.email === 'eduardobritz1@gmail.com' || u.email === 'eduardobritz11@gmail.com';
                                                                         const isActive = u.active !== false || isUserOwner;
                                                                         
                                                                         return (
