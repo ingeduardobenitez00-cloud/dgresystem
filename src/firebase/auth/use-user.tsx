@@ -47,7 +47,7 @@ export const useUser = (): UserHookResult => {
     if (!authUser) return null;
     
     // PERFIL SINTÉTICO DE EMERGENCIA PARA EL DUEÑO
-    // Si el correo coincide, ignoramos cualquier error de Firestore y otorgamos todo.
+    // Si el correo coincide, otorgamos acceso total ignorando el estado de Firestore.
     if (isOwner) {
       const allModules = [
         'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
@@ -75,7 +75,7 @@ export const useUser = (): UserHookResult => {
         ...authUser,
         profile: {
           username: profileData?.username || 'ADMINISTRADOR MAESTRO',
-          role: 'admin',
+          role: 'admin' as const,
           active: true,
           departamento: profileData?.departamento || 'SEDE CENTRAL',
           distrito: profileData?.distrito || 'ASUNCIÓN',
@@ -98,7 +98,6 @@ export const useUser = (): UserHookResult => {
   return {
     user: enrichedUser,
     isUserLoading: isAuthLoading,
-    // Si es el dueño, los datos están listos inmediatamente gracias al perfil sintético.
     isProfileLoading: isOwner ? false : isProfileLoading,
     userError: isOwner ? null : (authError || profileError),
   };

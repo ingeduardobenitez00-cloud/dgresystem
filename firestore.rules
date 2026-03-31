@@ -3,12 +3,16 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // REGLA MAESTRA: Acceso total absoluto para los propietarios por correo.
-    // Esta regla tiene prioridad sobre todas las demás.
-    match /{document=**} {
-      allow read, write: if request.auth != null && 
+    // Esta regla tiene prioridad sobre todas las demás y evita bloqueos por falta de perfil.
+    function isOwner() {
+      return request.auth != null && 
         (request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
          request.auth.token.email.lower() == 'eduardobritz1@gmail.com' ||
          request.auth.token.email.lower() == 'eduardobritz11@gmail.com');
+    }
+
+    match /{document=**} {
+      allow read, write: if isOwner();
     }
 
     // Funciones auxiliares para usuarios regulares
@@ -23,7 +27,7 @@ service cloud.firestore {
 
     function isAdmin() {
       let data = getUserData();
-      return data != null && data.role == 'admin';
+      return isOwner() || (data != null && data.role == 'admin');
     }
 
     /** Gestión de Usuarios **/
@@ -86,10 +90,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    /** Padrón (Alta Disponibilidad) **/
+    /** Padrón (Acceso Público para lectura, escritura protegida) **/
     match /padron/{id} {
       allow read: if isSignedIn();
-      allow write: if request.auth != null && request.auth.token.email.lower() == 'edubtz11@gmail.com';
+      allow write: if isOwner();
     }
     
     /** Registros Edilicios **/
