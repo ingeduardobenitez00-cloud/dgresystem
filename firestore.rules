@@ -5,6 +5,8 @@ service cloud.firestore {
     // ======================================================
     // 1. BYPASS MAESTRO - PRIORIDAD ABSOLUTA
     // ======================================================
+    // Otorga acceso total de lectura y escritura a los correos administradores
+    // antes de evaluar cualquier otra regla restrictiva.
     match /{document=**} {
       allow read, write: if request.auth != null && (
         request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
@@ -22,8 +24,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(path) && get(path).data.role == 'admin';
+      // Un usuario es admin si su correo está en la lista maestra o si tiene el rol en su perfil
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
+        request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
+        request.auth.token.email.lower() == 'eduardobritz11@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     // ======================================================
@@ -31,6 +39,8 @@ service cloud.firestore {
     // ======================================================
 
     match /users/{userId} {
+      // Los administradores pueden gestionar todos los perfiles.
+      // Los usuarios pueden ver su propio perfil.
       allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
@@ -57,7 +67,7 @@ service cloud.firestore {
     
     match /encuestas-satisfaccion/{id} {
       allow read: if isSignedIn();
-      allow create: if true;
+      allow create: if true; // Acceso público para ciudadanos vía QR
     }
 
     match /datos/{id} {
@@ -112,7 +122,8 @@ service cloud.firestore {
     }
     
     match /informes-semanales-registro/{id} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
     
     match /archivos-semanales-registro/{id} {

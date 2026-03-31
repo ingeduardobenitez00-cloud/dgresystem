@@ -618,60 +618,68 @@ function UsersContent() {
 
     const tempAppName = 'temp-creation-' + Math.random().toString(36).substring(7);
     let tempApp: FirebaseApp | undefined = undefined;
+    
     try {
+      // 1. Inicializar app temporal para crear el Auth sin cerrar la sesión actual
       tempApp = initializeApp(firebaseConfig, tempAppName);
       const tempAuth = getAuth(tempApp);
       
-      let newUid: string | null = null;
-      try {
-          const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
-          newUid = userCredential.user.uid;
-      } catch (authErr: any) {
-          if (authErr.code === 'auth/email-already-in-use') {
-              toast({ title: "Cuenta ya existe en Auth", description: "Intentando sincronizar perfil en base de datos..." });
-              // Si ya existe en Auth, intentamos obtener el ID de alguna manera o simplemente fallamos informando.
-              // En este caso, no tenemos el UID si no se acaba de crear, a menos que lo busquemos por email en Auth (requeriría Admin SDK).
-              // Como estamos en Client SDK, asumimos que si falla aquí, el Admin debe gestionar el perfil existente.
-              setIsSubmitting(false);
-              return;
-          }
-          throw authErr;
-      }
+      // 2. Crear cuenta en Authentication
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
+      const newUid = userCredential.user.uid;
 
-      if (newUid) {
-          const userRef = doc(firestore, 'users', newUid);
-          
-          setDoc(userRef, newUserProfile)
-            .then(() => {
-                recordAuditLog(firestore, {
-                    usuario_id: currentUser.uid,
-                    usuario_nombre: currentUser.profile?.username || currentUser.email || 'Admin',
-                    usuario_rol: 'admin',
-                    accion: 'CREAR',
-                    modulo: 'seguridad',
-                    documento_id: newUid!,
-                    detalles: `Creación exitosa de perfil Firestore para: ${email}`
-                });
-                toast({ title: 'Usuario Creado con Éxito' });
-                form.reset(); 
-                setSelectedModules(new Set()); 
-                setSelectedPerms(new Set());
-            })
-            .catch(async (err) => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: userRef.path,
-                    operation: 'create',
-                    requestResourceData: newUserProfile
-                }));
-            });
+      // 3. Crear Perfil en Firestore usando el UID generado (Usamos el firestore del admin)
+      const userRef = doc(firestore, 'users', newUid);
+      
+      // BLOQUE CRÍTICO: Esperamos el guardado para asegurar la vinculación
+      await setDoc(userRef, newUserProfile);
 
-          await signOut(tempAuth);
+      // 4. Registro de Auditoría
+      recordAuditLog(firestore, {
+          usuario_id: currentUser.uid,
+          usuario_nombre: currentUser.profile?.username || currentUser.email || 'Admin',
+          usuario_rol: 'admin',
+          accion: 'CREAR',
+          modulo: 'seguridad',
+          documento_id: newUid,
+          detalles: `Registro de nuevo personal: ${email} (${username})`
+      });
+
+      toast({ title: 'Usuario Creado con Éxito' });
+      form.reset(); 
+      setSelectedModules(new Set()); 
+      setSelectedPerms(new Set());
+      
+      // Cerrar sesión en la app temporal
+      await signOut(tempAuth);
+
+    } catch (error: any) {
+      console.error("Error en registro:", error);
+      
+      if (error.code === 'auth/email-already-in-use') {
+          toast({ 
+            variant: 'destructive',
+            title: 'Correo en uso', 
+            description: 'Esta dirección ya existe en la base de datos de autenticación.' 
+          });
+      } else if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
+          toast({
+            variant: 'destructive',
+            title: 'Error de Escritura',
+            description: 'No se pudo crear el perfil en Firestore por falta de permisos de red.'
+          });
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'users/NEW_UID',
+            operation: 'create',
+            requestResourceData: newUserProfile
+          }));
+      } else {
+          toast({ variant: 'destructive', title: 'Error Crítico', description: error.message }); 
       }
-    } catch (error: any) { 
-        toast({ variant: 'destructive', title: 'Error del Sistema', description: error.message }); 
-    }
-    finally { 
-        if (tempApp) await deleteApp(tempApp); 
+    } finally { 
+        if (tempApp) {
+            try { await deleteApp(tempApp); } catch (e) {}
+        }
         setIsSubmitting(false); 
     }
   };
