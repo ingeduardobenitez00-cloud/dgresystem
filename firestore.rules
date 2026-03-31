@@ -4,18 +4,17 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /** 
-     * REGLAS DE SEGURIDAD INSTITUCIONAL CIDEE 2026 
-     * Protocolo de Blindaje y Recuperación Maestra - V3.4
-     * Optimizado para Importación Masiva (Bypass de validación de documento para Propietario)
+     * PROTOCOLO DE ACCESO MAESTRO - V4.0
+     * Bypass total para el administrador principal por token de correo.
+     * Este bloque otorga permisos inmediatos sin consultas a la base de datos,
+     * eliminando el error PERMISSION_DENIED en cargas masivas (Write Batches).
      */
+    match /{document=**} {
+      allow read, write: if request.auth != null && request.auth.token.email == 'edubtz11@gmail.com';
+    }
 
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    function isOwner() {
-      // Verificación directa del token para evitar latencia y límites de 'get' en lotes grandes
-      return isSignedIn() && request.auth.token.email == 'edubtz11@gmail.com';
     }
 
     function getUserData() {
@@ -24,30 +23,28 @@ service cloud.firestore {
     }
 
     function isActive() {
-      // Priorizar isOwner para evitar consultas innecesarias a la colección 'users'
-      return isOwner() || (isSignedIn() && getUserData() != null && getUserData().get('active', true) != false);
+      return isSignedIn() && (getUserData() == null || getUserData().get('active', true) != false);
     }
 
     function isAdmin() {
-      // Priorizar isOwner para evitar consultas innecesarias a la colección 'users'
-      return isOwner() || (isSignedIn() && getUserData() != null && getUserData().role == 'admin');
+      return isSignedIn() && getUserData() != null && getUserData().role == 'admin';
     }
 
     function isDirector() {
-      return isOwner() || (isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director'));
+      return isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director');
     }
 
     function isStaff() {
-      return isOwner() || (isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director' || getUserData().role == 'coordinador'));
+      return isSignedIn() && getUserData() != null && (getUserData().role == 'admin' || getUserData().role == 'director' || getUserData().role == 'coordinador');
     }
 
-    /** Gestión de Usuarios - Blindaje de Lista **/
+    /** Gestión de Usuarios **/
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin() || isDirector();
       allow create: if isSignedIn() && request.auth.uid == userId; 
       allow update: if (request.auth.uid == userId) || isAdmin();
-      allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
+      allow delete: if isAdmin();
     }
 
     /** Notificaciones de Sistema **/
@@ -57,10 +54,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /** Regla para el Padrón Electoral - OPTIMIZADA PARA IMPORTACIÓN **/
+    /** Regla para el Padrón Electoral **/
     match /padron/{document=**} {
       allow read: if isActive();
-      allow write: if isOwner() || isAdmin();
+      allow write: if isAdmin();
     }
 
     /** Monitoreo de Presencia **/
@@ -132,19 +129,16 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
-    /** Regla para Divulgadores **/
     match /divulgadores/{document=**} {
       allow read: if isActive();
       allow write: if isActive() || isAdmin();
     }
 
-    /** Regla para Máquinas **/
     match /maquinas/{maquinaId} {
       allow read: if isActive() || isAdmin();
       allow write: if isAdmin();
     }
 
-    /** Regla para Locales **/
     match /locales-votacion/{localId} {
       allow read: if isActive() || isAdmin();
       allow write: if isAdmin();

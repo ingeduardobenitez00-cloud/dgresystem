@@ -2,7 +2,6 @@
 /**
  * @fileOverview Script de importación masiva optimizado para el Padrón Electoral.
  * Procesa archivos de 500k - 1M de registros uno a uno.
- * ACTUALIZADO para usar la estructura de columnas del archivo del cliente.
  */
 
 import { initializeApp } from 'firebase/app';
@@ -45,16 +44,21 @@ async function run() {
     await signInWithEmailAndPassword(auth, email, password);
     console.log('✅ Acceso concedido.\n');
 
-    // Procesar archivos del 1 al 18 si existen
-    let filesFound = 0;
-    for (let i = 1; i <= 18; i++) {
-      const success = await importFile(i);
-      if (success) filesFound++;
+    // Procesar archivos del 1 al 30 si existen (Ampliamos rango para cedula18.xlsx)
+    let filesProcessedCount = 0;
+    for (let i = 1; i <= 30; i++) {
+      const fileName = `cedula${i}.xlsx`;
+      const filePath = path.join(process.cwd(), 'scripts', fileName);
+      
+      if (fs.existsSync(filePath)) {
+        const success = await importFile(fileName, filePath);
+        if (success) filesProcessedCount++;
+      }
     }
 
-    if (filesFound === 0) {
+    if (filesProcessedCount === 0) {
       console.log('⚠️ No se encontraron archivos cedulaX.xlsx en la carpeta /scripts/');
-      console.log('Suba el archivo como: scripts/cedula1.xlsx\n');
+      console.log('Asegúrese de que el archivo esté en: scripts/cedula18.xlsx\n');
     } else {
       console.log('\n🏁 PROCESO FINALIZADO EXITOSAMENTE.');
     }
@@ -66,14 +70,7 @@ async function run() {
   }
 }
 
-async function importFile(fileNumber: number): Promise<boolean> {
-  const fileName = `cedula${fileNumber}.xlsx`;
-  const filePath = path.join(process.cwd(), 'scripts', fileName);
-
-  if (!fs.existsSync(filePath)) {
-    return false;
-  }
-
+async function importFile(fileName: string, filePath: string): Promise<boolean> {
   console.log(`\n📄 PROCESANDO: ${fileName}`);
   console.log('-------------------------------------------------');
   
@@ -121,7 +118,7 @@ async function importFile(fileNumber: number): Promise<boolean> {
       process.stdout.write(`\r🚀 Progreso: ${processedCount.toLocaleString()} / ${total.toLocaleString()} (${percent}%)`);
       
       // Breve pausa para estabilidad
-      await new Promise(res => setTimeout(res, 100));
+      await new Promise(res => setTimeout(res, 50));
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
