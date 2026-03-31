@@ -3,129 +3,60 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ======================================================
-    // 1. REGLA MAESTRA: BYPASS ABSOLUTO PARA ADMINISTRADORES MAESTROS
+    // 1. BYPASS MAESTRO: ACCESO TOTAL PARA ADMINISTRADORES
     // ======================================================
-    // Esta función es el corazón de la seguridad. Si el correo coincide,
-    // se otorga acceso total sin evaluar ninguna otra regla.
+    // Si el usuario es uno de los administradores maestros, tiene permiso total.
     
     function isMasterAdmin() {
       return request.auth != null && 
              request.auth.token != null && 
              request.auth.token.email != null && 
              (
-               request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
-               request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
-               request.auth.token.email.lower() == 'eduardobritz11@gmail.com' ||
-               request.auth.token.email.lower() == 'ing.eduardobenitez00@gmail.com'
+               request.auth.token.email == 'edubtz11@gmail.com' || 
+               request.auth.token.email == 'eduardobritz1@gmail.com' || 
+               request.auth.token.email == 'eduardobritz11@gmail.com' ||
+               request.auth.token.email == 'ing.eduardobenitez00@gmail.com'
              );
     }
 
-    // Bypass Global: Acceso total a cualquier documento si es Master Admin
+    // Regla de Oro: Paso libre para administradores en cualquier colección
     match /{document=**} {
       allow read, write: if isMasterAdmin();
     }
 
     // ======================================================
-    // 2. REGLAS POR COLECCIÓN (PARA USUARIOS REGULARES)
+    // 2. REGLAS PARA USUARIOS REGULARES
     // ======================================================
     
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Regla específica para perfiles: Protege contra desincronización
+    // Acceso a perfiles: Los usuarios pueden leer su propio perfil
     match /users/{userId} {
-      allow read, write: if isMasterAdmin();
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create, update: if isSignedIn() && (request.auth.uid == userId);
-    }
-
-    match /solicitudes-capacitacion/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /informes-divulgador/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /informes-semanales-anexo-iv/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /movimientos-maquinas/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /encuestas-satisfaccion/{id} {
       allow read: if isSignedIn();
-      allow create: if true; 
+      allow write: if isMasterAdmin(); // Solo el admin crea/edita otros usuarios
     }
 
-    match /datos/{id} {
-      allow read: if true;
-      allow write: if isMasterAdmin();
-    }
-    
-    match /partidos-politicos/{id} {
-      allow read: if true;
-      allow write: if isMasterAdmin();
-    }
-    
-    match /maquinas/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /divulgadores/{id} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /auditoria/{id} {
-      allow create, read: if isSignedIn();
-    }
-    
-    match /presencia/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
-    }
-    
-    match /notificaciones/{id} {
-      allow read, write, create: if isSignedIn();
-    }
-
-    match /padron/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /reports/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /imagenes/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /locales-votacion/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /informes-semanales-registro/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /anexo-i/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /config/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /archivos-semanales-registro/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /denuncias-lacres/{id} {
-      allow read, write: if isSignedIn();
-    }
+    // Reglas por defecto para el resto de colecciones operativas
+    match /solicitudes-capacitacion/{id} { allow read, write: if isSignedIn(); }
+    match /informes-divulgador/{id} { allow read, write: if isSignedIn(); }
+    match /informes-semanales-anexo-iv/{id} { allow read, write: if isSignedIn(); }
+    match /movimientos-maquinas/{id} { allow read, write: if isSignedIn(); }
+    match /divulgadores/{id} { allow read, write: if isSignedIn(); }
+    match /maquinas/{id} { allow read, write: if isSignedIn(); }
+    match /datos/{id} { allow read: if true; allow write: if isMasterAdmin(); }
+    match /partidos-politicos/{id} { allow read: if true; allow write: if isMasterAdmin(); }
+    match /encuestas-satisfaccion/{id} { allow read: if isSignedIn(); allow create: if true; }
+    match /notificaciones/{id} { allow read, write, create: if isSignedIn(); }
+    match /padron/{id} { allow read, write: if isSignedIn(); }
+    match /reports/{id} { allow read, write: if isSignedIn(); }
+    match /imagenes/{id} { allow read, write: if isSignedIn(); }
+    match /locales-votacion/{id} { allow read, write: if isSignedIn(); }
+    match /informes-semanales-registro/{id} { allow read, write: if isSignedIn(); }
+    match /anexo-i/{id} { allow read, write: if isSignedIn(); }
+    match /config/{id} { allow read, write: if isSignedIn(); }
+    match /auditoria/{id} { allow create, read: if isSignedIn(); }
+    match /presencia/{userId} { allow read, write: if isSignedIn() && request.auth.uid == userId; }
   }
 }
