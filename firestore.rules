@@ -3,33 +3,39 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ======================================================
-    // 1. REGLA MAESTRA: BYPASS ABSOLUTO POR CORREO
+    // 1. REGLA MAESTRA: BYPASS ABSOLUTO PARA ADMINISTRADORES MAESTROS
     // ======================================================
-    // Otorga acceso total e incondicional a los correos autorizados.
-    // Esta es la primera instrucción para garantizar que el Admin nunca sea bloqueado.
+    // Esta función es el corazón de la seguridad. Si el correo coincide,
+    // se otorga acceso total sin evaluar ninguna otra regla.
     
+    function isMasterAdmin() {
+      return request.auth != null && 
+             request.auth.token != null && 
+             request.auth.token.email != null && 
+             (
+               request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
+               request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
+               request.auth.token.email.lower() == 'eduardobritz11@gmail.com' ||
+               request.auth.token.email.lower() == 'ing.eduardobenitez00@gmail.com'
+             );
+    }
+
+    // Bypass Global: Acceso total a cualquier documento si es Master Admin
     match /{document=**} {
-      allow read, write: if request.auth != null && (
-        request.auth.token.email.lower() == 'edubtz11@gmail.com' || 
-        request.auth.token.email.lower() == 'eduardobritz1@gmail.com' || 
-        request.auth.token.email.lower() == 'eduardobritz11@gmail.com' ||
-        request.auth.token.email.lower() == 'ing.eduardobenitez00@gmail.com'
-      );
+      allow read, write: if isMasterAdmin();
     }
 
     // ======================================================
-    // 2. FUNCIONES DE APOYO PARA OTROS ROLES
+    // 2. REGLAS POR COLECCIÓN (PARA USUARIOS REGULARES)
     // ======================================================
     
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // ======================================================
-    // 3. REGLAS POR COLECCIÓN (PARA USUARIOS NO MAESTROS)
-    // ======================================================
-
+    // Regla específica para perfiles: Protege contra desincronización
     match /users/{userId} {
+      allow read, write: if isMasterAdmin();
       allow get: if isSignedIn();
       allow list: if isSignedIn();
       allow create, update: if isSignedIn() && (request.auth.uid == userId);
@@ -58,17 +64,16 @@ service cloud.firestore {
 
     match /datos/{id} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isMasterAdmin();
     }
     
     match /partidos-politicos/{id} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isMasterAdmin();
     }
     
     match /maquinas/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
     
     match /divulgadores/{id} {
@@ -76,8 +81,7 @@ service cloud.firestore {
     }
 
     match /auditoria/{id} {
-      allow create: if isSignedIn();
-      allow read: if isSignedIn();
+      allow create, read: if isSignedIn();
     }
     
     match /presencia/{userId} {
@@ -85,13 +89,11 @@ service cloud.firestore {
     }
     
     match /notificaciones/{id} {
-      allow read, write: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read, write, create: if isSignedIn();
     }
 
     match /padron/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
     
     match /reports/{id} {
@@ -103,8 +105,7 @@ service cloud.firestore {
     }
     
     match /locales-votacion/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
     
     match /informes-semanales-registro/{id} {
@@ -116,8 +117,7 @@ service cloud.firestore {
     }
     
     match /config/{id} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
     
     match /archivos-semanales-registro/{id} {

@@ -16,35 +16,26 @@ import {
   Search, 
   ShieldCheck, 
   ShieldAlert, 
-  MapPin, 
-  Globe, 
+  Building2, 
   CheckCircle2,
   Lock,
   Settings,
-  ChevronRight,
-  UserCircle,
   X,
   Landmark,
-  Building2,
-  AlertCircle,
   Zap,
-  Activity,
   Power,
   PowerOff,
-  AlertTriangle,
   Clock,
-  Calendar,
   RefreshCw,
-  Cpu,
   Mail,
-  ShieldQuestion
+  UserCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, query, limit } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, writeBatch, getDocs, query, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -268,7 +259,7 @@ function UsersContent() {
 
   const isMasterAdmin = useMemo(() => {
     const email = currentUser?.email?.toLowerCase() || '';
-    return email === 'edubtz11@gmail.com' || email === 'eduardobritz1@gmail.com' || email === 'eduardobritz11@gmail.com';
+    return email === 'edubtz11@gmail.com' || email === 'eduardobritz1@gmail.com' || email === 'eduardobritz11@gmail.com' || email === 'ing.eduardobenitez00@gmail.com';
   }, [currentUser]);
 
   const isAdminView = useMemo(() => {
@@ -542,7 +533,7 @@ function UsersContent() {
 
     let count = 0;
     users.forEach(u => {
-      const isOwner = u.email === 'edubtz11@gmail.com' || u.email === 'eduardobritz1@gmail.com' || u.email === 'eduardobritz11@gmail.com';
+      const isOwner = ['edubtz11@gmail.com', 'eduardobritz1@gmail.com', 'eduardobritz11@gmail.com', 'ing.eduardobenitez00@gmail.com'].includes(u.email.toLowerCase());
       if (u.role === 'jefe' && u.active !== false && !isOwner) {
         const docRef = doc(firestore, 'users', u.id);
         batch.update(docRef, {
@@ -571,7 +562,7 @@ function UsersContent() {
   };
   
   const toggleUserStatus = (user: UserProfile) => {
-    const isOwner = user.email === 'edubtz11@gmail.com' || user.email === 'eduardobritz1@gmail.com' || user.email === 'eduardobritz11@gmail.com';
+    const isOwner = ['edubtz11@gmail.com', 'eduardobritz1@gmail.com', 'eduardobritz11@gmail.com', 'ing.eduardobenitez00@gmail.com'].includes(user.email.toLowerCase());
     if (!firestore || isOwner) return;
     const currentStatus = user.active !== false;
     const newStatus = !currentStatus;
@@ -582,14 +573,12 @@ function UsersContent() {
   };
 
   const handleDeleteUser = async (user: UserProfile) => {
-    const isOwner = user.email === 'edubtz11@gmail.com' || user.email === 'eduardobritz1@gmail.com' || user.email === 'eduardobritz11@gmail.com';
+    const isOwner = ['edubtz11@gmail.com', 'eduardobritz1@gmail.com', 'eduardobritz11@gmail.com', 'ing.eduardobenitez00@gmail.com'].includes(user.email.toLowerCase());
     if (!firestore || isOwner) return;
     
     setIsSubmitting(true);
     const batch = writeBatch(firestore);
     
-    // Al ser un entorno cliente, no podemos borrar de Authentication.
-    // Marcamos como inactivo permanentemente en Firestore para bloquear su acceso.
     batch.update(doc(firestore, 'users', user.id), { 
         active: false, 
         deleted_at: new Date().toISOString(),
@@ -599,9 +588,23 @@ function UsersContent() {
 
     try {
         await batch.commit();
-        toast({ title: 'Acceso Inhabilitado Permanentemente', description: 'El rastro de conexión ha sido limpiado.' });
+        toast({ title: 'Acceso Inhabilitado Permanentemente' });
     } catch (error: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `users/${user.id}`, operation: 'delete' }));
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleRefreshToken = async () => {
+    if (!auth?.currentUser) return;
+    try {
+        setIsSubmitting(true);
+        await auth.currentUser.getIdToken(true);
+        toast({ title: "Sesión Sincronizada", description: "Tus permisos han sido refrescados en el servidor de Google." });
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Error al refrescar" });
     } finally {
         setIsSubmitting(false);
     }
@@ -634,21 +637,17 @@ function UsersContent() {
     let tempApp: FirebaseApp | undefined = undefined;
     
     try {
-      // 1. Inicializar app temporal para crear el Auth sin cerrar la sesión actual
       tempApp = initializeApp(firebaseConfig, tempAppName);
       const tempAuth = getAuth(tempApp);
       
-      // 2. Crear cuenta en Authentication
       const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
       const newUid = userCredential.user.uid;
 
-      // 3. Crear Perfil en Firestore usando el UID generado
       const userRef = doc(firestore, 'users', newUid);
       
-      // BLOQUE CRÍTICO: El Admin Maestro tiene Bypass en las reglas para escribir aquí
+      // ESCRITURA CRÍTICA: Se usa el firestore del admin logueado
       await setDoc(userRef, newUserProfile);
 
-      // 4. Registro de Auditoría
       recordAuditLog(firestore, {
           usuario_id: currentUser.uid,
           usuario_nombre: currentUser.profile?.username || currentUser.email || 'Admin',
@@ -659,7 +658,7 @@ function UsersContent() {
           detalles: `Registro de nuevo personal: ${email} (${username})`
       });
 
-      toast({ title: 'Usuario Creado con Éxito', description: 'El perfil ha sido anidado a la cuenta de acceso.' });
+      toast({ title: 'Usuario Creado con Éxito' });
       form.reset(); 
       setSelectedModules(new Set()); 
       setSelectedPerms(new Set());
@@ -668,9 +667,9 @@ function UsersContent() {
 
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-          toast({ variant: 'destructive', title: 'Cuenta existente', description: 'El correo ya tiene un acceso creado. Intente recuperarlo.' });
+          toast({ variant: 'destructive', title: 'Cuenta existente', description: 'El correo ya tiene un acceso creado.' });
       } else {
-          toast({ variant: 'destructive', title: 'Error de Seguridad', description: error.message });
+          toast({ variant: 'destructive', title: 'Fallo de Firestore', description: 'El acceso se creó pero el perfil falló. Refresque su sesión.' });
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/NEW_USER`,
             operation: 'create',
@@ -715,17 +714,23 @@ function UsersContent() {
       <Header title="Administración de Matriz" />
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8">
         
-        {/* ALERTA DE SEGURIDAD PARA ADMIN TRAS CAMBIO CLAVE */}
-        <div className="p-6 bg-red-50 border-4 border-dashed border-red-200 rounded-[2.5rem] flex items-start gap-6 animate-pulse">
-            <ShieldAlert className="h-12 w-12 text-red-600 shrink-0" />
-            <div>
-                <p className="font-black uppercase text-sm text-red-800">Protocolo de Sincronización de Sesión</p>
-                <p className="text-[10px] font-bold uppercase text-red-700 leading-relaxed mt-1">
-                    Si ha cambiado su contraseña recientemente o recibe errores de permisos, es OBLIGATORIO **CERRAR SESIÓN Y VOLVER A ENTRAR**. 
-                    Firestore requiere un token fresco para validar su identidad de Administrador Maestro en las operaciones de escritura.
-                </p>
+        {isMasterAdmin && (
+            <div className="p-6 bg-red-50 border-4 border-dashed border-red-200 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse">
+                <div className="flex items-start gap-6">
+                    <ShieldAlert className="h-12 w-12 text-red-600 shrink-0" />
+                    <div>
+                        <p className="font-black uppercase text-sm text-red-800">Protocolo de Emergencia - Súper Administrador</p>
+                        <p className="text-[10px] font-bold uppercase text-red-700 leading-relaxed mt-1">
+                            Si recibe el error "Acceso Restringido" al intentar crear un usuario, es necesario sincronizar su token de seguridad.
+                        </p>
+                    </div>
+                </div>
+                <Button onClick={handleRefreshToken} disabled={isSubmitting} className="h-14 px-8 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] rounded-2xl shadow-xl gap-3">
+                    <RefreshCw className={cn("h-4 w-4", isSubmitting && "animate-spin")} />
+                    SINCRONIZAR PERMISOS MAESTROS
+                </Button>
             </div>
-        </div>
+        )}
 
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
@@ -858,13 +863,11 @@ function UsersContent() {
                                         return (
                                             <AccordionItem key={dist.name} value={dist.name} className="border-2 rounded-xl overflow-hidden transition-all hover:border-primary/10">
                                                 <AccordionTrigger className="hover:no-underline px-6 py-3 bg-muted/5 group">
-                                                    <div className="flex items-center justify-between w-full pr-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <Building2 className={cn("h-4 w-4", dist.users.length > 0 ? "text-primary" : "text-muted-foreground/30")} />
-                                                            <span className={cn("font-black uppercase text-xs", dist.users.length === 0 && "text-muted-foreground/60")}>{dist.name}</span>
-                                                        </div>
+                                                    <div className="flex items-center gap-3 w-full pr-4">
+                                                        <Building2 className={cn("h-4 w-4", dist.users.length > 0 ? "text-primary" : "text-muted-foreground/30")} />
+                                                        <span className={cn("font-black uppercase text-xs", dist.users.length === 0 && "text-muted-foreground/60")}>{dist.name}</span>
                                                         {dist.users.length > 0 && (
-                                                            <Badge className="bg-black text-white text-[8px] font-black">{dist.users.length} PERSONAL</Badge>
+                                                            <Badge className="ml-auto bg-black text-white text-[8px] font-black">{dist.users.length} PERSONAL</Badge>
                                                         )}
                                                     </div>
                                                 </AccordionTrigger>
@@ -876,14 +879,13 @@ function UsersContent() {
                                                                     <TableRow>
                                                                         <TableHead className="text-[8px] font-black uppercase px-6">Funcionario</TableHead>
                                                                         <TableHead className="text-[8px] font-black uppercase">Rol</TableHead>
-                                                                        <TableHead className="text-[8px] font-black uppercase px-6">Última Conexión</TableHead>
-                                                                        <TableHead className="text-[8px] font-black uppercase">Estado</TableHead>
+                                                                        <TableHead className="text-[8px] font-black uppercase px-6">Estado</TableHead>
                                                                         <TableHead className="text-right text-[8px] font-black uppercase px-6">Acción</TableHead>
                                                                     </TableRow>
                                                                 </TableHeader>
                                                                 <TableBody>
                                                                     {dist.users.map(u => {
-                                                                        const isUserOwner = u.email === 'edubtz11@gmail.com' || u.email === 'eduardobritz1@gmail.com' || u.email === 'eduardobritz11@gmail.com';
+                                                                        const isUserOwner = ['edubtz11@gmail.com', 'eduardobritz1@gmail.com', 'eduardobritz11@gmail.com', 'ing.eduardobenitez00@gmail.com'].includes(u.email.toLowerCase());
                                                                         const isActive = u.active !== false;
                                                                         
                                                                         return (
@@ -895,23 +897,11 @@ function UsersContent() {
                                                                                     </div>
                                                                                 </TableCell>
                                                                                 <TableCell><Badge variant="secondary" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-none">{u.role}</Badge></TableCell>
-                                                                                <TableCell className="px-6 py-3">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-40" />
-                                                                                        <span className="text-[9px] font-black uppercase text-muted-foreground">
-                                                                                            {(() => {
-                                                                                                const presence = presenceData?.find(p => p.usuario_id === u.id);
-                                                                                                if (!presence?.ultima_actividad) return 'SIN REGISTRO';
-                                                                                                try { return format(presence.ultima_actividad.toDate(), "dd/MM/yy HH:mm", { locale: es }); } catch (e) { return 'SIN REGISTRO'; }
-                                                                                            })()}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </TableCell>
                                                                                 <TableCell>
                                                                                     {isActive ? (
                                                                                         <Badge className="bg-green-600 text-white text-[7px] font-black uppercase">ACTIVO</Badge>
                                                                                     ) : (
-                                                                                        <Badge variant="destructive" className="text-[7px] font-black uppercase">ELIMINADO / INACTIVO</Badge>
+                                                                                        <Badge variant="destructive" className="text-[7px] font-black uppercase">INACTIVO</Badge>
                                                                                     )}
                                                                                 </TableCell>
                                                                                 <TableCell className="text-right px-6">
@@ -931,14 +921,14 @@ function UsersContent() {
                                                                                                     <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
                                                                                                         <ShieldAlert className="h-8 w-8 text-destructive" />
                                                                                                     </div>
-                                                                                                    <AlertDialogTitle className="font-black uppercase text-center text-xl tracking-tight">ELIMINAR ACCESO PERMANENTE</AlertDialogTitle>
+                                                                                                    <AlertDialogTitle className="font-black uppercase text-center text-xl tracking-tight">INHABILITAR ACCESO</AlertDialogTitle>
                                                                                                     <AlertDialogDescription className="text-xs font-medium uppercase leading-relaxed text-muted-foreground text-center">
-                                                                                                        Esta acción desactiva la anidación en la base de datos y borra el rastro de conexión. Por seguridad, el acceso de Authentication debe revocarse manualmente si se requiere eliminar el correo del motor de Google.
+                                                                                                        ¿Confirmar la inhabilitación permanente de {u.username}? El registro permanecerá en auditoría pero no podrá ingresar al portal.
                                                                                                     </AlertDialogDescription>
                                                                                                 </AlertDialogHeader>
                                                                                                 <AlertDialogFooter className="mt-8 gap-4">
                                                                                                     <AlertDialogCancel className="h-12 rounded-xl text-[10px] font-black border-2">CANCELAR</AlertDialogCancel>
-                                                                                                    <AlertDialogAction onClick={() => handleDeleteUser(u)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px]">INHABILITAR PERMANENTE</AlertDialogAction>
+                                                                                                    <AlertDialogAction onClick={() => handleDeleteUser(u)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px]">INHABILITAR</AlertDialogAction>
                                                                                                 </AlertDialogFooter>
                                                                                             </AlertDialogContent>
                                                                                         </AlertDialog>
