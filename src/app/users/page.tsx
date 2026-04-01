@@ -251,19 +251,39 @@ function UsersContent() {
   const searchParams = useSearchParams();
 
   const isMasterAdmin = useMemo(() => {
-    return ['edubtz11@gmail.com', 'ing.eduardobenitez00@gmail.com', 'eduardobritz1@gmail.com'].includes(currentUser?.email?.toLowerCase() || '');
+    return !!(currentUser?.isOwner);
   }, [currentUser]);
 
   const isAdminView = useMemo(() => {
-    return currentUser?.profile?.role === 'admin' || isMasterAdmin;
-  }, [currentUser, isMasterAdmin]);
+    return !!(currentUser?.isAdmin || currentUser?.isOwner || currentUser?.isStaff);
+  }, [currentUser]);
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !isAdminView) return null;
     return collection(firestore, 'users');
   }, [firestore, isAdminView]);
 
-  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+  const { data: firestoreUsers, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+
+  const users = useMemo(() => {
+    if (!firestoreUsers) return null;
+    
+    // Inyectar usuarios sintéticos (Dueños) para que aparezcan en el directorio
+    const owners: UserProfile[] = [
+      { id: 'owner-1', email: 'edubtz11@gmail.com', username: 'EDUARD OBRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
+      { id: 'owner-2', email: 'eduardobritz1@gmail.com', username: 'EDUARDO BRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
+      { id: 'owner-3', email: 'eduardobritz11@gmail.com', username: 'EDUARDO BRITZ (MAESTRO)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
+      { id: 'owner-4', email: 'edubtz100@gmail.com', username: 'EDUBTZ 100 (ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
+      { id: 'owner-5', email: 'ing.eduardobenitez00@gmail.com', username: 'ING. EDUARDO BENÍTEZ (OWNER)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
+      { id: 'virtual-cidee-1', email: 'cidee.coord@gmail.com', username: 'COORDINACIÓN CIDEE (SISTEMA)', role: 'coordinador', departamento: 'CIDEE', distrito: 'TODOS LOS DISTRITOS', active: true }
+    ];
+
+    // Evitar duplicados si ya existen en Firestore
+    const firestoreEmails = new Set(firestoreUsers.map(u => u.email.toLowerCase()));
+    const virtualOwners = owners.filter(o => !firestoreEmails.has(o.email.toLowerCase()));
+
+    return [...firestoreUsers, ...virtualOwners];
+  }, [firestoreUsers]);
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
   const { data: datosData } = useCollection<Dato>(datosQuery);
 
@@ -331,13 +351,18 @@ function UsersContent() {
       const dept = u.departamento || 'ALCANCE NACIONAL';
       const dist = u.distrito || 'TODOS LOS DISTRITOS';
       
-      if (dept === 'ALCANCE NACIONAL') {
-          if (!depts[dept]) depts[dept] = { name: dept, districts: {} };
-          if (!depts[dept].districts[dist]) depts[dept].districts[dist] = { name: dist, users: [] };
-          depts[dept].districts[dist].users.push(u);
-      } else if (depts[dept]?.districts[dist]) {
-          depts[dept].districts[dist].users.push(u);
+      // Asegurar que el departamento exista
+      if (!depts[dept]) {
+        depts[dept] = { name: dept, districts: {} };
       }
+      
+      // Asegurar que el distrito exista dentro del departamento
+      if (!depts[dept].districts[dist]) {
+        depts[dept].districts[dist] = { name: dist, users: [] };
+      }
+      
+      // Agregar usuario al distrito correspondiente
+      depts[dept].districts[dist].users.push(u);
     });
 
     return Object.values(depts)
@@ -501,7 +526,7 @@ function UsersContent() {
       permissions: Array.from(selectedPerms), 
       departamento: regDepartamento || 'ALCANCE NACIONAL', 
       distrito: regDistrito || 'TODOS LOS DISTRITOS', 
-      active: true,
+      active: false, // Por defecto inactivos (requiere verificación del administrador)
       registration_method: 'creado_por_admin'
     };
 

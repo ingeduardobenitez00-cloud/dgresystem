@@ -17,10 +17,28 @@ export interface UserProfile {
   registration_method?: string;
 }
 
+export const CIDEE_MODULES = [
+  'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+  'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
+  'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
+  'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 'estadisticas-capacitacion',
+  'encuesta-satisfaccion', 'archivo-capacitaciones'
+];
+
+export const JEFE_MODULES = [
+  'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+  'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
+  'informe-divulgador', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
+  'encuesta-satisfaccion', 'archivo-capacitaciones'
+];
+
 export type AppUser = User & {
   profile?: UserProfile | null;
   isAdmin?: boolean;
   isOwner?: boolean;
+  isStaff?: boolean;
+  isCideeStaff?: boolean;
+  isJefeStaff?: boolean;
 };
 
 export interface UserHookResult {
@@ -45,6 +63,7 @@ export const useUser = (): UserHookResult => {
     'edubtz11@gmail.com',
     'eduardobritz1@gmail.com',
     'eduardobritz11@gmail.com',
+    'edubtz100@gmail.com',
     'ing.eduardobenitez00@gmail.com'
   ].includes(email);
 
@@ -88,15 +107,43 @@ export const useUser = (): UserHookResult => {
           permissions: allPermissions
         },
         isAdmin: true,
-        isOwner: true
+        isOwner: true,
+        isStaff: true
       };
     }
     
+    const role = profileData?.role;
+    const isStaff = role === 'admin' || role === 'director' || role === 'coordinador' || role === 'jefe';
+    const isCideeStaff = role === 'coordinador';
+    const isJefeStaff = role === 'jefe';
+
+    let modules = profileData?.modules || [];
+    let permissions = profileData?.permissions || [];
+
+    // ASIGNACIÓN AUTOMÁTICA DE MÓDULOS Y PERMISOS POR ROL
+    if (isCideeStaff && modules.length === 0) {
+      modules = [...CIDEE_MODULES];
+      CIDEE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => permissions.push(`${m}:${a}`)));
+    } else if (isJefeStaff && modules.length === 0) {
+      modules = [...JEFE_MODULES];
+      JEFE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => permissions.push(`${m}:${a}`)));
+    }
+
     return {
       ...authUser,
-      profile: profileData,
-      isAdmin: profileData?.role === 'admin',
-      isOwner: false
+      profile: {
+        ...profileData,
+        modules: modules.length > 0 ? modules : profileData?.modules,
+        permissions: permissions.length > 0 ? permissions : profileData?.permissions,
+        username: profileData?.username || (isStaff ? role?.toUpperCase() : 'USUARIO'),
+        role: profileData?.role || (isStaff ? role : 'funcionario'),
+        active: profileData?.active ?? true
+      },
+      isAdmin: role === 'admin',
+      isOwner: false,
+      isStaff,
+      isCideeStaff,
+      isJefeStaff
     };
   }, [authUser, profileData, isOwner]);
 

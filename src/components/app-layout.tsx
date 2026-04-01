@@ -94,8 +94,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // VALIDACIÓN DE USUARIO ACTIVO REFORZADA
   // Un usuario está restringido SOLO si su campo 'active' es explícitamente 'false'.
-  const isOwner = user?.email === 'edubtz11@gmail.com';
-  const isRestricted = !isOwner && user && !isPublicRoute && user.profile?.active === false;
+  const isOwner = user?.isOwner;
+  const isAdminOrOwner = isOwner || user?.isAdmin;
+  const isRestricted = !isAdminOrOwner && user && !isPublicRoute && user.profile?.active === false;
 
   if (isRestricted) {
     return (

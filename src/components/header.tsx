@@ -24,8 +24,7 @@ export default function Header({ title }: { title?: string }) {
   const { toast } = useToast();
 
   const isStaff = useMemo(() => {
-    const role = user?.profile?.role;
-    return role === 'admin' || role === 'director' || role === 'coordinador';
+    return !!(user?.isAdmin || user?.isOwner || user?.isStaff);
   }, [user]);
 
   // NOTIFICACIONES EN TIEMPO REAL - Simplificado para evitar requerir índices compuestos en Firestore

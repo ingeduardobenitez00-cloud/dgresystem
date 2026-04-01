@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -62,10 +63,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-export default function ControlMovimientoMaquinasPage() {
+function ControlMovimientoContent() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const solicitudIdFromUrl = searchParams.get('solicitudId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
@@ -214,6 +217,13 @@ export default function ControlMovimientoMaquinasPage() {
   const currentMovimiento = useMemo(() => {
     return allMovimientos?.find(m => m.solicitud_id === selectedSolicitudId) || null;
   }, [allMovimientos, selectedSolicitudId]);
+
+  useEffect(() => {
+    if (solicitudIdFromUrl && agendaItems.length > 0 && !selectedSolicitudId) {
+      const matching = agendaItems.find(item => item.id === solicitudIdFromUrl);
+      if (matching) setSelectedSolicitudId(matching.id);
+    }
+  }, [solicitudIdFromUrl, agendaItems, selectedSolicitudId]);
 
   useEffect(() => {
     if (currentMovimiento) {
@@ -1102,27 +1112,49 @@ export default function ControlMovimientoMaquinasPage() {
             )}
           </div>
         )}
-
-        {!selectedSolicitudId && (
-          <div className="flex flex-col items-center justify-center py-32 border-4 border-dashed rounded-[3rem] bg-white text-muted-foreground opacity-40">
-            <PackageCheck className="h-20 w-20 mb-6" />
-            <p className="text-xl font-black uppercase tracking-widest">Seleccione actividad para iniciar control</p>
-          </div>
-        )}
       </main>
 
-      <Dialog open={isCameraOpen} onOpenChange={(o) => !o && stopCamera()}>
-        <DialogContent className="max-w-md p-0 overflow-hidden border-none bg-black rounded-[2rem]">
-          <div className="relative aspect-[3/4] w-full bg-black flex items-center justify-center">
-            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
-            <div className="absolute inset-8 border-2 border-white/20 rounded-xl pointer-events-none border-dashed" />
+      <Dialog open={isCameraOpen} onOpenChange={(open) => !open && stopCamera()}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border-none bg-black">
+          <div className="relative aspect-[3/4] bg-black">
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={stopCamera}
+                className="rounded-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                <X className="h-6 w-6" />
+              </Button>
+              <Button 
+                size="lg" 
+                onClick={takePhoto}
+                className="rounded-full h-16 w-16 bg-white hover:bg-white/90 text-black border-4 border-black/20"
+              >
+                <Camera className="h-8 w-8" />
+              </Button>
+            </div>
           </div>
-          <DialogFooter className="p-8 bg-black/80 flex flex-row items-center justify-between gap-4">
-            <Button variant="outline" className="rounded-full h-14 w-14 border-white/20 bg-white/10 text-white" onClick={stopCamera}><X className="h-6 w-6" /></Button>
-            <Button className="flex-1 h-16 rounded-full bg-white text-black font-black uppercase text-sm shadow-2xl" onClick={takePhoto}>CAPTURAR</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function ControlMovimientoMaquinasPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin h-8 w-8 text-primary"/>
+      </div>
+    }>
+      <ControlMovimientoContent />
+    </Suspense>
   );
 }

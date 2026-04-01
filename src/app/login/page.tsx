@@ -32,6 +32,7 @@ const MASTER_EMAILS = [
   'edubtz11@gmail.com',
   'eduardobritz1@gmail.com',
   'eduardobritz11@gmail.com',
+  'edubtz100@gmail.com',
   'ing.eduardobenitez00@gmail.com'
 ];
 

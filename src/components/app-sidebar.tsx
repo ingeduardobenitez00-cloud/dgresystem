@@ -47,7 +47,7 @@ import {
   Calendar,
   Cpu
 } from "lucide-react";
-import { useUser } from "@/firebase";
+import { useUser, CIDEE_MODULES, JEFE_MODULES } from "@/firebase/auth/use-user";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
@@ -135,9 +135,19 @@ export default function AppSidebar() {
   const isAccessible = (href: string) => {
     if (!user) return false;
     if (href === '/') return true;
-    // Bypass Maestro por Correo Propietario o Admin Role
-    if (user.email === 'edubtz11@gmail.com' || user.profile?.role === 'admin') return true;
+    
+    // Acceso Total: Admin o Propietario
+    if (user.isAdmin || user.isOwner) return true;
+    
     const moduleName = href.substring(1);
+
+    // Acceso Coordinador CIDEE: Todos los módulos CIDEE
+    if (user.isCideeStaff && CIDEE_MODULES.includes(moduleName)) return true;
+    
+    // Acceso Jefe: Set limitado de CIDEE (según matriz institucional)
+    if (user.isJefeStaff && JEFE_MODULES.includes(moduleName)) return true;
+
+    // Otros roles o acceso otorgado manualmente en el perfil de Firestore
     return user.profile?.modules?.includes(moduleName);
   };
 

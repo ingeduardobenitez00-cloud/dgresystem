@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, ChevronRight, LayoutGrid } from 'lucide-react';
 import Header from '@/components/header';
-import { useUser } from '@/firebase';
+import { useUser, CIDEE_MODULES, JEFE_MODULES } from '@/firebase/auth/use-user';
 import { dashboardMenuItems } from '@/lib/menu-config';
 import { 
   Accordion, 
@@ -58,7 +58,7 @@ export default function Home() {
 
   const isAdmin = useMemo(() => {
     if (!user) return false;
-    return user.profile?.role === 'admin' || user.email === 'edubtz11@gmail.com';
+    return !!(user.isAdmin || user.isOwner);
   }, [user]);
 
   const groupedModules = useMemo(() => {
@@ -68,12 +68,22 @@ export default function Home() {
       const accessibleInGroup = dashboardMenuItems.filter(item => {
         const moduleName = item.href.substring(1);
         
-        // El administrador visualiza TODO lo que está categorizado en los grupos
-        if (isAdmin) {
+        // Acceso Total: Admin o Propietario
+        if (user.isAdmin || user.isOwner) {
           return group.modules.includes(moduleName);
         }
         
-        // Otros usuarios visualizan solo si tienen el módulo asignado en su perfil
+        // Acceso Coordinador CIDEE
+        if (user.isCideeStaff && CIDEE_MODULES.includes(moduleName)) {
+            return group.modules.includes(moduleName);
+        }
+
+        // Acceso Jefe: Set limitado de CIDEE
+        if (user.isJefeStaff && JEFE_MODULES.includes(moduleName)) {
+            return group.modules.includes(moduleName);
+        }
+
+        // Otros roles: Solo lo asignado manualmente en Firestore
         const hasAccess = user.profile?.modules?.includes(moduleName);
         return group.modules.includes(moduleName) && hasAccess;
       });

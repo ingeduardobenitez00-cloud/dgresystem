@@ -169,6 +169,7 @@ export type SolicitudCapacitacion = {
   fecha_cancelacion?: string;
   usuario_cancelacion?: string;
   qr_enabled?: boolean;
+  anexo_id?: string;
 }
 
 export type EncuestaSatisfaccion = {

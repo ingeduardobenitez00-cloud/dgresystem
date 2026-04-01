@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -35,7 +36,9 @@ import {
   Navigation,
   User,
   Maximize2,
-  Clock
+  Clock,
+  Truck,
+  PackageCheck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -443,8 +446,16 @@ export default function AgendaAnexoIPage() {
           </Card>
         ) : (
           <Accordion type="multiple" className="space-y-6">
-            {groupedData.map((dept) => (
-              <AccordionItem key={dept.label} value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
+            {(() => {
+              const now = new Date();
+              const y = now.getFullYear();
+              const m = String(now.getMonth() + 1).padStart(2, '0');
+              const d = String(now.getDate()).padStart(2, '0');
+              const today = `${y}-${m}-${d}`;
+              const todayReverse = `${d}-${m}-${y}`;
+              
+              return groupedData.map((dept) => (
+                <AccordionItem key={dept.label} value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
                 <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
                   <div className="flex items-center gap-6 text-left">
                     <div className="h-14 w-14 rounded-full bg-black text-white flex items-center justify-center font-black text-lg shadow-xl">
@@ -488,15 +499,17 @@ export default function AgendaAnexoIPage() {
                                     </Button>
                                 </div>
                             )}
-                            {dist.items.sort((a,b) => a.fecha.localeCompare(b.fecha)).map((item) => {
-                                const today = new Date().toISOString().split('T')[0];
-                                const isPast = item.fecha < today;
+                            {dist.items.sort((a,b) => (a.fecha || '').localeCompare(b.fecha || '')).map((item) => {
+                                const cleanDate = item.fecha?.split('T')[0]?.trim() || '';
+                                const isPast = cleanDate !== '' && cleanDate.localeCompare(today) < 0 && cleanDate !== today && cleanDate !== todayReverse;
+                                const isToday = cleanDate !== '' && (cleanDate === today || cleanDate === todayReverse);
                                 const mov = movimientosData?.find(m => m.solicitud_id === item.id);
                                 const inf = informesData?.find(i => i.solicitud_id === item.id);
                                 
                                 const missingF02 = isPast && !mov?.fecha_devolucion;
                                 const missingAnexoIII = isPast && !inf;
-                                const hasAlert = missingF02 || missingAnexoIII;
+                                const missingSalida = isToday && !mov;
+                                const hasAlert = missingF02 || missingAnexoIII || missingSalida;
                                 const isFulfilled = mov?.fecha_devolucion && inf;
 
                                 const itemEncuestas = encuestasData?.filter(e => e.solicitud_id === item.id) || [];
@@ -535,7 +548,7 @@ export default function AgendaAnexoIPage() {
                                                         {(item.divulgadores || item.asignados || []).length > 0 ? (
                                                             <div className="flex items-center gap-2 text-[#16A34A]">
                                                                 <Users className="h-4 w-4" />
-                                                                <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados).length} ASIGNADOS</p>
+                                                                <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados || []).length} ASIGNADOS</p>
                                                             </div>
                                                         ) : (
                                                             <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
@@ -550,17 +563,23 @@ export default function AgendaAnexoIPage() {
                                                 <div className="lg:col-span-3 flex flex-col items-end gap-3">
                                                     {hasAlert && (
                                                         <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
+                                                            {missingSalida && (
+                                                                <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
+                                                                    <Truck className="h-3.5 w-3.5" />
+                                                                    <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
+                                                                </Link>
+                                                            )}
                                                             {missingF02 && (
-                                                                <div className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20">
+                                                                <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
                                                                     <ShieldAlert className="h-3 w-3" />
-                                                                    <span className="text-[8px] font-black uppercase">FALTA RETORNO (F02)</span>
-                                                                </div>
+                                                                    <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
+                                                                </Link>
                                                             )}
                                                             {missingAnexoIII && (
-                                                                <div className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20">
+                                                                <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
                                                                     <AlertCircle className="h-3 w-3" />
-                                                                    <span className="text-[8px] font-black uppercase">FALTA INFORME (ANEXO III)</span>
-                                                                </div>
+                                                                    <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA INFORME (ANEXO III)</span>
+                                                                </Link>
                                                             )}
                                                         </div>
                                                     )}
@@ -617,7 +636,8 @@ export default function AgendaAnexoIPage() {
                   </Accordion>
                 </AccordionContent>
               </AccordionItem>
-            ))}
+              ));
+             })()}
           </Accordion>
         )}
       </main>
