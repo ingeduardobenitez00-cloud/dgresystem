@@ -473,13 +473,21 @@ function UsersContent() {
         email: ghost.email,
         username: ghost.username,
         role: 'funcionario',
-        departamento: ghost.departamento || 'ALCANCE NACIONAL',
-        distrito: ghost.distrito || 'TODOS LOS DISTRITOS',
+        departamento: ghost.departamento && ghost.departamento !== 'N/A' ? ghost.departamento : '',
+        distrito: ghost.distrito && ghost.distrito !== 'N/A' ? ghost.distrito : '',
         modules: [],
         permissions: [],
         active: true
     });
     setEditModalOpen(true);
+  };
+
+  const handleDeleteGhost = (ghostId: string) => {
+    if (!firestore) return;
+    const presRef = doc(firestore, 'presencia', ghostId);
+    writeBatch(firestore).delete(presRef).commit()
+        .then(() => toast({ title: 'Usuario fantasma eliminado' }))
+        .catch(() => toast({ variant: 'destructive', title: 'Error al eliminar' }));
   };
 
   const toggleUserStatus = (user: UserProfile) => {
@@ -586,17 +594,22 @@ function UsersContent() {
     const updateData = {
         username: editingUser.username.toUpperCase(),
         role: editingUser.role,
-        modules: editingUser.modules,
-        permissions: editingUser.permissions,
+        modules: editingUser.modules || [],
+        permissions: editingUser.permissions || [],
         active: editingUser.active ?? true,
         email: editingUser.email,
         departamento: editingUser.departamento || 'ALCANCE NACIONAL',
         distrito: editingUser.distrito || 'TODOS LOS DISTRITOS'
     };
 
-    updateDoc(userDocRef, updateData)
+    // Usamos setDoc con merge para crear el perfil si no existe (Reparación de Fantasmas)
+    setDoc(userDocRef, {
+        ...updateData,
+        id: editingUser.id,
+        fecha_actualizacion: new Date().toISOString()
+    }, { merge: true })
         .then(() => {
-            toast({ title: "Perfil Actualizado" });
+            toast({ title: "Perfil Sincronizado y Actualizado" });
             setEditModalOpen(false);
             setIsSubmitting(false);
         })
@@ -657,15 +670,24 @@ function UsersContent() {
                                         <span className="text-xs font-black uppercase text-primary leading-tight">{ghost.username}</span>
                                         <span className="text-[9px] font-bold text-muted-foreground lowercase">{ghost.email}</span>
                                     </div>
-                                    <Button 
-                                        onClick={() => handleRepairGhost(ghost)} 
-                                        className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] px-4 rounded-xl gap-2 shadow-md"
-                                    >
-                                        <RefreshCw className="h-3.5 w-3.5" /> REPARAR
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button 
+                                            onClick={() => handleRepairGhost(ghost)} 
+                                            className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] px-4 rounded-xl gap-2 shadow-md"
+                                        >
+                                            <RefreshCw className="h-3.5 w-3.5" /> REPARAR
+                                        </Button>
+                                        <Button 
+                                            onClick={() => handleDeleteGhost(ghost.id)} 
+                                            variant="ghost"
+                                            className="h-10 w-10 text-amber-900/50 hover:text-destructive hover:bg-destructive/10 rounded-xl"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2 text-[9px] font-black text-muted-foreground uppercase pt-3 border-t border-dashed">
-                                    <MapPin className="h-3 w-3 opacity-40" /> {ghost.departamento} | {ghost.distrito}
+                                    <MapPin className="h-3 w-3 opacity-40" /> {ghost.departamento || 'SIN DEP.'} | {ghost.distrito || 'SIN DIST.'}
                                 </div>
                             </div>
                         </Card>
@@ -942,8 +964,35 @@ function UsersContent() {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Jurisdicción</Label>
-                            <p className="text-xs font-black uppercase tracking-tight text-primary mt-2">{editingUser.departamento} | {editingUser.distrito}</p>
+                             <Label className="text-[10px] font-black uppercase text-muted-foreground">Jurisdicción: Departamento</Label>
+                             <Select 
+                                value={editingUser.departamento} 
+                                onValueChange={(v) => setEditingUser({...editingUser, departamento: v, distrito: ''})}
+                             >
+                                <SelectTrigger className="font-black h-11 border-2 uppercase text-[10px] rounded-xl">
+                                    <SelectValue placeholder="Elegir..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                                </SelectContent>
+                             </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground">Jurisdicción: Distrito</Label>
+                            <Select 
+                                value={editingUser.distrito} 
+                                onValueChange={(v) => setEditingUser({...editingUser, distrito: v})}
+                                disabled={!editingUser.departamento}
+                            >
+                                <SelectTrigger className="font-black h-11 border-2 uppercase text-[10px] rounded-xl">
+                                    <SelectValue placeholder="Elegir..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {(editingUser.departamento ? [...new Set(datosData?.filter(d => d.departamento === editingUser.departamento).map(d => d.distrito))] : []).sort().map(d => (
+                                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                     
