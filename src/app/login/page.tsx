@@ -278,9 +278,7 @@ export default function LoginPage() {
                 <h1 className="text-2xl font-black tracking-tighter uppercase text-primary leading-none py-1">
                     JUSTICIA ELECTORAL
                 </h1>
-                <h2 className="text-sm font-black uppercase text-muted-foreground tracking-[0.2em]">
-                    PORTAL DE SEGURIDAD CIDEE
-                </h2>
+
              </div>
         </div>
 
