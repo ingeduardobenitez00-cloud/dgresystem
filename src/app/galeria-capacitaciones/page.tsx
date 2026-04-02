@@ -21,8 +21,23 @@ import {
   Landmark, 
   X,
   FileText,
-  Camera
+  Camera,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { deleteDoc, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
@@ -34,8 +49,28 @@ import { Button } from '@/components/ui/button';
 export default function GaleriaCapacitacionesPage() {
   const { isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const { user, isAdmin, isOwner } = useUser();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteInforme = async (id: string) => {
+    if (!firestore) return;
+    setIsDeleting(true);
+    try {
+        await deleteDoc(doc(firestore, 'informes-divulgador', id));
+        toast({ title: "Informe eliminado correctamente" });
+    } catch (error: any) {
+        toast({ 
+            variant: "destructive", 
+            title: "Error al eliminar", 
+            description: error.message 
+        });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
 
   // Consulta directa a informes-divulgador
   const informesRef = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
@@ -161,7 +196,38 @@ export default function GaleriaCapacitacionesPage() {
                                                 const hasRespaldo = !!inf.foto_respaldo_documental;
                                                 
                                                 return (
-                                                    <Card key={inf.id} className="border-none shadow-lg rounded-[2rem] overflow-hidden bg-white group/card">
+                                                    <Card key={inf.id} className="border-none shadow-lg rounded-[2rem] overflow-hidden bg-white group/card relative">
+                                                        {(isAdmin || isOwner) && (
+                                                            <div className="absolute top-6 right-6 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                                                <AlertDialog>
+                                                                    <AlertDialogTrigger asChild>
+                                                                        <Button variant="destructive" size="icon" className="h-10 w-10 rounded-xl shadow-xl">
+                                                                            <Trash2 className="h-5 w-5" />
+                                                                        </Button>
+                                                                    </AlertDialogTrigger>
+                                                                    <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl p-8">
+                                                                        <AlertDialogHeader className="space-y-4">
+                                                                            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
+                                                                                <AlertTriangle className="h-8 w-8 text-destructive" />
+                                                                            </div>
+                                                                            <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR ESTE INFORME?</AlertDialogTitle>
+                                                                            <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
+                                                                                Se borrarán todas las evidencias fotográficas y el registro de esta actividad de <span className="text-primary font-black">{inf.lugar_divulgacion}</span> de forma permanente.
+                                                                            </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
+                                                                            <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
+                                                                            <AlertDialogAction 
+                                                                                onClick={() => handleDeleteInforme(inf.id)} 
+                                                                                className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl"
+                                                                            >
+                                                                                SÍ, ELIMINAR TODO
+                                                                            </AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                    </AlertDialogContent>
+                                                                </AlertDialog>
+                                                            </div>
+                                                        )}
                                                         <div className="p-6 md:p-8 border-b bg-muted/5">
                                                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                                                                 <div className="lg:col-span-6 space-y-4">
