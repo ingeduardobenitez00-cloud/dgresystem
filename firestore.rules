@@ -2,73 +2,173 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ======================================================
-    // 1. FUNCIONES DE AUTORIDAD (ORDEN DE PRIORIDAD)
-    // ======================================================
+    /** 
+     * REGLAS DE SEGURIDAD INSTITUCIONAL CIDEE 2026 
+     * Protocolo de Blindaje y Recuperación Maestra - V3.3
+     */
 
-    // Bypass Maestro: Acceso total e inmediato por Email
-    function isMasterAdmin() {
-      return request.auth != null && 
-        (
-          request.auth.token.email == 'edubtz11@gmail.com' || 
-          request.auth.token.email == 'ing.eduardobenitez00@gmail.com' ||
-          request.auth.token.email == 'eduardobritz1@gmail.com' || 
-          request.auth.token.email == 'eduardobritz11@gmail.com'
-        );
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Autoridad por Rol: Consulta a la colección de usuarios
-    function hasAdminRole() {
-      return request.auth != null && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    function isOwner() {
+      // Bypass absoluto para el administrador maestro basado en correo electrónico verificado
+      return isSignedIn() && request.auth.token.email == 'edubtz11@gmail.com';
     }
 
-    // Unifica ambos niveles de administración
+    function getUserData() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : null;
+    }
+
+    function isActive() {
+      let data = getUserData();
+      // Un usuario es activo si NO tiene el campo 'active' en 'false' explícitamente.
+      // Se utiliza .get() para manejar de forma segura la ausencia del campo.
+      return isOwner() || (isSignedIn() && data != null && data.get('active', true) != false);
+    }
+
     function isAdmin() {
-      return isMasterAdmin() || hasAdminRole();
+      let data = getUserData();
+      return isOwner() || (isSignedIn() && data != null && data.role == 'admin');
     }
 
-    // ======================================================
-    // 2. REGLA MAESTRA (ACCESO TOTAL PARA DUEÑOS)
-    // ======================================================
-
-    match /{document=**} {
-      allow read, write: if isMasterAdmin();
+    function isDirector() {
+      let data = getUserData();
+      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director'));
     }
 
-    // ======================================================
-    // 3. REGLAS ESPECÍFICAS (PARA OTROS ROLES)
-    // ======================================================
+    function isStaff() {
+      let data = getUserData();
+      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director' || data.role == 'coordinador' || data.role == 'jefe'));
+    }
 
+    /** Gestión de Usuarios - Blindaje de Lista **/
     match /users/{userId} {
-      // Un usuario lee su perfil, o un admin lee todos
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      
-      // Permitir creación y edición a administradores
-      allow create, update: if isAdmin();
-      
-      // Solo el Súper Admin puede borrar perfiles
-      allow delete: if isMasterAdmin();
+      allow get: if isSignedIn();
+      allow list: if isAdmin() || isDirector();
+      allow create: if isSignedIn() && request.auth.uid == userId; // Permitir auto-registro de perfil propio
+      allow update: if (request.auth.uid == userId) || isAdmin();
+      // El propietario no puede ser borrado bajo ninguna circunstancia
+      allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
     }
 
-    // Colecciones Operativas (Acceso para personal logueado)
-    match /solicitudes-capacitacion/{id} { allow read, write: if request.auth != null; }
-    match /informes-divulgador/{id} { allow read, write: if request.auth != null; }
-    match /informes-semanales-anexo-iv/{id} { allow read, write: if request.auth != null; }
-    match /movimientos-maquinas/{id} { allow read, write: if request.auth != null; }
-    match /divulgadores/{id} { allow read, write: if request.auth != null; }
-    match /maquinas/{id} { allow read, write: if request.auth != null; }
-    match /datos/{id} { allow read: if true; }
-    match /partidos-politicos/{id} { allow read: if true; }
-    match /encuestas-satisfaccion/{id} { allow read: if request.auth != null; allow create: if true; }
-    match /notificaciones/{id} { allow read, write, create: if request.auth != null; }
-    match /padron/{id} { allow read, write: if request.auth != null; }
-    match /locales-votacion/{id} { allow read, write: if request.auth != null; }
-    match /informes-semanales-registro/{id} { allow read, write: if request.auth != null; }
-    match /anexo-i/{id} { allow read, write: if request.auth != null; }
-    match /config/{id} { allow read, write: if request.auth != null; }
-    match /auditoria/{id} { allow create, read: if request.auth != null; }
-    match /presencia/{userId} { allow read, write: if request.auth != null; }
-    match /archivos-semanales-registro/{id} { allow read, write: if request.auth != null; }
+    /** Notificaciones de Sistema **/
+    match /notificaciones/{notiId} {
+      allow read, update: if isStaff();
+      allow create: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    /** Regla para el Padrón Electoral **/
+    match /padron/{document=**} {
+      allow read: if isActive();
+    }
+
+    /** Monitoreo de Presencia **/
+    match /presencia/{userId} {
+      allow read: if isAdmin() || isDirector() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if (isSignedIn() && request.auth.uid == userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /** CIDEE - Colecciones Transaccionales **/
+    
+    match /solicitudes-capacitacion/{solicitudId} {
+      // Se permite el 'get' público para que el portal ciudadano pueda cargar los metadatos de la encuesta (Lugar, Fecha, Hora)
+      allow get: if true;
+      allow list: if isActive();
+      allow create, update: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /encuestas-satisfaccion/{encuestaId} {
+      allow read: if isActive();
+      allow create: if true; 
+      allow update: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /anexo-i/{anexoId} {
+      allow read, write: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /informes-divulgador/{informeId} {
+      allow read, write: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /informes-semanales-anexo-iv/{informeId} {
+      allow read, write: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /movimientos-maquinas/{movimientoId} {
+      allow read, write: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /denuncias-lacres/{denunciaId} {
+      allow read, write: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    /** Reglas Generales de Configuración y Geografía **/
+    match /datos/{datoId} {
+      // Se permite lectura pública para que el formulario de registro (Login) pueda cargar la geografía
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /partidos-politicos/{partidoId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /config/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /auditoria/{logId} {
+      allow read: if isAdmin() || isDirector();
+      allow create: if isSignedIn();
+    }
+
+    /** Regla para Divulgadores **/
+    match /divulgadores/{document=**} {
+      allow read: if isActive();
+      allow write: if isActive() || isAdmin();
+    }
+
+    /** Regla para Máquinas **/
+    match /maquinas/{maquinaId} {
+      allow read: if isActive() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /locales-votacion/{localId} {
+      allow read: if isActive() || isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    match /reports/{reportId} {
+      allow read, write: if isActive() || isAdmin();
+    }
+
+    match /imagenes/{imagenId} {
+      allow read, write: if isActive() || isAdmin();
+    }
+
+    match /informes-semanales-registro/{informeId} {
+      allow read, write: if isActive() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /archivos-semanales-registro/{archivoId} {
+      allow read: if isAdmin() || isDirector();
+      allow write: if isAdmin();
+    }
   }
 }

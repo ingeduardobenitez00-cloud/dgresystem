@@ -180,6 +180,7 @@ export default function LoginPage() {
         'solicitud-capacitacion',
         'agenda-anexo-i',
         'agenda-anexo-v',
+        'maquinas',
         'control-movimiento-maquinas',
         'denuncia-lacres',
         'informe-divulgador',

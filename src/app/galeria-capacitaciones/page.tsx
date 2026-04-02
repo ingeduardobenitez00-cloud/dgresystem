@@ -198,7 +198,7 @@ export default function GaleriaCapacitacionesPage() {
                                                 return (
                                                     <Card key={inf.id} className="border-none shadow-lg rounded-[2rem] overflow-hidden bg-white group/card relative">
                                                         {(isAdmin || isOwner) && (
-                                                            <div className="absolute top-6 right-6 z-10 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                                            <div className="absolute top-6 right-6 z-10 transition-opacity">
                                                                 <AlertDialog>
                                                                     <AlertDialogTrigger asChild>
                                                                         <Button variant="destructive" size="icon" className="h-10 w-10 rounded-xl shadow-xl">

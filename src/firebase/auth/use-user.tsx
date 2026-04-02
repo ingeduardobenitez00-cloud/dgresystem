@@ -113,7 +113,7 @@ export const useUser = (): UserHookResult => {
     }
     
     const role = profileData?.role;
-    const isStaff = role === 'admin' || role === 'director' || role === 'coordinador' || role === 'jefe';
+    const isStaff = role === 'admin' || role === 'director' || role === 'coordinador';
     const isCideeStaff = role === 'coordinador';
     const isJefeStaff = role === 'jefe';
 
@@ -140,7 +140,7 @@ export const useUser = (): UserHookResult => {
         active: profileData?.active ?? true
       },
       isAdmin: role === 'admin',
-      isOwner: false,
+      isOwner: isOwner,
       isStaff,
       isCideeStaff,
       isJefeStaff
