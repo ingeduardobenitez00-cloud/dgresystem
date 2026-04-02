@@ -85,6 +85,26 @@ export default function AgendaAnexoVPage() {
   const [divulSearch, setDivulSearch] = useState('');
   const [copied, setCopied] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [viewedQRs, setViewedQRs] = useState<string[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('viewed_qrs_agenda');
+    if (saved) {
+      try {
+        setViewedQRs(JSON.parse(saved));
+      } catch (e) {
+        console.error("Error parsing viewed QRs", e);
+      }
+    }
+  }, []);
+
+  const markQRAsViewed = (id: string) => {
+    if (!viewedQRs.includes(id)) {
+      const updated = [...viewedQRs, id];
+      setViewedQRs(updated);
+      localStorage.setItem('viewed_qrs_agenda', JSON.stringify(updated));
+    }
+  };
   const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
@@ -503,14 +523,43 @@ export default function AgendaAnexoVPage() {
                                 
                                 const missingF02 = isPast && !mov?.fecha_devolucion;
                                 const missingAnexoIII = isPast && !inf;
-                                const missingSalida = isToday && !mov;
+                                const missingSalida = (isToday || isPast) && !mov;
                                 const hasAlert = missingF02 || missingAnexoIII || missingSalida;
                                 const isFulfilled = mov?.fecha_devolucion && inf;
 
                                 const itemEncuestas = encuestasData?.filter(e => e.solicitud_id === item.id) || [];
 
+                                // Lógica de Guía de Pasos Independientes (Sin saltos)
+                                const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
+                                const hasSalida = !!mov;
+                                const hasRetorno = !!mov?.fecha_devolucion;
+                                const hasInforme = !!inf;
+
+                                const isQRViewed = viewedQRs.includes(item.id);
+                                const showStep1 = !hasPersonnel;
+                                const showStep2 = hasPersonnel && !item.qr_enabled;
+                                const showStep3 = hasPersonnel && item.qr_enabled && !hasSalida && !isQRViewed;
+                                const showStep4 = hasPersonnel && (isToday || isPast) && !hasSalida && (!item.qr_enabled || isQRViewed);
+                                const showStep5 = hasSalida && !hasRetorno;
+                                const showStep6 = hasRetorno && !hasInforme;
+
+                                 const GuideStep = ({ step, message, active }: { step: number, message: string, active: boolean }) => {
+                                     if (!active) return null;
+                                     return (
+                                         <div className="animate-bounce">
+                                             <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 w-[160px] leading-tight text-center justify-center">
+                                                 <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">
+                                                     {step}
+                                                 </div>
+                                                 {message.toUpperCase()}
+                                             </div>
+                                             <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600 mx-auto -mt-0.5" />
+                                         </div>
+                                     );
+                                 };
+
                                 return (
-                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-200 bg-green-50/10" : "border-muted/20 bg-white")}>
+                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-200 bg-green-50/10" : "border-muted/20 bg-white")}>
                                         <CardContent className="p-8">
                                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                                 <div className="lg:col-span-4 space-y-3">
@@ -563,18 +612,24 @@ export default function AgendaAnexoVPage() {
                                                 <div className="lg:col-span-3 flex flex-col items-end gap-3">
                                                     {hasAlert && (
                                                         <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
-                                                            {missingSalida && (
-                                                                <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
-                                                                    <Truck className="h-3.5 w-3.5" />
-                                                                    <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
-                                                                </Link>
-                                                            )}
-                                                            {missingF02 && (
-                                                                <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
-                                                                    <ShieldAlert className="h-3 w-3" />
-                                                                    <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
-                                                                </Link>
-                                                            )}
+                                                                {missingSalida && (
+                                                                    <div className="relative">
+                                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} />
+                                                                        <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
+                                                                            <Truck className="h-3.5 w-3.5" />
+                                                                            <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
+                                                                        </Link>
+                                                                    </div>
+                                                                )}
+                                                                {missingF02 && (
+                                                                    <div className="relative">
+                                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} />
+                                                                        <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
+                                                                            <ShieldAlert className="h-3 w-3" />
+                                                                            <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
+                                                                        </Link>
+                                                                    </div>
+                                                                )}
                                                             {missingAnexoIII && (
                                                                 <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
                                                                     <AlertCircle className="h-3 w-3" />
@@ -585,9 +640,14 @@ export default function AgendaAnexoVPage() {
                                                     )}
 
                                                     <div className="flex gap-2 w-full max-w-[220px]">
-                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
-                                                          <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
-                                                        </Button>
+                                                        <div className="flex-1 relative">
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
+                                                                <GuideStep step={1} message="Asigna personal para la actividad" active={showStep1} />
+                                                            </div>
+                                                            <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
+                                                              <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
+                                                            </Button>
+                                                        </div>
                                                         <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)} title="Ver Ficha de Detalles">
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
@@ -600,29 +660,44 @@ export default function AgendaAnexoVPage() {
                                                     </div>
                                                     
                                                     <div className="flex gap-2 w-full max-w-[220px]">
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="icon" 
-                                                            className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 border-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} 
-                                                            onClick={() => handleToggleQr(item)}
-                                                            title={item.qr_enabled ? "Deshabilitar Encuesta Pública" : "Habilitar Encuesta Pública vía QR"}
-                                                        >
-                                                            {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
-                                                        </Button>
-                                                        <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setQrSolicitud(item)} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
-                                                            <QrCode className="h-4 w-4 mr-2" /> QR
-                                                        </Button>
-                                                        <Button 
-                                                            className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg flex-1", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
-                                                            onClick={() => {
-                                                              if (!inf) {
-                                                                  window.location.href = `/informe-divulgador?solicitudId=${item.id}`;
-                                                              }
-                                                          }}
-                                                          title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
-                                                        >
-                                                          {inf ? 'CUMPLIDO' : 'INFORME'}
-                                                        </Button>
+                                                        <div className="relative">
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
+                                                                <GuideStep step={2} message="Habilitar el acceso al QR" active={showStep2} />
+                                                            </div>
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="icon" 
+                                                                className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 border-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} 
+                                                                onClick={() => handleToggleQr(item)}
+                                                                title={item.qr_enabled ? "Deshabilitar Encuesta Pública" : "Habilitar Encuesta Pública vía QR"}
+                                                            >
+                                                                {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                                                            </Button>
+                                                        </div>
+                                                        <div className="flex-1 relative">
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
+                                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} />
+                                                            </div>
+                                                            <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
+                                                                <QrCode className="h-4 w-4 mr-2" /> QR
+                                                            </Button>
+                                                        </div>
+                                                        <div className="flex-1 relative">
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
+                                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={showStep6} />
+                                                            </div>
+                                                            <Button 
+                                                                className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
+                                                                onClick={() => {
+                                                                  if (!inf) {
+                                                                      window.location.href = `/informe-divulgador?solicitudId=${item.id}`;
+                                                                  }
+                                                              }}
+                                                              title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
+                                                            >
+                                                              {inf ? 'CUMPLIDO' : 'INFORME'}
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
