@@ -63,8 +63,11 @@ export default function RootLayout({
             var handleVersionError = function(e) {
               var message = e.message || (e.reason && e.reason.message) || "";
               if (/chunk|loading|manifest/i.test(message)) {
-                console.warn('Inconsistencia de versión detectada. Sincronizando...');
-                window.location.reload();
+                if (!window.location.search.includes('v=')) {
+                  console.warn('Inconsistencia de versión detectada. Sincronizando...');
+                  var separator = window.location.href.indexOf('?') !== -1 ? '&' : '?';
+                  window.location.href = window.location.origin + window.location.pathname + separator + 'v=' + Date.now();
+                }
               }
             };
             window.addEventListener('error', handleVersionError, true);
