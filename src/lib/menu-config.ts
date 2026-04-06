@@ -177,6 +177,12 @@ export const dashboardMenuItems = [
     description: 'Genera un PDF consolidado de todos los distritos.',
   },
   {
+    href: '/reportes-pdf',
+    label: 'Reportes PDF y Estadísticas',
+    icon: PieChart,
+    description: 'Análisis detallado de capacitados y encuestas con exportación PDF.',
+  },
+  {
     href: '/importar-reportes',
     label: 'Importar Reportes',
     icon: FileUp,

@@ -125,6 +125,7 @@ const MODULE_STRUCTURE = [
     items: [
       { id: 'resumen', label: 'RESUMEN UBICACIONES' },
       { id: 'informe-general', label: 'INFORME GENERAL PDF' },
+      { id: 'reportes-pdf', label: 'REPORTES PDF Y ESTADÍSTICAS' },
       { id: 'conexiones', label: 'MONITOREO CONEXIONES' },
     ]
   },
