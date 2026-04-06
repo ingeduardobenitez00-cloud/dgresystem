@@ -112,13 +112,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </h1>
             <div className="p-8 bg-white border-2 rounded-[2rem] shadow-2xl space-y-6">
               <p className="text-sm font-bold uppercase text-muted-foreground leading-relaxed">
-                Su cuenta estará habilitada en 6 a 12 horas.
+                {user.profile?.role === 'jefe' 
+                  ? 'Su perfil de Jefe requiere una sincronización inicial para habilitar los módulos de su distrito.'
+                  : 'Su cuenta estará habilitada en 6 a 12 horas.'}
               </p>
               
+              {user.profile?.role === 'jefe' && (
+                <Button 
+                  className="w-full h-14 bg-green-600 hover:bg-green-700 text-white font-black uppercase text-xs rounded-xl shadow-lg gap-2"
+                  onClick={async () => {
+                    if (!firestore || !user.uid) return;
+                    try {
+                      await setDoc(doc(firestore, 'users', user.uid), { active: true }, { merge: true });
+                      window.location.reload();
+                    } catch (e) {
+                      alert("Error al sincronizar. Contacte a soporte.");
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 animate-spin" /> Sincronizar y Activar Mi Acceso
+                </Button>
+              )}
+
               <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-xl text-left border">
                 <Lock className="h-5 w-5 text-primary opacity-40 shrink-0" />
                 <p className="text-[10px] font-medium uppercase text-muted-foreground italic">
-                    El Administrador Maestro debe verificar su identidad y otorgar los permisos de acceso correspondientes.
+                    {user.profile?.role === 'jefe'
+                      ? 'Al presionar el botón superior, su perfil será validado automáticamente con los parámetros institucionales.'
+                      : 'El Administrador Maestro debe verificar su identidad y otorgar los permisos de acceso correspondientes.'}
                 </p>
               </div>
             </div>

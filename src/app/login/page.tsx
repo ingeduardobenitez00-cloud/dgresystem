@@ -210,7 +210,7 @@ export default function LoginPage() {
         modules: jefeModules,
         permissions: jefePermissions,
         fecha_registro: new Date().toISOString(),
-        active: false, 
+        active: true, 
         registration_method: 'auto_registro_jefe'
       });
 
@@ -229,8 +229,8 @@ export default function LoginPage() {
       setMode('login');
       
       toast({ 
-        title: 'Acceso restringido', 
-        description: 'Su cuenta estará habilitada en 6 a 12 horas.' 
+        title: 'Registro Completado', 
+        description: 'Su cuenta ha sido habilitada. Ya puede iniciar sesión.' 
       });
     } catch (error: any) {
       toast({
@@ -422,10 +422,10 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-amber-50 border-2 border-dashed border-amber-200 rounded-xl flex items-start gap-3">
-                    <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-[8px] font-bold text-amber-800 uppercase leading-tight">
-                        ADVERTENCIA: Acceso restringido su cuenta estará habilitada en 6 a 12 horas. Un administrador deberá verificar su identidad.
+                <div className="p-4 bg-green-50 border-2 border-dashed border-green-200 rounded-xl flex items-start gap-3">
+                    <ShieldAlert className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                    <p className="text-[8px] font-bold text-green-800 uppercase leading-tight">
+                        AVISO: Al registrarse como Jefe, su cuenta será habilitada inmediatamente para su jurisdicción.
                     </p>
                 </div>
               </CardContent>

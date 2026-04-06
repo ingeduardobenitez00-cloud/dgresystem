@@ -113,7 +113,7 @@ export const useUser = (): UserHookResult => {
     }
     
     const role = profileData?.role;
-    const isStaff = role === 'admin' || role === 'director' || role === 'coordinador';
+    const isStaff = role === 'admin' || role === 'director' || role === 'coordinador' || role === 'jefe';
     const isCideeStaff = role === 'coordinador';
     const isJefeStaff = role === 'jefe';
 

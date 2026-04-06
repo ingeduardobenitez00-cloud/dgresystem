@@ -274,12 +274,12 @@ function UsersContent() {
     
     // Inyectar usuarios sintéticos (Dueños) para que aparezcan en el directorio
     const owners: UserProfile[] = [
-      { id: 'owner-1', email: 'edubtz11@gmail.com', username: 'EDUARD OBRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
-      { id: 'owner-2', email: 'eduardobritz1@gmail.com', username: 'EDUARDO BRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
-      { id: 'owner-3', email: 'eduardobritz11@gmail.com', username: 'EDUARDO BRITZ (MAESTRO)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
-      { id: 'owner-4', email: 'edubtz100@gmail.com', username: 'EDUBTZ 100 (ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
-      { id: 'owner-5', email: 'ing.eduardobenitez00@gmail.com', username: 'ING. EDUARDO BENÍTEZ (OWNER)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true },
-      { id: 'virtual-cidee-1', email: 'cidee.coord@gmail.com', username: 'COORDINACIÓN CIDEE (SISTEMA)', role: 'coordinador', departamento: 'CIDEE', distrito: 'TODOS LOS DISTRITOS', active: true }
+      { id: 'owner-1', email: 'edubtz11@gmail.com', username: 'EDUARD OBRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
+      { id: 'owner-2', email: 'eduardobritz1@gmail.com', username: 'EDUARDO BRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
+      { id: 'owner-3', email: 'eduardobritz11@gmail.com', username: 'EDUARDO BRITZ (MAESTRO)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
+      { id: 'owner-4', email: 'edubtz100@gmail.com', username: 'EDUBTZ 100 (ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
+      { id: 'owner-5', email: 'ing.eduardobenitez00@gmail.com', username: 'ING. EDUARDO BENÍTEZ (OWNER)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
+      { id: 'virtual-cidee-1', email: 'cidee.coord@gmail.com', username: 'COORDINACIÓN CIDEE (SISTEMA)', role: 'coordinador', departamento: 'CIDEE', distrito: 'TODOS LOS DISTRITOS', active: true, modules: [], permissions: [] }
     ];
 
     // Evitar duplicados si ya existen en Firestore
@@ -538,7 +538,7 @@ function UsersContent() {
       permissions: Array.from(selectedPerms), 
       departamento: regDepartamento || 'ALCANCE NACIONAL', 
       distrito: regDistrito || 'TODOS LOS DISTRITOS', 
-      active: false, // Por defecto inactivos (requiere verificación del administrador)
+      active: regRole === 'jefe', // Jefes se habilitan automáticamente, otros requieren verificación
       registration_method: 'creado_por_admin'
     };
 
