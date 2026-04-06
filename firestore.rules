@@ -13,7 +13,10 @@ service cloud.firestore {
 
     function isOwner() {
       // Bypass absoluto para el administrador maestro basado en correo electrónico verificado
-      return isSignedIn() && request.auth.token.email == 'edubtz11@gmail.com';
+      return isSignedIn() && (
+        request.auth.token.email == 'edubtz11@gmail.com' || 
+        request.auth.token.email == 'ing.eduardobenitez00@gmail.com'
+      );
     }
 
     function getUserData() {
@@ -47,7 +50,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin() || isDirector();
-      allow create: if isSignedIn() && request.auth.uid == userId; // Permitir auto-registro de perfil propio
+      allow create: if (isSignedIn() && request.auth.uid == userId) || isAdmin(); // Permitir auto-registro o creación por admin
       allow update: if (request.auth.uid == userId) || isAdmin();
       // El propietario no puede ser borrado bajo ninguna circunstancia
       allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
