@@ -33,36 +33,45 @@ export default function Error({
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-        console.log('Iniciando limpieza profunda de caché y service workers...');
+        console.log('SISTEMA - Iniciando limpieza profunda de emergencia...');
         
-        // 1. Desregistrar Service Workers (si existen)
+        // 1. Limpiar localStorage y sessionStorage
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+            console.log('Storages limpiados');
+        } catch (e) {}
+
+        // 2. Desregistrar todos los Service Workers
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (const registration of registrations) {
                 await registration.unregister();
-                console.log('Service Worker desregistrado');
             }
         }
 
-        // 2. Limpiar Cache Storage
+        // 3. Limpiar todos los Cache Storages
         if ('caches' in window) {
             const cacheNames = await caches.keys();
             for (const cacheName of cacheNames) {
                 await caches.delete(cacheName);
-                console.log('Caché eliminado:', cacheName);
             }
         }
 
-        // 3. Limpiar localStorage de control de versiones si existiera (opcional)
-        // localStorage.removeItem('app-version');
+        // 4. Intentar limpiar IndexedDB (Opcional, puede fallar si está en uso)
+        try {
+            const dbs = await window.indexedDB.databases();
+            dbs.forEach(db => {
+                if (db.name) window.indexedDB.deleteDatabase(db.name);
+            });
+        } catch (e) {}
 
     } catch (e) {
         console.error('Error durante la sincronización:', e);
     } finally {
-        // 4. Forzar recarga total ignorando la caché del navegador
-        // Usamos una semilla de tiempo para asegurar que el servidor entregue la versión fresca
-        const separator = window.location.href.includes('?') ? '&' : '?';
-        window.location.href = window.location.origin + window.location.pathname + separator + 'v=' + Date.now();
+        // 5. Forzar recarga a la RAÍZ del sistema con una semilla única
+        // Redirigir a la raíz es más seguro para romper bucles de rutas rotas
+        window.location.href = window.location.origin + '/?v=' + Date.now();
     }
   };
 

@@ -64,9 +64,8 @@ export default function RootLayout({
               var message = e.message || (e.reason && e.reason.message) || "";
               if (/chunk|loading|manifest/i.test(message)) {
                 if (!window.location.search.includes('v=')) {
-                  console.warn('Inconsistencia de versión detectada. Sincronizando...');
-                  var separator = window.location.href.indexOf('?') !== -1 ? '&' : '?';
-                  window.location.href = window.location.origin + window.location.pathname + separator + 'v=' + Date.now();
+                  console.warn('Inconsistencia de versión detectada. Redirigiendo a raíz...');
+                  window.location.href = window.location.origin + '/?v=' + Date.now();
                 }
               }
             };
