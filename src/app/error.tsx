@@ -16,21 +16,29 @@ export default function Error({
 
   useEffect(() => {
     // Registro técnico del error para auditoría silenciosa
-    console.error('SISTEMA - ERROR CRÍTICO DETECTADO:', error)
+    console.error('SISTEMA - ERROR CRÍTICO DETECTADO:', error);
     
-    // Si es un error de carga de componentes (común tras publicar), recargamos automáticamente
-    // Solo si no estamos ya en un proceso de sincronización para evitar bucles infinitos
     const isChunkError = error.message?.toLowerCase().includes('chunk') || 
                        error.message?.toLowerCase().includes('loading') ||
-                       error.message?.toLowerCase().includes('manifest');
+                       error.message?.toLowerCase().includes('manifest') ||
+                       error.digest?.includes('chunk');
 
-    if (isChunkError && !window.location.search.includes('v=')) {
-        console.warn('Inconsistencia de versión detectada. Sincronizando automáticamente...');
-        handleSync();
+    if (isChunkError) {
+        const params = new URLSearchParams(window.location.search);
+        const retryCount = parseInt(params.get('retry') || '0');
+        
+        if (retryCount < 3) {
+            console.warn(`Inconsistencia de versión detectada (Intento ${retryCount + 1}/3). Sincronizando automáticamente...`);
+            setTimeout(() => {
+                handleSync(retryCount + 1);
+            }, 1000); // Pequeño delay para dejar que la red se estabilice
+        } else {
+            console.error('Bucle de sincronización detectado tras 3 intentos. Se requiere acción manual.');
+        }
     }
-  }, [error])
+  }, [error]);
 
-  const handleSync = async () => {
+  const handleSync = async (nextRetry = 0) => {
     setIsSyncing(true);
     try {
         console.log('SISTEMA - Iniciando limpieza profunda de emergencia...');
@@ -69,9 +77,9 @@ export default function Error({
     } catch (e) {
         console.error('Error durante la sincronización:', e);
     } finally {
-        // 5. Forzar recarga a la RAÍZ del sistema con una semilla única
-        // Redirigir a la raíz es más seguro para romper bucles de rutas rotas
-        window.location.href = window.location.origin + '/?v=' + Date.now();
+        // 5. Forzar recarga a la RAÍZ del sistema con una semilla única y contador de reintentos
+        const retryParam = nextRetry > 0 ? `&retry=${nextRetry}` : '';
+        window.location.href = `${window.location.origin}/?v=${Date.now()}${retryParam}`;
     }
   };
 
@@ -91,7 +99,7 @@ export default function Error({
 
         <div className="bg-white p-8 border-2 rounded-[2rem] shadow-2xl space-y-6">
             <Button 
-                onClick={handleSync}
+                onClick={() => handleSync(0)}
                 disabled={isSyncing}
                 className="w-full h-16 bg-black hover:bg-black/90 text-white font-black uppercase text-sm shadow-xl gap-3 rounded-2xl disabled:opacity-70"
             >
