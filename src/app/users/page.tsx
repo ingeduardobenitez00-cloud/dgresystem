@@ -624,23 +624,22 @@ function UsersContent() {
         });
   };
 
-  const repairAllJefes = async () => {
+  const repairAllSystem = async () => {
     if (!firestore || !isAdminView) return;
     
     setIsSubmitting(true);
     try {
       const usersRef = collection(firestore, 'users');
-      const q = query(usersRef, where('role', '==', 'jefe'));
-      const querySnapshot = await getDocs(q);
-      
       const batch = writeBatch(firestore);
-      let count = 0;
+      let countJefes = 0;
+      let countGhosts = 0;
       
       const jefeModules = [
         'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 
         'agenda-anexo-i', 'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 
         'denuncia-lacres', 'informe-divulgador', 'informe-semanal-puntos-fijos', 
-        'lista-anexo-iv', 'encuesta-satisfaccion', 'archivo-capacitaciones'
+        'lista-anexo-iv', 'encuesta-satisfaccion', 'archivo-capacitaciones',
+        'reportes-pdf'
       ];
 
       const jefePermissions = ['assign_staff', 'district_filter'];
@@ -648,7 +647,10 @@ function UsersContent() {
         jefePermissions.push(`${mod}:view`, `${mod}:add`, `${mod}:pdf`);
       });
 
-      querySnapshot.forEach((docSnap) => {
+      // 1. REPARAR JEFES EXISTENTES
+      const qJefes = query(usersRef, where('role', '==', 'jefe'));
+      const snapJefes = await getDocs(qJefes);
+      snapJefes.forEach((docSnap) => {
         batch.update(docSnap.ref, {
           active: true,
           modules: jefeModules,
@@ -656,12 +658,35 @@ function UsersContent() {
           fecha_reparacion: new Date().toISOString(),
           registration_status: 'migrado_reparado'
         });
-        count++;
+        countJefes++;
       });
+
+      // 2. REPARAR FANTASMAS DETECTADOS
+      for (const ghost of ghostUsers) {
+          const ghostRef = doc(firestore, 'users', ghost.id);
+          batch.set(ghostRef, {
+              id: ghost.id,
+              username: ghost.username.toUpperCase(),
+              email: ghost.email,
+              role: 'jefe', // Por defecto los tratamos como Jefes si no tienen perfil
+              departamento: ghost.departamento || 'GUAIRA',
+              distrito: ghost.distrito || 'INDEPENDENCIA',
+              active: true,
+              modules: jefeModules,
+              permissions: jefePermissions,
+              fecha_creacion: new Date().toISOString(),
+              registration_status: 'reparado_fantasma'
+          }, { merge: true });
+          countGhosts++;
+      }
       
       await batch.commit();
-      toast({ title: "Sincronización Exitosa", description: `Se han reparado ${count} perfiles de Jefes.` });
+      toast({ 
+          title: "Sincronización de Integridad Exitosa", 
+          description: `Se repararon ${countJefes} Jefes y se crearon ${countGhosts} perfiles faltantes.` 
+      });
     } catch (error) {
+      console.error(error);
       toast({ variant: 'destructive', title: "Error en reparación", description: "No se pudo completar la acción." });
     } finally {
       setIsSubmitting(false);
@@ -686,12 +711,12 @@ function UsersContent() {
             {isAdminView && (
                 <div className="flex flex-col md:flex-row gap-3">
                     <Button 
-                        onClick={repairAllJefes} 
+                        onClick={repairAllSystem} 
                         disabled={isSubmitting}
                         className="bg-amber-600 hover:bg-amber-700 text-white h-14 px-8 rounded-2xl font-black uppercase text-[10px] gap-3 shadow-xl tracking-widest border-b-4 border-amber-800"
                     >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        Sincronizar Todos los Jefes
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
+                        Sincronización de Integridad Total
                     </Button>
                     
                     <div className="bg-green-600 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-xl animate-in zoom-in duration-500">
