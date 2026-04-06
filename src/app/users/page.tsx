@@ -623,6 +623,50 @@ function UsersContent() {
         });
   };
 
+  const repairAllJefes = async () => {
+    if (!firestore || !isAdminView) return;
+    
+    setIsSubmitting(true);
+    try {
+      const usersRef = collection(firestore, 'users');
+      const q = query(usersRef, where('role', '==', 'jefe'));
+      const querySnapshot = await getDocs(q);
+      
+      const batch = writeBatch(firestore);
+      let count = 0;
+      
+      const jefeModules = [
+        'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 
+        'agenda-anexo-i', 'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 
+        'denuncia-lacres', 'informe-divulgador', 'informe-semanal-puntos-fijos', 
+        'lista-anexo-iv', 'encuesta-satisfaccion', 'archivo-capacitaciones'
+      ];
+
+      const jefePermissions = ['assign_staff', 'district_filter'];
+      jefeModules.forEach(mod => {
+        jefePermissions.push(`${mod}:view`, `${mod}:add`, `${mod}:pdf`);
+      });
+
+      querySnapshot.forEach((docSnap) => {
+        batch.update(docSnap.ref, {
+          active: true,
+          modules: jefeModules,
+          permissions: jefePermissions,
+          fecha_reparacion: new Date().toISOString(),
+          registration_status: 'migrado_reparado'
+        });
+        count++;
+      });
+      
+      await batch.commit();
+      toast({ title: "Sincronización Exitosa", description: `Se han reparado ${count} perfiles de Jefes.` });
+    } catch (error) {
+      toast({ variant: 'destructive', title: "Error en reparación", description: "No se pudo completar la acción." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isAuthLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
@@ -639,11 +683,22 @@ function UsersContent() {
             </div>
             
             {isAdminView && (
-                <div className="bg-green-600 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-xl animate-in zoom-in duration-500">
-                    <Shield className="h-5 w-5 text-white" />
-                    <div>
-                        <p className="text-[10px] font-black uppercase leading-none">Status: Súper Administrador</p>
-                        <p className="text-[8px] font-bold uppercase opacity-80 mt-1">Permisos Maestros Activados por Email</p>
+                <div className="flex flex-col md:flex-row gap-3">
+                    <Button 
+                        onClick={repairAllJefes} 
+                        disabled={isSubmitting}
+                        className="bg-amber-600 hover:bg-amber-700 text-white h-14 px-8 rounded-2xl font-black uppercase text-[10px] gap-3 shadow-xl tracking-widest border-b-4 border-amber-800"
+                    >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Sincronizar Todos los Jefes
+                    </Button>
+                    
+                    <div className="bg-green-600 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-xl animate-in zoom-in duration-500">
+                        <Shield className="h-5 w-5 text-white" />
+                        <div>
+                            <p className="text-[10px] font-black uppercase leading-none">Status: Súper Administrador</p>
+                            <p className="text-[8px] font-bold uppercase opacity-80 mt-1">Permisos Maestros Activados por Email</p>
+                        </div>
                     </div>
                 </div>
             )}
