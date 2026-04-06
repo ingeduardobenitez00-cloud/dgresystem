@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { RefreshCw, AlertTriangle, Home } from 'lucide-react'
 
 export default function Error({
   error,
@@ -10,40 +10,50 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  useEffect(() => {
-    // Registro técnico del error
-    console.error('SISTEMA - ERROR:', error);
-    
-    const isChunkError = error.message?.toLowerCase().includes('chunk') || 
-                       error.message?.toLowerCase().includes('loading') ||
-                       error.message?.toLowerCase().includes('manifest') ||
-                       error.digest?.includes('chunk');
-
-    if (isChunkError) {
-        const params = new URLSearchParams(window.location.search);
-        const retry = parseInt(params.get('retry') || '0');
-        
-        if (retry < 2) {
-            // Recarga automática silenciosa
-            const nextRetry = retry + 1;
-            window.location.href = `${window.location.origin}${window.location.pathname}?v=${Date.now()}&retry=${nextRetry}`;
-        }
-    }
-  }, [error]);
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary opacity-20" />
-        <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground animate-pulse">
-            Sincronizando Versión...
-        </p>
-        <button 
-          onClick={() => window.location.href = '/'}
-          className="text-[9px] uppercase font-bold text-primary underline"
-        >
-          Volver al Inicio
-        </button>
+    <div className="flex min-h-screen flex-col items-center justify-center p-6 bg-[#F8F9FA] text-center">
+      <div className="max-w-md w-full animate-in fade-in zoom-in duration-500">
+        <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-8 border-4 border-orange-200">
+            <AlertTriangle className="h-10 w-10 text-orange-500" />
+        </div>
+        
+        <div className="space-y-4 mb-10">
+            <h1 className="text-xl font-black uppercase text-primary tracking-tight">Interrupción del Sistema</h1>
+            <p className="text-[10px] font-bold uppercase text-muted-foreground leading-relaxed px-4">
+                Se ha producido un error inesperado al cargar este módulo.
+            </p>
+            {error.message && (
+                <div className="bg-muted/50 p-3 rounded-lg border border-muted-foreground/10 mx-4">
+                    <p className="text-[9px] font-mono text-muted-foreground break-all">
+                        {error.message.substring(0, 150)}
+                    </p>
+                </div>
+            )}
+        </div>
+
+        <div className="space-y-3">
+            <Button 
+                onClick={() => reset()}
+                className="w-full h-14 bg-black hover:bg-black/90 text-white font-black uppercase text-xs shadow-xl gap-3 rounded-xl"
+            >
+                <RefreshCw className="h-4 w-4" /> Reintentar Carga
+            </Button>
+            
+            <Button 
+                variant="outline"
+                onClick={() => window.location.href = '/'}
+                className="w-full h-14 border-2 font-black uppercase text-xs gap-3 rounded-xl"
+            >
+                <Home className="h-4 w-4" /> Ir al Panel Principal
+            </Button>
+        </div>
+
+        <footer className="mt-12 opacity-40">
+            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest leading-none">
+                Justicia Electoral - República del Paraguay<br/>
+                Soporte Técnico CIDEE 2026
+            </p>
+        </footer>
       </div>
     </div>
   )
