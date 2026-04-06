@@ -137,7 +137,9 @@ export const useUser = (): UserHookResult => {
         permissions: permissions.length > 0 ? permissions : profileData?.permissions,
         username: profileData?.username || (isStaff ? role?.toUpperCase() : 'USUARIO'),
         role: profileData?.role || (isStaff ? role : 'funcionario'),
-        active: profileData?.active ?? true
+        active: profileData?.active ?? true,
+        departamento: profileData?.departamento || '',
+        distrito: profileData?.distrito || ''
       },
       isAdmin: role === 'admin',
       isOwner: isOwner,

@@ -155,6 +155,10 @@ function ControlMovimientoContent() {
     const isAdmin = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
     
     if (isAdmin) return colRef;
+    
+    // GUARDIA: Evitar consulta si faltan campos requeridos en el perfil
+    if (!profile.departamento || !profile.distrito) return null;
+    
     return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
   }, [firestore, isUserLoading, profile]);
 

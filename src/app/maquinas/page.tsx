@@ -81,6 +81,10 @@ export default function MaquinasPage() {
     if (!firestore || !profile) return null;
     const colRef = collection(firestore, 'maquinas');
     if (isAdminView) return colRef;
+    
+    // GUARDIA: Si el perfil está incompleto, no realizar la consulta para evitar error de undefined
+    if (!profile.departamento || !profile.distrito) return null;
+    
     return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
   }, [firestore, profile, isAdminView]);
 

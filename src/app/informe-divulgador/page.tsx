@@ -92,6 +92,8 @@ function InformeContent() {
         return query(colRef, where('departamento', '==', userProfile.departamento));
     }
     if (role === 'jefe' || permissions.includes('district_filter')) {
+        // GUARDIA: Evitar consulta si faltan campos requeridos
+        if (!userProfile.departamento || !userProfile.distrito) return null;
         return query(colRef, where('departamento', '==', userProfile.departamento), where('distrito', '==', userProfile.distrito));
     }
     return colRef; 
