@@ -624,15 +624,14 @@ function UsersContent() {
         });
   };
 
-  const repairAllSystem = async () => {
+  const repairAllJefes = async () => {
     if (!firestore || !isAdminView) return;
     
     setIsSubmitting(true);
     try {
       const usersRef = collection(firestore, 'users');
       const batch = writeBatch(firestore);
-      let countJefes = 0;
-      let countGhosts = 0;
+      let count = 0;
       
       const jefeModules = [
         'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 
@@ -647,10 +646,10 @@ function UsersContent() {
         jefePermissions.push(`${mod}:view`, `${mod}:add`, `${mod}:pdf`);
       });
 
-      // 1. REPARAR JEFES EXISTENTES
-      const qJefes = query(usersRef, where('role', '==', 'jefe'));
-      const snapJefes = await getDocs(qJefes);
-      snapJefes.forEach((docSnap) => {
+      const q = query(usersRef, where('role', '==', 'jefe'));
+      const querySnapshot = await getDocs(q);
+      
+      querySnapshot.forEach((docSnap) => {
         batch.update(docSnap.ref, {
           active: true,
           modules: jefeModules,
@@ -658,38 +657,33 @@ function UsersContent() {
           fecha_reparacion: new Date().toISOString(),
           registration_status: 'migrado_reparado'
         });
-        countJefes++;
+        count++;
       });
-
-      // 2. REPARAR FANTASMAS DETECTADOS
-      for (const ghost of ghostUsers) {
-          const ghostRef = doc(firestore, 'users', ghost.id);
-          batch.set(ghostRef, {
-              id: ghost.id,
-              username: ghost.username.toUpperCase(),
-              email: ghost.email,
-              role: 'jefe', // Por defecto los tratamos como Jefes si no tienen perfil
-              departamento: ghost.departamento || 'GUAIRA',
-              distrito: ghost.distrito || 'INDEPENDENCIA',
-              active: true,
-              modules: jefeModules,
-              permissions: jefePermissions,
-              fecha_creacion: new Date().toISOString(),
-              registration_status: 'reparado_fantasma'
-          }, { merge: true });
-          countGhosts++;
-      }
       
       await batch.commit();
-      toast({ 
-          title: "Sincronización de Integridad Exitosa", 
-          description: `Se repararon ${countJefes} Jefes y se crearon ${countGhosts} perfiles faltantes.` 
-      });
+      toast({ title: "Sincronización Exitosa", description: `Se han normalizado ${count} perfiles de Jefes.` });
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: "Error en reparación", description: "No se pudo completar la acción." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const clearAllGhosts = async () => {
+    if (!firestore || ghostUsers.length === 0) return;
+    setIsSubmitting(true);
+    try {
+        const batch = writeBatch(firestore);
+        ghostUsers.forEach(ghost => {
+            batch.delete(doc(firestore, 'presencia', ghost.id));
+        });
+        await batch.commit();
+        toast({ title: "Radar Limpiado", description: "Se han eliminado los rastros de usuarios sin perfil." });
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Error al limpiar radar" });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -711,12 +705,12 @@ function UsersContent() {
             {isAdminView && (
                 <div className="flex flex-col md:flex-row gap-3">
                     <Button 
-                        onClick={repairAllSystem} 
+                        onClick={repairAllJefes} 
                         disabled={isSubmitting}
                         className="bg-amber-600 hover:bg-amber-700 text-white h-14 px-8 rounded-2xl font-black uppercase text-[10px] gap-3 shadow-xl tracking-widest border-b-4 border-amber-800"
                     >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4" />}
-                        Sincronización de Integridad Total
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Sincronizar Todos los Jefes
                     </Button>
                     
                     <div className="bg-green-600 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-xl animate-in zoom-in duration-500">
@@ -737,9 +731,19 @@ function UsersContent() {
                     <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center border-2 border-amber-300">
                         <AlertTriangle className="h-7 w-7 text-amber-600 animate-pulse" />
                     </div>
-                    <div>
-                        <span className="font-black uppercase text-lg tracking-tight">Radar de Integridad: Usuarios sin Perfil ({ghostUsers.length})</span>
-                        <p className="text-[10px] font-bold uppercase text-amber-600 tracking-widest">Cuentas en Authentication que requieren creación de perfil en Firestore.</p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <span className="font-black uppercase text-lg tracking-tight">Radar de Integridad: Usuarios sin Perfil ({ghostUsers.length})</span>
+                            <p className="text-[10px] font-bold uppercase text-amber-600 tracking-widest">Cuentas en Authentication que requieren creación de perfil en Firestore.</p>
+                        </div>
+                        <Button 
+                            variant="outline" 
+                            onClick={clearAllGhosts} 
+                            disabled={isSubmitting}
+                            className="h-10 border-amber-300 text-amber-700 hover:bg-amber-100 font-bold uppercase text-[9px] px-6 rounded-xl gap-2"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" /> LIMPIAR TODO EL RADAR
+                        </Button>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
