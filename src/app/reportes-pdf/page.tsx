@@ -191,72 +191,140 @@ export default function ReportesPDFPage() {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.width;
 
-      // Encabezado
-      doc.setFillColor(31, 41, 55);
-      doc.rect(0, 0, pageWidth, 40, 'F');
+      // Cabecera institucional (Blanco)
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.5);
+      doc.line(15, 45, pageWidth - 15, 45); // Línea divisora
       
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
+      // Logos
+      try {
+        doc.addImage('/logo.png', 'PNG', 15, 8, 28, 28);
+        doc.addImage('/logo1.png', 'PNG', pageWidth - 43, 8, 28, 28);
+      } catch (e) {
+        console.warn("No se pudieron cargar los logos en el PDF", e);
+      }
+
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text("REPORTE INSTITUCIONAL CIDEE 2026", pageWidth / 2, 18, { align: 'center' });
+      doc.text("DGRE - CIDEE - TSJE | SISTEMA DE DIVULGACIÓN", pageWidth / 2, 18, { align: 'center' });
       
-      doc.setFontSize(10);
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      doc.text(`JUSTICIA ELECTORAL - DIRECCIÓN GENERAL DEL REGISTRO ELECTORAL`, pageWidth / 2, 28, { align: 'center' });
-      doc.text(`Generado el: ${new Date().toLocaleString()}`, pageWidth / 2, 34, { align: 'center' });
+      doc.text("REPORTE ESTADÍSTICO E INSTITUCIONAL 2026", pageWidth / 2, 26, { align: 'center' });
+      
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Jurisdicción: ${selectedDepto === 'all' ? 'NACIONAL' : `${selectedDepto} - ${selectedDistrito}`} | Fecha: ${new Date().toLocaleString()}`, pageWidth / 2, 33, { align: 'center' });
 
       // Resumen Ejecutivo
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(15, 23, 42);
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text("1. RESUMEN EJECUTIVO", 15, 55);
+      doc.text("1. RESUMEN EJECUTIVO", 15, 65);
 
       autoTable(doc, {
-        startY: 60,
-        head: [['Métrica', 'Alcance Logrado']],
+        startY: 70,
+        head: [['Métrica de Alcance Logrado', 'Resultado']],
         body: [
-          ['Total Personas Capacitadas', stats.totalCapacitados.toString()],
-          ['Total Encuestas Realizadas', stats.totalEncuestas.toString()],
-          ['Jurisdicción', selectedDepto === 'all' ? 'Nacional' : `${selectedDepto} - ${selectedDistrito === 'all' ? 'Todos los Distritos' : selectedDistrito}`]
+          ['Total Personas Capacitadas', stats.totalCapacitados.toLocaleString()],
+          ['Total Encuestas Realizadas (Anexo II)', stats.totalEncuestas.toLocaleString()],
+          ['Jurisdicción Consultada', selectedDepto === 'all' ? 'Cobertura Nacional' : `${selectedDepto} - ${selectedDistrito === 'all' ? 'Todos los Distritos' : selectedDistrito}`]
         ],
         theme: 'striped',
         headStyles: { fillColor: [59, 130, 246] }
       });
 
-      // Detalle por Distrito (Capacitados)
-      doc.text("2. DETALLE DE CAPACITADOS POR DISTRITO", 15, (doc as any).lastAutoTable.finalY + 15);
+      let currentY = (doc as any).lastAutoTable.finalY + 15;
 
-      const districtRows = stats.chartData.map(d => [d.name, d.value.toString()]);
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 20,
-        head: [['Distrito', 'Cantidad de Capacitados']],
-        body: districtRows,
-        theme: 'grid',
-        headStyles: { fillColor: [16, 185, 129] }
+      // Detalle por Departamento
+      doc.text("2. DESGLOSE JURISDICCIONAL", 15, currentY);
+      currentY += 10;
+
+      stats.deptoGrouped.forEach((depto: any) => {
+        if (currentY > 240) { doc.addPage(); currentY = 20; }
+        
+        doc.setTextColor(59, 130, 246);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`DEPTO: ${depto.name}`, 15, currentY);
+        
+        const rows = depto.districts.map((d: any) => [
+          d.name,
+          d.value.toLocaleString(),
+          d.surveys.toLocaleString(),
+          `${((d.value / depto.totalCapacitados) * 100).toFixed(1)}%`
+        ]);
+
+        autoTable(doc, {
+          startY: currentY + 5,
+          head: [['Distrito', 'Capacitados', 'Encuestas', '% Alcance Depto']],
+          body: rows,
+          theme: 'grid',
+          headStyles: { fillColor: [15, 23, 42] },
+          styles: { fontSize: 8 },
+          margin: { left: 15 }
+        });
+        
+        currentY = (doc as any).lastAutoTable.finalY + 12;
       });
 
-      // Estadísticas de Satisfacción
-      doc.text("3. INDICADORES DE SATISFACCIÓN (ANEXO II)", 15, (doc as any).lastAutoTable.finalY + 15);
+      // Indicadores de Satisfacción
+      if (currentY > 220) { doc.addPage(); currentY = 30; } else { currentY += 10; }
       
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text("3. INDICADORES DE SATISFACCIÓN CIUDADANA", 15, currentY);
+
       const satisfactionRows = stats.pieData.map(d => [d.name, d.value.toString()]);
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 20,
-        head: [['Nivel de Utilidad Percibida', 'Frecuencia']],
+        startY: currentY + 10,
+        head: [['Nivel de Utilidad Percibida', 'Frecuencia de Votos']],
         body: satisfactionRows,
         theme: 'striped',
         headStyles: { fillColor: [245, 158, 11] }
       });
 
-      // Footer
+      currentY = (doc as any).lastAutoTable.finalY + 20;
+
+      // Firmas
+      if (currentY > 230) { doc.addPage(); currentY = 30; }
+      
+      doc.setDrawColor(0, 0, 0);
+      doc.setTextColor(0, 0, 0);
+      doc.setLineWidth(0.5);
+      
+      doc.line(15, currentY + 20, 95, currentY + 20);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("FIRMA", 55, currentY + 25, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text("Lic. Benjamín Díaz Valinotti", 55, currentY + 30, { align: 'center' });
+      doc.setFontSize(7);
+      doc.text("Director General del Registro Electoral", 55, currentY + 34, { align: 'center' });
+
+      doc.line(pageWidth - 95, currentY + 20, pageWidth - 15, currentY + 20);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text("FIRMA", pageWidth - 55, currentY + 25, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text("Ing. Eduardo Benítez", pageWidth - 55, currentY + 30, { align: 'center' });
+      doc.setFontSize(7);
+      doc.text("Dpto. de Informática - DGRE", pageWidth - 55, currentY + 34, { align: 'center' });
+
+      // Footer con numeración
       const totalPages = doc.internal.pages.length - 1;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
+        doc.setFontSize(7);
         doc.setTextColor(150);
-        doc.text(`Página ${i} de ${totalPages} - Sistema de Gestión CIDEE 2026`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+        doc.text(`Página ${i} de ${totalPages} - © 2026 Dpto. Informática DGRE - TSJE | ING. EDUARDO BENITEZ Reservados todos los derechos.`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
       }
 
-      doc.save(`Reporte_Estadistico_${selectedDepto === 'all' ? 'NACIONAL' : selectedDepto}_${new Date().getTime()}.pdf`);
+      doc.save(`Reporte_Estadistico_${selectedDepto === 'all' ? 'NACIONAL' : selectedDepto.replace(' ', '_')}_${new Date().getTime()}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
     } finally {

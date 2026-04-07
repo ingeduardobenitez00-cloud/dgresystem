@@ -305,7 +305,7 @@ export default function InformeTerritorialPage() {
       doc.setFont('helvetica', 'bold');
       doc.text("FIRMA", 55, currentY + 5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.text("Benjamín Díaz Valinotti", 55, currentY + 10, { align: 'center' });
+      doc.text("Lic. Benjamín Díaz Valinotti", 55, currentY + 10, { align: 'center' });
       doc.setFontSize(7);
       doc.text("Director General del Registro Electoral", 55, currentY + 14, { align: 'center' });
 
