@@ -147,6 +147,29 @@ function ControlMovimientoContent() {
     fetchLogos();
   }, []);
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; // Optimización agresiva para 5 fotos
+          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
+          canvas.width = img.width * scaleSize;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject('No context');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const profile = user?.profile;
 
   const agendaQuery = useMemoFirebase(() => {
@@ -343,10 +366,11 @@ function ControlMovimientoContent() {
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.8);
+        // Compresión agresiva para asegurar envío de 5 fotos
+        const dataUri = canvas.toDataURL('image/jpeg', 0.6);
         if (activeCameraTarget === 'salida') {
             setSalidaFotos(prev => [...prev, dataUri].slice(0, 5));
         }
@@ -360,39 +384,41 @@ function ControlMovimientoContent() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: any) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: any) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     if (target === 'salida' || target === 'devolucion') {
       const remaining = 5 - (target === 'salida' ? salidaFotos.length : devolucionFotos.length);
-      Array.from(files).slice(0, remaining).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
+      const selection = Array.from(files).slice(0, remaining);
+      for (const file of selection) {
+        try {
+          const result = await compressImage(file);
           if (target === 'salida') setSalidaFotos(prev => [...prev, result].slice(0, 5));
           else setDevolucionFotos(prev => [...prev, result].slice(0, 5));
-        };
-        reader.readAsDataURL(file);
-      });
+        } catch (err) {
+          toast({ variant: 'destructive', title: "Error al procesar imagen" });
+        }
+      }
     } else if (target === 'denuncia_respaldo') {
       const file = files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
+      try {
+        const result = await compressImage(file);
         setDenunciaRespaldo(result);
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        toast({ variant: 'destructive', title: "Error al procesar respaldo" });
+      }
     } else if (target === 'denuncia_evidencia') {
       const remaining = 5 - denunciaEvidencias.length;
-      Array.from(files).slice(0, remaining).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
+      const selection = Array.from(files).slice(0, remaining)
+      for (const file of selection) {
+        try {
+          const result = await compressImage(file);
           setDenunciaEvidencias(prev => [...prev, result].slice(0, 5));
-        };
-        reader.readAsDataURL(file);
-      });
+        } catch (err) {
+          toast({ variant: 'destructive', title: "Error al procesar evidencia" });
+        }
+      }
     }
   };
 
