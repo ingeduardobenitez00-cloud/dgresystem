@@ -36,6 +36,12 @@ import {
   PieChart as RePieChart,
   Pie
 } from 'recharts';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { type InformeDivulgador, type EncuestaSatisfaccion, type Dato } from '@/lib/data';
@@ -131,15 +137,51 @@ export default function ReportesPDFPage() {
       value
     }));
 
+    // Agrupación por Departamento para la Matriz
+    const deptoMap: Record<string, any> = {};
+    const activeDeptos = selectedDepto === 'all' ? departments : [selectedDepto];
+
+    activeDeptos.forEach(depto => {
+      const deptoInformes = filteredInformes.filter(i => i.departamento === depto);
+      const deptoEncuestas = filteredEncuestas.filter(e => e.departamento === depto);
+      
+      const distritosDeptoMap: Record<string, any> = {};
+      
+      deptoInformes.forEach(inf => {
+        if (!distritosDeptoMap[inf.distrito]) {
+          distritosDeptoMap[inf.distrito] = { name: inf.distrito, value: 0, surveys: 0 };
+        }
+        distritosDeptoMap[inf.distrito].value += (inf.total_personas || 0);
+      });
+
+      deptoEncuestas.forEach(enc => {
+        if (distritosDeptoMap[enc.distrito]) {
+          distritosDeptoMap[enc.distrito].surveys++;
+        }
+      });
+
+      const districtList = Object.values(distritosDeptoMap).sort((a: any, b: any) => b.value - a.value);
+      
+      if (districtList.length > 0) {
+        deptoMap[depto] = {
+          name: depto,
+          districts: districtList,
+          totalCapacitados: districtList.reduce((acc: number, curr: any) => acc + curr.value, 0),
+          totalEncuestas: districtList.reduce((acc: number, curr: any) => acc + curr.surveys, 0)
+        };
+      }
+    });
+
     return {
       totalCapacitados,
       totalEncuestas: filteredEncuestas.length,
       chartData,
       pieData,
       filteredInformes,
-      filteredEncuestas
+      filteredEncuestas,
+      deptoGrouped: Object.values(deptoMap).sort((a: any, b: any) => b.totalCapacitados - a.totalCapacitados)
     };
-  }, [informesData, encuestasData, selectedDistrito]);
+  }, [informesData, encuestasData, selectedDistrito, selectedDepto, departments]);
 
   const generatePDF = async () => {
     if (!stats) return;
@@ -396,53 +438,88 @@ export default function ReportesPDFPage() {
             </Card>
         </div>
 
-        {/* TABLA DE DETALLE ESTADÍSTICO */}
-        <Card className="rounded-[2rem] border-none shadow-xl bg-white overflow-hidden">
-            <CardHeader className="bg-primary text-white p-8">
+        {/* MATRIZ TERRITORIAL CON ACORDEONES */}
+        <Card className="rounded-[2.5rem] border-none shadow-2xl bg-white overflow-hidden">
+            <CardHeader className="bg-slate-900 text-white p-8">
                 <div className="flex justify-between items-center">
                     <div>
-                        <CardTitle className="text-2xl font-black uppercase tracking-tighter">Matriz Jurisdiccional de Datos</CardTitle>
-                        <CardDescription className="text-white/60 text-[10px] font-bold uppercase tracking-widest mt-1">Desglose detallado de inspección y encuestas</CardDescription>
+                        <CardTitle className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+                            <FileCheck2 className="h-6 w-6 text-indigo-400" /> Matriz Jurisdiccional de Datos
+                        </CardTitle>
+                        <CardDescription className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Reportes agrupados por Departamento y Distrito</CardDescription>
                     </div>
-                    <FileCheck2 className="h-10 w-10 opacity-20" />
                 </div>
             </CardHeader>
-            <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-muted/50 border-b">
-                            <tr>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase text-muted-foreground">Distrito</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase text-muted-foreground">Personas Capacitadas</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase text-muted-foreground">Encuestas Realizadas</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase text-muted-foreground text-right">Acumulado %</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {stats?.chartData.map((d) => (
-                                <tr key={d.name} className="hover:bg-muted/10 transition-colors">
-                                    <td className="px-8 py-5 flex items-center gap-3">
-                                        <div className="h-2 w-2 rounded-full bg-primary" />
-                                        <span className="text-[11px] font-bold uppercase tracking-tight">{d.name}</span>
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <span className="text-sm font-black text-primary">{d.value}</span>
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <span className="text-sm font-bold text-muted-foreground">
-                                            {stats.filteredEncuestas.filter(e => e.distrito === d.name).length}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-5 text-right">
-                                        <Badge variant="outline" className="font-black border-2 text-[10px]">
-                                            {((d.value / stats.totalCapacitados) * 100).toFixed(1)}%
-                                        </Badge>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+            <CardContent className="p-6">
+                <Accordion type="multiple" className="space-y-4">
+                    {stats?.deptoGrouped.map((depto: any) => (
+                        <AccordionItem 
+                            key={depto.name} 
+                            value={depto.name} 
+                            className="border-none bg-slate-50/50 rounded-2xl overflow-hidden px-4"
+                        >
+                            <AccordionTrigger className="hover:no-underline py-5 pr-4">
+                                <div className="flex flex-1 items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-10 w-10 rounded-xl bg-black text-white flex items-center justify-center font-black text-xs">
+                                            {depto.name.substring(0, 2)}
+                                        </div>
+                                        <div className="flex flex-col text-left">
+                                            <span className="text-sm font-black uppercase tracking-tight text-slate-800">{depto.name}</span>
+                                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
+                                                {depto.districts.length} DISTRITOS
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-6">
+                                        <div className="hidden md:flex flex-col items-end">
+                                            <span className="text-xs font-black text-slate-700">{depto.totalCapacitados.toLocaleString()}</span>
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase">Capacitados</span>
+                                        </div>
+                                        <div className="hidden md:flex flex-col items-end">
+                                            <span className="text-xs font-black text-slate-700">{depto.totalEncuestas.toLocaleString()}</span>
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase">Encuestas</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pb-6 pt-2">
+                                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-inner">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-slate-50 border-b">
+                                            <tr>
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-500">Distrito</th>
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-primary text-center">Capacitados</th>
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-muted-foreground text-center">Encuestas</th>
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-500 text-right">% Depto</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {depto.districts.map((dist: any) => (
+                                                <tr key={dist.name} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-[10px] font-bold uppercase text-slate-700">{dist.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-black text-primary text-xs">
+                                                        {dist.value.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-bold text-muted-foreground text-xs">
+                                                        {dist.surveys}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <Badge variant="outline" className="font-black border-2 text-[9px] text-slate-500">
+                                                            {((dist.value / depto.totalCapacitados) * 100).toFixed(1)}%
+                                                        </Badge>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
             </CardContent>
         </Card>
 
