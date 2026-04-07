@@ -192,15 +192,19 @@ export default function Header({ title }: { title?: string }) {
                 </Popover>
             )}
 
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border shadow-sm">
-              <Avatar className="h-7 w-7 border-2 border-background">
+            <div 
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border shadow-sm cursor-pointer hover:bg-muted transition-colors group/profile"
+              onClick={() => router.push('/perfil')}
+              title="Mi Perfil"
+            >
+              <Avatar className="h-7 w-7 border-2 border-background group-hover/profile:border-primary/20 transition-colors">
                 <AvatarImage src={user.photoURL ?? undefined} />
                 <AvatarFallback className="bg-primary text-white text-[10px]">
                   <User className="h-3 w-3"/>
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col text-left hidden sm:flex pr-1">
-                <span className="text-[10px] font-black leading-none uppercase">{user.profile?.username || 'Usuario'}</span>
+                <span className="text-[10px] font-black leading-none uppercase group-hover/profile:text-primary transition-colors">{user.profile?.username || 'Usuario'}</span>
                 <span className="text-[8px] text-muted-foreground uppercase font-bold mt-0.5">{user.profile?.role}</span>
               </div>
             </div>

@@ -104,6 +104,7 @@ export default function AppSidebar() {
         { href: "/resumen", label: "Resumen Ubicaciones", icon: BarChart3 },
         { href: "/informe-general", label: "Informe General PDF", icon: FileArchive },
         { href: "/reportes-pdf", label: "Reportes PDF y Estadísticas", icon: PieChart },
+        { href: "/informe-territorial", label: "Informe Territorial", icon: MapPin },
       ]
     },
     {
@@ -131,11 +132,17 @@ export default function AppSidebar() {
         { href: "/documentacion", label: "Documentación", icon: BookOpen },
       ]
     },
+    {
+      label: "MI CUENTA",
+      items: [
+        { href: "/perfil", label: "Mi Perfil", icon: UserCircle },
+      ]
+    },
   ];
 
   const isAccessible = (href: string) => {
     if (!user) return false;
-    if (href === '/') return true;
+    if (href === '/' || href === '/perfil') return true;
     
     // Acceso Total: Admin o Propietario
     if (user.isAdmin || user.isOwner) return true;
