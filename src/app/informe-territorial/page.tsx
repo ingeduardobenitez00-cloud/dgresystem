@@ -236,7 +236,7 @@ export default function InformeTerritorialPage() {
         body: [
           ['Total Distritos Relevados', stats.coverage.totalDistritos.toString()],
           ['Distritos con Personal Activo', stats.coverage.conUsuario.toString()],
-          ['Distritos SIN PERSONAL (Pendiente)', stats.coverage.pendientes.toString()],
+          ['Distritos sin usuarios (Pendientes)', stats.coverage.pendientes.toString()],
           ['Porcentaje de Cobertura Real', `${stats.coverage.percentage.toFixed(1)}%`],
           ['Total Personas Capacitadas (Alcance)', stats.totals.trained.toLocaleString()]
         ],
@@ -400,7 +400,7 @@ export default function InformeTerritorialPage() {
 
           <Card className="rounded-[2rem] border-none shadow-lg bg-red-600 text-white overflow-hidden relative group hover:scale-[1.02] transition-transform">
             <CardHeader className="pb-2">
-                <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Distritos SIN Usuario</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-widest opacity-70">Distritos sin Usuarios</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="text-4xl font-black">{stats?.coverage.pendientes}</div>
@@ -525,7 +525,7 @@ export default function InformeTerritorialPage() {
                                                     <td className="px-6 py-4 text-right">
                                                         {m.totalUsers === 0 ? (
                                                             <span className="text-[9px] font-black text-red-600 flex items-center justify-end gap-1 uppercase tracking-tighter">
-                                                                <AlertCircle className="h-3 w-3" /> CRÍTICO - SIN USUARIO
+                                                                <AlertCircle className="h-3 w-3" /> CRÍTICO - SIN USUARIO (PENDIENTE)
                                                             </span>
                                                         ) : (m.trained === 0 ? (
                                                             <span className="text-[9px] font-black text-amber-600 flex items-center justify-end gap-1 bg-amber-50 px-2 py-1 rounded-full uppercase">
@@ -590,7 +590,7 @@ export default function InformeTerritorialPage() {
                             <Pie
                                 data={[
                                     { name: 'CON USUARIO', value: stats?.coverage.conUsuario },
-                                    { name: 'SIN USUARIO', value: stats?.coverage.pendientes }
+                                    { name: 'SIN USUARIO (PEND.)', value: stats?.coverage.pendientes }
                                 ]}
                                 innerRadius={60}
                                 outerRadius={100}
