@@ -91,13 +91,12 @@ export default function PerfilPage() {
     
     setIsSubmitting(true);
     try {
-      // 1. Actualizar Firebase Auth
+      // 1. Actualizar Firebase Auth (Solo Nombre para evitar errores de tamaño en photoURL)
       await updateProfile(auth.currentUser, {
         displayName: username.toUpperCase(),
-        photoURL: photoUrl
       });
 
-      // 2. Actualizar Firestore
+      // 2. Actualizar Firestore (Aquí sí guardamos la foto en Base64)
       const userRef = doc(firestore, 'users', user.uid);
       await updateDoc(userRef, {
         username: username.toUpperCase(),
@@ -105,9 +104,13 @@ export default function PerfilPage() {
       });
 
       toast({ title: "Perfil actualizado", description: "Tus cambios se han guardado correctamente." });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast({ variant: 'destructive', title: "Error al actualizar perfil" });
+      toast({ 
+        variant: 'destructive', 
+        title: "Error al actualizar perfil", 
+        description: err.message || "Verifica tu conexión o permisos." 
+      });
     } finally {
       setIsSubmitting(false);
     }

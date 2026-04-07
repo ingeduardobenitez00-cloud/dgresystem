@@ -198,7 +198,7 @@ export default function Header({ title }: { title?: string }) {
               title="Mi Perfil"
             >
               <Avatar className="h-7 w-7 border-2 border-background group-hover/profile:border-primary/20 transition-colors">
-                <AvatarImage src={user.photoURL ?? undefined} />
+                <AvatarImage src={user.photoURL || user.profile?.photo_url || undefined} />
                 <AvatarFallback className="bg-primary text-white text-[10px]">
                   <User className="h-3 w-3"/>
                 </AvatarFallback>
