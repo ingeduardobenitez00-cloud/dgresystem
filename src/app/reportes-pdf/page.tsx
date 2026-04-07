@@ -179,7 +179,7 @@ export default function ReportesPDFPage() {
       pieData,
       filteredInformes,
       filteredEncuestas,
-      deptoGrouped: Object.values(deptoMap).sort((a: any, b: any) => b.totalCapacitados - a.totalCapacitados)
+      deptoGrouped: Object.values(deptoMap).sort((a: any, b: any) => a.name.localeCompare(b.name))
     };
   }, [informesData, encuestasData, selectedDistrito, selectedDepto, departments]);
 
