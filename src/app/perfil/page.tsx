@@ -44,10 +44,13 @@ export default function PerfilPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const hasLoaded = useRef(false);
+
   useEffect(() => {
-    if (user) {
+    if (user && !hasLoaded.current) {
       setUsername(user.profile?.username || user.displayName || '');
       setPhotoUrl(user.photoURL || user.profile?.photo_url || null);
+      hasLoaded.current = true;
     }
   }, [user]);
 

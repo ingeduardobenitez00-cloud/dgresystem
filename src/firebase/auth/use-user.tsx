@@ -15,6 +15,7 @@ export interface UserProfile {
   vinculo?: 'PERMANENTE' | 'CONTRATADO' | 'COMISIONADO' | string;
   active?: boolean;
   registration_method?: string;
+  photo_url?: string | null;
 }
 
 export const CIDEE_MODULES = [
@@ -22,14 +23,14 @@ export const CIDEE_MODULES = [
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
   'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 'estadisticas-capacitacion',
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'informe-territorial'
 ];
 
 export const JEFE_MODULES = [
   'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-divulgador', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'informe-territorial'
 ];
 
 export type AppUser = User & {
@@ -83,7 +84,7 @@ export const useUser = (): UserHookResult => {
         'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
         'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
-        'reportes-pdf'
+        'reportes-pdf', 'informe-territorial'
       ];
 
       const allPermissions = [
@@ -104,6 +105,7 @@ export const useUser = (): UserHookResult => {
           active: true,
           departamento: profileData?.departamento || 'SEDE CENTRAL',
           distrito: profileData?.distrito || 'ASUNCIÓN',
+          photo_url: profileData?.photo_url || null,
           modules: allModules,
           permissions: allPermissions
         },
