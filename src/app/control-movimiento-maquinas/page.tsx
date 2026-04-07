@@ -77,6 +77,7 @@ function ControlMovimientoContent() {
   const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(null);
   const [isDevolucionGuardada, setIsDevolucionGuardada] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+  const [openSelectors, setOpenSelectors] = useState<{ [key: number]: boolean }>({});
   
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [activeCameraTarget, setActiveCameraTarget] = useState<'salida' | 'devolucion' | 'denuncia_evidencia' | 'denuncia_respaldo' | null>(null);
@@ -869,15 +870,41 @@ function ControlMovimientoContent() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-2">
                                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Serie de Máquina</Label>
-                                        <Select value={maq.codigo || undefined} onValueChange={(v) => updateMaquina(idx, 'codigo', v)}>
-                                            <SelectTrigger className="h-12 border-2 rounded-xl font-black uppercase"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                                            <SelectContent>
-                                                {maquinasInventario?.map(m => <SelectItem key={m.id} value={m.codigo} className="font-black text-xs uppercase">{m.codigo}</SelectItem>)}
-                                                {(!maquinasInventario || maquinasInventario.length === 0) && (
-                                                    <div className="p-4 text-center text-[10px] font-black uppercase text-muted-foreground">Sin stock en este distrito</div>
-                                                )}
-                                            </SelectContent>
-                                        </Select>
+                                        <Popover open={openSelectors[idx] || false} onOpenChange={(open) => setOpenSelectors(p => ({ ...p, [idx]: open }))}>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" role="combobox" className="w-full h-12 border-2 rounded-xl font-black uppercase justify-between">
+                                                    {maq.codigo || "Seleccione..."}
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-30 shrink-0" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-none overflow-hidden" align="start">
+                                                <Command>
+                                                    <CommandInput placeholder="Buscar serie..." className="h-11 font-bold" />
+                                                    <CommandList>
+                                                        <CommandEmpty className="py-6 text-center text-[10px] font-black uppercase text-muted-foreground">No se encontraron equipos.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {maquinasInventario?.map((m) => (
+                                                                <CommandItem 
+                                                                    key={m.id} 
+                                                                    value={m.codigo} 
+                                                                    onSelect={() => { 
+                                                                        updateMaquina(idx, 'codigo', m.codigo); 
+                                                                        setOpenSelectors(p => ({ ...p, [idx]: false }));
+                                                                    }}
+                                                                    className="p-3 border-b last:border-0 cursor-pointer hover:bg-muted/50 transition-colors font-black text-xs uppercase flex items-center justify-between"
+                                                                >
+                                                                    {m.codigo}
+                                                                    <Check className={cn("h-4 w-4 text-primary", maq.codigo === m.codigo ? "opacity-100" : "opacity-0")} />
+                                                                </CommandItem>
+                                                            ))}
+                                                            {(!maquinasInventario || maquinasInventario.length === 0) && (
+                                                                <div className="p-4 text-center text-[10px] font-black uppercase text-muted-foreground">Sin stock en este distrito</div>
+                                                            )}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Serie Pendrive</Label>

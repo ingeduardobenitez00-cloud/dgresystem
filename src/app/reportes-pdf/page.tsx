@@ -46,6 +46,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { type InformeDivulgador, type EncuestaSatisfaccion, type Dato } from '@/lib/data';
 import { formatDateToDDMMYYYY } from '@/lib/utils';
+import html2canvas from 'html2canvas';
 
 export default function ReportesPDFPage() {
   const { user, isUserLoading } = useUser();
@@ -254,13 +255,12 @@ export default function ReportesPDFPage() {
         const rows = depto.districts.map((d: any) => [
           d.name,
           d.value.toLocaleString(),
-          d.surveys.toLocaleString(),
-          `${((d.value / depto.totalCapacitados) * 100).toFixed(1)}%`
+          d.surveys.toLocaleString()
         ]);
 
         autoTable(doc, {
           startY: currentY + 5,
-          head: [['Distrito', 'Capacitados', 'Encuestas', '% Alcance Depto']],
+          head: [['Distrito', 'Capacitados', 'Encuestas']],
           body: rows,
           theme: 'grid',
           headStyles: { fillColor: [15, 23, 42] },
@@ -288,7 +288,35 @@ export default function ReportesPDFPage() {
         headStyles: { fillColor: [245, 158, 11] }
       });
 
-      currentY = (doc as any).lastAutoTable.finalY + 20;
+      // AGREGAR GRÁFICOS AL PDF
+      doc.addPage();
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text("4. VISUALIZACIÓN ESTADÍSTICA", 15, 25);
+
+      const chartElements = ['top-distritos-chart', 'satisfaccion-pie-chart'];
+      let chartY = 35;
+
+      for (const id of chartElements) {
+        const element = document.getElementById(id);
+        if (element) {
+          const canvas = await html2canvas(element, { scale: 2 });
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 180;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+          if (chartY + imgHeight > 270) {
+            doc.addPage();
+            chartY = 20;
+          }
+
+          doc.text(id === 'top-distritos-chart' ? "Alcance por Distrito" : "Percepción de Utilidad", 15, chartY);
+          doc.addImage(imgData, 'PNG', 15, chartY + 5, imgWidth, imgHeight);
+          chartY += imgHeight + 25;
+        }
+      }
+
+      currentY = chartY;
 
       // Firmas
       if (currentY > 230) { doc.addPage(); currentY = 30; }
@@ -445,7 +473,7 @@ export default function ReportesPDFPage() {
                     </CardTitle>
                     <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-1">Comparativa de productividad institucional</CardDescription>
                 </CardHeader>
-                <CardContent className="p-8 h-[400px]">
+                <CardContent id="top-distritos-chart" className="p-8 h-[400px] bg-white">
                     <ResponsiveContainer width="100%" height="100%">
                         <ReBarChart data={stats?.chartData || []} layout="vertical" margin={{ left: 40 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
@@ -470,7 +498,7 @@ export default function ReportesPDFPage() {
                     </CardTitle>
                     <CardDescription className="text-[10px] font-bold uppercase tracking-widest mt-1">Métricas de satisfacción ciudadana con la máquina</CardDescription>
                 </CardHeader>
-                <CardContent className="p-8 flex items-center justify-center h-[400px]">
+                <CardContent id="satisfaccion-pie-chart" className="p-8 flex items-center justify-center h-[400px] bg-white">
                     <div className="w-full h-full flex flex-col md:flex-row items-center gap-8">
                         <div className="flex-1 h-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -559,7 +587,6 @@ export default function ReportesPDFPage() {
                                                 <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-500">Distrito</th>
                                                 <th className="px-6 py-4 text-[9px] font-black uppercase text-primary text-center">Capacitados</th>
                                                 <th className="px-6 py-4 text-[9px] font-black uppercase text-muted-foreground text-center">Encuestas</th>
-                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-500 text-right">% Depto</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -573,11 +600,6 @@ export default function ReportesPDFPage() {
                                                     </td>
                                                     <td className="px-6 py-4 text-center font-bold text-muted-foreground text-xs">
                                                         {dist.surveys}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <Badge variant="outline" className="font-black border-2 text-[9px] text-slate-500">
-                                                            {((dist.value / depto.totalCapacitados) * 100).toFixed(1)}%
-                                                        </Badge>
                                                     </td>
                                                 </tr>
                                             ))}

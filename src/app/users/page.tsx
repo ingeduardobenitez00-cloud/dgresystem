@@ -126,6 +126,7 @@ const MODULE_STRUCTURE = [
       { id: 'resumen', label: 'RESUMEN UBICACIONES' },
       { id: 'informe-general', label: 'INFORME GENERAL PDF' },
       { id: 'reportes-pdf', label: 'REPORTES PDF Y ESTADÍSTICAS' },
+      { id: 'informe-territorial', label: 'INFORME TERRITORIAL' },
       { id: 'conexiones', label: 'MONITOREO CONEXIONES' },
     ]
   },
@@ -452,7 +453,8 @@ function UsersContent() {
       'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion',
       'agenda-anexo-i', 'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 
       'denuncia-lacres', 'informe-divulgador', 'informe-semanal-puntos-fijos', 
-      'lista-anexo-iv', 'encuesta-satisfaccion', 'archivo-capacitaciones'
+      'lista-anexo-iv', 'encuesta-satisfaccion', 'archivo-capacitaciones',
+      'reportes-pdf'
     ];
     const actions = ['view', 'add', 'pdf'];
     const newPerms = new Set<string>();

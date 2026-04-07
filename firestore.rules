@@ -66,6 +66,7 @@ service cloud.firestore {
     /** Regla para el Padrón Electoral **/
     match /padron/{document=**} {
       allow read: if isActive();
+      allow write: if isAdmin();
     }
 
     /** Monitoreo de Presencia **/

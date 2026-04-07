@@ -74,8 +74,8 @@ async function importFile(fileName: string, filePath: string) {
   console.log(`📊 Registros detectados: ${data.length.toLocaleString()}`);
 
   // Configuración de ráfaga ultra-segura para 500,000 registros
-  const BATCH_SIZE = 50; // Reducido a 50 para máxima compatibilidad con el motor de reglas
-  const STABILITY_PAUSE = 1000; // 1 segundo cada 1000 registros
+  const BATCH_SIZE = 500; // Máximo permitido por Firestore para writeBatch
+  const STABILITY_PAUSE = 2000; // 2 segundos cada 20,000 registros para refrescar la conexión
   
   let currentCount = 0;
   const colRef = collection(db, 'padron');
@@ -108,10 +108,11 @@ async function importFile(fileName: string, filePath: string) {
       process.stdout.write(`\r🚀 Progreso: ${currentCount.toLocaleString()} / ${data.length.toLocaleString()} (${percent}%)`);
 
       // Control de flujo para estabilidad térmica de la conexión gRPC
-      if (currentCount % 1000 === 0) {
+      if (currentCount % 20000 === 0) {
+        console.log(`\n⏳ Estabilizando conexión (registros: ${currentCount.toLocaleString()})...`);
         await new Promise(res => setTimeout(res, STABILITY_PAUSE));
       } else {
-        await new Promise(res => setTimeout(res, 100)); // Micro-pausa obligatoria entre commits
+        await new Promise(res => setTimeout(res, 50)); // Micro-pausa obligatoria entre commits
       }
     } catch (e: any) {
       console.error(`\n❌ Error en lote (registros ${currentCount}-${currentCount + BATCH_SIZE}):`, e.message);
