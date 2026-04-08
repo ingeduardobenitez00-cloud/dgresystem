@@ -90,21 +90,46 @@ export default function ReportesPDFPage() {
             });
 
             // Preparar chart de percepción
-            const percCounts: any = { 'Excelente': 0, 'Muy Bueno': 0, 'Bueno': 0, 'Regular': 0, 'Insatisfactorio': 0 };
+            const percepcionData = Object.entries(percCounts).map(([name, value]) => ({ name, value }));
+
+            // 3. Métricas adicionales de Usabilidad y Perfil
+            const utilidadCounts: any = { muy_util: 0, util: 0, poco_util: 0, nada_util: 0 };
+            const facilidadCounts: any = { muy_facil: 0, facil: 0, poco_facil: 0, nada_facil: 0 };
+            const seguridadCounts: any = { muy_seguro: 0, seguro: 0, poco_seguro: 0, nada_seguro: 0 };
+            const generoCounts: any = { hombre: 0, mujer: 0 };
+            const edadCounts: any = { '18-25': 0, '26-40': 0, '41-60': 0, '60+': 0 };
+            let pueblosCount = 0;
+
             encuestas.forEach((e: any) => {
-                const feel = e.percepcion_utilidad || 'Regular';
-                if (percCounts[feel] !== undefined) percCounts[feel]++;
+                if (e.utilidad_maquina && utilidadCounts[e.utilidad_maquina] !== undefined) utilidadCounts[e.utilidad_maquina]++;
+                if (e.facilidad_maquina && facilidadCounts[e.facilidad_maquina] !== undefined) facilidadCounts[e.facilidad_maquina]++;
+                if (e.seguridad_maquina && seguridadCounts[e.seguridad_maquina] !== undefined) seguridadCounts[e.seguridad_maquina]++;
+                if (e.genero && generoCounts[e.genero] !== undefined) generoCounts[e.genero]++;
+                if (e.pueblo_originario) pueblosCount++;
+                const edad = parseInt(e.edad);
+                if (!isNaN(edad)) {
+                    if (edad <= 25) edadCounts['18-25']++;
+                    else if (edad <= 40) edadCounts['26-40']++;
+                    else if (edad <= 60) edadCounts['41-60']++;
+                    else edadCounts['60+']++;
+                }
             });
 
-            const percepcionData = Object.entries(percCounts).map(([name, value]) => ({ name, value }));
+            const formatData = (obj: any, labels: any) => Object.entries(obj).map(([key, value]) => ({ name: labels[key] || key, value }));
 
             // Guardar en Firestore
             await setDoc(doc(firestore, 'stats-summary', 'capacitaciones'), {
                 lastUpdate: new Date().toISOString(),
                 totalCapacitados: globalCapacitados,
                 totalEncuestas: encuestas.length,
+                pueblosCount,
                 deptoData: deptoMap,
-                percepcionData: percepcionData,
+                percepcionData,
+                utilidadData: formatData(utilidadCounts, { muy_util: 'Muy Útil', util: 'Útil', poco_util: 'Poco Útil', nada_util: 'Nada Útil' }),
+                facilidadData: formatData(facilidadCounts, { muy_facil: 'Muy Fácil', facil: 'Fácil', poco_facil: 'Poco Fácil', nada_facil: 'Nada Fácil' }),
+                seguridadData: formatData(seguridadCounts, { muy_seguro: 'Muy Seguro', seguro: 'Seguro', poco_seguro: 'Poco Seguro', nada_seguro: 'Nada Seguro' }),
+                generoData: formatData(generoCounts, { hombre: 'Hombre', mujer: 'Mujer' }),
+                edadesData: Object.entries(edadCounts).map(([key, value]) => ({ name: key, value })),
                 updatedBy: user?.profile?.username || user?.email
             });
 
@@ -300,8 +325,8 @@ export default function ReportesPDFPage() {
                             </Card>
                             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
                                 <CardContent className="p-8">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Encuestas Recibidas</p>
-                                    <h2 className="text-4xl font-black text-neutral-800">{summary.totalEncuestas.toLocaleString()}</h2>
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Pueblos Originarios</p>
+                                    <h2 className="text-4xl font-black text-neutral-800">{summary.pueblosCount?.toLocaleString() || 0}</h2>
                                     <div className="h-1 w-12 bg-neutral-300 mt-4 rounded-full" />
                                 </CardContent>
                             </Card>
@@ -369,6 +394,51 @@ export default function ReportesPDFPage() {
                                                 <RechartsTooltip />
                                                 <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
                                             </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Nuevos Gráficos de Usabilidad */}
+                            <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden">
+                                <CardHeader className="p-8 pb-4 border-b border-neutral-50">
+                                    <CardTitle className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                                        <BarChart3 className="h-4 w-4 text-primary" /> Facilidad y Usabilidad
+                                    </CardTitle>
+                                    <CardDescription className="text-[9px] font-bold uppercase tracking-widest">Experiencia con la Máquina de Votación</CardDescription>
+                                </CardHeader>
+                                <CardContent id="usabilidad-chart" className="p-10 bg-white">
+                                    <div className="h-[400px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={summary.facilidadData}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                                                <YAxis style={{ fontSize: '9px', fontWeight: 'bold' }} />
+                                                <RechartsTooltip />
+                                                <Bar dataKey="value" name="Votos" fill="#1A1A1A" radius={[6, 6, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden">
+                                <CardHeader className="p-8 pb-4 border-b border-neutral-50">
+                                    <CardTitle className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                                        <Users className="h-4 w-4 text-primary" /> Perfil Demográfico
+                                    </CardTitle>
+                                    <CardDescription className="text-[9px] font-bold uppercase tracking-widest">Distribución por Rangos de Edad</CardDescription>
+                                </CardHeader>
+                                <CardContent id="demografia-chart" className="p-10 bg-white">
+                                    <div className="h-[400px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={summary.edadesData} layout="vertical">
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                <XAxis type="number" style={{ fontSize: '9px', fontWeight: 'bold' }} />
+                                                <YAxis dataKey="name" type="category" style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                                                <RechartsTooltip />
+                                                <Bar dataKey="value" name="Participantes" fill="#1A1A1A" radius={[0, 6, 6, 0]} />
+                                            </BarChart>
                                         </ResponsiveContainer>
                                     </div>
                                 </CardContent>

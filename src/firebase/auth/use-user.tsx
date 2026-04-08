@@ -22,7 +22,7 @@ export const CIDEE_MODULES = [
   'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
-  'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 'estadisticas-capacitacion',
+  'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 
   'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf'
 ];
 
@@ -79,7 +79,7 @@ export const useUser = (): UserHookResult => {
         'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
         'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
         'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
-        'archivo-capacitaciones', 'divulgadores', 'estadisticas-capacitacion',
+        'archivo-capacitaciones', 'divulgadores', 
         'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
         'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',

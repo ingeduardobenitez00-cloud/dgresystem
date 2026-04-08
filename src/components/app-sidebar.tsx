@@ -82,7 +82,6 @@ export default function AppSidebar() {
         { href: "/lista-anexo-iv", label: "Listado de Anexo IV", icon: ClipboardList },
         { href: "/archivo-capacitaciones", label: "Archivo / Historial", icon: History },
         { href: "/divulgadores", label: "Directorio Divulgadores", icon: UserCircle },
-        { href: "/estadisticas-capacitacion", label: "Estadísticas", icon: PieChart },
         { href: "/encuesta-satisfaccion", label: "Anexo II - Encuesta de Satisfacción", icon: MessageSquareHeart },
       ]
     },
