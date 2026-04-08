@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, writeBatch, query, where, getDocs, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -291,7 +291,7 @@ function UsersContent() {
     return [...firestoreUsers, ...virtualOwners];
   }, [firestoreUsers]);
   const datosQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'datos') : null), [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const presenceQuery = useMemoFirebase(() => firestore ? collection(firestore, 'presencia') : null, [firestore]);
   const { data: presenceData } = useCollection<any>(presenceQuery);

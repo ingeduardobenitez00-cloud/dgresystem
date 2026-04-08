@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useFirebase, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useUser, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, doc, setDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
@@ -85,7 +85,7 @@ function InformeContent() {
   };
 
   const informesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
-  const { data: submittedInformes } = useCollection<InformeDivulgador>(informesQuery);
+  const { data: submittedInformes } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isProfileLoading || !userProfile) return null;

@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, writeBatch, getDocs, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -125,7 +125,7 @@ export default function DivulgadoresPage() {
   }, [editingDivulgador]);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const departments = useMemo(() => {
     let depts = datosData ? [...new Set(datosData.map(d => d.departamento))] : [];
@@ -150,13 +150,32 @@ export default function DivulgadoresPage() {
     if (!firestore || isUserLoading || !currentUser?.uid || !profile) return null;
     const colRef = collection(firestore, 'divulgadores');
     
-    if (hasAdminFilter) return colRef;
-    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
-    if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    // Condicionamos la base de la consulta según el rol
+    let baseQuery;
+    if (hasAdminFilter) {
+        baseQuery = colRef;
+    } else if (hasDeptFilter && profile.departamento) {
+        baseQuery = query(colRef, where('departamento', '==', profile.departamento));
+    } else if (hasDistFilter && profile.departamento && profile.distrito) {
+        baseQuery = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    } else {
+        return null;
     }
-    return null;
-  }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
+
+    // Aplicamos filtros adicionales del UI directamente en el servidor
+    const constraints = [];
+    if (filterDept !== 'all' && hasAdminFilter) {
+        constraints.push(where('departamento', '==', filterDept));
+    }
+    if (filterDist !== 'all' && (hasAdminFilter || hasDeptFilter)) {
+        constraints.push(where('distrito', '==', filterDist));
+    }
+
+    if (constraints.length > 0) {
+        return query(baseQuery, ...constraints);
+    }
+    return baseQuery;
+  }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist]);
 
   const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulQuery);
 
@@ -169,12 +188,11 @@ export default function DivulgadoresPage() {
     if (!divulgadores) return [];
     const term = searchTerm.toLowerCase().trim();
     return divulgadores.filter(d => {
+      // Los filtros de departamento y distrito ahora están en el servidor (divulQuery)
       const matchesSearch = d.nombre.toLowerCase().includes(term) || d.cedula.toLowerCase().includes(term);
-      const matchesDept = filterDept === 'all' || d.departamento === filterDept;
-      const matchesDist = filterDist === 'all' || d.distrito === filterDist;
-      return matchesSearch && matchesDept && matchesDist;
+      return matchesSearch;
     });
-  }, [divulgadores, searchTerm, filterDept, filterDist]);
+  }, [divulgadores, searchTerm]);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
     const cleanTerm = (cedulaInput || '').trim().toUpperCase();

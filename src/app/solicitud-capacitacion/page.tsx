@@ -26,15 +26,18 @@ import {
   ImageIcon,
   ShieldAlert,
   Flag,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Globe,
+  MapPin
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit, doc, updateDoc } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
-import { type PartidoPolitico, type MaquinaVotacion, type SolicitudCapacitacion } from '@/lib/data';
+import { type PartidoPolitico, type MaquinaVotacion, type SolicitudCapacitacion, type Dato } from '@/lib/data';
 import Image from 'next/image';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -183,6 +186,8 @@ export default function SolicitudCapacitacionPage() {
     cedula: '',
     telefono: '',
     gps: '',
+    departamento: '',
+    distrito: '',
   });
 
   const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
@@ -204,7 +209,12 @@ export default function SolicitudCapacitacionPage() {
   useEffect(() => {
     setIsMounted(true);
     const now = new Date();
-    setFormData(prev => ({ ...prev, fecha: now.toISOString().split('T')[0] }));
+    setFormData(prev => ({ 
+      ...prev, 
+      fecha: now.toISOString().split('T')[0],
+      departamento: profile?.departamento || '',
+      distrito: profile?.distrito || ''
+    }));
 
     const fetchLogo = async () => {
       try {
@@ -221,6 +231,30 @@ export default function SolicitudCapacitacionPage() {
   }, []);
 
   const profile = user?.profile;
+  const isAdminView = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+
+  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
+
+  const departments = useMemo(() => {
+    if (!datosData) return [];
+    return [...new Set(datosData.map(d => d.departamento))].sort();
+  }, [datosData]);
+
+  const districts = useMemo(() => {
+    if (!datosData || !formData.departamento) return [];
+    return [...new Set(datosData.filter(d => d.departamento === formData.departamento).map(d => d.distrito))].sort();
+  }, [datosData, formData.departamento]);
+
+  useEffect(() => {
+    if (profile && !formData.departamento && !formData.distrito) {
+      setFormData(prev => ({
+        ...prev,
+        departamento: profile.departamento || '',
+        distrito: profile.distrito || ''
+      }));
+    }
+  }, [profile, formData.departamento, formData.distrito]);
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -252,20 +286,20 @@ export default function SolicitudCapacitacionPage() {
   };
 
   const maquinasQuery = useMemoFirebase(() => {
-    if (!firestore || !profile?.departamento || !profile?.distrito) return null;
-    return query(collection(firestore, 'maquinas'), where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
-  }, [firestore, profile]);
+    if (!firestore || !formData.departamento || !formData.distrito) return null;
+    return query(collection(firestore, 'maquinas'), where('departamento', '==', formData.departamento), where('distrito', '==', formData.distrito));
+  }, [firestore, formData.departamento, formData.distrito]);
   const { data: maquinasDistrito } = useCollection<MaquinaVotacion>(maquinasQuery);
 
   const solicitudesConflictQuery = useMemoFirebase(() => {
-    if (!firestore || !profile?.departamento || !profile?.distrito || !formData.fecha) return null;
+    if (!firestore || !formData.departamento || !formData.distrito || !formData.fecha) return null;
     return query(
         collection(firestore, 'solicitudes-capacitacion'), 
-        where('departamento', '==', profile.departamento), 
-        where('distrito', '==', profile.distrito),
+        where('departamento', '==', formData.departamento), 
+        where('distrito', '==', formData.distrito),
         where('fecha', '==', formData.fecha)
     );
-  }, [firestore, profile, formData.fecha]);
+  }, [firestore, formData.departamento, formData.distrito, formData.fecha]);
   const { data: solicitudesMismoDia } = useCollection<SolicitudCapacitacion>(solicitudesConflictQuery);
 
   const startCamera = async () => {
@@ -370,8 +404,8 @@ export default function SolicitudCapacitacionPage() {
     
     const docData = { 
       ...formData, 
-      departamento: profile?.departamento || '', 
-      distrito: profile?.distrito || '', 
+      departamento: formData.departamento, 
+      distrito: formData.distrito, 
       foto_firma: photoDataUri || '', 
       usuario_id: user.uid, 
       creado_por: profile?.username || user.email,
@@ -445,7 +479,7 @@ export default function SolicitudCapacitacionPage() {
     const margin = 15;
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    const distritoNombre = (profile?.distrito || '').replace(/^\d+\s*-\s*/, '').toUpperCase();
+    const distritoNombre = (formData.distrito || '').replace(/^\d+\s*-\s*/, '').toUpperCase();
 
     doc.addImage(logoBase64, 'PNG', margin, 8, 18, 18);
     doc.setFontSize(7); doc.setFont('helvetica', 'bold');
@@ -567,7 +601,7 @@ export default function SolicitudCapacitacionPage() {
   };
 
   const partidosQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'partidos-politicos'), orderBy('nombre')) : null, [firestore]);
-  const { data: partidosData } = useCollection<PartidoPolitico>(partidosQuery);
+  const { data: partidosData } = useCollectionOnce<PartidoPolitico>(partidosQuery);
 
   const uniqueParties = useMemo(() => {
     if (!partidosData) return [];
@@ -645,11 +679,40 @@ export default function SolicitudCapacitacionPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground">Departamento</Label>
-                    <Input value={profile?.departamento || ''} readOnly className="font-black bg-[#F8F9FA] uppercase border-2 h-12 rounded-xl" />
+                    {isAdminView ? (
+                      <Select 
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, departamento: v, distrito: '' }))} 
+                        value={formData.departamento}
+                      >
+                        <SelectTrigger className="font-black uppercase border-2 h-12 rounded-xl bg-white shadow-sm">
+                          <SelectValue placeholder="Seleccionar Departamento" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl border-none shadow-2xl">
+                          {departments.map(d => <SelectItem key={d} value={d} className="uppercase font-bold py-3">{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={formData.departamento} readOnly className="font-black bg-[#F8F9FA] uppercase border-2 h-12 rounded-xl" />
+                    )}
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground">Distrito / Oficina</Label>
-                    <Input value={profile?.distrito || ''} readOnly className="font-black bg-[#F8F9FA] uppercase border-2 h-12 rounded-xl" />
+                    {isAdminView ? (
+                      <Select 
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, distrito: v }))} 
+                        value={formData.distrito}
+                        disabled={!formData.departamento}
+                      >
+                        <SelectTrigger className="font-black uppercase border-2 h-12 rounded-xl bg-white shadow-sm disabled:opacity-50">
+                          <SelectValue placeholder="Seleccionar Distrito" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl border-none shadow-2xl">
+                          {districts.map(d => <SelectItem key={d} value={d} className="uppercase font-bold py-3">{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={formData.distrito} readOnly className="font-black bg-[#F8F9FA] uppercase border-2 h-12 rounded-xl" />
+                    )}
                 </div>
               </div>
 
