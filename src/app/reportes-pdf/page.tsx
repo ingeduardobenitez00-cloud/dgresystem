@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useUser, useFirebase, useDoc } from "@/firebase";
 import { collection, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Loader2, PieChart as PieIcon, RefreshCw, Printer, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, BarChart3, Users } from "lucide-react";
+import { Loader2, PieChart as PieIcon, RefreshCw, Printer, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, BarChart3, Users, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -35,26 +35,26 @@ export default function ReportesPDFPage() {
         try {
             toast({ title: "Iniciando sincronización...", description: "Esto puede tardar unos segundos dependiendo del volumen de datos." });
 
-            const [informesSnap, encuestasSnap, datosSnap, reportsSnap] = await Promise.all([
+            const [informesSnap, encuestasSnap, datosSnap, reportsSnap, usersSnap] = await Promise.all([
                 getDocs(collection(firestore, 'informes-divulgador')),
                 getDocs(collection(firestore, 'encuestas-satisfaccion')),
                 getDocs(collection(firestore, 'datos')),
-                getDocs(collection(firestore, 'reports'))
+                getDocs(collection(firestore, 'reports')),
+                getDocs(collection(firestore, 'users'))
             ]);
 
             const informes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const encuestas = encuestasSnap.docs.map(d => d.data());
             const datosData = datosSnap.docs.map(d => d.data());
             const reportsData = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const usersList = usersSnap.docs.map(d => d.data());
 
-            // 1. Agregación de Capacitaciones
+            // 1. Inicializar Mapa Completo de Departamentos y Distritos (de la colección 'datos')
             const deptoMap: any = {};
-            let globalCapacitados = 0;
-
-            informes.forEach((inf: any) => {
-                const deptoKey = inf.departamento || "SIN DEPARTAMENTO";
-                const distKey = inf.oficina || inf.distrito || "SIN DISTRITO";
-                const deptoCod = deptoKey.split(' - ')[0] || "99";
+            datosData.forEach((d: any) => {
+                const deptoKey = d.departamento;
+                const distKey = d.distrito;
+                const deptoCod = d.departamento_codigo || "99";
 
                 if (!deptoMap[deptoKey]) {
                     deptoMap[deptoKey] = {
@@ -70,19 +70,47 @@ export default function ReportesPDFPage() {
                     deptoMap[deptoKey].distritos[distKey] = {
                         nombre: distKey,
                         capacitados: 0,
-                        encuestas: 0
+                        encuestas: 0,
+                        tieneUsuario: false,
+                        tieneInforme: false
                     };
-                }
-
-                const nroCapt = Number(inf.total_personas || 0);
-                deptoMap[deptoKey].capacitados += nroCapt;
-                globalCapacitados += nroCapt;
-                if (deptoMap[deptoKey].distritos[distKey]) {
-                    deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
                 }
             });
 
-            // 2. Procesar Encuestas
+            // 2. Mapear Usuarios
+            let globalDistritosConUsuario = 0;
+            usersList.forEach((u: any) => {
+                const depto = u.profile?.departamento || u.departamento;
+                const dist = u.profile?.oficina || u.oficina || u.profile?.distrito || u.distrito;
+                if (depto && dist && deptoMap[depto] && deptoMap[depto].distritos[dist]) {
+                    if (!deptoMap[depto].distritos[dist].tieneUsuario) {
+                        deptoMap[depto].distritos[dist].tieneUsuario = true;
+                        globalDistritosConUsuario++;
+                    }
+                }
+            });
+
+            // 3. Procesar Informes (Ejecución Real)
+            let globalCapacitados = 0;
+            let globalDistritosConInforme = 0;
+            informes.forEach((inf: any) => {
+                const deptoKey = inf.departamento;
+                const distKey = inf.oficina || inf.distrito;
+                
+                if (deptoKey && distKey && deptoMap[deptoKey] && deptoMap[deptoKey].distritos[distKey]) {
+                    const nroCapt = Number(inf.total_personas || 0);
+                    deptoMap[deptoKey].capacitados += nroCapt;
+                    deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
+                    globalCapacitados += nroCapt;
+                    
+                    if (!deptoMap[deptoKey].distritos[distKey].tieneInforme) {
+                        deptoMap[deptoKey].distritos[distKey].tieneInforme = true;
+                        globalDistritosConInforme++;
+                    }
+                }
+            });
+
+            // 4. Procesar Encuestas
             const percCounts: any = { EXCELENTE: 0, MUY_BUENO: 0, BUENO: 0, REGULAR: 0, INSATISFACTORIO: 0 };
             const utilidadCounts: any = { muy_util: 0, util: 0, poco_util: 0, nada_util: 0 };
             const facilidadCounts: any = { muy_facil: 0, facil: 0, poco_facil: 0, nada_facil: 0 };
@@ -92,10 +120,10 @@ export default function ReportesPDFPage() {
             let pueblosCount = 0;
 
             encuestas.forEach((e: any) => {
-                const deptoKey = e.departamento || "SIN DEPARTAMENTO";
-                const distKey = e.distrito || "SIN DISTRITO";
+                const deptoKey = e.departamento;
+                const distKey = e.distrito;
 
-                if (deptoMap[deptoKey]) {
+                if (deptoKey && distKey && deptoMap[deptoKey]) {
                     deptoMap[deptoKey].encuestas += 1;
                     if (deptoMap[deptoKey].distritos[distKey]) {
                         deptoMap[deptoKey].distritos[distKey].encuestas += 1;
@@ -123,7 +151,7 @@ export default function ReportesPDFPage() {
 
             const percepcionData = Object.entries(percCounts).map(([name, value]) => ({ name, value }));
 
-            // 3. Agregación de Ubicaciones
+            // 5. Agregación de Ubicaciones (Módulo Resumen)
             const departments: Record<string, Set<string>> = {};
             datosData.forEach((d: any) => {
                 if (!departments[d.departamento]) departments[d.departamento] = new Set();
@@ -169,9 +197,12 @@ export default function ReportesPDFPage() {
                     lastUpdate: new Date().toISOString(),
                     totalCapacitados: globalCapacitados,
                     totalEncuestas: encuestas.length,
-                    alcanceData: Object.values(deptoMap).sort((a: any, b: any) => a.codigo.localeCompare(b.codigo)),
+                    totalDistritos: datosData.length,
+                    distritosConUsuario: globalDistritosConUsuario,
+                    distritosConInforme: globalDistritosConInforme,
+                    deptoData: Object.values(deptoMap).sort((a: any, b: any) => a.codigo.localeCompare(b.codigo)),
                     percepcionData,
-                    utilidadData: formatEncuestaData(utilidadCounts, { muy_util: 'Muy Útel', util: 'Útil', poco_util: 'Poco Útil', nada_util: 'Nada Útil' }),
+                    utilidadData: formatEncuestaData(utilidadCounts, { muy_util: 'Muy Útil', util: 'Útil', poco_util: 'Poco Útil', nada_util: 'Nada Útil' }),
                     facilidadData: formatEncuestaData(facilidadCounts, { muy_facil: 'Muy Fácil', facil: 'Fácil', poco_facil: 'Poco Fácil', nada_facil: 'Nada Fácil' }),
                     seguridadData: formatEncuestaData(seguridadCounts, { muy_seguro: 'Muy Seguro', seguro: 'Seguro', poco_seguro: 'Poco Seguro', nada_seguro: 'Nada Seguro' }),
                     generoData: formatEncuestaData(generoCounts, { hombre: 'Hombre', mujer: 'Mujer' }),
@@ -247,6 +278,8 @@ export default function ReportesPDFPage() {
             body: [
                 ['Total de Personal Capacitado', summary.totalCapacitados.toLocaleString()],
                 ['Total de Encuestas de Percepción', summary.totalEncuestas.toLocaleString()],
+                ['Distritos con Usuario Asignado', summary.distritosConUsuario?.toLocaleString() || '0'],
+                ['Distritos con Informe Reportado', summary.distritosConInforme?.toLocaleString() || '0'],
                 ['Última Sincronización', formatDateToDDMMYYYY(summary.lastUpdate)]
             ],
             theme: 'grid',
@@ -368,7 +401,7 @@ export default function ReportesPDFPage() {
                     </Card>
                 ) : (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
                                 <CardContent className="p-8">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Total Capacitados</p>
@@ -378,19 +411,23 @@ export default function ReportesPDFPage() {
                             </Card>
                             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
                                 <CardContent className="p-8">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Pueblos Originarios</p>
-                                    <h2 className="text-4xl font-black text-neutral-800">{summary.pueblosCount?.toLocaleString() || 0}</h2>
-                                    <div className="h-1 w-12 bg-neutral-300 mt-4 rounded-full" />
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Registros con Usuario</p>
+                                    <h2 className="text-4xl font-black text-blue-600">{summary.distritosConUsuario?.toLocaleString() || 0}</h2>
+                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">De {summary.totalDistritos || 282} distritos totales</p>
                                 </CardContent>
                             </Card>
-                            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden border-l-4 border-green-500">
+                            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
                                 <CardContent className="p-8">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Estado de Datos</p>
-                                    <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                        <h2 className="text-lg font-black text-green-700 uppercase">Sincronizado</h2>
-                                    </div>
-                                    <p className="text-[9px] font-bold text-muted-foreground mt-2 uppercase">Actualizado el: {formatDateToDDMMYYYY(summary.lastUpdate)}</p>
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Informes Reportados</p>
+                                    <h2 className="text-4xl font-black text-green-600">{summary.distritosConInforme?.toLocaleString() || 0}</h2>
+                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Ejecución Anexo III</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+                                <CardContent className="p-8">
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Encuestas</p>
+                                    <h2 className="text-4xl font-black text-neutral-800">{summary.totalEncuestas?.toLocaleString() || 0}</h2>
+                                    <div className="h-1 w-12 bg-neutral-300 mt-4 rounded-full" />
                                 </CardContent>
                             </Card>
                         </div>
@@ -534,6 +571,7 @@ export default function ReportesPDFPage() {
                                                         <thead className="bg-neutral-100/50">
                                                             <tr>
                                                                 <th className="px-8 py-4 text-[9px] font-black uppercase text-slate-500">Distrito</th>
+                                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-500 text-center">Estado</th>
                                                                 <th className="px-6 py-4 text-[9px] font-black uppercase text-primary text-center">Capacitados</th>
                                                                 <th className="px-6 py-4 text-[9px] font-black uppercase text-muted-foreground text-center">Encuestas</th>
                                                             </tr>
@@ -542,6 +580,16 @@ export default function ReportesPDFPage() {
                                                             {Object.values(depto.distritos).sort((a: any, b: any) => a.nombre.localeCompare(b.nombre)).map((dist: any) => (
                                                                 <tr key={dist.nombre} className="border-b last:border-0 border-neutral-100 hover:bg-white transition-colors">
                                                                     <td className="px-8 py-3.5 text-[11px] font-black uppercase text-slate-700">{dist.nombre}</td>
+                                                                    <td className="px-6 py-3.5">
+                                                                        <div className="flex items-center justify-center gap-3">
+                                                                            <div title={dist.tieneUsuario ? "Usuario Asignado" : "Sin Usuario"}>
+                                                                                <Users className={cn("h-4 w-4", dist.tieneUsuario ? "text-blue-600" : "text-neutral-200")} />
+                                                                            </div>
+                                                                            <div title={dist.tieneInforme ? "Informe Reportado" : "Sin Informe"}>
+                                                                                <FileText className={cn("h-4 w-4", dist.tieneInforme ? "text-green-600" : "text-neutral-200")} />
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
                                                                     <td className="px-6 py-3.5 text-[11px] font-black text-center text-primary">{dist.capacitados.toLocaleString()}</td>
                                                                     <td className="px-6 py-3.5 text-[11px] font-black text-center text-slate-500">{dist.encuestas.toLocaleString()}</td>
                                                                 </tr>
