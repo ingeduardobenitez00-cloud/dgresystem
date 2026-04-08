@@ -45,13 +45,20 @@ export default function ReportesPDFPage() {
 
             const informes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const encuestas = encuestasSnap.docs.map(d => d.data());
-            const datosData = datosSnap.docs.map(d => d.data());
+            const allDatos = datosSnap.docs.map(d => d.data());
             const reportsData = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const usersList = usersSnap.docs.map(d => d.data());
 
-            // 1. Inicializar Mapa Completo de Departamentos y Distritos (de la colección 'datos')
+            // 1. Filtrar solo Distritos Reales (Excluir CIDEE, DGRE y placeholders como XX-XX-XX)
+            const realDistritos = allDatos.filter((d: any) => {
+                const depto = (d.departamento || '').toUpperCase();
+                const deptoCod = (d.departamento_codigo || '');
+                return !depto.includes('CIDEE') && !depto.includes('DGRE') && !deptoCod.includes('XX') && deptoCod !== '99' && deptoCod !== '';
+            });
+
+            // 2. Inicializar Mapa Completo de Departamentos y Distritos
             const deptoMap: any = {};
-            datosData.forEach((d: any) => {
+            realDistritos.forEach((d: any) => {
                 const deptoKey = d.departamento;
                 const distKey = d.distrito;
                 const deptoCod = d.departamento_codigo || "99";
@@ -77,7 +84,7 @@ export default function ReportesPDFPage() {
                 }
             });
 
-            // 2. Mapear Usuarios
+            // 3. Mapear Usuarios
             let globalDistritosConUsuario = 0;
             usersList.forEach((u: any) => {
                 const depto = u.profile?.departamento || u.departamento;
@@ -90,7 +97,7 @@ export default function ReportesPDFPage() {
                 }
             });
 
-            // 3. Procesar Informes (Ejecución Real)
+            // 4. Procesar Informes (Ejecución Real)
             let globalCapacitados = 0;
             let globalDistritosConInforme = 0;
             informes.forEach((inf: any) => {
@@ -110,7 +117,7 @@ export default function ReportesPDFPage() {
                 }
             });
 
-            // 4. Procesar Encuestas
+            // 5. Procesar Encuestas y Percepción (Normalización Robusta)
             const percCounts: any = { EXCELENTE: 0, MUY_BUENO: 0, BUENO: 0, REGULAR: 0, INSATISFACTORIO: 0 };
             const utilidadCounts: any = { muy_util: 0, util: 0, poco_util: 0, nada_util: 0 };
             const facilidadCounts: any = { muy_facil: 0, facil: 0, poco_facil: 0, nada_facil: 0 };
@@ -118,6 +125,12 @@ export default function ReportesPDFPage() {
             const generoCounts: any = { hombre: 0, mujer: 0 };
             const edadCounts: any = { '18-25': 0, '26-40': 0, '41-60': 0, '60+': 0 };
             let pueblosCount = 0;
+
+            const normalizePercepcion = (val: string) => {
+                const normalized = (val || '').trim().toUpperCase().replace(/\s+/g, '_');
+                if (normalized === 'MUY_BUENO' || normalized === 'MUYBUENO') return 'MUY_BUENO';
+                return normalized;
+            };
 
             encuestas.forEach((e: any) => {
                 const deptoKey = e.departamento;
@@ -131,8 +144,8 @@ export default function ReportesPDFPage() {
                 }
 
                 if (e.percepcion_maquina) {
-                    const mapped = e.percepcion_maquina.toUpperCase().replace(/\s+/g, '_');
-                    if (percCounts[mapped] !== undefined) percCounts[mapped]++;
+                    const key = normalizePercepcion(e.percepcion_maquina);
+                    if (percCounts[key] !== undefined) percCounts[key]++;
                 }
 
                 if (e.utilidad_maquina && utilidadCounts[e.utilidad_maquina] !== undefined) utilidadCounts[e.utilidad_maquina]++;
@@ -151,9 +164,9 @@ export default function ReportesPDFPage() {
 
             const percepcionData = Object.entries(percCounts).map(([name, value]) => ({ name, value }));
 
-            // 5. Agregación de Ubicaciones (Módulo Resumen)
+            // 6. Agregación de Ubicaciones (Módulo Resumen)
             const departments: Record<string, Set<string>> = {};
-            datosData.forEach((d: any) => {
+            realDistritos.forEach((d: any) => {
                 if (!departments[d.departamento]) departments[d.departamento] = new Set();
                 departments[d.departamento].add(d.distrito);
             });
@@ -197,7 +210,7 @@ export default function ReportesPDFPage() {
                     lastUpdate: new Date().toISOString(),
                     totalCapacitados: globalCapacitados,
                     totalEncuestas: encuestas.length,
-                    totalDistritos: datosData.length,
+                    totalDistritos: realDistritos.length,
                     distritosConUsuario: globalDistritosConUsuario,
                     distritosConInforme: globalDistritosConInforme,
                     deptoData: Object.values(deptoMap).sort((a: any, b: any) => a.codigo.localeCompare(b.codigo)),
