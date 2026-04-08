@@ -23,7 +23,7 @@ export const CIDEE_MODULES = [
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
   'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'puntos-fijos'
 ];
 
 export const JEFE_MODULES = [
@@ -84,7 +84,7 @@ export const useUser = (): UserHookResult => {
         'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
         'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
-        'reportes-pdf'
+        'reportes-pdf', 'puntos-fijos'
       ];
 
       const allPermissions = [

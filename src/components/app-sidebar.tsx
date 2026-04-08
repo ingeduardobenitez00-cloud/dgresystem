@@ -68,6 +68,7 @@ export default function AppSidebar() {
       items: [
         { href: "/calendario-capacitaciones", label: "Calendario Mensual", icon: Calendar },
         { href: "/anexo-i", label: "Anexo I - Lugares Fijos", icon: MapPin },
+        { href: "/puntos-fijos", label: "Puntos Fijos Divulgación", icon: MapPin },
         { href: "/lista-anexo-i", label: "Listado de Anexo I", icon: ClipboardList },
         { href: "/solicitud-capacitacion", label: "Anexo V - Solicitudes", icon: ClipboardCheck },
         { href: "/agenda-anexo-i", label: "Agenda Anexo I", icon: CalendarDays },
