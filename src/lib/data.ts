@@ -123,6 +123,7 @@ export type AnexoIV = {
   semana_desde: string;
   semana_hasta: string;
   foto_respaldo_documental: string;
+  fotos_evidencia?: string[];
   filas: AnexoIVFila[];
   usuario_id: string;
   fecha_creacion: string;

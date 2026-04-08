@@ -69,7 +69,9 @@ export default function InformeSemanalAnexoIVPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
   const [respaldoPhoto, setRespaldoPhoto] = useState<string | null>(null);
+  const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
   
+  const [activeCameraTarget, setActiveCameraTarget] = useState<'respaldo' | 'evidencia' | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -165,18 +167,51 @@ export default function InformeSemanalAnexoIVPage() {
     return cedulas.size;
   }, [informesAnexoIII]);
 
-  const startCamera = async () => {
+  const compressImage = (file: File, currentPhotoCount: number = 0): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (file.type === 'application/pdf') {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          // Compresión adaptativa: si hay muchas fotos, reducimos más el tamaño
+          const MAX_WIDTH = currentPhotoCount > 8 ? 600 : 800;
+          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
+          canvas.width = img.width * scaleSize;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Calidad 0.4 para asegurar cumplimiento de 1MB
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const startCamera = (target: 'respaldo' | 'evidencia') => {
+    setActiveCameraTarget(target);
     setIsCameraOpen(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', aspectRatio: { ideal: 0.75 } } 
-      });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; }
-    } catch (err) {
-      toast({ variant: "destructive", title: "Error de Cámara" });
-      setIsCameraOpen(false);
-    }
+    setTimeout(async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment', aspectRatio: { ideal: 0.75 } } 
+        });
+        streamRef.current = stream;
+        if (videoRef.current) { videoRef.current.srcObject = stream; }
+      } catch (err) {
+        toast({ variant: "destructive", title: "Error de Cámara" });
+        setIsCameraOpen(false);
+      }
+    }, 100);
   };
 
   const stopCamera = () => {
@@ -185,12 +220,14 @@ export default function InformeSemanalAnexoIVPage() {
       streamRef.current = null;
     }
     setIsCameraOpen(false);
+    setActiveCameraTarget(null);
   };
 
   const takePhoto = () => {
-    if (videoRef.current) {
+    if (videoRef.current && activeCameraTarget) {
       const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 1200;
+      const photoCount = activeCameraTarget === 'respaldo' ? 1 : evidencePhotos.length + 1;
+      const MAX_WIDTH = photoCount > 8 ? 600 : 800;
       const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
       canvas.width = videoRef.current.videoWidth * scaleSize;
       canvas.height = videoRef.current.videoHeight * scaleSize;
@@ -198,21 +235,42 @@ export default function InformeSemanalAnexoIVPage() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.7);
-        setRespaldoPhoto(dataUri);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
+        if (activeCameraTarget === 'respaldo') {
+            setRespaldoPhoto(dataUri);
+        } else {
+            setEvidencePhotos(prev => [...prev, dataUri].slice(0, 12));
+        }
         stopCamera();
       }
     }
   };
 
-  const handleRespaldoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRespaldoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setRespaldoPhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 1);
+        setRespaldoPhoto(compressed);
+      } catch (err) {
+        toast({ variant: 'destructive', title: "Error al procesar respaldo" });
+      }
+    }
+  };
+
+  const handleEvidenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const remaining = 12 - evidencePhotos.length;
+      const selection = Array.from(files).slice(0, remaining);
+      for (const file of selection) {
+        try {
+          const compressed = await compressImage(file, evidencePhotos.length + 1);
+          setEvidencePhotos(prev => [...prev, compressed].slice(0, 12));
+        } catch (err) {
+          toast({ variant: 'destructive', title: "Error al procesar evidencia" });
+        }
+      }
     }
   };
 
@@ -335,6 +393,7 @@ export default function InformeSemanalAnexoIVPage() {
       semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
       semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
       foto_respaldo_documental: respaldoPhoto,
+      fotos_evidencia: evidencePhotos,
       total_capacitados: totalCapacitados,
       filas: informesAnexoIII.map(inf => ({
         lugar: inf.lugar_divulgacion,
@@ -355,6 +414,7 @@ export default function InformeSemanalAnexoIVPage() {
       .then(() => {
         toast({ title: "¡Consolidado Guardado!", description: "El informe semanal ha sido archivado en el sistema." });
         setRespaldoPhoto(null);
+        setEvidencePhotos([]);
         setIsSubmitting(false);
       })
       .catch(async (error) => {
@@ -478,7 +538,7 @@ export default function InformeSemanalAnexoIVPage() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 gap-2">
-                                <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-dashed rounded-xl gap-1 hover:bg-primary/5 hover:border-primary transition-all" onClick={startCamera}>
+                                <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-dashed rounded-xl gap-1 hover:bg-primary/5 hover:border-primary transition-all" onClick={() => startCamera('respaldo')}>
                                     <Camera className="h-4 w-4 opacity-40" />
                                     <span className="text-[8px] font-black uppercase">CÁMARA</span>
                                 </Button>
@@ -487,6 +547,44 @@ export default function InformeSemanalAnexoIVPage() {
                                     <span className="text-[8px] font-black uppercase">SUBIR</span>
                                     <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleRespaldoUpload} />
                                 </label>
+                            </div>
+                        )}
+                    </div>
+
+                    <Separator className="border-dashed" />
+
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
+                                <ImageIcon className="h-4 w-4" /> Fotos de Evidencia ({evidencePhotos.length}/12)
+                            </Label>
+                            {evidencePhotos.length < 12 && (
+                                <div className="flex gap-1">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-primary/5 hover:bg-primary/10 text-primary" onClick={() => startCamera('evidencia')}>
+                                        <Camera className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <label className="h-7 w-7 rounded-full bg-primary/5 hover:bg-primary/10 text-primary flex items-center justify-center cursor-pointer transition-all">
+                                        <FileUp className="h-3.5 w-3.5" />
+                                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleEvidenceUpload} />
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+
+                        {evidencePhotos.length > 0 ? (
+                            <div className="grid grid-cols-4 gap-2">
+                                {evidencePhotos.map((photo, i) => (
+                                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border-2 border-white shadow-sm group">
+                                        <Image src={photo} alt={`Evidencia ${i+1}`} fill className="object-cover" />
+                                        <Button variant="destructive" size="icon" className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEvidencePhotos(prev => prev.filter((_, idx) => idx !== i))}>
+                                            <X className="h-2 w-2" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="h-20 border-2 border-dashed rounded-xl flex items-center justify-center bg-muted/5 opacity-40">
+                                <p className="text-[8px] font-black uppercase tracking-widest italic">Sin evidencia cargada</p>
                             </div>
                         )}
                     </div>
