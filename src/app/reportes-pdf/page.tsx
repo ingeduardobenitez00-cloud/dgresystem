@@ -49,11 +49,13 @@ export default function ReportesPDFPage() {
             const reportsData = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const usersList = usersSnap.docs.map(d => d.data());
 
-            // 1. Filtrar solo Distritos Reales (Excluir CIDEE, DGRE y placeholders como XX-XX-XX)
+            // 1. Filtrar solo Distritos Reales (Código de 2 dígitos al inicio y no institucional)
             const realDistritos = allDatos.filter((d: any) => {
                 const depto = (d.departamento || '').toUpperCase();
-                const deptoCod = (d.departamento_codigo || '');
-                return !depto.includes('CIDEE') && !depto.includes('DGRE') && !deptoCod.includes('XX') && deptoCod !== '99' && deptoCod !== '';
+                const deptoCod = depto.split(' - ')[0] || '';
+                const hasValidCode = /^\d{2}$/.test(deptoCod);
+                const isInstitutional = depto.includes('CIDEE') || depto.includes('DGRE');
+                return hasValidCode && !isInstitutional;
             });
 
             // 2. Inicializar Mapa Completo de Departamentos y Distritos
@@ -61,7 +63,7 @@ export default function ReportesPDFPage() {
             realDistritos.forEach((d: any) => {
                 const deptoKey = d.departamento;
                 const distKey = d.distrito;
-                const deptoCod = d.departamento_codigo || "99";
+                const deptoCod = deptoKey.split(' - ')[0] || "99";
 
                 if (!deptoMap[deptoKey]) {
                     deptoMap[deptoKey] = {
@@ -128,7 +130,9 @@ export default function ReportesPDFPage() {
 
             const normalizePercepcion = (val: string) => {
                 const normalized = (val || '').trim().toUpperCase().replace(/\s+/g, '_');
-                if (normalized === 'MUY_BUENO' || normalized === 'MUYBUENO') return 'MUY_BUENO';
+                if (normalized.includes('MUY') && normalized.includes('BUENO')) return 'MUY_BUENO';
+                if (normalized.includes('EXCELENTE')) return 'EXCELENTE';
+                if (normalized.includes('INSATISFACTORIO') || normalized.includes('MALA')) return 'INSATISFACTORIO';
                 return normalized;
             };
 
