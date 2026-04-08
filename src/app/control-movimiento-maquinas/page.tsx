@@ -889,11 +889,6 @@ function ControlMovimientoContent() {
                                         </Button>
                                     )}
                                 </div>
-                                <div className="bg-amber-50 border-2 border-dashed border-amber-200 p-4 rounded-xl mb-4">
-                    <p className="text-[10px] font-black text-amber-800 uppercase text-center leading-tight">
-                        ⚠️ NO TE OLVIDES DE MARCAR SI TU LACRE VOLVIÓ EN BUEN ESTADO O VIOLENTADO
-                    </p>
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -1021,6 +1016,13 @@ function ControlMovimientoContent() {
                         <Label className="text-[10px] font-black uppercase text-primary">Hora Reingreso</Label>
                         <Input type="time" value={movimientoData.hora_devolucion} onChange={e => setMovimientoData(p => ({...p, hora_devolucion: e.target.value}))} className="h-12 font-black border-2 rounded-xl" />
                     </div>
+                </div>
+
+                <div className="bg-amber-50 border-2 border-dashed border-amber-200 p-6 rounded-[2rem] animate-pulse">
+                  <p className="text-xs font-black text-amber-800 uppercase text-center leading-tight flex items-center justify-center gap-3">
+                    <AlertTriangle className="h-5 w-5" />
+                    ⚠️ NO TE OLVIDES DE MARCAR SI TU LACRE VOLVIÓ EN BUEN ESTADO O VIOLENTADO
+                  </p>
                 </div>
 
                 <div className="space-y-8">
