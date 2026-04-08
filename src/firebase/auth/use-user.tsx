@@ -23,14 +23,14 @@ export const CIDEE_MODULES = [
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
   'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 'estadisticas-capacitacion',
-  'encuesta-satisfaccion', 'archivo-capacitaciones'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf'
 ];
 
 export const JEFE_MODULES = [
   'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-divulgador', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf'
 ];
 
 export type AppUser = User & {
@@ -83,7 +83,8 @@ export const useUser = (): UserHookResult => {
         'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
         'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
-        'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria'
+        'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
+        'reportes-pdf'
       ];
 
       const allPermissions = [
