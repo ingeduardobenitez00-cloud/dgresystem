@@ -480,7 +480,7 @@ function ControlMovimientoContent() {
     };
 
     updateDoc(doc(firestore, 'movimientos-maquinas', currentMovimiento.id), updateData)
-      .then(() => {
+      .then(async () => {
         setIsDevolucionGuardada(true);
         const hasTampering = movimientoData.maquinas.some(m => m.lacre_estado === 'violentado');
         if (hasTampering) {
