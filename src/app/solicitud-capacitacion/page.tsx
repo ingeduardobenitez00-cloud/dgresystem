@@ -406,7 +406,12 @@ export default function SolicitudCapacitacionPage() {
         setIsSubmitting(false);
       })
       .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData }));
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
+          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo que estás adjuntando supera el límite permitido (1MB). Por favor, intenta con una foto menos pesada o reduce el tamaño del PDF.' });
+        } else {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData }));
+        }
         setIsSubmitting(false);
       });
   };

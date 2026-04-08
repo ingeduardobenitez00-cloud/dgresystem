@@ -254,6 +254,7 @@ function ControlMovimientoContent() {
   }, [solicitudIdFromUrl, agendaItems, selectedSolicitudId]);
 
   useEffect(() => {
+    // Solo inicializar si detectamos un cambio de ID de movimiento o de solicitud
     if (currentMovimiento) {
         setMovimientoData({
             fecha_salida: currentMovimiento.fecha_salida,
@@ -303,7 +304,7 @@ function ControlMovimientoContent() {
         setDevolucionFotos([]);
         setIsDevolucionGuardada(false);
     }
-  }, [currentMovimiento]);
+  }, [currentMovimiento?.id, selectedSolicitudId]);
 
   const handleAddMaquina = () => {
     if (movimientoData.maquinas.length >= 3) {
@@ -457,7 +458,12 @@ function ControlMovimientoContent() {
         setIsSubmitting(false);
       })
       .catch(error => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'movimientos-maquinas', operation: 'create' }));
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
+          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo que estás adjuntando supera el límite permitido (1MB). Por favor, intenta con una foto menos pesada.' });
+        } else {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'movimientos-maquinas', operation: 'create' }));
+        }
         setIsSubmitting(false);
       });
   };
@@ -502,7 +508,12 @@ function ControlMovimientoContent() {
         setIsSubmitting(false);
       })
       .catch(error => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: currentMovimiento.id, operation: 'update' }));
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
+          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo que estás adjuntando supera el límite permitido (1MB). Por favor, intenta con una foto menos pesada.' });
+        } else {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: currentMovimiento.id, operation: 'update' }));
+        }
         setIsSubmitting(false);
       });
   };
@@ -689,7 +700,7 @@ function ControlMovimientoContent() {
             doc.text("ESTADO LACRE:", margin + 60, y + 6);
             doc.setDrawColor(0); doc.setLineWidth(0.2);
             doc.circle(margin + 85, y + 5.5, 2);
-            if (maq.lacre_estado === 'correcto') { doc.setFillColor(0); doc.circle(margin + 85, y + 5.5, 1.2, 'F'); }
+            if (maq.lacre_estado === 'correcto') { doc.setFillColor(0, 0, 0); doc.circle(margin + 85, y + 5.5, 1.2, 'F'); }
             doc.text("CORRECTO", margin + 89, y + 6);
 
             doc.circle(margin + 115, y + 5.5, 2);
@@ -877,7 +888,13 @@ function ControlMovimientoContent() {
                                         </Button>
                                     )}
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-amber-50 border-2 border-dashed border-amber-200 p-4 rounded-xl mb-4">
+                    <p className="text-[10px] font-black text-amber-800 uppercase text-center leading-tight">
+                        ⚠️ NO TE OLVIDES DE MARCAR SI TU LACRE VOLVIÓ EN BUEN ESTADO O VIOLENTADO
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Serie de Máquina</Label>
                                         <Popover open={openSelectors[idx] || false} onOpenChange={(open) => setOpenSelectors(p => ({ ...p, [idx]: open }))}>
