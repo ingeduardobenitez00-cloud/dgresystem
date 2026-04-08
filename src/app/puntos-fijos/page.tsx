@@ -79,7 +79,8 @@ export default function PuntosFijosPage() {
   const puntosFijosQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    return query(colRef, where('tipo_solicitud', '==', 'Lugar Fijo'), orderBy('fecha', 'desc'));
+    // Quitamos 'orderBy' para evitar la necesidad de índices compuestos manuales. El ordenamiento se hace en memoria.
+    return query(colRef, where('tipo_solicitud', '==', 'Lugar Fijo'));
   }, [firestore]);
 
   const { data: rawPuntosFijos, isLoading } = useCollection<SolicitudCapacitacion>(puntosFijosQuery);
@@ -235,10 +236,8 @@ export default function PuntosFijosPage() {
                       selected={dateRange}
                       onSelect={(range) => {
                         if (range?.from) {
-                          // Si se selecciona un día, lo ajustamos a la semana completa
-                          const start = startOfWeek(range.from, { weekStartsOn: 0 });
-                          const end = endOfWeek(range.to || range.from, { weekStartsOn: 0 });
-                          setDateRange({ from: start, to: end });
+                          // Permitimos selección libre. Solo si es una selección incompleta (sin to), mantenemos el from.
+                          setDateRange(range);
                         } else {
                           setDateRange(undefined);
                         }
