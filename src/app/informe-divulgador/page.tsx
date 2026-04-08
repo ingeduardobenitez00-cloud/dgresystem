@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useFirebase, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark, ImageIcon, FileUp, Images } from 'lucide-react';
@@ -258,6 +258,15 @@ function InformeContent() {
       
       setSubmitSuccess(true);
       toast({ title: '¡ENVIADO!', description: 'El informe ha sido enviado correctamente.' });
+
+      // Verificar si ya se devolvieron los equipos para marcar ciclo cumplido
+      const movQuery = query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', '==', selectedEntry.solicitudId));
+      const movSnap = await getDocs(movQuery);
+      if (!movSnap.empty && movSnap.docs[0].data().fecha_devolucion) {
+          await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedEntry.solicitudId), {
+              fecha_cumplido: new Date().toISOString()
+          });
+      }
 
       setTimeout(() => {
         setSubmitSuccess(false);

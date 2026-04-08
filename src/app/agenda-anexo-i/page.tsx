@@ -71,6 +71,12 @@ export default function AgendaAnexoIPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [viewingActivity, setViewingActivity] = useState<SolicitudCapacitacion | null>(null);
@@ -207,6 +213,21 @@ export default function AgendaAnexoIPage() {
 
     const activeSolicitudes = rawSolicitudes.filter(sol => {
         if (sol.cancelada) return false;
+
+        // 1. Filtrar registros CUMPLIDOS que pasaron los 3 minutos de gracia
+        if (sol.fecha_cumplido) {
+            const completionTime = new Date(sol.fecha_cumplido);
+            const diffMins = (currentTime.getTime() - completionTime.getTime()) / (1000 * 60);
+            if (diffMins > 3) return false;
+        }
+
+        // 2. Filtrar registros ANTIGUOS (más de 3 días) que no se completaron (limpieza de agenda)
+        const activityDate = new Date(sol.fecha + 'T00:00:00');
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        threeDaysAgo.setHours(0,0,0,0);
+        if (activityDate < threeDaysAgo && !sol.fecha_cumplido) return false;
+
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
         const isPast = sol.fecha < today;
@@ -564,7 +585,7 @@ export default function AgendaAnexoIPage() {
                                  };
 
                                 return (
-                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-200 bg-green-50/10" : "border-muted/20 bg-white")}>
+                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
                                         <CardContent className="p-8">
                                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                                 <div className="lg:col-span-4 space-y-3">

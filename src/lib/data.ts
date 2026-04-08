@@ -170,6 +170,7 @@ export type SolicitudCapacitacion = {
   usuario_cancelacion?: string;
   qr_enabled?: boolean;
   anexo_id?: string;
+  fecha_cumplido?: string;
 }
 
 export type EncuestaSatisfaccion = {
@@ -209,6 +210,8 @@ export type InformeDivulgador = {
   usuario_id: string;
   fecha_creacion: string;
   solicitud_id: string;
+  divulgador_id: string;
+  observaciones?: string;
 }
 
 export type MaquinaMovimiento = {

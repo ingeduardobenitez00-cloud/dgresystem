@@ -16,25 +16,32 @@ import {
   Globe,
   Building2,
   Clock,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  ChevronDown
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from 'xlsx';
 import { type Dato, type SolicitudCapacitacion } from '@/lib/data';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { DateRange } from "react-day-picker";
 
 export default function PuntosFijosPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfWeek(new Date(), { weekStartsOn: 0 }),
+    to: endOfWeek(new Date(), { weekStartsOn: 0 }),
+  });
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
 
@@ -80,16 +87,21 @@ export default function PuntosFijosPage() {
   // Filtrado de datos en el cliente
   const filteredData = useMemo(() => {
     if (!rawPuntosFijos) return [];
+    
     return rawPuntosFijos.filter(p => {
       const matchesDept = selectedDepartment === 'ALL' || !selectedDepartment || p.departamento === selectedDepartment;
       const matchesDist = selectedDistrict === 'ALL' || !selectedDistrict || p.distrito === selectedDistrict;
-      const matchesSearch = !searchTerm || 
-        p.lugar_local.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        p.direccion_calle.toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesDept && matchesDist && matchesSearch;
+      let matchesDate = true;
+      if (dateRange?.from && dateRange?.to) {
+          const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+          const toStr = format(dateRange.to, 'yyyy-MM-dd');
+          matchesDate = p.fecha >= fromStr && p.fecha <= toStr;
+      }
+      
+      return matchesDept && matchesDist && matchesDate;
     }).sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [rawPuntosFijos, selectedDepartment, selectedDistrict, searchTerm]);
+  }, [rawPuntosFijos, selectedDepartment, selectedDistrict, dateRange]);
 
   const exportToExcel = () => {
     if (filteredData.length === 0) {
@@ -140,7 +152,7 @@ export default function PuntosFijosPage() {
             disabled={filteredData.length === 0}
             className="font-black uppercase h-12 px-8 bg-green-600 hover:bg-green-700 text-white shadow-xl rounded-xl gap-2 transition-all"
           >
-            <Download className="h-5 w-5" /> EXPORTAR A EXCEL
+            <Download className="h-5 w-5" /> EXPORTAR {dateRange?.from ? `SEMANA ${format(dateRange.from, 'dd/MM')}` : 'EXCEL'}
           </Button>
         </div>
 
@@ -189,14 +201,54 @@ export default function PuntosFijosPage() {
 
               <div className="space-y-2 pt-2">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1">
-                  <Search className="h-3 w-3" /> Buscar por nombre
+                  <CalendarIcon className="h-3 w-3" /> Rango Semanal (Anexo IV)
                 </Label>
-                <Input 
-                  placeholder="Ej: Plaza, Mercado..." 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="h-11 font-bold border-2 rounded-xl bg-white"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full h-14 justify-start text-left font-black text-xs border-2 rounded-xl bg-white hover:border-primary transition-all gap-3",
+                        !dateRange && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="h-4 w-4 opacity-40" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "dd/MM")} - {format(dateRange.to, "dd/MM/yyyy")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "dd/MM/yyyy")
+                        )
+                      ) : (
+                        <span>SELECCIONAR SEMANA</span>
+                      )}
+                      <ChevronDown className="ml-auto h-4 w-4 opacity-20" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={(range) => {
+                        if (range?.from) {
+                          // Si se selecciona un día, lo ajustamos a la semana completa
+                          const start = startOfWeek(range.from, { weekStartsOn: 0 });
+                          const end = endOfWeek(range.to || range.from, { weekStartsOn: 0 });
+                          setDateRange({ from: start, to: end });
+                        } else {
+                          setDateRange(undefined);
+                        }
+                      }}
+                      numberOfMonths={1}
+                      locale={es}
+                      className="bg-white"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </CardContent>
           </Card>
