@@ -68,10 +68,8 @@ export default function InformeSemanalAnexoIVPage() {
   
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
-  const [respaldoPhoto, setRespaldoPhoto] = useState<string | null>(null);
-  const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
   
-  const [activeCameraTarget, setActiveCameraTarget] = useState<'respaldo' | 'evidencia' | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -197,8 +195,7 @@ export default function InformeSemanalAnexoIVPage() {
     });
   };
 
-  const startCamera = (target: 'respaldo' | 'evidencia') => {
-    setActiveCameraTarget(target);
+  const startCamera = () => {
     setIsCameraOpen(true);
     setTimeout(async () => {
       try {
@@ -220,13 +217,12 @@ export default function InformeSemanalAnexoIVPage() {
       streamRef.current = null;
     }
     setIsCameraOpen(false);
-    setActiveCameraTarget(null);
   };
 
   const takePhoto = () => {
-    if (videoRef.current && activeCameraTarget) {
+    if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      const photoCount = activeCameraTarget === 'respaldo' ? 1 : evidencePhotos.length + 1;
+      const photoCount = photos.length + 1;
       const MAX_WIDTH = photoCount > 8 ? 600 : 800;
       const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
       canvas.width = videoRef.current.videoWidth * scaleSize;
@@ -236,39 +232,23 @@ export default function InformeSemanalAnexoIVPage() {
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         const dataUri = canvas.toDataURL('image/jpeg', 0.4);
-        if (activeCameraTarget === 'respaldo') {
-            setRespaldoPhoto(dataUri);
-        } else {
-            setEvidencePhotos(prev => [...prev, dataUri].slice(0, 12));
-        }
+        setPhotos(prev => [...prev, dataUri].slice(0, 12));
         stopCamera();
       }
     }
   };
 
-  const handleRespaldoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const compressed = await compressImage(file, 1);
-        setRespaldoPhoto(compressed);
-      } catch (err) {
-        toast({ variant: 'destructive', title: "Error al procesar respaldo" });
-      }
-    }
-  };
-
-  const handleEvidenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotosUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const remaining = 12 - evidencePhotos.length;
+      const remaining = 12 - photos.length;
       const selection = Array.from(files).slice(0, remaining);
       for (const file of selection) {
         try {
-          const compressed = await compressImage(file, evidencePhotos.length + 1);
-          setEvidencePhotos(prev => [...prev, compressed].slice(0, 12));
+          const compressed = await compressImage(file, photos.length + 1);
+          setPhotos(prev => [...prev, compressed].slice(0, 12));
         } catch (err) {
-          toast({ variant: 'destructive', title: "Error al procesar evidencia" });
+          toast({ variant: 'destructive', title: "Error al procesar fotos" });
         }
       }
     }
@@ -382,8 +362,8 @@ export default function InformeSemanalAnexoIVPage() {
     if (selectedDepartment === 'ALL' || selectedDistrict === 'ALL') {
         toast({ variant: "destructive", title: "Seleccione ubicación", description: "Para guardar el reporte oficial debe seleccionar un distrito específico." }); return;
     }
-    if (!respaldoPhoto) {
-        toast({ variant: "destructive", title: "Respaldo Requerido", description: "Debe adjuntar la foto del Anexo IV físico firmado." }); return;
+    if (photos.length === 0) {
+        toast({ variant: "destructive", title: "Respaldo Requerido", description: "Debe adjuntar al menos una foto del Anexo IV físico firmado." }); return;
     }
 
     setIsSubmitting(true);
@@ -392,8 +372,8 @@ export default function InformeSemanalAnexoIVPage() {
       distrito: selectedDistrict || '',
       semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
       semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
-      foto_respaldo_documental: respaldoPhoto,
-      fotos_evidencia: evidencePhotos,
+      foto_respaldo_documental: photos[0],
+      fotos_evidencia: photos.slice(1),
       total_capacitados: totalCapacitados,
       filas: informesAnexoIII.map(inf => ({
         lugar: inf.lugar_divulgacion,
@@ -413,8 +393,7 @@ export default function InformeSemanalAnexoIVPage() {
     addDoc(collection(firestore, 'informes-semanales-anexo-iv'), docData)
       .then(() => {
         toast({ title: "¡Consolidado Guardado!", description: "El informe semanal ha sido archivado en el sistema." });
-        setRespaldoPhoto(null);
-        setEvidencePhotos([]);
+        setPhotos([]);
         setIsSubmitting(false);
       })
       .catch(async (error) => {
@@ -519,78 +498,61 @@ export default function InformeSemanalAnexoIVPage() {
                     <Separator className="border-dashed" />
 
                     <div className="space-y-4">
-                        <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                            <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado *
-                        </Label>
-                        {respaldoPhoto ? (
-                            <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-primary shadow-md group">
-                                {respaldoPhoto.startsWith('data:application/pdf') ? (
-                                    <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
-                                        <FileText className="h-10 w-10 text-primary opacity-40 mb-1" />
-                                        <p className="text-[8px] font-black uppercase text-primary/60">PDF Cargado</p>
-                                    </div>
-                                ) : (
-                                    <Image src={respaldoPhoto} alt="Respaldo Anexo IV" fill className="object-cover" />
-                                )}
-                                <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setRespaldoPhoto(null)}>
-                                    <X className="h-3 w-3" />
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-dashed rounded-xl gap-1 hover:bg-primary/5 hover:border-primary transition-all" onClick={() => startCamera('respaldo')}>
-                                    <Camera className="h-4 w-4 opacity-40" />
-                                    <span className="text-[8px] font-black uppercase">CÁMARA</span>
-                                </Button>
-                                <label className="h-16 flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-1 cursor-pointer hover:bg-primary/5 hover:border-primary transition-all">
-                                    <FileUp className="h-4 w-4 opacity-40" />
-                                    <span className="text-[8px] font-black uppercase">SUBIR</span>
-                                    <Input type="file" accept="image/*,.pdf" className="hidden" onChange={handleRespaldoUpload} />
-                                </label>
-                            </div>
-                        )}
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                                <ImageIcon className="h-4 w-4" /> Fotos de Evidencia ({evidencePhotos.length}/12)
+                                <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado * ({photos.length}/12)
                             </Label>
-                            {evidencePhotos.length < 12 && (
+                            {photos.length > 0 && photos.length < 12 && (
                                 <div className="flex gap-1">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-primary/5 hover:bg-primary/10 text-primary" onClick={() => startCamera('evidencia')}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-primary/5 hover:bg-primary/10 text-primary" onClick={startCamera}>
                                         <Camera className="h-3.5 w-3.5" />
                                     </Button>
                                     <label className="h-7 w-7 rounded-full bg-primary/5 hover:bg-primary/10 text-primary flex items-center justify-center cursor-pointer transition-all">
                                         <FileUp className="h-3.5 w-3.5" />
-                                        <input type="file" accept="image/*" multiple className="hidden" onChange={handleEvidenceUpload} />
+                                        <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handlePhotosUpload} />
                                     </label>
                                 </div>
                             )}
                         </div>
 
-                        {evidencePhotos.length > 0 ? (
-                            <div className="grid grid-cols-4 gap-2">
-                                {evidencePhotos.map((photo, i) => (
-                                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border-2 border-white shadow-sm group">
-                                        <Image src={photo} alt={`Evidencia ${i+1}`} fill className="object-cover" />
-                                        <Button variant="destructive" size="icon" className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEvidencePhotos(prev => prev.filter((_, idx) => idx !== i))}>
-                                            <X className="h-2 w-2" />
+                        {photos.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2">
+                                {photos.map((photo, i) => (
+                                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-primary shadow-sm group">
+                                        {photo.startsWith('data:application/pdf') ? (
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+                                                <FileText className="h-8 w-8 text-primary opacity-40 mb-1" />
+                                                <p className="text-[7px] font-black uppercase text-primary/60">PDF</p>
+                                            </div>
+                                        ) : (
+                                            <Image src={photo} alt={`Foto ${i+1}`} fill className="object-cover" />
+                                        )}
+                                        <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}>
+                                            <X className="h-3 w-3" />
                                         </Button>
+                                        <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[7px] px-1.5 py-0.5 rounded-md font-black">
+                                            {i === 0 ? "PRINCIPAL" : i + 1}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-20 border-2 border-dashed rounded-xl flex items-center justify-center bg-muted/5 opacity-40">
-                                <p className="text-[8px] font-black uppercase tracking-widest italic">Sin evidencia cargada</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button variant="outline" className="h-20 flex flex-col items-center justify-center border-dashed border-2 rounded-xl gap-1 hover:bg-primary/5 hover:border-primary transition-all" onClick={startCamera}>
+                                    <Camera className="h-5 w-5 opacity-40" />
+                                    <span className="text-[9px] font-black uppercase">CÁMARA</span>
+                                </Button>
+                                <label className="h-20 flex flex-col items-center justify-center border-2 border-dashed rounded-xl gap-1 cursor-pointer hover:bg-primary/5 hover:border-primary transition-all">
+                                    <FileUp className="h-5 w-5 opacity-40" />
+                                    <span className="text-[9px] font-black uppercase">SUBIR</span>
+                                    <Input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handlePhotosUpload} />
+                                </label>
                             </div>
                         )}
                     </div>
 
                     <div className="pt-4">
-                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0 || !respaldoPhoto || selectedDepartment === 'ALL'} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
+                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0 || photos.length === 0 || selectedDepartment === 'ALL'} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
                             {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
                             GUARDAR REPORTE
                         </Button>
