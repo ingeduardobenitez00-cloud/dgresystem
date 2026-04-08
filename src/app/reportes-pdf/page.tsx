@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useUser, useFirebase, useDoc } from "@/firebase";
 import { collection, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Loader2, PieChart as PieIcon, RefreshCw, Printer, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, BarChart3 } from "lucide-react";
+import { Loader2, PieChart as PieIcon, RefreshCw, Printer, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, BarChart3, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -15,7 +15,7 @@ import { cn, formatDateToDDMMYYYY } from "@/lib/utils";
 import html2canvas from "html2canvas";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
-const COLORS = ['#1A1A1A', '#2E2E2E', '#404040', '#525252', '#737373', '#A3A3A3'];
+const COLORS = ['#0F172A', '#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 export default function ReportesPDFPage() {
     const { user } = useUser();
@@ -35,22 +35,25 @@ export default function ReportesPDFPage() {
         try {
             toast({ title: "Iniciando sincronización...", description: "Esto puede tardar unos segundos dependiendo del volumen de datos." });
 
-            const [informesSnap, encuestasSnap] = await Promise.all([
+            const [informesSnap, encuestasSnap, datosSnap, reportsSnap] = await Promise.all([
                 getDocs(collection(firestore, 'informes-divulgador')),
-                getDocs(collection(firestore, 'encuestas-satisfaccion'))
+                getDocs(collection(firestore, 'encuestas-satisfaccion')),
+                getDocs(collection(firestore, 'datos')),
+                getDocs(collection(firestore, 'reports'))
             ]);
 
             const informes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const encuestas = encuestasSnap.docs.map(d => d.data());
+            const datosData = datosSnap.docs.map(d => d.data());
+            const reportsData = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // Agregación por Departamento y Distrito
+            // 1. Agregación de Capacitaciones
             const deptoMap: any = {};
             let globalCapacitados = 0;
 
             informes.forEach((inf: any) => {
                 const deptoKey = inf.departamento || "SIN DEPARTAMENTO";
                 const distKey = inf.oficina || inf.distrito || "SIN DISTRITO";
-                // Intentar obtener el código del departamento del nombre (formato "01 - CONCEPCION")
                 const deptoCod = deptoKey.split(' - ')[0] || "99";
 
                 if (!deptoMap[deptoKey]) {
@@ -73,26 +76,14 @@ export default function ReportesPDFPage() {
 
                 const nroCapt = Number(inf.total_personas || 0);
                 deptoMap[deptoKey].capacitados += nroCapt;
-                deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
                 globalCapacitados += nroCapt;
-            });
-
-            encuestas.forEach((enc: any) => {
-                const deptoKey = enc.departamento || "SIN DEPARTAMENTO";
-                const distKey = enc.distrito || "SIN DISTRITO";
-
-                if (deptoMap[deptoKey]) {
-                    deptoMap[deptoKey].encuestas += 1;
-                    if (deptoMap[deptoKey].distritos[distKey]) {
-                        deptoMap[deptoKey].distritos[distKey].encuestas += 1;
-                    }
+                if (deptoMap[deptoKey].distritos[distKey]) {
+                    deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
                 }
             });
 
-            // Preparar chart de percepción
-            const percepcionData = Object.entries(percCounts).map(([name, value]) => ({ name, value }));
-
-            // 3. Métricas adicionales de Usabilidad y Perfil
+            // 2. Procesar Encuestas
+            const percCounts: any = { EXCELENTE: 0, MUY_BUENO: 0, BUENO: 0, REGULAR: 0, INSATISFACTORIO: 0 };
             const utilidadCounts: any = { muy_util: 0, util: 0, poco_util: 0, nada_util: 0 };
             const facilidadCounts: any = { muy_facil: 0, facil: 0, poco_facil: 0, nada_facil: 0 };
             const seguridadCounts: any = { muy_seguro: 0, seguro: 0, poco_seguro: 0, nada_seguro: 0 };
@@ -101,6 +92,21 @@ export default function ReportesPDFPage() {
             let pueblosCount = 0;
 
             encuestas.forEach((e: any) => {
+                const deptoKey = e.departamento || "SIN DEPARTAMENTO";
+                const distKey = e.distrito || "SIN DISTRITO";
+
+                if (deptoMap[deptoKey]) {
+                    deptoMap[deptoKey].encuestas += 1;
+                    if (deptoMap[deptoKey].distritos[distKey]) {
+                        deptoMap[deptoKey].distritos[distKey].encuestas += 1;
+                    }
+                }
+
+                if (e.percepcion_maquina) {
+                    const mapped = e.percepcion_maquina.toUpperCase().replace(/\s+/g, '_');
+                    if (percCounts[mapped] !== undefined) percCounts[mapped]++;
+                }
+
                 if (e.utilidad_maquina && utilidadCounts[e.utilidad_maquina] !== undefined) utilidadCounts[e.utilidad_maquina]++;
                 if (e.facilidad_maquina && facilidadCounts[e.facilidad_maquina] !== undefined) facilidadCounts[e.facilidad_maquina]++;
                 if (e.seguridad_maquina && seguridadCounts[e.seguridad_maquina] !== undefined) seguridadCounts[e.seguridad_maquina]++;
@@ -115,25 +121,72 @@ export default function ReportesPDFPage() {
                 }
             });
 
-            const formatData = (obj: any, labels: any) => Object.entries(obj).map(([key, value]) => ({ name: labels[key] || key, value }));
+            const percepcionData = Object.entries(percCounts).map(([name, value]) => ({ name, value }));
 
-            // Guardar en Firestore
-            await setDoc(doc(firestore, 'stats-summary', 'capacitaciones'), {
-                lastUpdate: new Date().toISOString(),
-                totalCapacitados: globalCapacitados,
-                totalEncuestas: encuestas.length,
-                pueblosCount,
-                deptoData: deptoMap,
-                percepcionData,
-                utilidadData: formatData(utilidadCounts, { muy_util: 'Muy Útil', util: 'Útil', poco_util: 'Poco Útil', nada_util: 'Nada Útil' }),
-                facilidadData: formatData(facilidadCounts, { muy_facil: 'Muy Fácil', facil: 'Fácil', poco_facil: 'Poco Fácil', nada_facil: 'Nada Fácil' }),
-                seguridadData: formatData(seguridadCounts, { muy_seguro: 'Muy Seguro', seguro: 'Seguro', poco_seguro: 'Poco Seguro', nada_seguro: 'Nada Seguro' }),
-                generoData: formatData(generoCounts, { hombre: 'Hombre', mujer: 'Mujer' }),
-                edadesData: Object.entries(edadCounts).map(([key, value]) => ({ name: key, value })),
-                updatedBy: user?.profile?.username || user?.email
+            // 3. Agregación de Ubicaciones
+            const departments: Record<string, Set<string>> = {};
+            datosData.forEach((d: any) => {
+                if (!departments[d.departamento]) departments[d.departamento] = new Set();
+                departments[d.departamento].add(d.distrito);
             });
 
-            toast({ title: "Sincronización exitosa", description: "El resumen estadístico ha sido actualizado." });
+            const structuredUbicaciones = Object.keys(departments).sort().map((deptName, idx) => {
+                const districts = Array.from(departments[deptName]).sort();
+                const districtsWithReports = districts.map(distName => {
+                    const report = reportsData.find((r: any) => r.departamento === deptName && r.distrito === distName) || null;
+                    return { name: distName, report };
+                });
+                return { id: `dept-${idx}`, name: deptName, districts: districtsWithReports };
+            });
+
+            const locationSummaryData: any = {
+                totalReports: { count: reportsData.length },
+                habitacionSegura: { count: 0 },
+                comisaria: { count: 0 },
+                parroquia: { count: 0 },
+                localVotacion: { count: 0 },
+                juzgado: { count: 0 },
+                propiedadIntendencia: { count: 0 },
+                otros: { count: 0 }
+            };
+
+            reportsData.forEach((r: any) => {
+                const lugar = (r['lugar-resguardo'] || '').toLowerCase().trim();
+                if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) locationSummaryData.habitacionSegura.count++;
+                else if (lugar.includes('comisaria')) locationSummaryData.comisaria.count++;
+                else if (lugar.includes('parroquia')) locationSummaryData.parroquia.count++;
+                else if (lugar.includes('local de votacion') || lugar.includes('local votacion')) locationSummaryData.localVotacion.count++;
+                else if (lugar.includes('juzgado')) locationSummaryData.juzgado.count++;
+                else if (lugar.includes('intendencia')) locationSummaryData.propiedadIntendencia.count++;
+                else locationSummaryData.otros.count++;
+            });
+
+            const formatEncuestaData = (obj: any, labels: any) => Object.entries(obj).map(([key, value]) => ({ name: labels[key] || key, value }));
+
+            // 4. Guardar Resúmenes
+            await Promise.all([
+                setDoc(doc(firestore, 'stats-summary', 'capacitaciones'), {
+                    lastUpdate: new Date().toISOString(),
+                    totalCapacitados: globalCapacitados,
+                    totalEncuestas: encuestas.length,
+                    alcanceData: Object.values(deptoMap).sort((a: any, b: any) => a.codigo.localeCompare(b.codigo)),
+                    percepcionData,
+                    utilidadData: formatEncuestaData(utilidadCounts, { muy_util: 'Muy Útel', util: 'Útil', poco_util: 'Poco Útil', nada_util: 'Nada Útil' }),
+                    facilidadData: formatEncuestaData(facilidadCounts, { muy_facil: 'Muy Fácil', facil: 'Fácil', poco_facil: 'Poco Fácil', nada_facil: 'Nada Fácil' }),
+                    seguridadData: formatEncuestaData(seguridadCounts, { muy_seguro: 'Muy Seguro', seguro: 'Seguro', poco_seguro: 'Poco Seguro', nada_seguro: 'Nada Seguro' }),
+                    generoData: formatEncuestaData(generoCounts, { hombre: 'Hombre', mujer: 'Mujer' }),
+                    edadesData: Object.entries(edadCounts).map(([key, value]) => ({ name: key, value })),
+                    pueblosCount,
+                    updatedBy: user?.profile?.username || user?.email
+                }),
+                setDoc(doc(firestore, 'stats-summary', 'ubicaciones'), {
+                    lastUpdate: new Date().toISOString(),
+                    structuredData: structuredUbicaciones,
+                    summaryData: locationSummaryData
+                })
+            ]);
+
+            toast({ title: "Sincronización exitosa", description: "Todos los módulos han sido actualizados." });
         } catch (error: any) {
             console.error("Sync Error:", error);
             toast({ variant: "destructive", title: "Error en sincronización", description: error.message });
@@ -360,8 +413,8 @@ export default function ReportesPDFPage() {
                                                 <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} height={80} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                                                 <YAxis style={{ fontSize: '9px', fontWeight: 'bold' }} />
                                                 <RechartsTooltip contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '10px' }} />
-                                                <Bar dataKey="capacitados" name="Capacitados" fill="#1A1A1A" radius={[6, 6, 0, 0]} />
-                                                <Bar dataKey="encuestas" name="Encuestas" fill="#A3A3A3" radius={[6, 6, 0, 0]} />
+                                                <Bar dataKey="capacitados" name="Capacitados" fill="#2563EB" radius={[6, 6, 0, 0]} />
+                                                <Bar dataKey="encuestas" name="Encuestas" fill="#10B981" radius={[6, 6, 0, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -415,7 +468,7 @@ export default function ReportesPDFPage() {
                                                 <XAxis dataKey="name" style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                                                 <YAxis style={{ fontSize: '9px', fontWeight: 'bold' }} />
                                                 <RechartsTooltip />
-                                                <Bar dataKey="value" name="Votos" fill="#1A1A1A" radius={[6, 6, 0, 0]} />
+                                                <Bar dataKey="value" name="Votos" fill="#2563EB" radius={[6, 6, 0, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -437,7 +490,7 @@ export default function ReportesPDFPage() {
                                                 <XAxis type="number" style={{ fontSize: '9px', fontWeight: 'bold' }} />
                                                 <YAxis dataKey="name" type="category" style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                                                 <RechartsTooltip />
-                                                <Bar dataKey="value" name="Participantes" fill="#1A1A1A" radius={[0, 6, 6, 0]} />
+                                                <Bar dataKey="value" name="Participantes" fill="#8B5CF6" radius={[0, 6, 6, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>

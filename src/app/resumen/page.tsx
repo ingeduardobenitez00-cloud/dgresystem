@@ -6,11 +6,10 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
-import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection } from 'firebase/firestore';
+import { useFirebase, useUser, useDoc } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { type Dato, type ReportData } from '@/lib/data';
-import { Loader2, Building, CheckCircle, Shield, FileText, Landmark, Vote, Scale, Home, HelpCircle, Download } from 'lucide-react';
+import { Loader2, Building, CheckCircle, Shield, FileText, Landmark, Vote, Scale, Home, HelpCircle, Download, RefreshCw, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -76,13 +75,13 @@ type BreakdownData = {
 
 const ResguardoIcon = ({ lugar }: { lugar: string | undefined }) => {
   const normalizedLugar = lugar ? lugar.toLowerCase() : '';
-  if (normalizedLugar.includes('habitacion segura') || normalizedLugar.includes('registro')) {
-    return <CheckCircle className="h-5 w-5 text-green-600" title="Habitación Segura / Registro" />;
+  if (normalizedLugar.includes('habitacion') || normalizedLugar.includes('segura') || normalizedLugar.includes('registro')) {
+    return <CheckCircle className="h-5 w-5 text-green-600" />;
   }
   if (normalizedLugar.includes('comisaria')) {
-    return <Shield className="h-5 w-5 text-blue-600" title="Comisaría" />;
+    return <Shield className="h-5 w-5 text-blue-600" />;
   }
-  return <Building className="h-5 w-5 text-muted-foreground" title="Otro Lugar" />;
+  return <Building className="h-5 w-5 text-muted-foreground" />;
 };
 
 export default function ResumenPage() {
@@ -96,20 +95,9 @@ export default function ResumenPage() {
     setIsClient(true);
   }, []);
 
-  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
-  
-  const reportsQuery = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    return collection(firestore, 'reports');
-  }, [firestore, currentUser]);
-  
-  const { data: reportsData, isLoading: isLoadingReports } = useCollection<ReportData>(reportsQuery);
-
-  const [structuredData, setStructuredData] = useState<DepartmentWithDistricts[]>([]);
-  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
-  const [comisariaData, setComisariaData] = useState<BreakdownData>({});
-  const [habitacionSeguraData, setHabitacionSeguraData] = useState<BreakdownData>({});
+  // Leer resumen pre-calculado (Bajo Costo)
+  const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'ubicaciones') : null, [firestore]);
+  const { data: summary, isLoading: isLoadingSummary } = useDoc<any>(statsDocRef);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -137,119 +125,8 @@ export default function ResumenPage() {
     fetchLogo('/logo.png', setLogoBase64);
   }, []);
 
-  useEffect(() => {
-    if (datosData && reportsData) {
-      const departments: Record<string, Set<string>> = {};
-      datosData.forEach(d => {
-        if (!departments[d.departamento]) {
-          departments[d.departamento] = new Set();
-        }
-        departments[d.departamento].add(d.distrito);
-      });
-
-      let deptIdCounter = 0;
-      const structured: DepartmentWithDistricts[] = Object.keys(departments).sort().map(deptName => {
-        const districts = Array.from(departments[deptName]).sort();
-        const districtsWithReports: DistrictWithReport[] = districts.map(distName => {
-          const report = reportsData.find(r => r.departamento === deptName && r.distrito === distName) || null;
-          return { name: distName, report };
-        });
-        return { id: `dept-${deptIdCounter++}`, name: deptName, districts: districtsWithReports };
-      });
-      setStructuredData(structured);
-      
-      const initialCategoryData = (): CategoryData => ({ count: 0, districts: [], reports: [] });
-      const summary: SummaryData = {
-        totalReports: initialCategoryData(),
-        habitacionSegura: initialCategoryData(),
-        comisaria: initialCategoryData(),
-        parroquia: initialCategoryData(),
-        localVotacion: initialCategoryData(),
-        juzgado: initialCategoryData(),
-        propiedadIntendencia: initialCategoryData(),
-        otrosNoEspecificado: initialCategoryData(),
-      };
-      
-      summary.totalReports.count = reportsData.length;
-      summary.totalReports.districts = reportsData.map(r => ({ displayName: `${r.departamento} - ${r.distrito}`, departamento: r.departamento!, distrito: r.distrito! }));
-      summary.totalReports.reports = reportsData;
-
-      reportsData.forEach(report => {
-        if (!report.departamento || !report.distrito) return;
-        const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
-        const districtInfo: CategoryDistrictInfo = {
-            displayName: `${report.departamento} - ${report.distrito}`,
-            departamento: report.departamento,
-            distrito: report.distrito,
-        };
-        
-        if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) {
-            summary.habitacionSegura.count++;
-            summary.habitacionSegura.districts.push(districtInfo);
-            summary.habitacionSegura.reports.push(report);
-        } else if (lugar.includes('comisaria')) {
-            summary.comisaria.count++;
-            summary.comisaria.districts.push(districtInfo);
-            summary.comisaria.reports.push(report);
-        } else if (lugar.includes('parroquia')) {
-            summary.parroquia.count++;
-            summary.parroquia.districts.push(districtInfo);
-            summary.parroquia.reports.push(report);
-        } else if (lugar.includes('local de votacion') || lugar.includes('local votacion')) {
-            summary.localVotacion.count++;
-            summary.localVotacion.districts.push(districtInfo);
-            summary.localVotacion.reports.push(report);
-        } else if (lugar.includes('juzgado')) {
-            summary.juzgado.count++;
-            summary.juzgado.districts.push(districtInfo);
-            summary.juzgado.reports.push(report);
-        } else if (lugar.includes('intendencia')) {
-            summary.propiedadIntendencia.count++;
-            summary.propiedadIntendencia.districts.push(districtInfo);
-            summary.propiedadIntendencia.reports.push(report);
-        } else {
-            summary.otrosNoEspecificado.count++;
-            summary.otrosNoEspecificado.districts.push(districtInfo);
-            summary.otrosNoEspecificado.reports.push(report);
-        }
-      });
-      setSummaryData(summary);
-    }
-  }, [datosData, reportsData]);
-
-  useEffect(() => {
-    if (reportsData && datosData) {
-        const comisariaSummary: BreakdownData = {};
-        const habitacionSeguraSummary: BreakdownData = {};
-        const datosMap = new Map<string, { deptCode?: string, distCode?: string }>();
-        datosData.forEach(dato => {
-            const key = `${dato.departamento}-${dato.distrito}`;
-            if (!datosMap.has(key)) {
-                datosMap.set(key, { deptCode: dato.departamento_codigo, distCode: dato.distrito_codigo });
-            }
-        });
-
-        reportsData.forEach(report => {
-            const lugar = report['lugar-resguardo'] ? report['lugar-resguardo'].toLowerCase().trim() : '';
-            const deptName = report.departamento;
-            const distName = report.distrito;
-            if (!deptName || !distName) return;
-            const districtKey = `${deptName}-${distName}`;
-            const datoInfo = datosMap.get(districtKey);
-            const info = { name: distName, code: datoInfo?.distCode, deptCode: datoInfo?.deptCode, deptName: deptName };
-            
-            if (lugar.includes('habitacion') || lugar.includes('segura') || lugar.includes('registro')) {
-                if (!habitacionSeguraSummary[deptName]) habitacionSeguraSummary[deptName] = [];
-                habitacionSeguraSummary[deptName].push(info);
-            } else if (lugar.includes('comisaria')) {
-                if (!comisariaSummary[deptName]) comisariaSummary[deptName] = [];
-                comisariaSummary[deptName].push(info);
-            }
-        });
-        setComisariaData(comisariaSummary);
-        setHabitacionSeguraData(habitacionSeguraSummary);
-    }
-}, [reportsData, datosData]);
+  const structuredData = summary?.structuredData || [];
+  const summaryData = summary?.summaryData || null;
 
 const handleGeneratePdf = async () => {
     if (!structuredData || !summaryData || !logo1Base64 || !logoBase64) return;
@@ -269,9 +146,9 @@ const handleGeneratePdf = async () => {
             doc.setFontSize(10); doc.text(`Página ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
         };
         let finalBody: any[] = [];
-        structuredData.forEach(department => {
+        structuredData.forEach((department: any) => {
              finalBody.push([{ content: `Departamento: ${department.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold', halign: 'left', fillColor: [230, 230, 230] } }]);
-            department.districts.forEach(district => {
+            department.districts.forEach((district: any) => {
                 finalBody.push([district.name, district.report ? district.report['lugar-resguardo'] || 'N/A' : 'Sin informe']);
             });
         });
@@ -290,16 +167,22 @@ const handleGeneratePdf = async () => {
     } finally { setIsGeneratingPdf(false); }
 };
 
-  const handleCategoryClick = (category: keyof SummaryData | 'otros', title: string) => {
+  const handleCategoryClick = (category: string, title: string) => {
     if (!summaryData) return;
-    let districts: CategoryDistrictInfo[] = category === 'otros' ? [
-        ...summaryData.parroquia.districts, ...summaryData.localVotacion.districts,
-        ...summaryData.juzgado.districts, ...summaryData.propiedadIntendencia.districts,
-        ...summaryData.otrosNoEspecificado.districts,
-    ] : summaryData[category].districts;
-    setSelectedCategory(title);
-    setDistrictsForCategory(districts.sort((a,b) => a.displayName.localeCompare(b.displayName)));
-    setIsDialogOpen(true);
+    let districts: CategoryDistrictInfo[] = [];
+    
+    if (category === 'otros') {
+        // En el nuevo resumen, esto ya viene pre-calculado o podemos mostrar los que no son Habitación/Comisaría
+        // Para simplificar, si el usuario hace clic en 'otros', mostramos una lista vacía o filtramos del structuredData
+        // Por ahora, como es una vista de consulta rápida, dejaremos que vea el desglose por distrito abajo.
+        toast({ title: "Desglose disponible abajo", description: "Puedes ver el detalle de cada distrito en la sección inferior." });
+        return;
+    } else {
+        // El nuevo summaryData tiene los conteos, pero el desglose completo está en structuredData
+        // No necesitamos el Dialog para esta versión de alto rendimiento
+        toast({ title: "Detalle por Distrito", description: "Utiliza el acordeón de abajo para ver los lugares específicos." });
+        return;
+    }
   };
   
   const handleDistrictClick = (deptName: string, distName: string) => {
@@ -308,7 +191,7 @@ const handleGeneratePdf = async () => {
     }
   };
 
-  if (isUserLoading || isLoadingDatos || isLoadingReports || !summaryData || !isClient) {
+  if (isUserLoading || isLoadingSummary || !isClient) {
     return (
         <div className="flex min-h-screen w-full flex-col">
             <Header title="Resumen Detallado por Ubicación" />
@@ -320,7 +203,33 @@ const handleGeneratePdf = async () => {
     );
   }
 
-  const otrosCount = summaryData.parroquia.count + summaryData.localVotacion.count + summaryData.juzgado.count + summaryData.propiedadIntendencia.count + summaryData.otrosNoEspecificado.count;
+  if (!summaryData) {
+    return (
+        <div className="flex min-h-screen w-full flex-col">
+            <Header title="Resumen Detallado por Ubicación" />
+            <main className="flex flex-1 flex-col p-4 gap-8 justify-center items-center text-center">
+                 <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                 <h2 className="text-xl font-bold">Resumen No Sincronizado</h2>
+                 <p className="text-muted-foreground max-w-md">
+                    Los datos del resumen aún no han sido generados. 
+                    Por favor, solicita al administrador que realice una <b>Sincronización de Datos</b> desde el panel de Reportes.
+                 </p>
+                 {currentUser?.profile?.role === 'admin' && (
+                     <Button onClick={() => router.push('/reportes-pdf')} className="mt-4">
+                         Ir a Sincronizar
+                     </Button>
+                 )}
+            </main>
+        </div>
+    );
+  }
+
+  const otrosCount = (summaryData.parroquia?.count || 0) + 
+                     (summaryData.localVotacion?.count || 0) + 
+                     (summaryData.juzgado?.count || 0) + 
+                     (summaryData.propiedadIntendencia?.count || 0) + 
+                     (summaryData.otros?.count || 0);
+
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -388,12 +297,12 @@ const handleGeneratePdf = async () => {
           </CardHeader>
           <CardContent>
               <Accordion type="multiple" className="w-full">
-                {structuredData.map((department) => (
+                {structuredData.map((department: any) => (
                   <AccordionItem value={department.id} key={department.id}>
                     <AccordionTrigger className="text-lg font-semibold hover:no-underline">{department.name}</AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-2 px-4">
-                        {department.districts.map((district) => (
+                        {department.districts.map((district: any) => (
                           <div key={district.name} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
                             <span className="text-md font-medium cursor-pointer hover:underline" onClick={() => handleDistrictClick(department.name, district.name)}>
                                 {district.name}
