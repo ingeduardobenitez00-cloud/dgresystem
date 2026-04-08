@@ -174,5 +174,11 @@ service cloud.firestore {
       allow read: if isAdmin() || isDirector();
       allow write: if isAdmin();
     }
+
+    /** Resumen de Estadísticas (Carga Optimizada) **/
+    match /stats-summary/{document=**} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
   }
 }

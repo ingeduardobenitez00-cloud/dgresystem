@@ -35,23 +35,23 @@ export default function ReportesPDFPage() {
         try {
             toast({ title: "Iniciando sincronización...", description: "Esto puede tardar unos segundos dependiendo del volumen de datos." });
 
-            const [solicitudesSnap, encuestasSnap] = await Promise.all([
-                getDocs(collection(firestore, 'solicitudes-capacitacion')),
+            const [informesSnap, encuestasSnap] = await Promise.all([
+                getDocs(collection(firestore, 'informes-divulgador')),
                 getDocs(collection(firestore, 'encuestas-satisfaccion'))
             ]);
 
-            const solicitudes = solicitudesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const informes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const encuestas = encuestasSnap.docs.map(d => d.data());
 
             // Agregación por Departamento y Distrito
             const deptoMap: any = {};
             let globalCapacitados = 0;
 
-            solicitudes.forEach((sol: any) => {
-                if (sol.cancelada) return;
-                const deptoKey = sol.departamento || "SIN DEPARTAMENTO";
-                const distKey = sol.distrito || "SIN DISTRITO";
-                const deptoCod = sol.dep_id || "99";
+            informes.forEach((inf: any) => {
+                const deptoKey = inf.departamento || "SIN DEPARTAMENTO";
+                const distKey = inf.oficina || inf.distrito || "SIN DISTRITO";
+                // Intentar obtener el código del departamento del nombre (formato "01 - CONCEPCION")
+                const deptoCod = deptoKey.split(' - ')[0] || "99";
 
                 if (!deptoMap[deptoKey]) {
                     deptoMap[deptoKey] = {
@@ -71,7 +71,7 @@ export default function ReportesPDFPage() {
                     };
                 }
 
-                const nroCapt = Number(sol.nro_capacitados || 0);
+                const nroCapt = Number(inf.total_personas || 0);
                 deptoMap[deptoKey].capacitados += nroCapt;
                 deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
                 globalCapacitados += nroCapt;
