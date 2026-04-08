@@ -57,18 +57,26 @@ function InformeContent() {
   // Helper de compresión robusto para evitar exceder 1MB de Firestore
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      if (file.type === 'application/pdf') {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Reducido para asegurar que quepan varias fotos en 1MB
+          const MAX_WIDTH = 800; // Ancho reducido para optimizar espacio
           const scaleSize = Math.min(1, MAX_WIDTH / img.width);
           canvas.width = img.width * scaleSize;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6)); // Calidad reducida para optimizar espacio
+          // Calidad 0.4 para permitir más adjuntos en Firestore
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
         };
         img.src = e.target?.result as string;
       };
@@ -178,12 +186,12 @@ function InformeContent() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        // Usamos compresión directa al capturar
-        const dataUri = canvas.toDataURL('image/jpeg', 0.6);
+        // Calidad 0.4
+        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
         if (activeCameraTarget === 'respaldo') {
             setRespaldoPhoto(dataUri);
         } else {
-            setEvidencePhotos(prev => [...prev, dataUri].slice(0, 5));
+            setEvidencePhotos(prev => [...prev, dataUri].slice(0, 10));
         }
         stopCamera();
       }
@@ -202,11 +210,11 @@ function InformeContent() {
                 toast({ variant: 'destructive', title: "Error al procesar archivo" });
             }
         } else {
-            const selection = Array.from(files).slice(0, 5 - evidencePhotos.length);
+            const selection = Array.from(files).slice(0, 10 - evidencePhotos.length);
             for (const file of selection) {
                 try {
                     const compressed = await compressImage(file);
-                    setEvidencePhotos(prev => [...prev, compressed].slice(0, 5));
+                    setEvidencePhotos(prev => [...prev, compressed].slice(0, 10));
                 } catch (err) {
                     toast({ variant: 'destructive', title: "Error al procesar evidencia" });
                 }

@@ -76,7 +76,7 @@ export default function InformeSemanalRegistroPage() {
 
   const profile = user?.profile;
 
-  const compressImage = (file: File): Promise<string> => {
+  const compressImage = (file: File, currentPhotoCount: number = 0): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (file.type === 'application/pdf') {
         const reader = new FileReader();
@@ -90,13 +90,15 @@ export default function InformeSemanalRegistroPage() {
         const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1200;
+          // Compresión adaptativa: si hay muchas fotos, reducimos más el tamaño
+          const MAX_WIDTH = currentPhotoCount > 8 ? 600 : 800;
           const scaleSize = Math.min(1, MAX_WIDTH / img.width);
           canvas.width = img.width * scaleSize;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
+          // Calidad reducida a 0.4 para permitir mas fotos
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
         };
         img.src = e.target?.result as string;
       };
@@ -190,7 +192,7 @@ export default function InformeSemanalRegistroPage() {
   const takePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 1200;
+      const MAX_WIDTH = photos.length > 8 ? 600 : 800;
       const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
       canvas.width = videoRef.current.videoWidth * scaleSize;
       canvas.height = videoRef.current.videoHeight * scaleSize;
@@ -198,8 +200,8 @@ export default function InformeSemanalRegistroPage() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.7);
-        setPhotos(prev => [...prev, dataUri]);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
+        setPhotos(prev => [...prev, dataUri].slice(0, 12));
         stopCamera();
       }
     }
@@ -208,10 +210,12 @@ export default function InformeSemanalRegistroPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      for (const file of Array.from(files)) {
+      const remaining = 12 - photos.length;
+      const selection = Array.from(files).slice(0, remaining);
+      for (const file of selection) {
         try {
-          const compressed = await compressImage(file);
-          setPhotos(prev => [...prev, compressed]);
+          const compressed = await compressImage(file, photos.length);
+          setPhotos(prev => [...prev, compressed].slice(0, 12));
         } catch (err) {
           toast({ variant: 'destructive', title: "Error al procesar archivo" });
         }
@@ -449,7 +453,10 @@ export default function InformeSemanalRegistroPage() {
             <Separator />
 
             <div className="space-y-6">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Boletas de Inscripción y Otros</Label>
+                <div className="flex justify-between items-center">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Boletas de Inscripción y Otros ({photos.length}/12)</Label>
+                    <p className="text-[9px] font-black text-primary/60 uppercase italic">Máximo 12 archivos para asegurar envío</p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                     <div className="flex gap-3">
                         <label htmlFor="file-up" className="flex-1 flex items-center justify-center gap-2 h-12 border-2 border-dashed rounded-xl cursor-pointer hover:bg-muted/20 transition-all font-black uppercase text-[10px]">

@@ -68,7 +68,8 @@ export default function PerfilPage() {
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject('No context');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          // Calidad 0.4 para subidas rápidas y poco peso en DB
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
         };
         img.src = e.target?.result as string;
       };

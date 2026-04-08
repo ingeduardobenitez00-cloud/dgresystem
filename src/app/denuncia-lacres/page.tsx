@@ -100,16 +100,19 @@ function DenunciaContent() {
         const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Reducimos de 1200 a 800 para mayor seguridad del 1MB
+          const MAX_WIDTH = 800; // Optimización de espacio
           const scaleSize = Math.min(1, MAX_WIDTH / img.width);
           canvas.width = img.width * scaleSize;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6)); // Bajamos de 0.7 a 0.6
+          if (!ctx) return reject('No context');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Calidad 0.4 para ahorrar espacio
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
         };
         img.src = e.target?.result as string;
       };
+      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };

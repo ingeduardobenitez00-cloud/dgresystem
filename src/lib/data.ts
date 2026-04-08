@@ -255,4 +255,26 @@ export type PartidoPolitico = {
   movimiento?: string;
 }
 
+export type OrganizacionAsistida = {
+  tipo: string;
+  nombre: string;
+}
+
+export type InformeSemanalRegistro = {
+  id: string;
+  departamento: string;
+  distrito: string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  inscripciones_1ra_vez: number;
+  actualizacion_datos: number;
+  cambio_local: number;
+  cambio_distrito: number;
+  cant_organizaciones: number;
+  organizaciones_asistidas: OrganizacionAsistida[];
+  fotos: string[];
+  usuario_id: string;
+  fecha_creacion: string;
+}
+
 export const initialDepartments: Department[] = [];

@@ -155,14 +155,15 @@ function ControlMovimientoContent() {
         const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Optimización agresiva para 5 fotos
+          const MAX_WIDTH = 800; // Optimización de espacio en Firestore
           const scaleSize = Math.min(1, MAX_WIDTH / img.width);
           canvas.width = img.width * scaleSize;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject('No context');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          // Calidad 0.4 para permitir más fotos por registro
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
         };
         img.src = e.target?.result as string;
       };

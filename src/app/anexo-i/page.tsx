@@ -33,7 +33,7 @@ import autoTable from 'jspdf-autotable';
 import { format, addDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import {
   Dialog,
   DialogContent,
@@ -111,13 +111,14 @@ export default function AnexoIPage() {
         const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1200;
+          const MAX_WIDTH = 800; // Ajuste global para optimizar Firestore
           const scaleSize = Math.min(1, MAX_WIDTH / img.width);
           canvas.width = img.width * scaleSize;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
+          // Calidad 0.4
+          resolve(canvas.toDataURL('image/jpeg', 0.4));
         };
         img.src = e.target?.result as string;
       };
@@ -150,7 +151,7 @@ export default function AnexoIPage() {
   const takePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 1200;
+      const MAX_WIDTH = 800;
       const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
       canvas.width = videoRef.current.videoWidth * scaleSize;
       canvas.height = videoRef.current.videoHeight * scaleSize;
@@ -158,7 +159,7 @@ export default function AnexoIPage() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.7);
+        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
         setFotoRespaldo(dataUri);
         stopCamera();
       }
