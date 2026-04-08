@@ -214,13 +214,6 @@ export default function AgendaAnexoVPage() {
             if (diffMins > 3) return false;
         }
 
-        // 2. Filtrar registros ANTIGUOS (más de 3 días) que no se completaron (limpieza de agenda)
-        const activityDate = new Date(sol.fecha + 'T00:00:00');
-        const threeDaysAgo = new Date();
-        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        threeDaysAgo.setHours(0,0,0,0);
-        if (activityDate < threeDaysAgo && !sol.fecha_cumplido) return false;
-
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
         const isPast = sol.fecha < today;
