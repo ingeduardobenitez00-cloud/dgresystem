@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { useFirebase, useUser, useDoc } from '@/firebase';
+import { useFirebase, useUser, useDocOnce } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { type Dato, type ReportData } from '@/lib/data';
 import { Loader2, Building, CheckCircle, Shield, FileText, Landmark, Vote, Scale, Home, HelpCircle, Download, RefreshCw, AlertTriangle } from 'lucide-react';
@@ -97,7 +97,7 @@ export default function ResumenPage() {
 
   // Leer resumen pre-calculado (Bajo Costo)
   const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'ubicaciones') : null, [firestore]);
-  const { data: summary, isLoading: isLoadingSummary } = useDoc<any>(statsDocRef);
+  const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');

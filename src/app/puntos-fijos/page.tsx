@@ -19,7 +19,7 @@ import {
   Calendar as CalendarIcon,
   ChevronDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -83,7 +83,7 @@ export default function PuntosFijosPage() {
     return query(colRef, where('tipo_solicitud', '==', 'Lugar Fijo'));
   }, [firestore]);
 
-  const { data: rawPuntosFijos, isLoading } = useCollection<SolicitudCapacitacion>(puntosFijosQuery);
+  const { data: rawPuntosFijos, isLoading } = useCollectionOnce<SolicitudCapacitacion>(puntosFijosQuery);
 
   // Filtrado de datos en el cliente
   const filteredData = useMemo(() => {

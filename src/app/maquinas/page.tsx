@@ -24,7 +24,7 @@ import {
   Database,
   X
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, doc, writeBatch, addDoc, deleteDoc, query, where, updateDoc } from 'firebase/firestore';
 import { type MaquinaVotacion, type Dato } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

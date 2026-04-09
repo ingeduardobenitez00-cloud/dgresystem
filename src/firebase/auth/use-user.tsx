@@ -1,6 +1,6 @@
 'use client';
 import { useMemo } from 'react';
-import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirebase, useDocOnce, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { type User } from 'firebase/auth';
 
@@ -57,7 +57,7 @@ export const useUser = (): UserHookResult => {
     return doc(firestore, 'users', authUser.uid);
   }, [firestore, authUser?.uid]);
 
-  const { data: profileData, isLoading: isProfileLoading, error: profileError } = useDoc<UserProfile>(userProfileDocRef);
+  const { data: profileData, isLoading: isProfileLoading, error: profileError } = useDocOnce<UserProfile>(userProfileDocRef);
   
   const email = authUser?.email?.toLowerCase() || '';
   const isOwner = [

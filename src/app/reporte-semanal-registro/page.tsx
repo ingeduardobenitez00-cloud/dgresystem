@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useDocOnce } from '@/firebase';
 import { collection, query, orderBy, where, doc, writeBatch, addDoc } from 'firebase/firestore';
 import { type InformeSemanalRegistro, type Dato } from '@/lib/data';
 import { 
@@ -53,7 +53,7 @@ export default function ReporteSemanalRegistroPage() {
 
   // CARGAR CONFIGURACIÓN GLOBAL (FECHAS)
   const configRef = useMemoFirebase(() => firestore ? doc(firestore, 'config', 'reporte_semanal') : null, [firestore]);
-  const { data: configData } = useDoc<any>(configRef);
+  const { data: configData } = useDocOnce<any>(configRef);
 
   // Cargar geografía completa
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
@@ -70,7 +70,7 @@ export default function ReporteSemanalRegistroPage() {
     );
   }, [firestore]);
 
-  const { data: informes, isLoading: isLoadingInformes } = useCollection<InformeSemanalRegistro>(informesQuery);
+  const { data: informes, isLoading: isLoadingInformes } = useCollectionOnce<InformeSemanalRegistro>(informesQuery);
 
   // Agrupación y Procesamiento de Cumplimiento (EXCLUYENDO SEDE CENTRAL)
   const hierarchy = useMemo(() => {

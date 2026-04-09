@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FileUp, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import Header from '@/components/header';
 import Image from 'next/image';
-import { useFirebase, useCollection, useMemoFirebase, useStorage } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, doc, writeBatch } from 'firebase/firestore';
 import { type LocalVotacion } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
@@ -34,7 +34,7 @@ export default function CargarFotosLocalesPage() {
   const [results, setResults] = useState<{ matched: number; unmatched: number; errors: number } | null>(null);
 
   const localesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'locales-votacion') : null, [firestore]);
-  const { data: localesData, isLoading: isLoadingLocales } = useCollection<LocalVotacion>(localesQuery);
+  const { data: localesData, isLoading: isLoadingLocales } = useCollectionOnce<LocalVotacion>(localesQuery);
 
   const filenameMap = useMemo(() => {
     if (!localesData) return new Map();

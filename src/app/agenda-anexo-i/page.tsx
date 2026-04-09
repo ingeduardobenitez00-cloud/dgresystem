@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useDocOnce } from '@/firebase';
 import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion, type AnexoI } from '@/lib/data';
 import { 
@@ -132,7 +132,7 @@ export default function AgendaAnexoIPage() {
     return doc(firestore, 'anexo-i', viewingActivity.anexo_id);
   }, [firestore, viewingActivity?.anexo_id]);
 
-  const { data: anexoPadreData, isLoading: isLoadingAnexoPadre } = useDoc<AnexoI>(anexoPadreRef);
+  const { data: anexoPadreData, isLoading: isLoadingAnexoPadre } = useDocOnce<AnexoI>(anexoPadreRef);
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -177,7 +177,7 @@ export default function AgendaAnexoIPage() {
     return query(q, where('tipo_solicitud', '==', 'Lugar Fijo'));
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
 
   const movimientosQuery = useMemoFirebase(() => {
     if (!firestore || !profile) return null;
@@ -238,7 +238,7 @@ export default function AgendaAnexoIPage() {
     return null;
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawDivulgadores } = useCollection<Divulgador>(divulgadoresQuery);
+  const { data: rawDivulgadores } = useCollectionOnce<Divulgador>(divulgadoresQuery);
 
   const filteredDivul = useMemo(() => {
     if (!rawDivulgadores || !assigningSolicitud) return [];

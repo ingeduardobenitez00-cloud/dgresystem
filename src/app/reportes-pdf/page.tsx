@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Header from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useUser, useFirebase, useDoc } from "@/firebase";
+import { useUser, useFirebase, useDocOnce } from "@/firebase";
 import { collection, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Loader2, PieChart as PieIcon, RefreshCw, Printer, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, BarChart3, Users, FileText } from "lucide-react";
@@ -25,7 +25,7 @@ export default function ReportesPDFPage() {
 
     // Leer resumen pre-calculado (Bajo Costo: 1 sola lectura)
     const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'capacitaciones') : null, [firestore]);
-    const { data: summary, isLoading: isLoadingSummary } = useDoc<any>(statsDocRef);
+    const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
     const isAdmin = user?.profile?.role === 'admin' || user?.isOwner;
 

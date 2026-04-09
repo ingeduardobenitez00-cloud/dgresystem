@@ -37,7 +37,7 @@ import {
   Search,
   ChevronsUpDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type MaquinaVotacion, type MaquinaMovimiento } from '@/lib/data';
@@ -194,7 +194,7 @@ function ControlMovimientoContent() {
     return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
   }, [firestore, isUserLoading, profile]);
 
-  const { data: rawAgendaItems, isLoading: isLoadingAgenda } = useCollection<SolicitudCapacitacion>(agendaQuery);
+  const { data: rawAgendaItems, isLoading: isLoadingAgenda } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
 
   const selectedSolicitud = useMemo(() => {
     return rawAgendaItems?.find(item => item.id === selectedSolicitudId);
@@ -218,7 +218,7 @@ function ControlMovimientoContent() {
     return query(colRef, where('departamento', 'in', variants));
   }, [firestore, isUserLoading, profile, selectedSolicitud?.departamento]);
 
-  const { data: rawMaquinas, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
+  const { data: rawMaquinas, isLoading: isLoadingMaquinas } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
 
   const maquinasInventario = useMemo(() => {
     if (!rawMaquinas) return [];
@@ -234,14 +234,14 @@ function ControlMovimientoContent() {
   }, [rawMaquinas, selectedSolicitud]);
 
   const movimientosQueryAll = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: allMovimientos } = useCollection<MovimientoMaquina>(movimientosQueryAll);
+  const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movimientosQueryAll);
 
   const denunciasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'denuncias-lacres');
   }, [firestore]);
 
-  const { data: allDenuncias } = useCollection<any>(denunciasQuery);
+  const { data: allDenuncias } = useCollectionOnce<any>(denunciasQuery);
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems || !allMovimientos || !allDenuncias) return [];

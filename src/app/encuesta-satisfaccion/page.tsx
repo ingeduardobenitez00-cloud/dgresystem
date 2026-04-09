@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Check, Lock, DatabaseZap } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useDoc, useCollection, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useMemoFirebase, useDocOnce, useCollectionOnce } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where, getDocs } from 'firebase/firestore';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -66,7 +66,7 @@ function EncuestaContent() {
     [firestore, effectiveSolicitudId]
   );
   
-  const { data: linkedSolicitud, isLoading: isLoadingLinked } = useDoc<SolicitudCapacitacion>(solicitudRef);
+  const { data: linkedSolicitud, isLoading: isLoadingLinked } = useDocOnce<SolicitudCapacitacion>(solicitudRef);
 
   // VALIDACIÓN: Se bloquea el acceso público si la solicitud no tiene habilitado el QR
   const isPublicDisabled = useMemo(() => {

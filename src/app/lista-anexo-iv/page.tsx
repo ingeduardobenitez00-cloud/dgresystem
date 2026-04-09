@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type AnexoIV } from '@/lib/data';
 import { 
@@ -56,7 +56,7 @@ export default function ListaAnexoIVPage() {
     return null;
   }, [firestore, isUserLoading, profile]);
 
-  const { data: anexos, isLoading } = useCollection<AnexoIV>(anexosQuery);
+  const { data: anexos, isLoading } = useCollectionOnce<AnexoIV>(anexosQuery);
 
   const filteredAnexos = useMemo(() => {
     if (!anexos) return [];

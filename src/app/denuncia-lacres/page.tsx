@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useCollection, useCollectionOnce, useStorage } from '@/firebase';
+import { useUser, useFirebase, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
@@ -174,7 +174,7 @@ function DenunciaContent() {
     return null;
   }, [firestore, user, isUserLoading]);
 
-  const { data: rawAgendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
+  const { data: rawAgendaItems } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems || !allMovimientos || !allDenuncias) return [];

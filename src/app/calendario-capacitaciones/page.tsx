@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useCollectionOnce, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
 import { 
@@ -104,7 +104,7 @@ export default function CalendarioCapacitacionesPage() {
     return query(colRef, where('fecha', '>=', start), where('fecha', '<=', end));
   }, [firestore, isUserLoading, profile, currentMonth]);
 
-  const { data: rawActivities, isLoading: isLoadingActivities } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: rawActivities, isLoading: isLoadingActivities } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);

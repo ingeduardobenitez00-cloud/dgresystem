@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type AnexoI, type SolicitudCapacitacion } from '@/lib/data';
 import { 
@@ -65,7 +65,7 @@ export default function ListaAnexoIPage() {
   //   if (!firestore) return null;
   //   return collection(firestore, 'solicitudes-capacitacion');
   // }, [firestore]);
-  // const { data: allSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  // const { data: allSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
   const allSolicitudes: any[] = []; 
 
   const filteredAnexos = useMemo(() => {

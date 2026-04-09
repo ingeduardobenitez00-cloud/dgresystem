@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, writeBatch, getDocs, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -177,7 +177,7 @@ export default function DivulgadoresPage() {
     return baseQuery;
   }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist]);
 
-  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollection<Divulgador>(divulQuery);
+  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollectionOnce<Divulgador>(divulQuery);
 
   const divulgadores = useMemo(() => {
     if (!rawDivulgadores) return null;

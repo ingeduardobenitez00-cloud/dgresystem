@@ -31,7 +31,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit, doc, updateDoc } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -291,7 +291,7 @@ export default function SolicitudCapacitacionPage() {
     if (!firestore || !formData.departamento || !formData.distrito) return null;
     return query(collection(firestore, 'maquinas'), where('departamento', '==', formData.departamento), where('distrito', '==', formData.distrito));
   }, [firestore, formData.departamento, formData.distrito]);
-  const { data: maquinasDistrito } = useCollection<MaquinaVotacion>(maquinasQuery);
+  const { data: maquinasDistrito } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
 
   const solicitudesConflictQuery = useMemoFirebase(() => {
     if (!firestore || !formData.departamento || !formData.distrito || !formData.fecha) return null;
@@ -302,7 +302,7 @@ export default function SolicitudCapacitacionPage() {
         where('fecha', '==', formData.fecha)
     );
   }, [firestore, formData.departamento, formData.distrito, formData.fecha]);
-  const { data: solicitudesMismoDia } = useCollection<SolicitudCapacitacion>(solicitudesConflictQuery);
+  const { data: solicitudesMismoDia } = useCollectionOnce<SolicitudCapacitacion>(solicitudesConflictQuery);
 
   const startCamera = async () => {
     setIsCameraOpen(true);

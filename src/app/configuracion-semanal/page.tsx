@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar as CalendarIcon, Save, ShieldCheck, AlertCircle } from 'lucide-react';
-import { useUser, useFirebase, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useDocOnce, useMemoFirebase } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -29,7 +29,7 @@ export default function ConfiguracionSemanalPage() {
 
   // Cargar configuración actual
   const configRef = useMemoFirebase(() => firestore ? doc(firestore, 'config', 'reporte_semanal') : null, [firestore]);
-  const { data: configData, isLoading: isLoadingConfig } = useDoc<any>(configRef);
+  const { data: configData, isLoading: isLoadingConfig } = useDocOnce<any>(configRef);
 
   useEffect(() => {
     if (configData) {

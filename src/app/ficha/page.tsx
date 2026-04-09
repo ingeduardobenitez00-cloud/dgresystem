@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
-import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce, useStorage } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useStorage } from '@/firebase';
 import { collection, query, where, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {

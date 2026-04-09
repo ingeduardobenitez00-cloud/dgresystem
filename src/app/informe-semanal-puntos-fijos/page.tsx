@@ -27,7 +27,7 @@ import {
   Clock,
   Globe
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { type InformeDivulgador, type Dato } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -156,7 +156,7 @@ export default function InformeSemanalAnexoIVPage() {
     return query(colRef, where('departamento', 'in', variants));
   }, [firestore, selectedDepartment, profile?.departamento]);
 
-  const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
+  const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
   const informesAnexoIII = useMemo(() => {
     if (!rawInformesAnexoIII || !selectedDepartment || !selectedDistrict) return [];

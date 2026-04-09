@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type InformeDivulgador } from '@/lib/data';
 import { 
@@ -52,16 +52,16 @@ export default function ArchivoCapacitacionesPage() {
     return null;
   }, [firestore, isUserLoading, profile]);
 
-  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
 
   const movimientosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: movimientosData } = useCollection<MovimientoMaquina>(movimientosQuery);
+  const { data: movimientosData } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
 
   const informesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'informes-divulgador') : null, [firestore]);
-  const { data: informesData } = useCollection<InformeDivulgador>(informesQuery);
+  const { data: informesData } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
   const denunciasQuery = useMemoFirebase(() => firestore ? collection(firestore, 'denuncias-lacres') : null, [firestore]);
-  const { data: denunciasData } = useCollection<any>(denunciasQuery);
+  const { data: denunciasData } = useCollectionOnce<any>(denunciasQuery);
 
   // Filtrado y Agrupación Jerárquica
   const groupedData = useMemo(() => {

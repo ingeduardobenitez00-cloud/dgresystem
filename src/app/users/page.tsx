@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, writeBatch, query, where, getDocs, limit } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -269,7 +269,7 @@ function UsersContent() {
     return collection(firestore, 'users');
   }, [firestore, isAdminView]);
 
-  const { data: firestoreUsers, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+  const { data: firestoreUsers, isLoading: isLoadingUsers } = useCollectionOnce<UserProfile>(usersQuery);
 
   const users = useMemo(() => {
     if (!firestoreUsers) return null;
@@ -294,7 +294,7 @@ function UsersContent() {
   const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const presenceQuery = useMemoFirebase(() => firestore ? collection(firestore, 'presencia') : null, [firestore]);
-  const { data: presenceData } = useCollection<any>(presenceQuery);
+  const { data: presenceData } = useCollectionOnce<any>(presenceQuery);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [regDepartamento, setRegDepartamento] = useState<string>('');

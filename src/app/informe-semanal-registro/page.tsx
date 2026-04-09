@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar as CalendarIcon, MapPin, Building2, Landmark, FileDown, CheckCircle2, Plus, Trash2, Camera, ImageIcon, ClipboardList, X, FileUp, Lock, FileText } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useCollectionOnce, useMemoFirebase, useDoc, useStorage } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useDocOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { type Dato, type InformeSemanalRegistro } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,7 +62,7 @@ export default function InformeSemanalRegistroPage() {
   });
 
   const configRef = useMemoFirebase(() => firestore ? doc(firestore, 'config', 'reporte_semanal') : null, [firestore]);
-  const { data: configData, isLoading: isLoadingConfig } = useDoc<any>(configRef);
+  const { data: configData, isLoading: isLoadingConfig } = useDocOnce<any>(configRef);
 
   const [formData, setFormData] = useState({
     departamento: '',

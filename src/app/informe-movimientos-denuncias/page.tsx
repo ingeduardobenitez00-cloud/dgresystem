@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type MovimientoMaquina, type Dato } from '@/lib/data';
 import { Loader2, ArrowLeftRight, ShieldAlert, Building2, Landmark, Search, Calendar, MapPin, Truck, Undo2, FileWarning } from 'lucide-react';
@@ -35,14 +35,14 @@ export default function InformeMovimientosDenunciasPage() {
     return null;
   }, [firestore, isUserLoading, profile]);
 
-  const { data: movements, isLoading: isLoadingMovs } = useCollection<MovimientoMaquina>(movementsQuery);
+  const { data: movements, isLoading: isLoadingMovs } = useCollectionOnce<MovimientoMaquina>(movementsQuery);
 
   const denunciasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'denuncias-lacres');
   }, [firestore]);
 
-  const { data: denuncias } = useCollection<any>(denunciasQuery);
+  const { data: denuncias } = useCollectionOnce<any>(denunciasQuery);
 
   const groupedData = useMemo(() => {
     if (!movements) return [];

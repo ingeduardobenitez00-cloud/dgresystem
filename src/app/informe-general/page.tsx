@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Header from "@/components/header";
-import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import { Button } from '@/components/ui/button';

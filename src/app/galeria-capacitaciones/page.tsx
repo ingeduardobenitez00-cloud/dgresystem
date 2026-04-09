@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
-import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { type InformeDivulgador } from '@/lib/data';
 import { 

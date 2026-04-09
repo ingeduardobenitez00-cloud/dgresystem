@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { type InformeSemanalRegistro } from '@/lib/data';
 import { 
@@ -50,7 +50,7 @@ export default function ArchivoSemanalesRegistroPage() {
     return query(collection(firestore, 'archivos-semanales-registro'), orderBy('fecha_archivado', 'desc'));
   }, [firestore, isAdmin]);
 
-  const { data: archivos, isLoading: isLoadingArchivos } = useCollection<ArchivoSemanal>(archivosQuery);
+  const { data: archivos, isLoading: isLoadingArchivos } = useCollectionOnce<ArchivoSemanal>(archivosQuery);
 
   const handleExportExcel = async (archivo: ArchivoSemanal) => {
     if (!firestore) return;

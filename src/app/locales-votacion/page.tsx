@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { type LocalVotacion, type Dato } from '@/lib/data';
 import Header from '@/components/header';
@@ -65,7 +65,7 @@ export default function LocalesVotacionPage() {
     return null;
   }, [firestore, user, shouldFetch, selectedDepartment, selectedDistrict, selectedZone, selectedLocalFilter]);
 
-  const { data: searchResults, isLoading: isSearching } = useCollection<LocalVotacion>(searchLocalesQuery);
+  const { data: searchResults, isLoading: isSearching } = useCollectionOnce<LocalVotacion>(searchLocalesQuery);
   
   const [selectedLocal, setSelectedLocal] = useState<LocalVotacion | null>(null);
   const [isFichaOpen, setIsFichaOpen] = useState(false);

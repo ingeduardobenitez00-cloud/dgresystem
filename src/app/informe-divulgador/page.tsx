@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useFirebase, useUser, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
+import { useFirebase, useUser, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
@@ -107,7 +107,7 @@ function InformeContent() {
     return colRef; 
   }, [firestore, isProfileLoading, userProfile]);
 
-  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
 
   const linkedActivities = useMemo(() => {
     if (!rawSolicitudes || !userProfile || !user) return [];
