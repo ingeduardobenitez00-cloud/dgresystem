@@ -386,9 +386,9 @@ export default function SolicitudCapacitacionPage() {
 
   const handleSubmit = (bypassStock = false) => {
     if (!firestore || !user) return;
-    const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
-    
-    if (!entidadFinal || !formData.lugar_local || !formData.nombre_completo || !photoDataUri) {
+    const entidadFinal = formData.solicitante_entidad || formData.otra_entidad || '';
+
+    if (!formData.lugar_local || !formData.nombre_completo || !photoDataUri) {
       toast({ 
         variant: "destructive", 
         title: "Faltan datos obligatorios",
@@ -551,9 +551,9 @@ export default function SolicitudCapacitacionPage() {
     doc.setFont('helvetica', 'bold'); doc.text("Capacitación sobre las funciones de los miembros de mesa receptora de votos.", margin + 23, y);
 
     y += 12;
-    const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
+    const entidadFinal = (formData.solicitante_entidad || formData.otra_entidad || '').toUpperCase();
     const tableData = [
-        ["ENTIDAD", `: ${entidadFinal.toUpperCase()}${formData.movimiento_politico ? ' - ' + formData.movimiento_politico : ''}`],
+        ["ENTIDAD", `: ${entidadFinal}${formData.movimiento_politico ? ' - ' + formData.movimiento_politico.toUpperCase() : ''}`],
         ["FECHA", `: ${formData.fecha ? formatDateToDDMMYYYY(formData.fecha) : '    /    '} / 2026`],
         ["HORARIO", `: ${formData.hora_desde} A ${formData.hora_hasta} HS`],
         ["LUGAR Y/O LOCAL", `: ${formData.lugar_local.toUpperCase()}`],
@@ -657,8 +657,7 @@ export default function SolicitudCapacitacionPage() {
   }, [firestore, toast]);
 
   const canSave = useMemo(() => {
-    const entidadFinal = formData.solicitante_entidad || formData.otra_entidad;
-    return !!(entidadFinal && formData.lugar_local && formData.nombre_completo && photoDataUri && formData.fecha);
+    return !!(formData.lugar_local && formData.nombre_completo && photoDataUri && formData.fecha);
   }, [formData, photoDataUri]);
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -734,7 +733,7 @@ export default function SolicitudCapacitacionPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-primary">Grupo Político o Institución Solicitante *</Label>
+                        <Label className="text-[9px] font-black uppercase text-primary">Grupo Político o Institución Solicitante</Label>
                         <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" className="w-full justify-between h-14 font-black text-lg border-2 rounded-xl overflow-hidden uppercase">
