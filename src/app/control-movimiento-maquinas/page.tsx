@@ -63,6 +63,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+const normalizeGeo = (str: string) => {
+  if (!str) return '';
+  return str.toUpperCase()
+    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .trim();
+};
+
 function ControlMovimientoContent() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
@@ -196,22 +203,36 @@ function ControlMovimientoContent() {
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
     const colRef = collection(firestore, 'maquinas');
-    const isAdmin = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    const isAdmin = ['admin', 'director', 'coordinador'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
 
-    if (selectedSolicitud?.departamento && selectedSolicitud?.distrito) {
-      return query(colRef, where('departamento', '==', selectedSolicitud.departamento), where('distrito', '==', selectedSolicitud.distrito));
+    if (selectedSolicitud?.departamento) {
+      // Ampliamos la consulta al departamento completo para filtrar distritos con nombres variantes en memoria
+      return query(colRef, where('departamento', '==', selectedSolicitud.departamento));
     }
 
     if (isAdmin) return colRef;
 
-    if (profile.departamento && profile.distrito) {
-      return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    if (profile.departamento) {
+      return query(colRef, where('departamento', '==', profile.departamento));
     }
 
     return null;
-  }, [firestore, isUserLoading, profile, selectedSolicitud]);
+  }, [firestore, isUserLoading, profile, selectedSolicitud?.departamento]);
 
-  const { data: maquinasInventario, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
+  const { data: rawMaquinas, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
+
+  const maquinasInventario = useMemo(() => {
+    if (!rawMaquinas) return [];
+    if (!selectedSolicitud) return rawMaquinas;
+
+    const targetDepto = normalizeGeo(selectedSolicitud.departamento);
+    const targetDist = normalizeGeo(selectedSolicitud.distrito);
+
+    return rawMaquinas.filter(m => 
+      normalizeGeo(m.departamento) === targetDepto && 
+      normalizeGeo(m.distrito) === targetDist
+    );
+  }, [rawMaquinas, selectedSolicitud]);
 
   const movimientosQueryAll = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
   const { data: allMovimientos } = useCollection<MovimientoMaquina>(movimientosQueryAll);
