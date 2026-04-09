@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useCollectionOnce, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
 import { 
@@ -107,7 +107,7 @@ export default function CalendarioCapacitacionesPage() {
   const { data: rawActivities, isLoading: isLoadingActivities } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
 
   /**
    * Filtrado Geográfico y por Nombre en Cliente
@@ -135,14 +135,14 @@ export default function CalendarioCapacitacionesPage() {
     });
   }, [rawActivities, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist, searchDistrito]);
 
-  const departments = useMemo(() => {
+  const departments = useMemo<string[]>(() => {
     if (!datosData) return [];
-    return [...new Set(datosData.map(d => d.departamento))].sort();
+    return [...new Set(datosData.map((d: Dato) => d.departamento))].sort();
   }, [datosData]);
 
-  const districts = useMemo(() => {
+  const districts = useMemo<string[]>(() => {
     if (!datosData || filterDept === 'all') return [];
-    return [...new Set(datosData.filter(d => d.departamento === filterDept).map(d => d.distrito))].sort();
+    return [...new Set(datosData.filter((d: Dato) => d.departamento === filterDept).map((d: Dato) => d.distrito))].sort();
   }, [datosData, filterDept]);
 
   const calendarDays = useMemo(() => {
@@ -194,7 +194,7 @@ export default function CalendarioCapacitacionesPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">DPTO: TODOS</SelectItem>
-                                    {departments.map(d => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
+                                    {departments.map((d: string) => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             <Select value={filterDist} onValueChange={setFilterDist} disabled={filterDept === 'all'}>
@@ -203,7 +203,7 @@ export default function CalendarioCapacitacionesPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">DIST: TODOS</SelectItem>
-                                    {districts.map(d => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
+                                    {districts.map((d: string) => <SelectItem key={d} value={d} className="text-[10px] font-bold uppercase">{d}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             <div className="relative w-full md:w-40 border-l pl-2">

@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar as CalendarIcon, MapPin, Building2, Landmark, FileDown, CheckCircle2, Plus, Trash2, Camera, ImageIcon, ClipboardList, X, FileUp, Lock, FileText } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc, useStorage } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where, doc } from 'firebase/firestore';
+import { useUser, useFirebase, useCollection, useCollectionOnce, useMemoFirebase, useDoc, useStorage } from '@/firebase';
+import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
 import { type Dato, type InformeSemanalRegistro } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from "@/components/ui/separator";
@@ -156,16 +156,16 @@ export default function InformeSemanalRegistroPage() {
   }, [formData.cant_organizaciones]);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
 
-  const departments = useMemo(() => {
+  const departments = useMemo<string[]>(() => {
     if (!datosData) return [];
-    return [...new Set(datosData.map(d => d.departamento))].sort();
+    return [...new Set(datosData.map((d: Dato) => d.departamento))].sort();
   }, [datosData]);
 
-  const districts = useMemo(() => {
+  const districts = useMemo<string[]>(() => {
     if (!datosData || !formData.departamento) return [];
-    return [...new Set(datosData.filter(d => d.departamento === formData.departamento).map(d => d.distrito))].sort();
+    return [...new Set(datosData.filter((d: Dato) => d.departamento === formData.departamento).map((d: Dato) => d.distrito))].sort();
   }, [datosData, formData.departamento]);
 
   const startCamera = async () => {
@@ -395,7 +395,7 @@ export default function InformeSemanalRegistroPage() {
                     {user?.profile?.role === 'admin' ? (
                         <Select value={formData.departamento} onValueChange={(v) => setFormData(p => ({...p, departamento: v, distrito: ''}))}>
                             <SelectTrigger className="h-12 border-2 rounded-xl font-bold"><SelectValue placeholder="Selecciona un departamento" /></SelectTrigger>
-                            <SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                            <SelectContent>{departments.map((d: string) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                         </Select>
                     ) : <div className="h-12 flex items-center px-4 font-bold border-2 rounded-xl bg-muted/20">{formData.departamento || 'No asignado'}</div>}
                 </div>
@@ -405,7 +405,7 @@ export default function InformeSemanalRegistroPage() {
                     {user?.profile?.role === 'admin' ? (
                         <Select value={formData.distrito} onValueChange={(v) => setFormData(p => ({...p, distrito: v}))} disabled={!formData.departamento}>
                             <SelectTrigger className="h-12 border-2 rounded-xl font-bold"><SelectValue placeholder="Selecciona un distrito" /></SelectTrigger>
-                            <SelectContent>{districts.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+                            <SelectContent>{districts.map((d: string) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                         </Select>
                     ) : <div className="h-12 flex items-center px-4 font-bold border-2 rounded-xl bg-muted/20">{formData.distrito || 'No asignado'}</div>}
                 </div>
