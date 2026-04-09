@@ -32,7 +32,13 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'api.qrserver.com',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.firebasestorage.app',
         port: '',
         pathname: '/**',
       },
