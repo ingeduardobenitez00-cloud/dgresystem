@@ -167,21 +167,11 @@ export default function AgendaAnexoIPage() {
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - 60);
-    const dateLimitStr = limitDate.toISOString().split('T')[0];
-    
-    let q = query(colRef, where('fecha', '>=', dateLimitStr));
-    
-    if (hasAdminFilter) {
-        // q already configured
-    }
-    else if (hasDeptFilter && profile.departamento) {
-        q = query(colRef, where('departamento', '==', profile.departamento), where('fecha', '>=', dateLimitStr));
-    }
+    let q;
+    if (hasAdminFilter) q = colRef;
+    else if (hasDeptFilter && profile.departamento) q = query(colRef, where('departamento', '==', profile.departamento));
     else if (hasDistFilter && profile.departamento && profile.distrito) {
-        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), where('fecha', '>=', dateLimitStr));
+        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
     } else return null;
 
     return query(q, where('tipo_solicitud', '==', 'Lugar Fijo'));
@@ -195,8 +185,12 @@ export default function AgendaAnexoIPage() {
   useEffect(() => {
     if (!firestore || !rawSolicitudes || rawSolicitudes.length === 0) return;
     
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - 60);
+    const dateLimitStr = limitDate.toISOString().split('T')[0];
+
     const relevantIds = rawSolicitudes
-        .filter(sol => !sol.cancelada) 
+        .filter(sol => !sol.cancelada && sol.fecha >= dateLimitStr) 
         .map(sol => sol.id);
         
     if (relevantIds.length === 0) return;
@@ -287,8 +281,12 @@ export default function AgendaAnexoIPage() {
     // Reducimos la dependencia de currentTime para que el buscador sea fluido
     const currentMs = currentTime.getTime();
 
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - 60);
+    const dateLimitStr = limitDate.toISOString().split('T')[0];
+
     const activeSolicitudes = rawSolicitudes.filter(sol => {
-        if (sol.cancelada) return false;
+        if (sol.cancelada || sol.fecha < dateLimitStr) return false;
 
         // 1. Filtrar registros CUMPLIDOS que pasaron los 3 minutos de gracia
         if (sol.fecha_cumplido) {

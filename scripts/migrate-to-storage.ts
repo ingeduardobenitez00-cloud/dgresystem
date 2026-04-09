@@ -7,12 +7,12 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+    projectId: "studio-1827480670-a09b0",
+    appId: "1:177194041005:web:802f6167cd0c9275d19024",
+    apiKey: "AIzaSyDSgDKEI3VvXae8hMfePipJp3L7CUfArBw",
+    authDomain: "studio-1827480670-a09b0.firebaseapp.com",
+    storageBucket: "studio-1827480670-a09b0.firebasestorage.app",
+    messagingSenderId: "177194041005"
 };
 
 const app = initializeApp(firebaseConfig);
