@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -69,6 +70,7 @@ import html2canvas from 'html2canvas';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 export default function AgendaAnexoVPage() {
+  const router = useRouter();
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
@@ -577,11 +579,10 @@ export default function AgendaAnexoVPage() {
                                 const cleanDate = item.fecha?.split('T')[0]?.trim() || '';
                                 const isPast = cleanDate !== '' && cleanDate.localeCompare(today) < 0 && cleanDate !== today && cleanDate !== todayReverse;
                                 const isToday = cleanDate !== '' && (cleanDate === today || cleanDate === todayReverse);
-                                const mov = movimientosData?.find(m => m.solicitud_id === item.id);
-                                const inf = informesData?.find(i => i.solicitud_id === item.id);
+                                const mov = movimientosData?.find(m => m.solicitud_id === item.id); const itemInformes = informesData?.filter(i => i.solicitud_id === item.id) || []; const inf = itemInformes[0]; const assignedList = item.divulgadores || item.asignados || []; const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
                                 
                                 const missingF02 = isPast && !mov?.fecha_devolucion;
-                                const missingAnexoIII = isPast && !inf;
+                                const missingAnexoIII = isPast && (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
                                 const missingSalida = (isToday || isPast) && !mov;
                                 const hasAlert = missingF02 || missingAnexoIII || missingSalida;
                                 const isFulfilled = mov?.fecha_devolucion && inf;
@@ -592,7 +593,7 @@ export default function AgendaAnexoVPage() {
                                 const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
                                 const hasSalida = !!mov;
                                 const hasRetorno = !!mov?.fecha_devolucion;
-                                const hasInforme = !!inf;
+                                const hasInforme = assignedList.length > 0 ? missingInformesFrom.length === 0 : !!inf;
 
                                 const isQRViewed = viewedQRs.includes(item.id);
                                 const showStep1 = !hasPersonnel;
@@ -692,7 +693,7 @@ export default function AgendaAnexoVPage() {
                                                             {missingAnexoIII && (
                                                                 <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
                                                                     <AlertCircle className="h-3 w-3" />
-                                                                    <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA INFORME (ANEXO III)</span>
+                                                                    <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA INFORME: {missingInformesFrom.length > 0 ? missingInformesFrom.map(f => f.nombre.split(" ")[0]).join(", ") : "REQUERIDO"}</span>
                                                                 </Link>
                                                             )}
                                                         </div>
@@ -749,7 +750,7 @@ export default function AgendaAnexoVPage() {
                                                                 className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
                                                                 onClick={() => {
                                                                   if (!inf) {
-                                                                      window.location.href = `/informe-divulgador?solicitudId=${item.id}`;
+                                                                      router.push(`/informe-divulgador?solicitudId=${item.id}`);
                                                                   }
                                                               }}
                                                               title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
