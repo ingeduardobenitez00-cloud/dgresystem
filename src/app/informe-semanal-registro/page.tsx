@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Calendar as CalendarIcon, MapPin, Building2, Landmark, FileDown, CheckCircle2, Plus, Trash2, Camera, ImageIcon, ClipboardList, X, FileUp, Lock, FileText } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc } from 'firebase/firestore';
 import { type Dato, type InformeSemanalRegistro } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,6 +45,7 @@ const TIPO_ORGANIZACION = [
 export default function InformeSemanalRegistroPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -241,26 +242,41 @@ export default function InformeSemanalRegistroPage() {
     }
 
     setIsSubmitting(true);
-    const docData = {
-      ...formData,
-      fecha_desde: format(dateRange.from, "yyyy-MM-dd"),
-      fecha_hasta: format(dateRange.to, "yyyy-MM-dd"),
-      fotos: photos,
-      usuario_id: user.uid,
-      fecha_creacion: new Date().toISOString(),
-      server_timestamp: serverTimestamp(),
-    };
+    
+    const performSave = async () => {
+      try {
+        const idBatch = Date.now();
+        const distPath = formData.distrito?.replace(/\s+/g, '_') || 'desconocido';
 
-    addDoc(collection(firestore, 'informes-semanales-registro'), docData)
-      .then(() => {
+        // 1. Subir fotos a Storage
+        const uploadPromises = photos.map((foto, idx) => 
+          uploadFile(`informes-operativos/${distPath}/${idBatch}_${idx}.jpg`, foto)
+        );
+        const uploadedUrls = await Promise.all(uploadPromises);
+
+        const docData = {
+          ...formData,
+          fecha_desde: format(dateRange.from!, "yyyy-MM-dd"),
+          fecha_hasta: format(dateRange.to!, "yyyy-MM-dd"),
+          fotos: uploadedUrls, // Ahora son URLs de Storage
+          usuario_id: user.uid,
+          fecha_creacion: new Date().toISOString(),
+          server_timestamp: serverTimestamp(),
+        };
+
+        await addDoc(collection(firestore, 'informes-semanales-registro'), docData);
+        
         toast({ title: "¡Informe Guardado!", description: "El reporte operativo ha sido registrado con éxito." });
         setPhotos([]);
+      } catch (error: any) {
+        console.error("Error saving operative report:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el informe." });
+      } finally {
         setIsSubmitting(false);
-      })
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'informes-semanales-registro', operation: 'create', requestResourceData: docData }));
-        setIsSubmitting(false);
-      });
+      }
+    };
+
+    performSave();
   };
 
   const generatePDF = () => {
@@ -492,8 +508,8 @@ export default function InformeSemanalRegistroPage() {
 
           </CardContent>
           <CardFooter className="p-0 border-t bg-black overflow-hidden">
-            <Button onClick={handleSave} disabled={isSubmitting || !dateRange?.from} className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-[0.2em]">
-                {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <ClipboardList className="mr-3 h-6 w-6" />}
+            <Button onClick={handleSave} disabled={isSubmitting || isStorageUploading || !dateRange?.from} className="w-full h-16 bg-black hover:bg-black/90 text-white text-xl font-black uppercase rounded-none tracking-[0.2em]">
+                {isSubmitting || isStorageUploading ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <ClipboardList className="mr-3 h-6 w-6" />}
                 ENVIAR INFORME SEMANAL
             </Button>
           </CardFooter>

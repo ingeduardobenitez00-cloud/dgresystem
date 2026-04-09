@@ -27,7 +27,7 @@ import {
   Clock,
   Globe
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { type InformeDivulgador, type Dato } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Image from 'next/image';
+import { recordAuditLog } from '@/lib/audit';
 import {
   Popover,
   PopoverContent,
@@ -61,6 +62,7 @@ import { DateRange } from "react-day-picker";
 export default function InformeSemanalAnexoIVPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -367,39 +369,68 @@ export default function InformeSemanalAnexoIVPage() {
     }
 
     setIsSubmitting(true);
-    const docData = {
-      departamento: selectedDepartment || '',
-      distrito: selectedDistrict || '',
-      semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
-      semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
-      foto_respaldo_documental: photos[0],
-      fotos_evidencia: photos.slice(1),
-      total_capacitados: totalCapacitados,
-      filas: informesAnexoIII.map(inf => ({
-        lugar: inf.lugar_divulgacion,
-        fecha: inf.fecha,
-        hora_desde: inf.hora_desde,
-        hora_hasta: inf.hora_hasta,
-        nombre_divulgador: inf.nombre_divulgador || (inf as any).divulgador_nombre || '',
-        cedula: inf.cedula_divulgador || (inf as any).divulgador_cedula || '',
-        vinculo: inf.vinculo || (inf as any).divulgador_vinculo || '',
-        cantidad_personas: inf.total_personas || 0,
-      })),
-      usuario_id: user.uid,
-      fecha_creacion: new Date().toISOString(),
-      server_timestamp: serverTimestamp(),
-    };
+    
+    const performSubmit = async () => {
+      try {
+        const idBatch = Date.now();
+        const distPath = selectedDistrict?.replace(/\s+/g, '_') || 'desconocido';
+        
+        // 1. Subir todas las fotos a Storage
+        const uploadPromises = photos.map((foto, idx) => {
+          const type = idx === 0 ? 'respaldo' : 'evidencia';
+          return uploadFile(
+            `anexo-iv/${distPath}/${idBatch}_${type}_${idx}.jpg`, 
+            foto
+          );
+        });
+        
+        const uploadedUrls = await Promise.all(uploadPromises);
 
-    addDoc(collection(firestore, 'informes-semanales-anexo-iv'), docData)
-      .then(() => {
+        const docData = {
+          departamento: selectedDepartment || '',
+          distrito: selectedDistrict || '',
+          semana_desde: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : '',
+          semana_hasta: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : '',
+          foto_respaldo_documental: uploadedUrls[0], // Primera URL es el respaldo
+          fotos_evidencia: uploadedUrls.slice(1),   // El resto son evidencia
+          total_capacitados: totalCapacitados,
+          filas: informesAnexoIII.map(inf => ({
+            lugar: inf.lugar_divulgacion,
+            fecha: inf.fecha,
+            hora_desde: inf.hora_desde,
+            hora_hasta: inf.hora_hasta,
+            nombre_divulgador: inf.nombre_divulgador || (inf as any).divulgador_nombre || '',
+            cedula: inf.cedula_divulgador || (inf as any).divulgador_cedula || '',
+            vinculo: inf.vinculo || (inf as any).divulgador_vinculo || '',
+            cantidad_personas: inf.total_personas || 0,
+          })),
+          usuario_id: user.uid,
+          fecha_creacion: new Date().toISOString(),
+          server_timestamp: serverTimestamp(),
+        };
+
+        await addDoc(collection(firestore, 'informes-semanales-anexo-iv'), docData);
+        
+        recordAuditLog(firestore, {
+          usuario_id: user.uid,
+          usuario_nombre: user.profile?.username || user.email || 'Admin',
+          usuario_rol: user.profile?.role || 'admin',
+          accion: 'CREAR',
+          modulo: 'informe-semanal-anexo-iv',
+          detalles: `Consolidado semanal guardado en Storage para ${selectedDistrict}`
+        });
+
         toast({ title: "¡Consolidado Guardado!", description: "El informe semanal ha sido archivado en el sistema." });
         setPhotos([]);
+      } catch (error: any) {
+        console.error("Error submitting anexo iv:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el informe." });
+      } finally {
         setIsSubmitting(false);
-      })
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'informes-semanales-anexo-iv', operation: 'create', requestResourceData: docData }));
-        setIsSubmitting(false);
-      });
+      }
+    };
+
+    performSubmit();
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -552,8 +583,8 @@ export default function InformeSemanalAnexoIVPage() {
                     </div>
 
                     <div className="pt-4">
-                        <Button onClick={handleSubmit} disabled={isSubmitting || informesAnexoIII.length === 0 || photos.length === 0 || selectedDepartment === 'ALL'} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
-                            {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
+                        <Button onClick={handleSubmit} disabled={isSubmitting || isStorageUploading || informesAnexoIII.length === 0 || photos.length === 0 || selectedDepartment === 'ALL'} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
+                            {isSubmitting || isStorageUploading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
                             GUARDAR REPORTE
                         </Button>
                     </div>

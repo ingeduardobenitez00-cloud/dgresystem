@@ -31,7 +31,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit, doc, updateDoc } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -166,8 +166,10 @@ function TimePickerInput({
 }
 
 export default function SolicitudCapacitacionPage() {
-  const { user, isUserLoading } = useUser();
+  const userHook = useUser();
+  const { user, isUserLoading } = userHook;
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -402,19 +404,29 @@ export default function SolicitudCapacitacionPage() {
 
     setIsSubmitting(true);
     
-    const docData = { 
-      ...formData, 
-      departamento: formData.departamento, 
-      distrito: formData.distrito, 
-      foto_firma: photoDataUri || '', 
-      usuario_id: user.uid, 
-      creado_por: profile?.username || user.email,
-      fecha_creacion: new Date().toISOString(), 
-      server_timestamp: serverTimestamp() 
-    };
-    
-    addDoc(collection(firestore, 'solicitudes-capacitacion'), docData)
-      .then((docRef) => {
+    const performSubmit = async () => {
+      try {
+        const idBatch = Date.now();
+        
+        // 1. Subir foto de respaldo a Storage
+        const photoUrl = await uploadFile(
+          `solicitudes/${formData.distrito}/${idBatch}.jpg`, 
+          photoDataUri!
+        );
+
+        const docData = { 
+          ...formData, 
+          departamento: formData.departamento, 
+          distrito: formData.distrito, 
+          foto_firma: photoUrl, // Ahora es una URL de Storage
+          usuario_id: user.uid, 
+          creado_por: profile?.username || user.email,
+          fecha_creacion: new Date().toISOString(), 
+          server_timestamp: serverTimestamp() 
+        };
+        
+        const docRef = await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
+        
         recordAuditLog(firestore, {
           usuario_id: user.uid,
           usuario_nombre: profile?.username || user.email || 'Usuario Desconocido',
@@ -422,7 +434,7 @@ export default function SolicitudCapacitacionPage() {
           accion: 'CREAR',
           modulo: 'solicitud-capacitacion',
           documento_id: docRef.id,
-          detalles: `Nueva solicitud para ${formData.lugar_local} (${entidadFinal}${formData.movimiento_politico ? ' - ' + formData.movimiento_politico : ''})`
+          detalles: `Nueva solicitud para ${formData.lugar_local} (Storage)`
         });
 
         toast({ title: "¡Solicitud Registrada!" });
@@ -438,17 +450,20 @@ export default function SolicitudCapacitacionPage() {
             telefono: '' 
         }));
         setPhotoDataUri(null);
-        setIsSubmitting(false);
-      })
-      .catch(async (error) => {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+      } catch (error: any) {
+        console.error("Error submitting solicitud:", error);
+        const errorMsg = error.message || String(error);
         if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
-          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo que estás adjuntando supera el límite permitido (1MB). Por favor, intenta con una foto menos pesada o reduce el tamaño del PDF.' });
+          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo supera el límite permitido.' });
         } else {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion', operation: 'create', requestResourceData: docData }));
+          toast({ variant: 'destructive', title: "Error", description: "No se pudo guardar la solicitud." });
         }
+      } finally {
         setIsSubmitting(false);
-      });
+      }
+    };
+
+    performSubmit();
   };
 
   const handleSuspendAndSave = async () => {

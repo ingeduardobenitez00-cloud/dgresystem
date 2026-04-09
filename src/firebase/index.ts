@@ -4,6 +4,7 @@ import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
+import { getStorage } from 'firebase/storage';
 
 /**
  * Inicialización Robusta:
@@ -18,7 +19,8 @@ export function initializeFirebase() {
   return {
     firebaseApp: app,
     auth: getAuth(app),
-    firestore: getFirestore(app)
+    firestore: getFirestore(app),
+    storage: getStorage(app)
   };
 }
 
@@ -28,6 +30,7 @@ export * from './firestore/use-collection';
 export * from './firestore/use-collection-once';
 export * from './firestore/use-doc';
 export * from './auth/use-user';
+export * from './storage/use-storage';
 export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';

@@ -4,7 +4,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, query, orderBy, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { 
     Loader2, 
@@ -88,14 +88,14 @@ export default function ConexionesPage() {
     return collection(firestore, 'presencia');
   }, [firestore, isUserLoading]);
 
-  const { data: presenceData, isLoading } = useCollection<PresenceRecord>(presenceQuery);
+  const { data: presenceData, isLoading } = useCollectionOnce<PresenceRecord>(presenceQuery);
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading) return null;
     return collection(firestore, 'users');
   }, [firestore, isUserLoading]);
 
-  const { data: usersData } = useCollection<any>(usersQuery);
+  const { data: usersData } = useCollectionOnce<any>(usersQuery);
 
   // VALIDACIÓN DE INTEGRIDAD: Solo mostramos conexiones de usuarios que existen realmente
   const validatedPresence = useMemo(() => {

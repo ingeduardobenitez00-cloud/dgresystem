@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FileUp, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import Header from '@/components/header';
 import Image from 'next/image';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useStorage } from '@/firebase';
 import { collection, doc, writeBatch } from 'firebase/firestore';
 import { type LocalVotacion } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
@@ -26,6 +26,7 @@ const PREVIEW_LIMIT = 200;
 
 export default function CargarFotosLocalesPage() {
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
   const [filesToUpload, setFilesToUpload] = useState<FilePreview[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -129,9 +130,17 @@ export default function CargarFotosLocalesPage() {
 
             if (match) {
                 try {
+                    // 1. Procesar y comprimir localmente
                     const dataUrl = await processFileToDataURL(filePreview.file);
+                    
+                    // 2. Subir a Firebase Storage
+                    const fileName = filePreview.file.name.replace(/\s+/g, '_');
+                    const storageUrl = await uploadFile(`locales/${match.docId}/${fileName}`, dataUrl);
+
+                    // 3. Actualizar Firestore con la URL
                     const docRef = doc(firestore, 'locales-votacion', match.docId);
-                    batch.update(docRef, { [match.field]: dataUrl });
+                    batch.update(docRef, { [match.field]: storageUrl });
+                    
                     writesInBatch++;
                     matchedCount++;
                     setFilesToUpload(prev => prev.map(f => f.id === filePreview.id ? { ...f, status: 'matched' } : f));

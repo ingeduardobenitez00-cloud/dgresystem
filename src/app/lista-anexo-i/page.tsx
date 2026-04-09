@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type AnexoI, type SolicitudCapacitacion } from '@/lib/data';
 import { 
@@ -58,13 +58,15 @@ export default function ListaAnexoIPage() {
     return null;
   }, [firestore, isUserLoading, profile]);
 
-  const { data: anexos, isLoading } = useCollection<AnexoI>(anexosQuery);
+  const { data: anexos, isLoading } = useCollectionOnce<AnexoI>(anexosQuery);
 
-  const solicitudesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'solicitudes-capacitacion');
-  }, [firestore]);
-  const { data: allSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  // OPTIMIZACIÓN: Se elimina la carga de TODA la colección de solicitudes por costo masivo.
+  // const solicitudesQuery = useMemoFirebase(() => {
+  //   if (!firestore) return null;
+  //   return collection(firestore, 'solicitudes-capacitacion');
+  // }, [firestore]);
+  // const { data: allSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
+  const allSolicitudes: any[] = []; 
 
   const filteredAnexos = useMemo(() => {
     if (!anexos) return [];

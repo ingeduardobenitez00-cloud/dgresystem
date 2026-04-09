@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
-import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce, useStorage } from '@/firebase';
 import { collection, query, where, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {
@@ -56,6 +56,7 @@ interface jsPDFWithAutoTable extends jsPDF {
 
 function FichaContent() {
   const { firestore } = useFirebase();
+  const { uploadFile } = useStorage();
   const { user: currentUser } = useUser();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -426,16 +427,27 @@ function FichaContent() {
     let uploadedCount = 0;
 
     for (const newImage of newImages) {
-        const fullImageData = {
-            ...newImage,
-            departamento: selectedDepartment,
-            distrito: selectedDistrict,
-        };
         try {
+            // 1. Subir a Storage
+            const idTimestamp = Date.now();
+            const fileName = cleanFileName(newImage.alt).replace(/\s+/g, '_');
+            const storagePath = `ficha/${selectedDepartment}/${selectedDistrict}/${idTimestamp}_${fileName}.jpg`;
+            const storageUrl = await uploadFile(storagePath, newImage.src);
+
+            // 2. Guardar en Firestore
+            const fullImageData = {
+                ...newImage,
+                src: storageUrl, // Reemplazar Base64 con URL
+                departamento: selectedDepartment,
+                distrito: selectedDistrict,
+                storagePath // Guardar ruta para referencia (opcional)
+            };
+            
             await addDoc(imagesCollectionRef, fullImageData);
             uploadedCount++;
             setUploadProgress((uploadedCount / totalImages) * 100);
         } catch (error) {
+            console.error("Error uploading image to storage/firestore:", error);
             toast({
                 title: "Error de Subida",
                 description: `No se pudo subir la imagen ${newImage.alt}.`,

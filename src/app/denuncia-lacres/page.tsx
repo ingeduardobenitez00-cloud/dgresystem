@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useCollection } from '@/firebase';
+import { useUser, useFirebase, useMemoFirebase, useCollection, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
@@ -27,6 +27,7 @@ import { recordAuditLog } from '@/lib/audit';
 function DenunciaContent() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const solicitudIdFromUrl = searchParams.get('solicitudId');
@@ -270,24 +271,43 @@ function DenunciaContent() {
     }
 
     setIsSubmitting(true);
-    const docData = {
-      ...formData,
-      solicitud_id: selectedAgendaId,
-      departamento: selectedSolicitud.departamento,
-      distrito: selectedSolicitud.distrito,
-      lugar: selectedSolicitud.lugar_local,
-      maquinas_denunciadas: reportedMaquinas,
-      foto_evidencia: denunciaFotos,
-      foto_respaldo_documental: respaldoFoto,
-      usuario_id: user.uid,
-      username: user.profile?.username || '',
-      divulgadores: selectedSolicitud.divulgadores || selectedSolicitud.asignados || [],
-      fecha_creacion: new Date().toISOString(),
-      server_timestamp: serverTimestamp(),
-    };
+    
+    // Función asíncrona para manejar la subida y luego el guardado
+    const performSubmit = async () => {
+      try {
+        const idBatch = Date.now();
+        
+        // 1. Subir fotos de evidencia
+        const evidenciaUrls = await Promise.all(
+          denunciaFotos.map((foto, idx) => 
+            uploadFile(`denuncias/${selectedAgendaId}/evidencia_${idBatch}_${idx}.jpg`, foto)
+          )
+        );
 
-    addDoc(collection(firestore, 'denuncias-lacres'), docData)
-      .then((docRef) => {
+        // 2. Subir foto de respaldo
+        const respaldoUrl = await uploadFile(
+          `denuncias/${selectedAgendaId}/respaldo_${idBatch}.jpg`, 
+          respaldoFoto
+        );
+
+        const docData = {
+          ...formData,
+          solicitud_id: selectedAgendaId,
+          departamento: selectedSolicitud.departamento,
+          distrito: selectedSolicitud.distrito,
+          lugar: selectedSolicitud.lugar_local,
+          maquinas_denunciadas: reportedMaquinas,
+          foto_evidencia: evidenciaUrls, // Ahora son URLs, no Base64
+          foto_respaldo_documental: respaldoUrl, // Ahora es URL
+          usuario_id: user.uid,
+          username: user.profile?.username || '',
+          divulgadores: selectedSolicitud.divulgadores || selectedSolicitud.asignados || [],
+          fecha_creacion: new Date().toISOString(),
+          server_timestamp: serverTimestamp(),
+        };
+
+        const docRef = await addDoc(collection(firestore, 'denuncias-lacres'), docData);
+        
         recordAuditLog(firestore, {
             usuario_id: user.uid,
             usuario_nombre: user.profile?.username || user.email || 'Usuario',
@@ -295,7 +315,7 @@ function DenunciaContent() {
             accion: 'CREAR',
             modulo: 'denuncia-lacres',
             documento_id: docRef.id,
-            detalles: `Denuncia oficial de lacres para ${selectedSolicitud.lugar_local} (${reportedMaquinas.join(', ')})`
+            detalles: `Denuncia oficial de lacres (Storage) para ${selectedSolicitud.lugar_local} (${reportedMaquinas.join(', ')})`
         });
 
         toast({ title: "¡Denuncia Oficial Registrada!" });
@@ -303,16 +323,15 @@ function DenunciaContent() {
         setDenunciaFotos([]);
         setRespaldoPhoto(null);
         setSelectedAgendaId(null);
+      } catch (error: any) {
+        console.error("Error submitting denuncia:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la denuncia." });
+      } finally {
         setIsSubmitting(false);
-      })
-      .catch(async (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ 
-          path: 'denuncias-lacres', 
-          operation: 'create', 
-          requestResourceData: docData 
-        }));
-        setIsSubmitting(false);
-      });
+      }
+    };
+
+    performSubmit();
   };
 
   const generatePDF = () => {
@@ -579,8 +598,8 @@ function DenunciaContent() {
             )}
           </CardContent>
           <CardFooter className="bg-black p-0 overflow-hidden">
-            <Button onClick={handleSubmit} disabled={isSubmitting || !selectedAgendaId || reportedMaquinas.length === 0} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-destructive hover:bg-destructive/90 rounded-none tracking-widest text-white shadow-2xl">
-              {isSubmitting ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <ShieldAlert className="mr-3 h-6 w-6" />}
+            <Button onClick={handleSubmit} disabled={isSubmitting || isStorageUploading || !selectedAgendaId || reportedMaquinas.length === 0} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-destructive hover:bg-destructive/90 rounded-none tracking-widest text-white shadow-2xl">
+              {isSubmitting || isStorageUploading ? <Loader2 className="animate-spin mr-3 h-6 w-6" /> : <ShieldAlert className="mr-3 h-6 w-6" />}
               REGISTRAR DENUNCIA OFICIAL
             </Button>
           </CardFooter>

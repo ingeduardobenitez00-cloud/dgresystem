@@ -23,7 +23,7 @@ import {
   Calendar as CalendarIcon,
   Clock
 } from 'lucide-react';
-import { useUser, useFirebase } from '@/firebase';
+import { useUser, useFirebase, useStorage } from '@/firebase';
 import { collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
@@ -58,6 +58,7 @@ type AnexoIFila = {
 export default function AnexoIPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -201,63 +202,73 @@ export default function AnexoIPage() {
 
     setIsSubmitting(true);
     
-    const batch = writeBatch(firestore);
-    const anexoRef = doc(collection(firestore, 'anexo-i'));
-    
-    const anexoData = {
-      tipo_oficina: tipoOficina,
-      departamento: profile?.departamento || '',
-      distrito: profile?.distrito || '',
-      filas: filledFilas,
-      foto_respaldo: fotoRespaldo,
-      usuario_id: user.uid,
-      fecha_creacion: new Date().toISOString(),
-      server_timestamp: serverTimestamp(),
-    };
+    const performSave = async () => {
+      try {
+        const idBatch = Date.now();
+        const distPath = (profile?.distrito || 'desconocido').replace(/\s+/g, '_');
 
-    batch.set(anexoRef, anexoData);
+        // 1. Subir respaldo a Storage
+        const fileExt = fotoRespaldo.startsWith('data:application/pdf') ? 'pdf' : 'jpg';
+        const storagePath = `anexo-i/${distPath}/${idBatch}_respaldo.${fileExt}`;
+        const storageUrl = await uploadFile(storagePath, fotoRespaldo);
 
-    filledFilas.forEach(f => {
-      const start = parseISO(f.fecha_desde);
-      const end = parseISO(f.fecha_hasta);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
-
-      let current = start;
-      let count = 0;
-      while (current <= end && count < 365) {
-        const agendaRef = doc(collection(firestore, 'solicitudes-capacitacion'));
-        const dayStr = format(current, "yyyy-MM-dd");
+        const batch = writeBatch(firestore);
+        const anexoRef = doc(collection(firestore, 'anexo-i'));
         
-        batch.set(agendaRef, {
-          anexo_id: anexoRef.id,
-          solicitante_entidad: tipoOficina === 'REGISTRO' ? 'OFICINA REGISTRO ELECTORAL' : tipoOficina === 'CENTRO_CIVICO' ? 'CENTRO CÍVICO' : 'OFICINA CENTRAL',
-          tipo_solicitud: 'Lugar Fijo',
-          fecha: dayStr,
-          hora_desde: f.hora_desde,
-          hora_hasta: f.hora_hasta,
-          lugar_local: f.lugar.toUpperCase(),
-          direccion_calle: f.direccion.toUpperCase(),
-          barrio_compania: '',
+        const anexoData = {
+          tipo_oficina: tipoOficina,
           departamento: profile?.departamento || '',
           distrito: profile?.distrito || '',
-          rol_solicitante: 'otro',
-          nombre_completo: 'PLANIFICACIÓN ANEXO I',
-          cedula: '',
-          telefono: '',
-          gps: '',
+          filas: filledFilas,
+          foto_respaldo: storageUrl, // Ahora es URL de Storage
           usuario_id: user.uid,
           fecha_creacion: new Date().toISOString(),
-          server_timestamp: serverTimestamp()
-        });
-        
-        current = addDays(current, 1);
-        count++;
-      }
-    });
+          server_timestamp: serverTimestamp(),
+        };
 
-    batch.commit()
-      .then(() => {
+        batch.set(anexoRef, anexoData);
+
+        filledFilas.forEach(f => {
+          const start = parseISO(f.fecha_desde);
+          const end = parseISO(f.fecha_hasta);
+          
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
+
+          let current = start;
+          let count = 0;
+          while (current <= end && count < 365) {
+            const agendaRef = doc(collection(firestore, 'solicitudes-capacitacion'));
+            const dayStr = format(current, "yyyy-MM-dd");
+            
+            batch.set(agendaRef, {
+              anexo_id: anexoRef.id,
+              solicitante_entidad: tipoOficina === 'REGISTRO' ? 'OFICINA REGISTRO ELECTORAL' : tipoOficina === 'CENTRO_CIVICO' ? 'CENTRO CÍVICO' : 'OFICINA CENTRAL',
+              tipo_solicitud: 'Lugar Fijo',
+              fecha: dayStr,
+              hora_desde: f.hora_desde,
+              hora_hasta: f.hora_hasta,
+              lugar_local: f.lugar.toUpperCase(),
+              direccion_calle: f.direccion.toUpperCase(),
+              barrio_compania: '',
+              departamento: profile?.departamento || '',
+              distrito: profile?.distrito || '',
+              rol_solicitante: 'otro',
+              nombre_completo: 'PLANIFICACIÓN ANEXO I',
+              cedula: '',
+              telefono: '',
+              gps: '',
+              usuario_id: user.uid,
+              fecha_creacion: new Date().toISOString(),
+              server_timestamp: serverTimestamp()
+            });
+            
+            current = addDays(current, 1);
+            count++;
+          }
+        });
+
+        await batch.commit();
+
         toast({ title: "Planificación Guardada", description: `Se han agendado ${filledFilas.length} lugares fijos por el periodo seleccionado.` });
         setFotoRespaldo(null);
         setFilas(Array.from({ length: 10 }, () => ({
@@ -268,11 +279,15 @@ export default function AnexoIPage() {
           hora_desde: '',
           hora_hasta: ''
         })));
+      } catch (error: any) {
+        console.error("Error saving Anexo I:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la planificación." });
+      } finally {
         setIsSubmitting(false);
-      })
-      .catch(async (error) => {
-        setIsSubmitting(false);
-      });
+      }
+    };
+
+    performSave();
   };
 
   const generatePDF = () => {
@@ -374,8 +389,8 @@ export default function AnexoIPage() {
                 <Button variant="outline" className="font-black uppercase text-[10px] border-2 h-11 gap-2 shadow-sm" onClick={generatePDF}>
                     <Printer className="h-4 w-4" /> VISTA PREVIA PDF
                 </Button>
-                <Button className="font-black uppercase text-[10px] h-11 gap-2 shadow-xl" onClick={handleSave} disabled={isSubmitting || !fotoRespaldo}>
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                <Button className="font-black uppercase text-[10px] h-11 gap-2 shadow-xl" onClick={handleSave} disabled={isSubmitting || isStorageUploading || !fotoRespaldo}>
+                    {isSubmitting || isStorageUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     GUARDAR Y AGENDAR POR LOTE
                 </Button>
             </div>
