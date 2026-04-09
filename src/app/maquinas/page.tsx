@@ -21,6 +21,7 @@ import {
   Landmark,
   ShieldAlert,
   Edit,
+  Database,
   X
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
@@ -44,6 +45,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+
+const normalizeGeo = (str: string) => {
+  if (!str) return '';
+  return str.toUpperCase()
+    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .trim();
+};
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -128,11 +136,25 @@ export default function MaquinasPage() {
         const depKey = findHeader(['DEPARTAMENTO', 'DEPTO', 'DPTO']);
         const distKey = findHeader(['DISTRITO', 'OFICINA', 'LOCALIDAD']);
 
-        const mapped = json.map((row: any) => ({
-          codigo: String(codKey ? row[codKey] : '').trim().toUpperCase(),
-          departamento: String(depKey ? row[depKey] : '').trim().toUpperCase(),
-          distrito: String(distKey ? row[distKey] : '').trim().toUpperCase(),
-        })).filter(m => m.codigo && m.departamento && m.distrito);
+        const mapped = json.map((row: any) => {
+          const rawDep = String(depKey ? row[depKey] : '').trim().toUpperCase();
+          const rawDist = String(distKey ? row[distKey] : '').trim().toUpperCase();
+          
+          const normDep = normalizeGeo(rawDep);
+          const normDist = normalizeGeo(rawDist);
+
+          // Intentar encontrar el nombre oficial en datosData
+          const officialEntry = datosData?.find(d => 
+            normalizeGeo(d.departamento) === normDep && 
+            normalizeGeo(d.distrito) === normDist
+          );
+
+          return {
+            codigo: String(codKey ? row[codKey] : '').trim().toUpperCase(),
+            departamento: officialEntry ? officialEntry.departamento : rawDep,
+            distrito: officialEntry ? officialEntry.distrito : rawDist,
+          };
+        }).filter(m => m.codigo && m.departamento && m.distrito);
 
         setPreviewMaq(mapped);
         toast({ title: "Archivo procesado", description: `Se han detectado ${mapped.length} máquinas.` });
@@ -206,6 +228,40 @@ export default function MaquinasPage() {
       .catch(error => errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' })));
   };
 
+  const [isNormalizing, setIsNormalizing] = useState(false);
+  const handleNormalizeAll = async () => {
+    if (!firestore || !maquinasData || !datosData || !isAdminView) return;
+    setIsNormalizing(true);
+    try {
+      const BATCH_SIZE = 50;
+      let count = 0;
+      for (let i = 0; i < maquinasData.length; i += BATCH_SIZE) {
+        const batch = writeBatch(firestore);
+        const chunk = maquinasData.slice(i, i + BATCH_SIZE);
+        let batchNeeded = false;
+        
+        chunk.forEach(maq => {
+          const normDep = normalizeGeo(maq.departamento);
+          const normDist = normalizeGeo(maq.distrito);
+          const official = datosData.find(d => normalizeGeo(d.departamento) === normDep && normalizeGeo(d.distrito) === normDist);
+          
+          if (official && (official.departamento !== maq.departamento || official.distrito !== maq.distrito)) {
+            batch.update(doc(firestore, 'maquinas', maq.id), {
+              departamento: official.departamento,
+              distrito: official.distrito
+            });
+            batchNeeded = true;
+            count++;
+          }
+        });
+        
+        if (batchNeeded) await batch.commit();
+      }
+      toast({ title: "Normalización completada", description: `Se actualizaron ${count} máquinas.` });
+    } catch (err) { toast({ variant: 'destructive', title: "Error al normalizar" }); }
+    finally { setIsNormalizing(false); }
+  };
+
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
@@ -222,9 +278,12 @@ export default function MaquinasPage() {
             </div>
             {isAdminView && (
                 <div className="flex gap-3">
+                    <Button variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-orange-500 text-orange-600 hover:bg-orange-50" onClick={handleNormalizeAll} disabled={isNormalizing}>
+                        {isNormalizing ? <Loader2 className="animate-spin h-4 w-4" /> : <Database className="h-4 w-4" />} {isNormalizing ? "NORMALIZANDO..." : "NORMALIZAR GEOGRAFÍA"}
+                    </Button>
                     <label className="flex items-center gap-2 px-6 h-11 bg-black text-white rounded-xl font-black uppercase text-[10px] cursor-pointer hover:bg-black/90 shadow-xl">
                         <FileUp className="h-4 w-4" /> Importar Excel
-                        <Input type="file" className="hidden" accept=".xlsx,.csv" onChange={handleMaqFile} disabled={isParsingMaq || isUploadingMaq} />
+                        <input type="file" className="hidden" accept=".xlsx,.csv" onChange={handleMaqFile} disabled={isParsingMaq || isUploadingMaq} />
                     </label>
                 </div>
             )}
