@@ -340,7 +340,7 @@ export default function AgendaAnexoIPage() {
 
     // Ordenar por código de departamento (01, 02, 03...)
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
-  }, [rawSolicitudes, datosData, movimientosData, informesData, currentTime, agendaSearch]);
+  }, [rawSolicitudes, datosData, movimientosMap, informesMap, currentTime, agendaSearch]);
 
   const handleAssignDivulgador = (divulgador: Divulgador) => {
     if (!assigningSolicitud || !firestore) return;
@@ -966,8 +966,9 @@ export default function AgendaAnexoIPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-10">
                                 {(() => {
-                                    const mov = movimientosData?.find(m => m.solicitud_id === viewingActivity.id);
-                                    const inf = informesData?.find(i => i.solicitud_id === viewingActivity.id);
+                                    const mov = movimientosMap.get(viewingActivity.id);
+                                    const itemInformes = informesMap.get(viewingActivity.id) || [];
+                                    const inf = itemInformes.length > 0 ? itemInformes[0] : null;
                                     
                                     return (
                                         <>

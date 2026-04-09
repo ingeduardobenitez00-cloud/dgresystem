@@ -59,6 +59,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import html2canvas from 'html2canvas';
 
+const normalizeGeo = (str: string) => {
+  if (!str) return '';
+  return str.toUpperCase()
+    .replace(/^\d+[\s-]*\s*/, '')
+    .trim();
+};
+
 export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
@@ -479,7 +486,7 @@ export default function AgendaCapacitacionPage() {
                                                         {(item.divulgadores || item.asignados || []).length > 0 ? (
                                                             <div className="flex items-center gap-2 text-[#16A34A]">
                                                                 <Users className="h-4 w-4" />
-                                                                <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados).length} ASIGNADOS</p>
+                                                                <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados || []).length} ASIGNADOS</p>
                                                             </div>
                                                         ) : (
                                                             <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
