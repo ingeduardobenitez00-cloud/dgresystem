@@ -64,12 +64,16 @@ export function useDoc<T = any>(
       memoizedDocRef,
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {
-          setData({ ...(snapshot.data() as T), id: snapshot.id });
+          const newData = { ...(snapshot.data() as T), id: snapshot.id };
+          // Evitamos disparar re-renderizado si los datos son idénticos
+          setData(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(newData)) return prev;
+            return newData;
+          });
         } else {
-          // Document does not exist
           setData(null);
         }
-        setError(null); // Clear any previous error on successful snapshot (even if doc doesn't exist)
+        setError(null);
         setIsLoading(false);
       },
       (error: FirestoreError) => {

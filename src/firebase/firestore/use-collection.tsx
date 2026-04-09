@@ -42,6 +42,9 @@ export function useCollection<T = any>(
   
   const query = targetRefOrQuery;
 
+  const queryString = (query as any)?._query?.path?.canonicalString() || '';
+  const queryParams = JSON.stringify((query as any)?._query?.filters || []);
+
   useEffect(() => {
     if (!query) {
       setData(null);
@@ -91,7 +94,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [query]);
+  }, [queryString, queryParams]);
 
   return { data, isLoading, error, setData };
 }

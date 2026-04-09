@@ -87,9 +87,12 @@ export function useCollectionOnce<T = any>(
     }
   };
 
+  const queryString = (query as any)?._query?.path?.canonicalString() || '';
+  const queryParams = JSON.stringify((query as any)?._query?.filters || []); // Filtros específicos
+
   useEffect(() => {
     fetchData();
-  }, [JSON.stringify((query as any)?._query || {})]); // Basic dependency check for query changes
+  }, [queryString, queryParams]);
 
   return { data, isLoading, error, setData, refetch: fetchData };
 }

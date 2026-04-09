@@ -108,17 +108,51 @@ export default function AgendaCapacitacionPage() {
 
   const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
-  const movimientosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: movimientosData } = useCollection<MovimientoMaquina>(movimientosQuery);
+  // Optimizamos las consultas secundarias para que solo descarguen datos de la jurisdicción del usuario
+  const movimientosQuery = useMemoFirebase(() => {
+    if (!firestore || !profile) return null;
+    const colRef = collection(firestore, 'movimientos-maquinas');
+    if (hasAdminFilter) return colRef;
+    
+    const deptoOriginal = profile.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+    
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, profile, hasAdminFilter]);
+  const { data: movimientosData } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
 
-  const informesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'informes-divulgador') : null, [firestore]);
-  const { data: informesData } = useCollection<InformeDivulgador>(informesQuery);
+  const informesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile) return null;
+    const colRef = collection(firestore, 'informes-divulgador');
+    if (hasAdminFilter) return colRef;
+    
+    const deptoOriginal = profile.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+    
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, profile, hasAdminFilter]);
+  const { data: informesData } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
-  const encuestasQuery = useMemoFirebase(() => firestore ? collection(firestore, 'encuestas-satisfaccion') : null, [firestore]);
-  const { data: encuestasData } = useCollection<EncuestaSatisfaccion>(encuestasQuery);
+  const encuestasQuery = useMemoFirebase(() => {
+    if (!firestore || !profile) return null;
+    const colRef = collection(firestore, 'encuestas-satisfaccion');
+    if (hasAdminFilter) return colRef;
+    
+    const deptoOriginal = profile.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+    
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, profile, hasAdminFilter]);
+  const { data: encuestasData } = useCollectionOnce<EncuestaSatisfaccion>(encuestasQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const divulgadoresQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
