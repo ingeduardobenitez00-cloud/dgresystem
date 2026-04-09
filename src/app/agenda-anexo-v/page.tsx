@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
 import { 
@@ -163,16 +163,16 @@ export default function AgendaAnexoVPage() {
   const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollection<SolicitudCapacitacion>(solicitudesQuery);
 
   const movimientosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: movimientosData } = useCollection<MovimientoMaquina>(movimientosQuery);
+  const { data: movimientosData } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
 
   const informesQuery = useMemoFirebase(() => firestore ? collection(firestore, 'informes-divulgador') : null, [firestore]);
-  const { data: informesData } = useCollection<InformeDivulgador>(informesQuery);
+  const { data: informesData } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
   const encuestasQuery = useMemoFirebase(() => firestore ? collection(firestore, 'encuestas-satisfaccion') : null, [firestore]);
-  const { data: encuestasData } = useCollection<EncuestaSatisfaccion>(encuestasQuery);
+  const { data: encuestasData } = useCollectionOnce<EncuestaSatisfaccion>(encuestasQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const divulgadoresQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
@@ -202,20 +202,26 @@ export default function AgendaAnexoVPage() {
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
 
+    // INDEXACIÓN POR MAPAS PARA BÚSQUEDA O(1)
+    const movMap = new Map();
+    movimientosData?.forEach(m => { if(!movMap.has(m.solicitud_id)) movMap.set(m.solicitud_id, m); });
+    
+    const infMap = new Map();
+    informesData?.forEach(i => { if(!infMap.has(i.solicitud_id)) infMap.set(i.solicitud_id, i); });
+
     const today = new Date().toISOString().split('T')[0];
 
     const activeSolicitudes = rawSolicitudes.filter(sol => {
         if (sol.cancelada) return false;
 
-        // 1. Filtrar registros CUMPLIDOS que pasaron los 3 minutos de gracia
         if (sol.fecha_cumplido) {
             const completionTime = new Date(sol.fecha_cumplido);
             const diffMins = (currentTime.getTime() - completionTime.getTime()) / (1000 * 60);
             if (diffMins > 3) return false;
         }
 
-        const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
-        const inf = informesData?.find(i => i.solicitud_id === sol.id);
+        const mov = movMap.get(sol.id);
+        const inf = infMap.get(sol.id);
         const isPast = sol.fecha < today;
         const isClosed = mov?.fecha_devolucion && inf;
         return !(isPast && isClosed);
@@ -241,7 +247,7 @@ export default function AgendaAnexoVPage() {
     });
 
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
-  }, [rawSolicitudes, datosData, movimientosData, informesData]);
+  }, [rawSolicitudes, datosData, movimientosData, informesData, currentTime]);
 
   const handleAssignDivulgador = (divulgador: Divulgador) => {
     if (!assigningSolicitud || !firestore) return;
