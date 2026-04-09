@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useCollection, useStorage } from '@/firebase';
+import { useUser, useFirebase, useMemoFirebase, useCollection, useCollectionOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
@@ -23,6 +23,13 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { recordAuditLog } from '@/lib/audit';
+
+const normalizeGeo = (str: string) => {
+  if (!str) return '';
+  return str.toUpperCase()
+    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .trim();
+};
 
 function DenunciaContent() {
   const { user, isUserLoading } = useUser();
@@ -118,11 +125,41 @@ function DenunciaContent() {
     });
   };
 
-  const movsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: allMovimientos } = useCollection<MovimientoMaquina>(movsQuery);
+  const movsQuery = useMemoFirebase(() => {
+    if (!firestore || isUserLoading || !user?.profile) return null;
+    const colRef = collection(firestore, 'movimientos-maquinas');
+    const profile = user.profile;
+    const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
 
-  const densQuery = useMemoFirebase(() => firestore ? collection(firestore, 'denuncias-lacres') : null, [firestore]);
-  const { data: allDenuncias } = useCollection<any>(densQuery);
+    if (isAdminGlobal) return colRef;
+
+    const deptoOriginal = profile.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, user, isUserLoading]);
+  
+  const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movsQuery);
+
+  const densQuery = useMemoFirebase(() => {
+    if (!firestore || isUserLoading || !user?.profile) return null;
+    const colRef = collection(firestore, 'denuncias-lacres');
+    const profile = user.profile;
+    const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+
+    if (isAdminGlobal) return colRef;
+
+    const deptoOriginal = profile.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, user, isUserLoading]);
+
+  const { data: allDenuncias } = useCollectionOnce<any>(densQuery);
 
   const agendaQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.profile) return null;
@@ -143,25 +180,25 @@ function DenunciaContent() {
     if (!rawAgendaItems || !allMovimientos || !allDenuncias) return [];
     return [...rawAgendaItems].filter(item => {
         if (item.cancelada) return false;
-        const mov = allMovimientos.find(m => m.solicitud_id === item.id);
-        const den = allDenuncias.find(d => d.solicitud_id === item.id);
+        const mov = allMovimientos.find((m: MovimientoMaquina) => m.solicitud_id === item.id);
+        const den = allDenuncias.find((d: any) => d.solicitud_id === item.id);
         if (!mov || !mov.fecha_devolucion) return false;
-        const hasTampering = mov.maquinas.some(m => m.lacre_estado === 'violentado');
+        const hasTampering = mov.maquinas.some((m: any) => m.lacre_estado === 'violentado');
         return hasTampering && !den;
     }).sort((a, b) => b.fecha.localeCompare(a.fecha));
   }, [rawAgendaItems, allMovimientos, allDenuncias]);
 
   const selectedSolicitud = useMemo(() => {
-    return rawAgendaItems?.find(item => item.id === selectedAgendaId);
+    return rawAgendaItems?.find((item: SolicitudCapacitacion) => item.id === selectedAgendaId);
   }, [rawAgendaItems, selectedAgendaId]);
 
   const currentMov = useMemo(() => {
-    return allMovimientos?.find(m => m.solicitud_id === selectedAgendaId) || null;
+    return allMovimientos?.find((m: MovimientoMaquina) => m.solicitud_id === selectedAgendaId) || null;
   }, [allMovimientos, selectedAgendaId]);
 
   const tamperedMaquinas = useMemo(() => {
     if (!currentMov) return [];
-    return currentMov.maquinas.filter(m => m.lacre_estado === 'violentado');
+    return currentMov.maquinas.filter((m: any) => m.lacre_estado === 'violentado');
   }, [currentMov]);
 
   useEffect(() => {
@@ -503,7 +540,7 @@ function DenunciaContent() {
                             <Cpu className="h-5 w-5" /> IDENTIFICACIÓN DE EQUIPOS VIOLENTADOS *
                         </Label>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {tamperedMaquinas.map(maq => (
+                            {tamperedMaquinas.map((maq: any) => (
                                 <div 
                                     key={maq.codigo} 
                                     className={cn(
