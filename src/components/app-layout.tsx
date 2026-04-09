@@ -175,7 +175,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <footer className="w-full py-6 px-4 text-center">
             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-60">
-              © 2026 Dpto. Informática DGRE - TSJE | Reservados todos los derechos.
+              © 2026 Dpto. Informática DGRE - TSJE | ING. EDUARDO BENITEZ Reservados todos los derechos.
             </p>
           </footer>
         </div>
@@ -191,7 +191,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <footer className="py-6 px-4 text-center border-t bg-muted/5">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-60">
-                  © 2026 Dpto. Informática DGRE - TSJE | Reservados todos los derechos.
+                  © 2026 Dpto. Informática DGRE - TSJE | ING. EDUARDO BENITEZ Reservados todos los derechos.
                 </p>
               </footer>
             </div>
