@@ -205,19 +205,9 @@ function ControlMovimientoContent() {
     const colRef = collection(firestore, 'maquinas');
     const isAdmin = ['admin', 'director', 'coordinador'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
 
-    if (selectedSolicitud?.departamento) {
-      // Ampliamos la consulta al departamento completo para filtrar distritos con nombres variantes en memoria
-      return query(colRef, where('departamento', '==', selectedSolicitud.departamento));
-    }
-
-    if (isAdmin) return colRef;
-
-    if (profile.departamento) {
-      return query(colRef, where('departamento', '==', profile.departamento));
-    }
-
-    return null;
-  }, [firestore, isUserLoading, profile, selectedSolicitud?.departamento]);
+    // Cargamos todas las máquinas para filtrar en memoria con normalizeGeo y evitar fallos por nomenclatura (prefijos numéricos)
+    return colRef;
+  }, [firestore, isUserLoading, profile]);
 
   const { data: rawMaquinas, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
 

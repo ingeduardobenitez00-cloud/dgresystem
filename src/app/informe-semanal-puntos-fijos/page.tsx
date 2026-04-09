@@ -59,6 +59,13 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DateRange } from "react-day-picker";
 
+const normalizeGeo = (str: string) => {
+  if (!str) return '';
+  return str.toUpperCase()
+    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .trim();
+};
+
 export default function InformeSemanalAnexoIVPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
@@ -136,18 +143,26 @@ export default function InformeSemanalAnexoIVPage() {
     }
 
     if (!selectedDepartment || !selectedDistrict) return null;
-    return query(
-        colRef, 
-        where('departamento', '==', selectedDepartment), 
-        where('oficina', '==', selectedDistrict)
-    );
-  }, [firestore, selectedDepartment, selectedDistrict, isAdminView]);
+    // Quitamos los filtros where estrictos de FireStore para filtrar en memoria con normalizeGeo
+    return colRef;
+  }, [firestore]);
 
   const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
 
   const informesAnexoIII = useMemo(() => {
-    if (!rawInformesAnexoIII) return [];
-    let filtered = [...rawInformesAnexoIII];
+    if (!rawInformesAnexoIII || !selectedDepartment || !selectedDistrict) return [];
+    
+    // Normalizamos objetivos de búsqueda
+    const targetDepto = normalizeGeo(selectedDepartment);
+    const targetDist = normalizeGeo(selectedDistrict);
+    const isDeptoAll = selectedDepartment === 'ALL';
+    const isDistAll = selectedDistrict === 'ALL';
+
+    let filtered = rawInformesAnexoIII.filter(inf => {
+        const matchesDepto = isDeptoAll || normalizeGeo(inf.departamento) === targetDepto;
+        const matchesDist = isDistAll || normalizeGeo(inf.oficina) === targetDist;
+        return matchesDepto && matchesDist;
+    });
     
     if (dateRange?.from && dateRange?.to) {
         const fromStr = format(dateRange.from, "yyyy-MM-dd");
@@ -156,7 +171,7 @@ export default function InformeSemanalAnexoIVPage() {
     }
     
     return filtered.sort((a, b) => a.fecha.localeCompare(b.fecha));
-  }, [rawInformesAnexoIII, dateRange]);
+  }, [rawInformesAnexoIII, selectedDepartment, selectedDistrict, dateRange]);
 
   const totalCapacitados = useMemo(() => {
     return informesAnexoIII.reduce((acc, curr) => acc + (curr.total_personas || 0), 0);
@@ -531,7 +546,7 @@ export default function InformeSemanalAnexoIVPage() {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                                <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado * ({photos.length}/12)
+                                <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado ({photos.length}/12)
                             </Label>
                             {photos.length > 0 && photos.length < 12 && (
                                 <div className="flex gap-1">
