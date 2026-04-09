@@ -210,15 +210,26 @@ export default function AgendaAnexoVPage() {
     const infMap = new Map();
     informesData?.forEach(i => { if(!infMap.has(i.solicitud_id)) infMap.set(i.solicitud_id, i); });
 
+    const datosMap = new Map();
+    datosData.forEach(d => {
+      const key = `${d.departamento}|${d.distrito}`;
+      if (!datosMap.has(key)) datosMap.set(key, d);
+      // Fallback por departamento
+      if (!datosMap.has(d.departamento)) datosMap.set(d.departamento, d);
+    });
+
     const today = new Date().toISOString().split('T')[0];
     const searchTerm = agendaSearch.toLowerCase().trim();
+
+    // Reducimos la dependencia de currentTime para que el buscador sea fluido
+    const currentMs = currentTime.getTime();
 
     const activeSolicitudes = rawSolicitudes.filter(sol => {
         if (sol.cancelada) return false;
 
         if (sol.fecha_cumplido) {
             const completionTime = new Date(sol.fecha_cumplido);
-            const diffMins = (currentTime.getTime() - completionTime.getTime()) / (1000 * 60);
+            const diffMins = (currentMs - completionTime.getTime()) / (1000 * 60);
             if (diffMins > 3) return false;
         }
 
@@ -245,9 +256,8 @@ export default function AgendaAnexoVPage() {
       const deptName = sol.departamento || 'SIN DEPARTAMENTO';
       const distName = sol.distrito || 'SIN DISTRITO';
       
-      // Búsqueda robusta del código de departamento
-      const dato = datosData.find(d => d.departamento === deptName && d.distrito === distName) || 
-                   datosData.find(d => d.departamento === deptName);
+      const key = `${deptName}|${distName}`;
+      const dato = datosMap.get(key) || datosMap.get(deptName);
       
       // Intentar extraer el código del prefijo si el nombre es "02 - SAN PEDRO"
       const extractedCode = deptName.match(/^\d+/)?.[0] || '00';
