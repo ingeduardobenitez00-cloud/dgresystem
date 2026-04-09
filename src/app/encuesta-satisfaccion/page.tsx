@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Check, Lock, DatabaseZap } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useDoc, useCollection } from '@/firebase';
+import { useUser, useFirebase, useMemoFirebase, useDoc, useCollection, useCollectionOnce } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, query, where, getDocs } from 'firebase/firestore';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -54,7 +54,7 @@ function EncuestaContent() {
     if (!firestore || !user) return null;
     return collection(firestore, 'solicitudes-capacitacion');
   }, [firestore, user]);
-  const { data: agendaItems } = useCollection<SolicitudCapacitacion>(agendaQuery);
+  const { data: agendaItems } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
 
   const filteredAgendaItems = useMemo(() => {
     if (!agendaItems) return [];

@@ -52,7 +52,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (!mounted || !user) return;
 
     updatePresence();
-    const interval = setInterval(updatePresence, 60000);
+    const interval = setInterval(updatePresence, 300000); // 5 minutos para ahorrar lecturas/escrituras
     return () => clearInterval(interval);
   }, [mounted, user, updatePresence]);
 

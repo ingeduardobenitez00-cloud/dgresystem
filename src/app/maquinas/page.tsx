@@ -23,7 +23,7 @@ import {
   Edit,
   X
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, doc, writeBatch, addDoc, deleteDoc, query, where, updateDoc } from 'firebase/firestore';
 import { type MaquinaVotacion, type Dato } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -75,7 +75,7 @@ export default function MaquinasPage() {
   const isAdminView = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
 
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || !profile) return null;

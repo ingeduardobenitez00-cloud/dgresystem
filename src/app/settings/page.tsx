@@ -13,8 +13,8 @@ import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type Dato } from '@/lib/data';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { useFirebase, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { useFirebase, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
@@ -70,7 +70,7 @@ export default function SettingsPage() {
   );
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: rawDatosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+  const { data: rawDatosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
 
   const datosData = useMemo(() => {
     if (!rawDatosData) return [];

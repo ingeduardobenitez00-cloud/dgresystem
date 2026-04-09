@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useDoc, useCollectionOnce } from '@/firebase';
 import { collection, query, orderBy, where, doc, writeBatch, addDoc } from 'firebase/firestore';
 import { type InformeSemanalRegistro, type Dato } from '@/lib/data';
 import { 
@@ -57,7 +57,7 @@ export default function ReporteSemanalRegistroPage() {
 
   // Cargar geografía completa
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
 
   // Cargar todos los informes operativos activos (no archivados)
   const informesQuery = useMemoFirebase(() => {

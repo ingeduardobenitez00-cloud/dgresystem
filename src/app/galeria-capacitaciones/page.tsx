@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
-import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { type InformeDivulgador } from '@/lib/data';
 import { 
@@ -47,9 +47,10 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Button } from '@/components/ui/button';
 
 export default function GaleriaCapacitacionesPage() {
-  const { isUserLoading } = useUser();
+  const { user, isUserLoading, userError } = useUser();
   const { firestore } = useFirebase();
-  const { user, isAdmin, isOwner } = useUser();
+  const isAdmin = user?.isAdmin;
+  const isOwner = user?.isOwner;
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export default function GaleriaCapacitacionesPage() {
 
   // Consulta directa a informes-divulgador
   const informesRef = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
-  const { data: informes, isLoading } = useCollection<InformeDivulgador>(informesRef);
+  const { data: informes, isLoading } = useCollectionOnce<InformeDivulgador>(informesRef);
 
   // Agrupación Jerárquica: Dept -> Dist -> Informes con Fotos o Respaldo
   const groupedInformes = useMemo(() => {

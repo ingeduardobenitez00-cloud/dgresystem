@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Header from "@/components/header";
-import { useFirebase, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
 import { collection, query, where, doc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { type Dato, type ReportData, type ImageData } from '@/lib/data';
 import {
@@ -66,7 +66,7 @@ function FichaContent() {
   }, []);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData, isLoading: isLoadingDatos } = useCollection<Dato>(datosQuery);
+  const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
   
   const [departments, setDepartments] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
@@ -133,8 +133,8 @@ function FichaContent() {
     );
   }, [firestore, shouldFetch, selectedDepartment, selectedDistrict, canViewImages]);
 
-  const { data: reportData, isLoading: isLoadingReport, error: reportError, setData: setReportData } = useCollection<ReportData>(reportQuery);
-  const { data: imagesData, isLoading: isLoadingImages, setData: setImagesData } = useCollection<ImageData>(imagesQuery);
+  const { data: reportData, isLoading: isLoadingReport, error: reportError, setData: setReportData } = useCollectionOnce<ReportData>(reportQuery);
+  const { data: imagesData, isLoading: isLoadingImages, setData: setImagesData } = useCollectionOnce<ImageData>(imagesQuery);
   
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
   const [isViewerOpen, setViewerOpen] = useState(false);
@@ -264,12 +264,12 @@ function FichaContent() {
                 ['Dimensiones de Habitación Segura', currentReport['dimensiones-habitacion']],
                 ['Características de Habitación Segura', currentReport['caracteristicas-habitacion']],
                 ['Cantidad de Máquinas de Votación', currentReport['cantidad-maquinas']],
-            ].filter(row => row[1]);
+            ].filter(row => row[1]).map(row => [row[0], String(row[1] || '')]);
 
             autoTable(doc, {
                 startY: contentY,
                 head: [['Concepto', 'Descripción']],
-                body: reportBody,
+                body: reportBody as any,
                 theme: 'striped',
                 headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold' },
                 styles: { cellPadding: 3, fontSize: 10 },

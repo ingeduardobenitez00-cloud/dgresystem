@@ -19,7 +19,7 @@ import {
   Calendar as CalendarIcon,
   ChevronDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -50,7 +50,7 @@ export default function PuntosFijosPage() {
 
   // Carga de departamentos y distritos para los filtros
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const departments = useMemo(() => {
     if (!datosData) return [];

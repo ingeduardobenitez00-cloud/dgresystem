@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase, useCollectionOnce } from '@/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -60,7 +60,7 @@ export default function LoginPage() {
 
   // Data for Selects
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollection<Dato>(datosQuery);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
