@@ -456,7 +456,7 @@ export default function SolicitudCapacitacionPage() {
         if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
           toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo supera el límite permitido.' });
         } else {
-          toast({ variant: 'destructive', title: "Error", description: "No se pudo guardar la solicitud." });
+          toast({ variant: 'destructive', title: "Error de Sistema", description: errorMsg });
         }
       } finally {
         setIsSubmitting(false);
