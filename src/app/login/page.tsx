@@ -347,15 +347,10 @@ export default function LoginPage() {
                   Ingresar al sistema
                 </Button>
                 
-                <div className="w-full">
-                    <Button 
-                        type="button" 
-                        variant="outline" 
-                        className="w-full border-2 font-black uppercase text-[10px] gap-2 h-11 tracking-wider"
-                        onClick={() => setMode('register')}
-                    >
-                        <UserPlus className="h-4 w-4" /> Registrarse como Jefe
-                    </Button>
+                <div className="w-full text-center pb-2">
+                    <p className="text-[10px] font-black uppercase text-muted-foreground opacity-70 tracking-tighter">
+                        Si aún no cuenta con usuario contactar a CIDEE o la DGRE
+                    </p>
                 </div>
               </CardFooter>
             </form>
