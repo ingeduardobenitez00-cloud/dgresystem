@@ -205,9 +205,18 @@ function ControlMovimientoContent() {
     const colRef = collection(firestore, 'maquinas');
     const isAdmin = ['admin', 'director', 'coordinador'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
 
-    // Cargamos todas las máquinas para filtrar en memoria con normalizeGeo y evitar fallos por nomenclatura (prefijos numéricos)
-    return colRef;
-  }, [firestore, isUserLoading, profile]);
+    const deptoOriginal = selectedSolicitud?.departamento || profile.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) {
+        variants.push(deptoNormalized);
+    }
+
+    // Usamos 'in' para traer solo las máquinas del departamento (con y sin prefijo numérico)
+    // Esto es mucho más eficiente que cargar todo el inventario nacional para 500 usuarios.
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, isUserLoading, profile, selectedSolicitud?.departamento]);
 
   const { data: rawMaquinas, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
 

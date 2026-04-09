@@ -143,9 +143,18 @@ export default function InformeSemanalAnexoIVPage() {
     }
 
     if (!selectedDepartment || !selectedDistrict) return null;
-    // Quitamos los filtros where estrictos de FireStore para filtrar en memoria con normalizeGeo
-    return colRef;
-  }, [firestore]);
+    const deptoOriginal = selectedDepartment || profile?.departamento || '';
+    const deptoNormalized = normalizeGeo(deptoOriginal);
+    
+    const variants = [deptoOriginal];
+    if (deptoNormalized && deptoNormalized !== deptoOriginal) {
+        variants.push(deptoNormalized);
+    }
+
+    // Usamos 'in' para traer solo los informes del departamento (con y sin prefijo numérico)
+    // Esto protege la cuota de lecturas para 500 usuarios.
+    return query(colRef, where('departamento', 'in', variants));
+  }, [firestore, selectedDepartment, profile?.departamento]);
 
   const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollection<InformeDivulgador>(informesQuery);
 
