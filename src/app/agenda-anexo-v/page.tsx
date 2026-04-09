@@ -8,7 +8,7 @@ import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, getDocs, getCountFromServer } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
 import { 
   Loader2, 
@@ -160,11 +160,21 @@ export default function AgendaAnexoVPage() {
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    let q;
-    if (hasAdminFilter) q = colRef;
-    else if (hasDeptFilter && profile.departamento) q = query(colRef, where('departamento', '==', profile.departamento));
+    
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - 60);
+    const dateLimitStr = limitDate.toISOString().split('T')[0];
+    
+    let q = query(colRef, where('fecha', '>=', dateLimitStr));
+    
+    if (hasAdminFilter) {
+        // q already configured
+    }
+    else if (hasDeptFilter && profile.departamento) {
+        q = query(colRef, where('departamento', '==', profile.departamento), where('fecha', '>=', dateLimitStr));
+    }
     else if (hasDistFilter && profile.departamento && profile.distrito) {
-        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), where('fecha', '>=', dateLimitStr));
     } else return null;
 
     return query(q, where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']));
@@ -172,50 +182,51 @@ export default function AgendaAnexoVPage() {
 
   const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
 
-  const movimientosQuery = useMemoFirebase(() => {
-    if (!firestore || !profile) return null;
-    const colRef = collection(firestore, 'movimientos-maquinas');
-    if (hasAdminFilter) return colRef;
+  const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
+  const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
 
-    const deptoOriginal = profile.departamento || '';
-    const deptoNormalized = normalizeGeo(deptoOriginal);
-    const variants = [deptoOriginal];
-    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+  useEffect(() => {
+    if (!firestore || !rawSolicitudes || rawSolicitudes.length === 0) return;
+    
+    const relevantIds = rawSolicitudes
+        .filter(sol => !sol.cancelada) 
+        .map(sol => sol.id);
+        
+    if (relevantIds.length === 0) return;
 
-    return query(colRef, where('departamento', 'in', variants));
-  }, [firestore, profile, hasAdminFilter]);
+    const uniqueIds = Array.from(new Set(relevantIds));
+    const chunks = [];
+    for (let i = 0; i < uniqueIds.length; i += 30) {
+        chunks.push(uniqueIds.slice(i, i + 30));
+    }
 
-  const { data: movimientosData } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
+    Promise.all(chunks.map(chunk => 
+        getDocs(query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', 'in', chunk)))
+    )).then(snapshots => {
+        const newMap = new Map();
+        snapshots.forEach(snap => snap.docs.forEach(doc => newMap.set(doc.data().solicitud_id, { id: doc.id, ...doc.data() })));
+        setMovimientosMap(newMap);
+    }).catch(e => console.error(e));
 
-  const informesQuery = useMemoFirebase(() => {
-    if (!firestore || !profile) return null;
-    const colRef = collection(firestore, 'informes-divulgador');
-    if (hasAdminFilter) return colRef;
+    Promise.all(chunks.map(chunk => 
+        getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk)))
+    )).then(snapshots => {
+        const newMap = new Map();
+        snapshots.forEach(snap => snap.docs.forEach(doc => {
+            const id = doc.data().solicitud_id;
+            if (!newMap.has(id)) newMap.set(id, []);
+            newMap.get(id).push({ id: doc.id, ...doc.data() });
+        }));
+        setInformesMap(newMap);
+    }).catch(e => console.error(e));
 
-    const deptoOriginal = profile.departamento || '';
-    const deptoNormalized = normalizeGeo(deptoOriginal);
-    const variants = [deptoOriginal];
-    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+  }, [firestore, rawSolicitudes]);
 
-    return query(colRef, where('departamento', 'in', variants));
-  }, [firestore, profile, hasAdminFilter]);
+  
 
-  const { data: informesData } = useCollectionOnce<InformeDivulgador>(informesQuery);
+  
 
-  const encuestasQuery = useMemoFirebase(() => {
-    if (!firestore || !profile) return null;
-    const colRef = collection(firestore, 'encuestas-satisfaccion');
-    if (hasAdminFilter) return colRef;
-
-    const deptoOriginal = profile.departamento || '';
-    const deptoNormalized = normalizeGeo(deptoOriginal);
-    const variants = [deptoOriginal];
-    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
-
-    return query(colRef, where('departamento', 'in', variants));
-  }, [firestore, profile, hasAdminFilter]);
-
-  const { data: encuestasData } = useCollectionOnce<EncuestaSatisfaccion>(encuestasQuery);
+  
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
@@ -249,11 +260,11 @@ export default function AgendaAnexoVPage() {
     if (!rawSolicitudes || !datosData) return [];
 
     // INDEXACIÓN POR MAPAS PARA BÚSQUEDA O(1)
-    const movMap = new Map();
-    movimientosData?.forEach(m => { if(!movMap.has(m.solicitud_id)) movMap.set(m.solicitud_id, m); });
     
-    const infMap = new Map();
-    informesData?.forEach(i => { if(!infMap.has(i.solicitud_id)) infMap.set(i.solicitud_id, i); });
+    // use direct maps
+    
+    
+    // use direct maps
 
     const datosMap = new Map();
     datosData.forEach(d => {
@@ -288,8 +299,8 @@ export default function AgendaAnexoVPage() {
 
         if (!matchesSearch) return false;
 
-        const mov = movMap.get(sol.id);
-        const inf = infMap.get(sol.id);
+        const mov = movimientosMap.get(sol.id);
+        const infDocs = informesMap.get(sol.id); const inf = infDocs && infDocs.length > 0 ? infDocs[0] : null;
         const isPast = sol.fecha < today;
         const isClosed = mov?.fecha_devolucion && inf;
         return !(isPast && isClosed);
@@ -622,7 +633,7 @@ export default function AgendaAnexoVPage() {
                                 const cleanDate = item.fecha?.split('T')[0]?.trim() || '';
                                 const isPast = cleanDate !== '' && cleanDate.localeCompare(today) < 0 && cleanDate !== today && cleanDate !== todayReverse;
                                 const isToday = cleanDate !== '' && (cleanDate === today || cleanDate === todayReverse);
-                                const mov = movimientosData?.find(m => m.solicitud_id === item.id); const itemInformes = informesData?.filter(i => i.solicitud_id === item.id) || []; const inf = itemInformes[0]; const assignedList = item.divulgadores || item.asignados || []; const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
+                                const mov = movimientosMap.get(item.id); const itemInformes = informesMap.get(item.id) || []; const inf = itemInformes[0]; const assignedList = item.divulgadores || item.asignados || []; const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
                                 
                                 const missingF02 = isPast && !mov?.fecha_devolucion;
                                 const missingAnexoIII = isPast && (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
@@ -630,7 +641,7 @@ export default function AgendaAnexoVPage() {
                                 const hasAlert = missingF02 || missingAnexoIII || missingSalida;
                                 const isFulfilled = mov?.fecha_devolucion && inf;
 
-                                const itemEncuestas = encuestasData?.filter(e => e.solicitud_id === item.id) || [];
+                                
 
                                 // Lógica de Guía de Pasos Independientes (Sin saltos)
                                 const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
@@ -660,6 +671,17 @@ export default function AgendaAnexoVPage() {
                                          </div>
                                      );
                                  };
+
+                                const SurveyCounter = ({ solicitudId, firestore }: any) => {
+                                    const [count, setCount] = useState<number | null>(null);
+                                    useEffect(() => {
+                                        if (!firestore) return;
+                                        getCountFromServer(query(collection(firestore, 'encuestas-satisfaccion'), where('solicitud_id', '==', solicitudId)))
+                                            .then(snap => setCount(snap.data().count))
+                                            .catch(() => setCount(0));
+                                    }, [firestore, solicitudId]);
+                                    return <span className="text-[9px] font-black uppercase text-inherit">ENCUESTAS: {count !== null ? count : '...'}</span>;
+                                };
 
                                 return (
                                     <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
@@ -708,7 +730,7 @@ export default function AgendaAnexoVPage() {
                                                     </div>
                                                     <div className="flex items-center gap-2 text-primary pt-2 border-t border-dashed">
                                                         <MessageSquareHeart className="h-3.5 w-3.5" />
-                                                        <span className="text-[9px] font-black uppercase">ENCUESTAS: {itemEncuestas.length}</span>
+                                                        <SurveyCounter solicitudId={item.id} firestore={firestore} />
                                                     </div>
                                                 </div>
 
