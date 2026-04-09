@@ -92,6 +92,7 @@ export default function AgendaAnexoVPage() {
   const [copied, setCopied] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [viewedQRs, setViewedQRs] = useState<string[]>([]);
+  const [agendaSearch, setAgendaSearch] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('viewed_qrs_agenda');
@@ -210,6 +211,7 @@ export default function AgendaAnexoVPage() {
     informesData?.forEach(i => { if(!infMap.has(i.solicitud_id)) infMap.set(i.solicitud_id, i); });
 
     const today = new Date().toISOString().split('T')[0];
+    const searchTerm = agendaSearch.toLowerCase().trim();
 
     const activeSolicitudes = rawSolicitudes.filter(sol => {
         if (sol.cancelada) return false;
@@ -219,6 +221,16 @@ export default function AgendaAnexoVPage() {
             const diffMins = (currentTime.getTime() - completionTime.getTime()) / (1000 * 60);
             if (diffMins > 3) return false;
         }
+
+        // FILTRO DE BÚSQUEDA
+        const matchesSearch = !searchTerm || 
+            (sol.departamento || '').toLowerCase().includes(searchTerm) || 
+            (sol.distrito || '').toLowerCase().includes(searchTerm) ||
+            (sol.nombre_completo || '').toLowerCase().includes(searchTerm) ||
+            (sol.solicitante_entidad || '').toLowerCase().includes(searchTerm) ||
+            (sol.otra_entidad || '').toLowerCase().includes(searchTerm);
+
+        if (!matchesSearch) return false;
 
         const mov = movMap.get(sol.id);
         const inf = infMap.get(sol.id);
@@ -232,7 +244,10 @@ export default function AgendaAnexoVPage() {
     activeSolicitudes.forEach(sol => {
       const deptName = sol.departamento || 'SIN DEPARTAMENTO';
       const distName = sol.distrito || 'SIN DISTRITO';
-      const dato = datosData.find(d => d.departamento === deptName && d.distrito === distName);
+      
+      // Búsqueda robusta del código de departamento
+      const dato = datosData.find(d => d.departamento === deptName && d.distrito === distName) || 
+                   datosData.find(d => d.departamento === deptName);
       
       const deptCode = dato?.departamento_codigo || '00';
       const distCode = `${deptCode} - 00 - 00 - ${dato?.distrito_codigo || '00'}`;
@@ -246,8 +261,9 @@ export default function AgendaAnexoVPage() {
       depts[deptName].dists[distName].items.push(sol);
     });
 
+    // Ordenar por código de departamento (01, 02, 03...)
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
-  }, [rawSolicitudes, datosData, movimientosData, informesData, currentTime]);
+  }, [rawSolicitudes, datosData, movimientosData, informesData, currentTime, agendaSearch]);
 
   const handleAssignDivulgador = (divulgador: Divulgador) => {
     if (!assigningSolicitud || !firestore) return;
@@ -469,10 +485,20 @@ export default function AgendaAnexoVPage() {
                     <Activity className="h-4 w-4" /> Seguimiento nacional de actividades registradas.
                 </p>
             </div>
-            <div className="bg-white px-4 py-2 rounded-full border border-dashed flex items-center gap-2">
+             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                 <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
             </div>
+        </div>
+
+        <div className="relative max-w-2xl">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input 
+                className="h-16 pl-14 pr-6 rounded-[2rem] border-2 border-white shadow-xl text-lg font-bold placeholder:text-muted-foreground/40 bg-white"
+                placeholder="BUSCAR POR DEPARTAMENTO, DISTRITO O SOLICITANTE..."
+                value={agendaSearch}
+                onChange={(e) => setAgendaSearch(e.target.value.toUpperCase())}
+            />
         </div>
 
         {groupedData.length === 0 ? (
@@ -558,7 +584,7 @@ export default function AgendaAnexoVPage() {
                                 const isQRViewed = viewedQRs.includes(item.id);
                                 const showStep1 = !hasPersonnel;
                                 const showStep2 = hasPersonnel && !item.qr_enabled;
-                                const showStep3 = hasPersonnel && item.qr_enabled && !hasSalida && !isQRViewed;
+                                const showStep3 = hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed;
                                 const showStep4 = hasPersonnel && (isToday || isPast) && !hasSalida && (!item.qr_enabled || isQRViewed);
                                 const showStep5 = hasSalida && !hasRetorno;
                                 const showStep6 = hasRetorno && !hasInforme;
