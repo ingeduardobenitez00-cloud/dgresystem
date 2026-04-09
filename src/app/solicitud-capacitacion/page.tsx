@@ -388,11 +388,11 @@ export default function SolicitudCapacitacionPage() {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad || '';
 
-    if (!formData.lugar_local || !formData.nombre_completo || !photoDataUri) {
+    if (!formData.lugar_local || !formData.nombre_completo || !photoDataUri || !formData.departamento || !formData.distrito) {
       toast({ 
         variant: "destructive", 
         title: "Faltan datos obligatorios",
-        description: !photoDataUri ? "Debe capturar o subir una foto del respaldo documental." : "Complete todos los campos del formulario."
+        description: !photoDataUri ? "Debe capturar o subir una foto del respaldo documental." : "Complete todos los campos del formulario (Incluyendo Departamento y Distrito)."
       }); 
       return;
     }
