@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      // Solo usuarios autenticados pueden leer o escribir fotos
+      allow read, write: if request.auth != null;
+    }
+  }
+}
