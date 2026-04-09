@@ -249,7 +249,10 @@ export default function AgendaAnexoVPage() {
       const dato = datosData.find(d => d.departamento === deptName && d.distrito === distName) || 
                    datosData.find(d => d.departamento === deptName);
       
-      const deptCode = dato?.departamento_codigo || '00';
+      // Intentar extraer el código del prefijo si el nombre es "02 - SAN PEDRO"
+      const extractedCode = deptName.match(/^\d+/)?.[0] || '00';
+      const deptCode = (dato?.departamento_codigo && dato.departamento_codigo !== '00') ? dato.departamento_codigo : extractedCode;
+      
       const distCode = `${deptCode} - 00 - 00 - ${dato?.distrito_codigo || '00'}`;
 
       if (!depts[deptName]) {
@@ -491,11 +494,11 @@ export default function AgendaAnexoVPage() {
             </div>
         </div>
 
-        <div className="relative max-w-2xl">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <div className="relative max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-                className="h-16 pl-14 pr-6 rounded-[2rem] border-2 border-white shadow-xl text-lg font-bold placeholder:text-muted-foreground/40 bg-white"
-                placeholder="BUSCAR POR DEPARTAMENTO, DISTRITO O SOLICITANTE..."
+                className="h-11 pl-11 pr-4 rounded-xl border-2 border-white shadow-lg text-sm font-bold placeholder:text-muted-foreground/40 bg-white"
+                placeholder="BUSCAR DEPARTAMENTO, DISTRITO O SOLICITANTE..."
                 value={agendaSearch}
                 onChange={(e) => setAgendaSearch(e.target.value.toUpperCase())}
             />
