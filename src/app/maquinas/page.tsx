@@ -91,9 +91,15 @@ export default function MaquinasPage() {
     if (isAdminView) return colRef;
     
     // GUARDIA: Si el perfil está incompleto, no realizar la consulta para evitar error de undefined
-    if (!profile.departamento || !profile.distrito) return null;
-    
-    return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    if (profile.departamento && profile.distrito) {
+        const deptoOriginal = profile.departamento;
+        const deptoNormalized = normalizeGeo(deptoOriginal);
+        const variants = [deptoOriginal];
+        if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+        
+        return query(colRef, where('departamento', 'in', variants), where('distrito', '==', profile.distrito));
+    }
+    return null;
   }, [firestore, profile, isAdminView]);
 
   const { data: maquinasData, isLoading: isLoadingMaquinas } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
