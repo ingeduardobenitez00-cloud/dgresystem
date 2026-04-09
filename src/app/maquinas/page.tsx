@@ -96,7 +96,7 @@ export default function MaquinasPage() {
     return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
   }, [firestore, profile, isAdminView]);
 
-  const { data: maquinasData, isLoading: isLoadingMaquinas } = useCollection<MaquinaVotacion>(maquinasQuery);
+  const { data: maquinasData, isLoading: isLoadingMaquinas } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
