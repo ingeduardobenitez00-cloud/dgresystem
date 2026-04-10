@@ -26,15 +26,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const sysConfigRef = useMemo(() => firestore ? doc(firestore, 'sysconfig', 'status') : null, [firestore]);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [sessionAlert, setSessionAlert] = useState(false);
 
   useEffect(() => {
     if (!sysConfigRef) return;
     import('firebase/firestore').then(({ onSnapshot }) => {
       const unsubscribe = onSnapshot(sysConfigRef, (docSnap) => {
-        if (docSnap.exists() && docSnap.data().maintenance === true) {
-          setMaintenanceMode(true);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setMaintenanceMode(data.maintenance === true);
+          setSessionAlert(data.session_alert === true);
         } else {
           setMaintenanceMode(false);
+          setSessionAlert(false);
         }
       });
       return () => unsubscribe();
@@ -227,6 +231,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarInset>
             <div className="flex flex-1 flex-col">
               <div className="flex-1">
+                {sessionAlert && user && !isPublicRoute && (
+                  <div className="bg-destructive text-white px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-top duration-500 border-b-4 border-black/20 relative z-[60]">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/20 p-2 rounded-lg">
+                        <ShieldAlert className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-black uppercase tracking-tight">ACTUALIZACIÓN DE RENDIMIENTO REQUERIDA</p>
+                        <p className="text-[10px] font-bold opacity-90 uppercase">Se han aplicado mejoras críticas de ahorro de datos y velocidad. Por favor, cierre sesión ahora para activar los cambios.</p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="bg-white text-destructive hover:bg-white/90 border-none font-black uppercase text-[10px] h-9 px-6 rounded-full shadow-lg"
+                      onClick={() => auth.signOut()}
+                    >
+                      <LogOut className="h-4 w-4 mr-2" /> CERRAR SESIÓN AHORA
+                    </Button>
+                  </div>
+                )}
                 {children}
               </div>
               <footer className="py-6 px-4 text-center border-t bg-muted/5">
