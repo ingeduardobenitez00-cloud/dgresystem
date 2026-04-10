@@ -53,6 +53,26 @@ export function useCollection<T = any>(
       return;
     }
 
+    // GOBERNADOR DE LECTURAS (Tiempo Real)
+    const now = Date.now();
+    const govKey = `${queryString}-${queryParams}`;
+    const gov = governor.get(govKey) || { count: 0, lastTime: now };
+    
+    if (now - gov.lastTime < 10000) {
+      gov.count++;
+    } else {
+      gov.count = 1;
+      gov.lastTime = now;
+    }
+    governor.set(govKey, gov);
+
+    if (gov.count > 15) { // Tolerancia mayor para tiempo real
+      console.error(`%c SISTEMA - BLOQUEO DE SEGURIDAD (Real-time): Se detectó inestabilidad en la suscripción: [${queryString}]. Deteniendo escucha.`, "color: white; background: #e11d48; font-weight: bold; padding: 4px; border-radius: 4px;");
+      setError(new Error("Seguridad de Facturación: Se detuvo la suscripción debido a re-conexiones excesivas."));
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -98,3 +118,6 @@ export function useCollection<T = any>(
 
   return { data, isLoading, error, setData };
 }
+
+// Registro global de lecturas para detección de bucles
+const governor = new Map<string, { count: number, lastTime: number }>();

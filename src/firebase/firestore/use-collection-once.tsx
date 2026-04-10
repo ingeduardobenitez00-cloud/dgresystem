@@ -43,11 +43,34 @@ export function useCollectionOnce<T = any>(
   
   const query = targetRefOrQuery;
 
+  const queryString = (query as any)?._query?.path?.canonicalString() || '';
+  const queryParams = JSON.stringify((query as any)?._query?.filters || []); // Filtros específicos
+
+  // GOBERNADOR DE LECTURAS: Evita bucles infinitos por software
   const fetchData = async () => {
     if (!query) {
       setData(null);
       setIsLoading(false);
       setError(null);
+      return;
+    }
+
+    const now = Date.now();
+    const govKey = `${queryString}-${queryParams}`;
+    const gov = governor.get(govKey) || { count: 0, lastTime: now };
+    
+    if (now - gov.lastTime < 10000) { // Ventana de 10 segundos
+      gov.count++;
+    } else {
+      gov.count = 1;
+      gov.lastTime = now;
+    }
+    governor.set(govKey, gov);
+
+    if (gov.count > 10) { // Tolerancia de 10 lecturas/10s para evitar falsos positivos en navegación rápida
+      console.error(`%c SISTEMA - BLOQUEO DE SEGURIDAD: Se detectó un posible bucle de renders para la consulta: [${queryString}]. Deteniendo lecturas para proteger tu presupuesto.`, "color: white; background: #e11d48; font-weight: bold; padding: 4px; border-radius: 4px;");
+      setError(new Error("Seguridad de Facturación: Se detuvieron las lecturas debido a repetición excesiva."));
+      setIsLoading(false);
       return;
     }
 
@@ -87,12 +110,12 @@ export function useCollectionOnce<T = any>(
     }
   };
 
-  const queryString = (query as any)?._query?.path?.canonicalString() || '';
-  const queryParams = JSON.stringify((query as any)?._query?.filters || []); // Filtros específicos
-
   useEffect(() => {
     fetchData();
   }, [queryString, queryParams]);
 
   return { data, isLoading, error, setData, refetch: fetchData };
 }
+
+// Registro global de lecturas para detección de bucles
+const governor = new Map<string, { count: number, lastTime: number }>();

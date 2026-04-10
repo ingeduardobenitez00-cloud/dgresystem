@@ -29,21 +29,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sessionAlert, setSessionAlert] = useState(false);
 
   useEffect(() => {
-    if (!sysConfigRef) return;
-    import('firebase/firestore').then(({ onSnapshot }) => {
-      const unsubscribe = onSnapshot(sysConfigRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setMaintenanceMode(data.maintenance === true);
-          setSessionAlert(data.session_alert === true);
-        } else {
-          setMaintenanceMode(false);
-          setSessionAlert(false);
-        }
-      });
-      return () => unsubscribe();
-    });
-  }, [sysConfigRef]);
+    if (!sysConfigRef || !firestore) return;
+
+    let unsubscribe: (() => void) | undefined;
+
+    const setupListener = async () => {
+      try {
+        const { onSnapshot } = await import('firebase/firestore');
+        unsubscribe = onSnapshot(sysConfigRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setMaintenanceMode(data.maintenance === true);
+            setSessionAlert(data.session_alert === true);
+          } else {
+            setMaintenanceMode(false);
+            setSessionAlert(false);
+          }
+        });
+      } catch (err) {
+        console.error("Error setting up maintenance listener:", err);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [sysConfigRef, firestore]);
 
   // SISTEMA DE PRESENCIA (HEARTBEAT)
   const updatePresence = useCallback(async () => {

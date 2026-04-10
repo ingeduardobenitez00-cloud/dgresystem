@@ -33,11 +33,32 @@ export function useDocOnce<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
+  const docPath = memoizedDocRef?.path || '';
+
   const fetchData = useCallback(async () => {
     if (!memoizedDocRef) {
       setData(null);
       setIsLoading(false);
       setError(null);
+      return;
+    }
+
+    // GOBERNADOR DE LECTURAS
+    const now = Date.now();
+    const gov = governor.get(docPath) || { count: 0, lastTime: now };
+    
+    if (now - gov.lastTime < 10000) {
+      gov.count++;
+    } else {
+      gov.count = 1;
+      gov.lastTime = now;
+    }
+    governor.set(docPath, gov);
+
+    if (gov.count > 10) {
+      console.error(`%c SISTEMA - BLOQUEO DE SEGURIDAD: Se detectó un posible bucle de renders para el documento: [${docPath}]. Deteniendo lecturas.`, "color: white; background: #e11d48; font-weight: bold; padding: 4px; border-radius: 4px;");
+      setError(new Error("Seguridad de Facturación: Se detuvieron las lecturas debido a repetición excesiva."));
+      setIsLoading(false);
       return;
     }
 
@@ -69,7 +90,7 @@ export function useDocOnce<T = any>(
     } finally {
       setIsLoading(false);
     }
-  }, [memoizedDocRef]);
+  }, [memoizedDocRef, docPath]);
 
   useEffect(() => {
     fetchData();
@@ -77,3 +98,6 @@ export function useDocOnce<T = any>(
 
   return { data, isLoading, error, refetch: fetchData, setData };
 }
+
+// Registro global de lecturas para detección de bucles
+const governor = new Map<string, { count: number, lastTime: number }>();

@@ -23,6 +23,7 @@ export interface UseDocResult<T> {
   data: WithId<T> | null; // Document data with ID, or null.
   isLoading: boolean;       // True if loading.
   error: FirestoreError | Error | null; // Error object, or null.
+  setData: React.Dispatch<React.SetStateAction<WithId<T> | null>>;
 }
 
 /**
@@ -35,7 +36,7 @@ export interface UseDocResult<T> {
  *
  *
  * @template T Optional type for document data. Defaults to any.
- * @param {DocumentReference<DocumentData> | null | undefined} docRef -
+ * @param {DocumentReference<DocumentData> | null | undefined} memoizedDocRef -
  * The Firestore DocumentReference. Waits if null/undefined.
  * @returns {UseDocResult<T>} Object with data, isLoading, error.
  */
@@ -48,6 +49,8 @@ export function useDoc<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
+  const docPath = memoizedDocRef?.path || '';
+
   useEffect(() => {
     if (!memoizedDocRef) {
       setData(null);
@@ -56,16 +59,34 @@ export function useDoc<T = any>(
       return;
     }
 
+    // GOBERNADOR DE LECTURAS (Tiempo Real)
+    const now = Date.now();
+    const gov = governor.get(docPath) || { count: 0, lastTime: now };
+    
+    if (now - gov.lastTime < 10000) {
+      gov.count++;
+    } else {
+      gov.count = 1;
+      gov.lastTime = now;
+    }
+    governor.set(docPath, gov);
+
+    if (gov.count > 15) {
+      console.error(`%c SISTEMA - BLOQUEO DE SEGURIDAD (Real-time): Se detectó inestabilidad en la suscripción del documento: [${docPath}]. Deteniendo escucha.`, "color: white; background: #e11d48; font-weight: bold; padding: 4px; border-radius: 4px;");
+      setError(new Error("Seguridad de Facturación: Se detuvo la suscripción debido a re-conexiones excesivas."));
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    // Optional: setData(null); // Clear previous data instantly
 
     const unsubscribe = onSnapshot(
       memoizedDocRef,
       (snapshot: DocumentSnapshot<DocumentData>) => {
         if (snapshot.exists()) {
           const newData = { ...(snapshot.data() as T), id: snapshot.id };
-          // Evitamos disparar re-renderizado si los datos son idénticos
+          // Verificación de igualdad profunda para evitar disparar renders innecesarios
           setData(prev => {
             if (JSON.stringify(prev) === JSON.stringify(newData)) return prev;
             return newData;
@@ -73,26 +94,33 @@ export function useDoc<T = any>(
         } else {
           setData(null);
         }
-        setError(null);
         setIsLoading(false);
+        setError(null);
       },
-      (error: FirestoreError) => {
-        const contextualError = new FirestorePermissionError({
-          operation: 'get',
-          path: memoizedDocRef.path,
-        })
-
-        setError(contextualError)
-        setData(null)
-        setIsLoading(false)
-
-        // trigger global error propagation
-        errorEmitter.emit('permission-error', contextualError);
+      (err: FirestoreError) => {
+        if (err.code === 'permission-denied') {
+          const contextualError = new FirestorePermissionError({
+            operation: 'get',
+            path: memoizedDocRef.path,
+          });
+          setError(contextualError);
+          errorEmitter.emit('permission-error', contextualError);
+        } else {
+          setError(err);
+          if (process.env.NODE_ENV !== 'production') {
+            console.error(`SISTEMA - Error de BD [useDoc - ${err.code}]:`, err.message);
+          }
+        }
+        setData(null);
+        setIsLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
+  }, [memoizedDocRef, docPath]);
 
-  return { data, isLoading, error };
+  return { data, isLoading, error, setData };
 }
+
+// Registro global de lecturas para detección de bucles
+const governor = new Map<string, { count: number, lastTime: number }>();
