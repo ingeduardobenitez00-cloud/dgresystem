@@ -35,12 +35,13 @@ export default function ReportesPDFPage() {
         try {
             toast({ title: "Iniciando sincronización...", description: "Esto puede tardar unos segundos dependiendo del volumen de datos." });
 
-            const [informesSnap, encuestasSnap, datosSnap, reportsSnap, usersSnap] = await Promise.all([
+            const [informesSnap, encuestasSnap, datosSnap, reportsSnap, usersSnap, solicitudesSnap] = await Promise.all([
                 getDocs(collection(firestore, 'informes-divulgador')),
                 getDocs(collection(firestore, 'encuestas-satisfaccion')),
                 getDocs(collection(firestore, 'datos')),
                 getDocs(collection(firestore, 'reports')),
-                getDocs(collection(firestore, 'users'))
+                getDocs(collection(firestore, 'users')),
+                getDocs(collection(firestore, 'solicitudes-capacitacion'))
             ]);
 
             const informes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -48,6 +49,7 @@ export default function ReportesPDFPage() {
             const allDatos = datosSnap.docs.map(d => d.data());
             const reportsData = reportsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const usersList = usersSnap.docs.map(d => d.data());
+            const solicitudesList = solicitudesSnap.docs.map(d => d.data());
 
             // 1. Filtrar solo Distritos Reales (Código de 2 dígitos al inicio y no institucional)
             const realDistritos = allDatos.filter((d: any) => {
@@ -101,7 +103,6 @@ export default function ReportesPDFPage() {
 
             // 4. Procesar Informes (Ejecución Real)
             let globalCapacitados = 0;
-            let globalDistritosConInforme = 0;
             informes.forEach((inf: any) => {
                 const deptoKey = inf.departamento;
                 const distKey = inf.oficina || inf.distrito;
@@ -111,16 +112,30 @@ export default function ReportesPDFPage() {
                     deptoMap[deptoKey].capacitados += nroCapt;
                     deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
                     globalCapacitados += nroCapt;
-                    
-                    if (!deptoMap[deptoKey].distritos[distKey].tieneInforme) {
-                        deptoMap[deptoKey].distritos[distKey].tieneInforme = true;
-                        globalDistritosConInforme++;
+                }
+            });
+
+            // 5. Procesar Solicitudes (Entidades Políticas y No Políticas)
+            const solicitudStats = {
+                partidos: 0,
+                movimientos: 0,
+                entidades: 0
+            };
+
+            solicitudesList.forEach((s: any) => {
+                if (s.otra_entidad) {
+                    solicitudStats.entidades++;
+                } else if (s.solicitante_entidad) {
+                    if (s.movimiento_politico) {
+                        solicitudStats.movimientos++;
+                    } else {
+                        solicitudStats.partidos++;
                     }
                 }
             });
 
             // 5. Procesar Encuestas y Percepción (Normalización Robusta)
-            const percCounts: any = { EXCELENTE: 0, MUY_BUENO: 0, BUENO: 0, REGULAR: 0, INSATISFACTORIO: 0 };
+            const percCounts: any = { 'EXCELENTE': 0, 'MUY BUENO': 0, 'BUENO': 0, 'REGULAR': 0, 'INSATISFACTORIO': 0 };
             const utilidadCounts: any = { muy_util: 0, util: 0, poco_util: 0, nada_util: 0 };
             const facilidadCounts: any = { muy_facil: 0, facil: 0, poco_facil: 0, nada_facil: 0 };
             const seguridadCounts: any = { muy_seguro: 0, seguro: 0, poco_seguro: 0, nada_seguro: 0 };
@@ -130,7 +145,7 @@ export default function ReportesPDFPage() {
 
             const normalizePercepcion = (val: string) => {
                 const normalized = (val || '').trim().toUpperCase().replace(/\s+/g, '_');
-                if (normalized.includes('MUY') && normalized.includes('BUENO')) return 'MUY_BUENO';
+                if (normalized.includes('MUY') && normalized.includes('BUENO')) return 'MUY BUENO';
                 if (normalized.includes('EXCELENTE')) return 'EXCELENTE';
                 if (normalized.includes('INSATISFACTORIO') || normalized.includes('MALA')) return 'INSATISFACTORIO';
                 return normalized;
@@ -147,7 +162,17 @@ export default function ReportesPDFPage() {
                     }
                 }
 
-                if (e.percepcion_maquina) {
+                // Mapeo dinámico para que el gráfico de percepción funcione con utilidad_maquina
+                if (e.utilidad_maquina) {
+                    const mapping: Record<string, string> = {
+                        'muy_util': 'EXCELENTE',
+                        'util': 'MUY BUENO',
+                        'poco_util': 'BUENO',
+                        'nada_util': 'REGULAR'
+                    };
+                    const key = mapping[e.utilidad_maquina];
+                    if (key && percCounts[key] !== undefined) percCounts[key]++;
+                } else if (e.percepcion_maquina) {
                     const key = normalizePercepcion(e.percepcion_maquina);
                     if (percCounts[key] !== undefined) percCounts[key]++;
                 }
@@ -216,7 +241,7 @@ export default function ReportesPDFPage() {
                     totalEncuestas: encuestas.length,
                     totalDistritos: realDistritos.length,
                     distritosConUsuario: globalDistritosConUsuario,
-                    distritosConInforme: globalDistritosConInforme,
+                    solicitudStats,
                     deptoData: Object.values(deptoMap).sort((a: any, b: any) => a.codigo.localeCompare(b.codigo)),
                     percepcionData,
                     utilidadData: formatEncuestaData(utilidadCounts, { muy_util: 'Muy Útil', util: 'Útil', poco_util: 'Poco Útil', nada_util: 'Nada Útil' }),
@@ -296,7 +321,7 @@ export default function ReportesPDFPage() {
                 ['Total de Personal Capacitado', summary.totalCapacitados.toLocaleString()],
                 ['Total de Encuestas de Percepción', summary.totalEncuestas.toLocaleString()],
                 ['Distritos con Usuario Asignado', summary.distritosConUsuario?.toLocaleString() || '0'],
-                ['Distritos con Informe Reportado', summary.distritosConInforme?.toLocaleString() || '0'],
+                ['Solicitudes Partidos/Movimientos', ((summary.solicitudStats?.partidos || 0) + (summary.solicitudStats?.movimientos || 0)).toLocaleString()],
                 ['Última Sincronización', formatDateToDDMMYYYY(summary.lastUpdate)]
             ],
             theme: 'grid',
@@ -435,9 +460,9 @@ export default function ReportesPDFPage() {
                             </Card>
                             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
                                 <CardContent className="p-8">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Informes Reportados</p>
-                                    <h2 className="text-4xl font-black text-green-600">{summary.distritosConInforme?.toLocaleString() || 0}</h2>
-                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Ejecución Anexo III</p>
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Entidades Solicitantes</p>
+                                    <h2 className="text-4xl font-black text-green-600">{(summary.solicitudStats?.partidos || 0) + (summary.solicitudStats?.movimientos || 0) + (summary.solicitudStats?.entidades || 0)}</h2>
+                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Partidos, Mov. y Otros</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
@@ -601,9 +626,6 @@ export default function ReportesPDFPage() {
                                                                         <div className="flex items-center justify-center gap-3">
                                                                             <div title={dist.tieneUsuario ? "Usuario Asignado" : "Sin Usuario"}>
                                                                                 <Users className={cn("h-4 w-4", dist.tieneUsuario ? "text-blue-600" : "text-neutral-200")} />
-                                                                            </div>
-                                                                            <div title={dist.tieneInforme ? "Informe Reportado" : "Sin Informe"}>
-                                                                                <FileText className={cn("h-4 w-4", dist.tieneInforme ? "text-green-600" : "text-neutral-200")} />
                                                                             </div>
                                                                         </div>
                                                                     </td>

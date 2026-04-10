@@ -93,6 +93,7 @@ export default function AgendaAnexoIPage() {
   const [deletingSolicitud, setDeletingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [suspendingSolicitud, setSuspendingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [suspensionReason, setSuspensionReason] = useState('');
+  const [concludingSolicitud, setConcludingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [deletingDistrict, setDeletingDistrict] = useState<{ dept: string, dist: string, items: SolicitudCapacitacion[] } | null>(null);
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -293,6 +294,7 @@ export default function AgendaAnexoIPage() {
             const completionTime = new Date(sol.fecha_cumplido);
             const diffMins = (currentMs - completionTime.getTime()) / (1000 * 60);
             if (diffMins > 3) return false;
+            return true; // Mantener visible durante el periodo de gracia
         }
 
         // FILTRO DE BÚSQUEDA
@@ -306,10 +308,11 @@ export default function AgendaAnexoIPage() {
         if (!matchesSearch) return false;
 
         const mov = movimientosMap.get(sol.id);
-        const infDocs = informesMap.get(sol.id); const inf = infDocs && infDocs.length > 0 ? infDocs[0] : null;
-        const isPast = sol.fecha < today;
-        const isClosed = mov?.fecha_devolucion && inf;
-        return !(isPast && isClosed);
+        const itemInformes = informesMap.get(sol.id) || [];
+        const inf = itemInformes.length > 0 ? itemInformes[0] : null;
+        
+        const isClosed = !!(mov?.fecha_devolucion && inf && sol.fecha_cumplido);
+        return !isClosed;
     });
 
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
@@ -453,10 +456,28 @@ export default function AgendaAnexoIPage() {
             setDeletingDistrict(null);
             setIsUpdating(false);
         })
-        .catch(async (error) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion (batch-district)', operation: 'delete' }));
-            setIsUpdating(false);
-        });
+        .catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion (batch-district)', operation: 'delete' }));
+        setIsUpdating(false);
+    });
+  };
+
+  const handleManualComplete = (solicitudId: string) => {
+    if (!firestore) return;
+    setIsUpdating(true);
+    const docRef = doc(firestore, 'solicitudes-capacitacion', solicitudId);
+    updateDoc(docRef, {
+        fecha_cumplido: new Date().toISOString()
+    })
+    .then(() => {
+        toast({ title: "Ciclo Concluido", description: "La actividad ha sido movida al historial." });
+        setConcludingSolicitud(null);
+        setIsUpdating(false);
+    })
+    .catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
+        setIsUpdating(false);
+    });
   };
 
   const surveyUrl = useMemo(() => {
@@ -798,6 +819,19 @@ export default function AgendaAnexoIPage() {
                                                                 {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
                                                             </Button>
                                                         </div>
+                                                        {!item.fecha_cumplido && isFulfilled ? (
+                                                            <Button 
+                                                                className="flex-1 h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 hover:bg-green-700 text-white shadow-lg animate-pulse"
+                                                                onClick={() => setConcludingSolicitud(item)}
+                                                            >
+                                                                CONCLUIR
+                                                            </Button>
+                                                        ) : (
+                                                            <div className="flex-1" />
+                                                        )}
+                                                    </div>
+                                                    
+                                                    <div className="flex gap-2 w-full max-w-[220px]">
                                                         <div className="flex-1 relative">
                                                             <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
                                                                 <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} />
@@ -1177,6 +1211,58 @@ export default function AgendaAnexoIPage() {
         onOpenChange={(o) => !o && setFullViewerImage(null)}
         image={fullViewerImage}
       />
+
+      {/* Diálogo de Conclusión de Ciclo y Encuestas */}
+      <Dialog open={!!concludingSolicitud} onOpenChange={(o) => !o && setConcludingSolicitud(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+            <DialogHeader className="bg-black text-white p-6">
+                <DialogTitle className="font-black uppercase text-sm flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" /> CONCLUIR ACTIVIDAD
+                </DialogTitle>
+            </DialogHeader>
+            <div className="p-8 space-y-6 bg-white">
+                <div className="text-center space-y-2">
+                    <h3 className="font-black uppercase text-base text-primary">¿SE REALIZARON ENCUESTAS?</h3>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight px-4">
+                        Indique si se recolectaron encuestas de satisfacción ciudadana durante esta actividad.
+                    </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                        variant="outline" 
+                        className="h-20 rounded-2xl border-2 font-black uppercase text-xs flex flex-col gap-2 hover:bg-primary hover:text-white transition-all"
+                        onClick={() => {
+                            if (concludingSolicitud) {
+                                router.push(`/encuesta-satisfaccion?solicitudId=${concludingSolicitud.id}`);
+                            }
+                        }}
+                    >
+                        <QrCode className="h-6 w-6" />
+                        SÍ, CARGAR
+                    </Button>
+                    <Button 
+                        className="h-20 rounded-2xl font-black uppercase text-xs flex flex-col gap-2 bg-black hover:bg-black/90 text-white"
+                        onClick={() => concludingSolicitud && handleManualComplete(concludingSolicitud.id)}
+                        disabled={isUpdating}
+                    >
+                        {isUpdating ? <Loader2 className="animate-spin h-6 w-6" /> : (
+                            <>
+                                <X className="h-6 w-6" />
+                                NO HUBO
+                            </>
+                        )}
+                    </Button>
+                </div>
+
+                <div className="pt-4 border-t border-dashed">
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase text-center italic">
+                        Al seleccionar "NO", la actividad se registrará como culminada y se ocultará de la agenda.
+                    </p>
+                </div>
+            </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

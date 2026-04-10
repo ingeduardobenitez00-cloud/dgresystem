@@ -513,17 +513,8 @@ function ControlMovimientoContent() {
         if (hasTampering) {
             toast({ title: 'Recepción Informada', description: 'Irregularidad detectada. Proceda a la denuncia.' });
         } else {
-            toast({ title: '¡Devolución Completada!', description: 'Ciclo cerrado exitosamente.' });
+            toast({ title: '¡Devolución Completada!', description: 'Proceda a concluir la actividad en la Agenda.' });
             
-            // Verificar si ya se envió el informe para marcar ciclo cumplido
-            const infQuery = query(collection(firestore, 'informes-divulgador'), where('solicitud_id', '==', selectedSolicitud.id));
-            const infSnap = await getDocs(infQuery);
-            if (!infSnap.empty) {
-                await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedSolicitud.id), {
-                    fecha_cumplido: new Date().toISOString()
-                });
-            }
-
             setTimeout(() => setSelectedSolicitudId(null), 1500);
         }
         setIsSubmitting(false);

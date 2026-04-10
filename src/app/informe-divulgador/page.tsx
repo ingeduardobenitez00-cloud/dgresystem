@@ -267,15 +267,6 @@ function InformeContent() {
       setSubmitSuccess(true);
       toast({ title: '¡ENVIADO!', description: 'El informe ha sido enviado correctamente.' });
 
-      // Verificar si ya se devolvieron los equipos para marcar ciclo cumplido
-      const movQuery = query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', '==', selectedEntry.solicitudId));
-      const movSnap = await getDocs(movQuery);
-      if (!movSnap.empty && movSnap.docs[0].data().fecha_devolucion) {
-          await updateDoc(doc(firestore, 'solicitudes-capacitacion', selectedEntry.solicitudId), {
-              fecha_cumplido: new Date().toISOString()
-          });
-      }
-
       setTimeout(() => {
         setSubmitSuccess(false);
         setSelectedActivityKey(undefined);

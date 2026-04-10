@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -70,6 +71,13 @@ export default function AgendaCapacitacionPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [viewingActivity, setViewingActivity] = useState<SolicitudCapacitacion | null>(null);
@@ -77,6 +85,7 @@ export default function AgendaCapacitacionPage() {
   const [deletingSolicitud, setDeletingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [suspendingSolicitud, setSuspendingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [suspensionReason, setSuspensionReason] = useState('');
+  const [concludingSolicitud, setConcludingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [deletingDistrict, setDeletingDistrict] = useState<{ dept: string, dist: string, items: SolicitudCapacitacion[] } | null>(null);
   
   const [isUpdating, setIsUpdating] = useState(false);
@@ -193,11 +202,19 @@ export default function AgendaCapacitacionPage() {
 
     const activeSolicitudes = rawSolicitudes.filter(sol => {
         if (sol.cancelada) return false;
+        
+        const currentMs = currentTime.getTime();
+        if (sol.fecha_cumplido) {
+            const completionTime = new Date(sol.fecha_cumplido);
+            const diffMins = (currentMs - completionTime.getTime()) / (1000 * 60);
+            if (diffMins > 3) return false;
+            return true;
+        }
+
         const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
         const inf = informesData?.find(i => i.solicitud_id === sol.id);
-        const isPast = sol.fecha < today;
-        const isClosed = mov?.fecha_devolucion && inf;
-        return !(isPast && isClosed);
+        const isClosed = !!(mov?.fecha_devolucion && inf);
+        return !isClosed;
     });
 
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
@@ -322,6 +339,24 @@ export default function AgendaCapacitacionPage() {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'solicitudes-capacitacion (batch-district)', operation: 'delete' }));
             setIsUpdating(false);
         });
+  };
+
+  const handleManualComplete = (solicitudId: string) => {
+    if (!firestore) return;
+    setIsUpdating(true);
+    const docRef = doc(firestore, 'solicitudes-capacitacion', solicitudId);
+    updateDoc(docRef, {
+        fecha_cumplido: new Date().toISOString()
+    })
+    .then(() => {
+        toast({ title: "Ciclo Concluido", description: "La actividad ha sido movida al historial." });
+        setConcludingSolicitud(null);
+        setIsUpdating(false);
+    })
+    .catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
+        setIsUpdating(false);
+    });
   };
 
   const surveyUrl = useMemo(() => {
@@ -548,17 +583,16 @@ export default function AgendaCapacitacionPage() {
                                                         <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setQrSolicitud(item)} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
                                                             <QrCode className="h-4 w-4" />
                                                         </Button>
-                                                        <Button 
-                                                            className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg flex-1", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
-                                                            onClick={() => {
-                                                              if (!inf) {
-                                                                  window.location.href = `/informe-divulgador?solicitudId=${item.id}`;
-                                                              }
-                                                          }}
-                                                          title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
-                                                        >
-                                                          {inf ? 'CUMPLIDO' : 'INFORME'}
-                                                        </Button>
+                                                        {!item.fecha_cumplido && isFulfilled ? (
+                                                            <Button 
+                                                                className="flex-1 h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 hover:bg-green-700 text-white shadow-lg animate-pulse"
+                                                                onClick={() => setConcludingSolicitud(item)}
+                                                            >
+                                                                CONCLUIR
+                                                            </Button>
+                                                        ) : (
+                                                            <div className="flex-1" />
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -834,6 +868,58 @@ export default function AgendaCapacitacionPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Diálogo de Conclusión de Ciclo y Encuestas */}
+      <Dialog open={!!concludingSolicitud} onOpenChange={(o) => !o && setConcludingSolicitud(null)}>
+        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+            <DialogHeader className="bg-black text-white p-6">
+                <DialogTitle className="font-black uppercase text-sm flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" /> CONCLUIR ACTIVIDAD
+                </DialogTitle>
+            </DialogHeader>
+            <div className="p-8 space-y-6 bg-white">
+                <div className="text-center space-y-2">
+                    <h3 className="font-black uppercase text-base text-primary">¿SE REALIZARON ENCUESTAS?</h3>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight px-4">
+                        Indique si se recolectaron encuestas de satisfacción ciudadana durante esta actividad.
+                    </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                        variant="outline" 
+                        className="h-20 rounded-2xl border-2 font-black uppercase text-xs flex flex-col gap-2 hover:bg-primary hover:text-white transition-all"
+                        onClick={() => {
+                            if (concludingSolicitud) {
+                                router.push(`/encuesta-satisfaccion?solicitudId=${concludingSolicitud.id}`);
+                            }
+                        }}
+                    >
+                        <QrCode className="h-6 w-6" />
+                        SÍ, CARGAR
+                    </Button>
+                    <Button 
+                        className="h-20 rounded-2xl font-black uppercase text-xs flex flex-col gap-2 bg-black hover:bg-black/90 text-white"
+                        onClick={() => concludingSolicitud && handleManualComplete(concludingSolicitud.id)}
+                        disabled={isUpdating}
+                    >
+                        {isUpdating ? <Loader2 className="animate-spin h-6 w-6" /> : (
+                            <>
+                                <X className="h-6 w-6" />
+                                NO HUBO
+                            </>
+                        )}
+                    </Button>
+                </div>
+
+                <div className="pt-4 border-t border-dashed">
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase text-center italic">
+                        Al seleccionar "NO", la actividad se registrará como culminada y se ocultará de la agenda.
+                    </p>
+                </div>
+            </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -49,9 +49,13 @@ export default function InformeMovimientosDenunciasPage() {
     
     const term = search.toLowerCase().trim();
     const filtered = movements.filter(m => {
-        const place = m.salida?.lugar || m.devolucion?.lugar || '';
-        const responsibe = m.salida?.nombre || m.devolucion?.nombre || '';
-        return place.toLowerCase().includes(term) || responsibe.toLowerCase().includes(term);
+        const place = (m.departamento || '') + ' ' + (m.distrito || '');
+        const responsiblesStr = m.responsables?.map(r => r.nombre).join(' ') || '';
+        const machinesStr = m.maquinas?.map(maq => maq.codigo).join(' ') || '';
+        
+        return place.toLowerCase().includes(term) || 
+               responsiblesStr.toLowerCase().includes(term) || 
+               machinesStr.toLowerCase().includes(term);
     }).sort((a, b) => b.fecha_creacion.localeCompare(a.fecha_creacion));
 
     const depts: Record<string, Record<string, MovimientoMaquina[]>> = {};
@@ -164,22 +168,28 @@ export default function InformeMovimientosDenunciasPage() {
                                                                     <div className="md:col-span-4 space-y-2">
                                                                         <div className="flex items-center gap-2">
                                                                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                                            <span className="font-black uppercase text-sm">{mov.salida?.lugar || mov.devolucion?.lugar}</span>
+                                                                            <span className="font-black uppercase text-[11px] truncate">{mov.departamento} - {mov.distrito}</span>
                                                                         </div>
-                                                                        <div className="flex items-center gap-2">
-                                                                            <Badge variant="outline" className={cn(
-                                                                                "font-black text-[10px] uppercase",
-                                                                                hasDenuncia ? "border-destructive text-destructive" : "border-primary/20"
-                                                                            )}>
-                                                                                MÁQUINA: {mov.salida?.codigo_maquina || mov.devolucion?.codigo_maquina}
-                                                                            </Badge>
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {mov.maquinas?.map((maq, i) => (
+                                                                                <Badge key={i} variant="outline" className={cn(
+                                                                                    "font-black text-[9px] uppercase whitespace-nowrap",
+                                                                                    hasDenuncia && (maq.lacre_estado === 'violentado') ? "border-destructive text-destructive bg-destructive/5" : "border-primary/20"
+                                                                                )}>
+                                                                                    {maq.codigo}
+                                                                                </Badge>
+                                                                            ))}
                                                                         </div>
                                                                     </div>
 
                                                                     <div className="md:col-span-3 space-y-1">
-                                                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">RESPONSABLE</p>
-                                                                        <p className="font-black text-xs uppercase">{mov.salida?.nombre || mov.devolucion?.nombre}</p>
-                                                                        <p className="text-[9px] font-bold text-muted-foreground">C.I. {mov.salida?.cedula || mov.devolucion?.cedula}</p>
+                                                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">RESPONSABLES</p>
+                                                                        {mov.responsables?.map((resp, i) => (
+                                                                            <div key={i} className="leading-tight">
+                                                                                <p className="font-black text-[10px] uppercase truncate">{resp.nombre}</p>
+                                                                                <p className="text-[8px] font-bold text-muted-foreground">C.I. {resp.cedula}</p>
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
 
                                                                     <div className="md:col-span-3 grid grid-cols-2 gap-4">
@@ -188,14 +198,14 @@ export default function InformeMovimientosDenunciasPage() {
                                                                                 <Truck className="h-3 w-3" />
                                                                                 <span className="text-[9px] font-black uppercase">SALIDA</span>
                                                                             </div>
-                                                                            <p className="text-[10px] font-bold">{mov.salida ? `${formatDateToDDMMYYYY(mov.salida.fecha)} ${mov.salida.hora} HS` : '---'}</p>
+                                                                            <p className="text-[10px] font-bold">{mov.fecha_salida ? `${formatDateToDDMMYYYY(mov.fecha_salida)} ${mov.hora_salida} HS` : '---'}</p>
                                                                         </div>
                                                                         <div className="space-y-1">
                                                                             <div className="flex items-center gap-1.5 text-green-600">
                                                                                 <Undo2 className="h-3 w-3" />
                                                                                 <span className="text-[9px] font-black uppercase">REGRESO</span>
                                                                             </div>
-                                                                            <p className="text-[10px] font-bold">{mov.devolucion ? `${formatDateToDDMMYYYY(mov.devolucion.fecha)} ${mov.devolucion.hora} HS` : '---'}</p>
+                                                                            <p className="text-[10px] font-bold">{mov.fecha_devolucion ? `${formatDateToDDMMYYYY(mov.fecha_devolucion)} ${mov.hora_devolucion} HS` : '---'}</p>
                                                                         </div>
                                                                     </div>
 
