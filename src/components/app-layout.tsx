@@ -132,10 +132,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <p className="text-base text-slate-300 font-medium">
             El sistema se encuentra temporalmente en <strong>mantenimiento oficial</strong> para facilitar la gestión interna y aplicar mejoras. 
           </p>
-          <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 mt-6">
+          <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 mt-6 space-y-4">
               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
                   Por favor, intente ingresar más tarde.
               </p>
+              <Button 
+                variant="outline" 
+                className="w-full h-12 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white font-black uppercase text-[10px] rounded-xl"
+                onClick={() => auth.signOut()}
+              >
+                <LogOut className="h-4 w-4 mr-2" /> Salir del Sistema
+              </Button>
           </div>
         </div>
       </div>
