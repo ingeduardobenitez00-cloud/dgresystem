@@ -13,8 +13,8 @@ import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type Dato } from '@/lib/data';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useFirebase, useMemoFirebase, useUser, useCollectionOnce } from '@/firebase';
-import { collection, doc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit } from 'firebase/firestore';
+import { useFirebase, useMemoFirebase, useUser, useCollectionOnce, useDocOnce } from '@/firebase';
+import { collection, doc, setDoc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -60,6 +60,7 @@ export default function SettingsPage() {
   });
 
   const [isResetting, setIsResetting] = useState(false);
+  const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
 
   const isAdminView = useMemo(() => 
     currentUser?.profile?.role === 'admin' || 
@@ -202,6 +203,27 @@ export default function SettingsPage() {
     finally { setIsResetting(false); }
   };
 
+  const sysConfigRef = useMemoFirebase(() => firestore ? doc(firestore, 'sysconfig', 'status') : null, [firestore]);
+  const { data: sysConfig, refetch: refetchSysConfig } = useDocOnce<{maintenance: boolean}>(sysConfigRef);
+  const isMaintenanceActive = sysConfig?.maintenance === true;
+
+  const handleToggleMaintenance = async () => {
+    if (!firestore || !isAdminView) return;
+    setIsTogglingMaintenance(true);
+    try {
+      await setDoc(doc(firestore, 'sysconfig', 'status'), { maintenance: !isMaintenanceActive }, { merge: true });
+      toast({ 
+        title: !isMaintenanceActive ? 'Mantenimiento Activado' : 'Mantenimiento Desactivado', 
+        description: 'Todos los clientes serán afectados inmediatamente.' 
+      });
+      await refetchSysConfig();
+    } catch(err) {
+      toast({ variant: 'destructive', title: 'Error al cambiar estado' });
+    } finally {
+      setIsTogglingMaintenance(false);
+    }
+  };
+
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
 
   return (
@@ -318,7 +340,47 @@ export default function SettingsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="produccion" className="animate-in fade-in duration-500">
+          <TabsContent value="produccion" className="animate-in fade-in duration-500 space-y-6">
+            <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
+              <CardHeader className={cn("text-white p-8", isMaintenanceActive ? "bg-amber-600" : "bg-slate-800")}>
+                <CardTitle className="text-xl font-black uppercase flex items-center gap-3">
+                    <ShieldAlert className="h-8 w-8" /> MODO DE MANTENIMIENTO
+                </CardTitle>
+                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">
+                    {isMaintenanceActive ? "EL SISTEMA ESTÁ ACTUALMENTE BLOQUEADO PARA LOS FUNCIONARIOS." : "EL SISTEMA ESTÁ OPERANDO NORMALMENTE."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-10 space-y-8 flex flex-col items-center text-center">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">
+                    ESTO DESCONECTA AL 100% DE LOS USUARIOS INMEDIATAMENTE. SOLO LOS ADMINISTRADORES PODRÁN INGRESAR PARA REVISAR O HABILITAR EL SISTEMA. NO GENERA COSTOS DE FUNCIONAMIENTO.
+                </p>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant={isMaintenanceActive ? "outline" : "destructive"} className={cn("h-20 px-12 text-xl font-black uppercase rounded-[1.5rem] shadow-2xl gap-4", isMaintenanceActive ? "border-amber-600 text-amber-600" : "")} disabled={isTogglingMaintenance}>
+                            {isTogglingMaintenance ? <Loader2 className="h-8 w-8 animate-spin" /> : <ShieldAlert className="h-8 w-8" />} 
+                            {isMaintenanceActive ? "DESACTIVAR MANTENIMIENTO" : "ACTIVAR MANTENIMIENTO"}
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="font-black uppercase text-amber-600">
+                                {isMaintenanceActive ? "¿REABRIR EL SISTEMA A TODOS?" : "¿CERRAR EL SISTEMA A NIVEL NACIONAL?"}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-xs font-bold uppercase">
+                                {isMaintenanceActive ? "Los divulgadores podrán volver a ingresar a su dashboard." : "Se forzará una pantalla de mantenimiento a todos los usuarios, desconectando sus navegadores."}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="mt-8 gap-4">
+                            <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleToggleMaintenance} className={cn("h-14 flex-1 font-black uppercase text-[10px]", isMaintenanceActive ? "bg-amber-600" : "bg-destructive")}>
+                                CONFIRMAR
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+
             <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
               <CardHeader className="bg-destructive text-white p-8">
                 <CardTitle className="text-xl font-black uppercase flex items-center gap-3"><ShieldAlert className="h-8 w-8" /> RESETEO CIDEE</CardTitle>

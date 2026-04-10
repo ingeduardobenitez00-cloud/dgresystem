@@ -3,7 +3,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { AlertTriangle, RefreshCw, ShieldAlert, LogOut, UserX, Clock, Lock } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ShieldAlert, LogOut, UserX, Clock, Lock, Construction } from 'lucide-react';
 import { useUser, useFirebase } from '@/firebase';
 import { Sidebar, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/app-sidebar';
@@ -23,6 +23,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const sysConfigRef = useMemo(() => firestore ? doc(firestore, 'sysconfig', 'status') : null, [firestore]);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+
+  useEffect(() => {
+    if (!sysConfigRef) return;
+    import('firebase/firestore').then(({ onSnapshot }) => {
+      const unsubscribe = onSnapshot(sysConfigRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data().maintenance === true) {
+          setMaintenanceMode(true);
+        } else {
+          setMaintenanceMode(false);
+        }
+      });
+      return () => unsubscribe();
+    });
+  }, [sysConfigRef]);
 
   // SISTEMA DE PRESENCIA (HEARTBEAT)
   const updatePresence = useCallback(async () => {
@@ -97,6 +114,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isOwner = user?.isOwner;
   const isAdminOrOwner = isOwner || user?.isAdmin;
   const isRestricted = !isAdminOrOwner && user && !isPublicRoute && user.profile?.active === false;
+
+  const isMaintenanceBlocked = maintenanceMode && !isAdminOrOwner && !isPublicRoute;
+
+  if (isMaintenanceBlocked && mounted) {
+    return (
+      <div className="flex min-h-screen w-full flex-col items-center justify-center p-6 text-center space-y-6 bg-[#0f172a] text-white">
+        <div className="bg-amber-500/20 p-6 rounded-full border border-amber-500/50 mb-2">
+            <Construction className="h-16 w-16 text-amber-500" />
+        </div>
+        <div className="space-y-4 max-w-lg">
+          <h2 className="text-3xl font-black uppercase text-amber-500 tracking-tight">Sistema en Mantenimiento</h2>
+          <p className="text-base text-slate-300 font-medium">
+            El sistema se encuentra temporalmente en <strong>mantenimiento oficial</strong> para facilitar la gestión interna y aplicar mejoras. 
+          </p>
+          <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 mt-6">
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                  Por favor, intente ingresar más tarde.
+              </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isRestricted) {
     return (
