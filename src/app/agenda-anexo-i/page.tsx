@@ -937,9 +937,6 @@ export default function AgendaAnexoIPage() {
              })()}
           </Accordion>
         )}
-                </Button>
-            </div>
-        )}
       </main>
 
       <Dialog open={!!viewingActivity} onOpenChange={(o) => !o && setViewingActivity(null)}>
