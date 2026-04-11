@@ -170,6 +170,7 @@ export type SolicitudCapacitacion = {
   fecha_cancelacion?: string;
   usuario_cancelacion?: string;
   qr_enabled?: boolean;
+  qr_expires_at?: string;
   anexo_id?: string;
   fecha_cumplido?: string;
 }

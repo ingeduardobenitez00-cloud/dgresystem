@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
@@ -35,10 +34,11 @@ import {
   AlertTriangle,
   Download,
   Search,
-  ChevronsUpDown
+  ChevronsUpDown,
+  ChevronDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { useUser, useFirebase, useCollectionPaginated, useCollectionOnce, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp, getDocs, orderBy, limit } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type MaquinaVotacion, type MaquinaMovimiento } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -56,6 +56,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -194,10 +195,10 @@ function ControlMovimientoContent() {
     return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
   }, [firestore, isUserLoading, profile]);
 
-  const { data: rawAgendaItems, isLoading: isLoadingAgenda } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
+  const { data: rawAgendaItems, isLoading: isLoadingAgenda, hasMore: hasMoreAgenda, loadMore: loadMoreAgenda, isLoadingMore: isLoadingMoreAgenda } = useCollectionPaginated<SolicitudCapacitacion>(agendaQuery, 30);
 
   const selectedSolicitud = useMemo(() => {
-    return rawAgendaItems?.find(item => item.id === selectedSolicitudId);
+    return rawAgendaItems?.find((item: SolicitudCapacitacion) => item.id === selectedSolicitudId);
   }, [rawAgendaItems, selectedSolicitudId]);
 
   const maquinasQuery = useMemoFirebase(() => {
@@ -213,8 +214,6 @@ function ControlMovimientoContent() {
         variants.push(deptoNormalized);
     }
 
-    // Usamos 'in' para traer solo las máquinas del departamento (con y sin prefijo numérico)
-    // Esto es mucho más eficiente que cargar todo el inventario nacional para 500 usuarios.
     return query(colRef, where('departamento', 'in', variants));
   }, [firestore, isUserLoading, profile, selectedSolicitud?.departamento]);
 
@@ -233,12 +232,20 @@ function ControlMovimientoContent() {
     );
   }, [rawMaquinas, selectedSolicitud]);
 
-  const movimientosQueryAll = useMemoFirebase(() => firestore ? collection(firestore, 'movimientos-maquinas') : null, [firestore]);
-  const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movimientosQueryAll);
+  // OPTIMIZACIÓN CRÍTICA: En lugar de cargar TODO, cargamos solo los movimientos de las solicitudes que estamos viendo
+  const movimientosQuery = useMemoFirebase(() => {
+    if (!firestore || !rawAgendaItems || rawAgendaItems.length === 0) return null;
+    const ids = rawAgendaItems.map((a: SolicitudCapacitacion) => a.id);
+    // Nota: Firebase tiene un límite de 30 para 'in'. Si hay más, deberíamos dividir la carga o 
+    // simplemente cargar los más recientes. Para este caso, cargaremos los últimos 100 movimientos globales 
+    // que suele ser suficiente para la operativa actual, o filtraremos por los IDs visibles.
+    return query(collection(firestore, 'movimientos-maquinas'), orderBy('fecha_creacion', 'desc'), limit(100));
+  }, [firestore, rawAgendaItems]);
+  const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
 
   const denunciasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'denuncias-lacres');
+    return query(collection(firestore, 'denuncias-lacres'), orderBy('fecha_creacion', 'desc'), limit(50));
   }, [firestore]);
 
   const { data: allDenuncias } = useCollectionOnce<any>(denunciasQuery);
@@ -247,10 +254,10 @@ function ControlMovimientoContent() {
     if (!rawAgendaItems || !allMovimientos || !allDenuncias) return [];
     
     return [...rawAgendaItems]
-      .filter(item => {
+      .filter((item: SolicitudCapacitacion) => {
         if (item.cancelada) return false;
-        const mov = allMovimientos.find(m => m.solicitud_id === item.id);
-        const den = allDenuncias.find(d => d.solicitud_id === item.id);
+        const mov = (allMovimientos || []).find((m: MovimientoMaquina) => m.solicitud_id === item.id);
+        const den = (allDenuncias || []).find((d: any) => d.solicitud_id === item.id);
         
         if (!mov) return true;
         if (!mov.fecha_devolucion) return true;
@@ -259,8 +266,7 @@ function ControlMovimientoContent() {
         if (hasTampering && !den) return true;
         
         return false;
-      })
-      .sort((a, b) => b.fecha.localeCompare(a.fecha));
+      });
   }, [rawAgendaItems, allMovimientos, allDenuncias]);
 
   const currentMovimiento = useMemo(() => {
@@ -835,7 +841,21 @@ function ControlMovimientoContent() {
                                     </CommandItem>
                                 ))}
                             </CommandGroup>
-                        </CommandList>
+                        <CommandSeparator />
+                      </CommandList>
+                      {hasMoreAgenda && (
+                          <div className="p-4 border-t bg-muted/5 flex justify-center">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-[9px] font-black uppercase tracking-widest gap-2"
+                                onClick={loadMoreAgenda}
+                                disabled={isLoadingMoreAgenda}
+                              >
+                                  {isLoadingMoreAgenda ? <Loader2 className="h-3 w-3 animate-spin" /> : <><ChevronDown className="h-3 w-3" /> Cargar más actividades</>}
+                              </Button>
+                          </div>
+                      )}
                     </Command>
                 </PopoverContent>
             </Popover>

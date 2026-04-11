@@ -32,13 +32,14 @@ import {
   MapPin,
   Clock,
   ChevronRight,
-  UserCircle
+  UserCircle,
+  ChevronDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useCollectionPaginated } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
-import { collection, doc, setDoc, updateDoc, writeBatch, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, writeBatch, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -266,10 +267,16 @@ function UsersContent() {
 
   const usersQuery = useMemoFirebase(() => {
     if (!firestore || !isAdminView) return null;
-    return collection(firestore, 'users');
+    return query(collection(firestore, 'users'), orderBy('username'));
   }, [firestore, isAdminView]);
 
-  const { data: firestoreUsers, isLoading: isLoadingUsers } = useCollectionOnce<UserProfile>(usersQuery);
+  const { 
+    data: firestoreUsers, 
+    isLoading: isLoadingUsers,
+    hasMore,
+    loadMore,
+    isLoadingMore
+  } = useCollectionPaginated<UserProfile>(usersQuery, 50);
 
   const users = useMemo(() => {
     if (!firestoreUsers) return null;

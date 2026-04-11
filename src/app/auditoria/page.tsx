@@ -3,10 +3,11 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { Loader2, ScrollText, User, Calendar, Clock, Database, ShieldAlert, Search } from 'lucide-react';
+import { useUser, useFirebase, useCollectionPaginated, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, where, limit } from 'firebase/firestore';
+import { Loader2, ScrollText, User, Calendar, Clock, Database, ShieldAlert, Search, ChevronDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -36,17 +37,28 @@ export default function AuditoriaPage() {
 
   const auditQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !isAdmin) return null;
+    
+    // Si hay búsqueda, priorizamos la búsqueda por módulo o usuario (exacta o prefijo)
+    // Para simplificar y mantener el orden cronológico, usaremos filtros de cliente 
+    // pero con carga segmentada. Si la búsqueda es muy específica, se podría optimizar aquí.
     return query(
         collection(firestore, 'auditoria'), 
-        orderBy('fecha_servidor', 'desc'),
-        limit(200)
+        orderBy('fecha_servidor', 'desc')
     );
   }, [firestore, isUserLoading, isAdmin]);
 
-  const { data: logs, isLoading } = useCollectionOnce<AuditLog>(auditQuery);
+  const { 
+    data: logs, 
+    isLoading, 
+    isLoadingMore, 
+    hasMore, 
+    loadMore 
+  } = useCollectionPaginated<AuditLog>(auditQuery, 20);
 
   const filteredLogs = useMemo(() => {
     if (!logs) return [];
+    if (!search.trim()) return logs;
+    
     const term = search.toLowerCase().trim();
     return logs.filter(log => 
         log.usuario_nombre.toLowerCase().includes(term) ||
@@ -104,10 +116,10 @@ export default function AuditoriaPage() {
                 <CardTitle className="uppercase font-black text-sm tracking-widest flex items-center gap-3">
                     <Database className="h-5 w-5 text-primary" /> ACTIVIDAD RECIENTE DEL SISTEMA
                 </CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase">Listado cronológico de las últimas 200 acciones realizadas</CardDescription>
+                <CardDescription className="text-[10px] font-bold uppercase">Listado cronológico segmentado para mayor velocidad</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-                {isLoading ? (
+                {isLoading && logs.length === 0 ? (
                     <div className="flex justify-center items-center py-20">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
@@ -147,7 +159,7 @@ export default function AuditoriaPage() {
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="bg-muted/20 text-[8px] font-black uppercase border-primary/10">
-                                                {log.modulo.replace('-', ' ')}
+                                                {log.modulo?.replace('-', ' ') || 'SISTEMA'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -169,6 +181,23 @@ export default function AuditoriaPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        
+                        {hasMore && (
+                            <div className="p-8 flex justify-center border-t bg-muted/5">
+                                <Button 
+                                    onClick={loadMore} 
+                                    disabled={isLoadingMore}
+                                    variant="outline"
+                                    className="rounded-xl font-black text-[10px] uppercase tracking-widest py-6 px-12 border-2 hover:bg-primary hover:text-white transition-all gap-2"
+                                >
+                                    {isLoadingMore ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <>Cargar más registros <ChevronDown className="h-4 w-4" /></>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
             </CardContent>

@@ -22,10 +22,11 @@ import {
   ShieldAlert,
   Edit,
   Database,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, doc, writeBatch, addDoc, deleteDoc, query, where, updateDoc } from 'firebase/firestore';
+import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase } from '@/firebase';
+import { collection, doc, writeBatch, addDoc, deleteDoc, query, where, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { type MaquinaVotacion, type Dato } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -88,21 +89,33 @@ export default function MaquinasPage() {
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || !profile) return null;
     const colRef = collection(firestore, 'maquinas');
-    if (isAdminView) return colRef;
     
-    // GUARDIA: Si el perfil está incompleto, no realizar la consulta para evitar error de undefined
-    if (profile.departamento && profile.distrito) {
+    let q;
+    if (isAdminView) q = query(colRef, orderBy('codigo', 'asc'));
+    else if (profile.departamento && profile.distrito) {
         const deptoOriginal = profile.departamento;
         const deptoNormalized = normalizeGeo(deptoOriginal);
         const variants = [deptoOriginal];
         if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
         
-        return query(colRef, where('departamento', 'in', variants), where('distrito', '==', profile.distrito));
-    }
-    return null;
-  }, [firestore, profile, isAdminView]);
+        q = query(colRef, where('departamento', 'in', variants), where('distrito', '==', profile.distrito), orderBy('codigo', 'asc'));
+    } else return null;
 
-  const { data: maquinasData, isLoading: isLoadingMaquinas } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
+    if (maqSearch.trim()) {
+        const term = maqSearch.trim().toUpperCase();
+        return query(q, where('codigo', '>=', term), where('codigo', '<=', term + '\uf8ff'));
+    }
+
+    return q;
+  }, [firestore, profile, isAdminView, maqSearch]);
+
+  const { 
+    data: maquinasData, 
+    isLoading: isLoadingMaquinas,
+    hasMore: hasMoreMaquinas,
+    loadMore: loadMoreMaquinas,
+    isLoadingMore: isLoadingMoreMaquinas
+  } = useCollectionPaginated<MaquinaVotacion>(maquinasQuery, 50);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -110,14 +123,8 @@ export default function MaquinasPage() {
   }, [datosData]);
 
   const filteredMaquinas = useMemo(() => {
-    if (!maquinasData) return [];
-    const term = maqSearch.toLowerCase().trim();
-    return [...maquinasData].filter(m => 
-      m.codigo.toLowerCase().includes(term) || 
-      m.departamento.toLowerCase().includes(term) || 
-      m.distrito.toLowerCase().includes(term)
-    ).sort((a,b) => a.codigo.localeCompare(b.codigo));
-  }, [maquinasData, maqSearch]);
+    return maquinasData || [];
+  }, [maquinasData]);
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -428,6 +435,22 @@ export default function MaquinasPage() {
                                     )}
                                 </TableBody>
                             </Table>
+                            {hasMoreMaquinas && (
+                                <div className="p-6 flex justify-center border-t bg-muted/5">
+                                    <Button 
+                                        onClick={loadMoreMaquinas} 
+                                        disabled={isLoadingMoreMaquinas}
+                                        variant="outline"
+                                        className="rounded-xl font-black text-[10px] uppercase tracking-widest px-8 border-2 shadow-sm hover:bg-primary hover:text-white transition-all gap-2"
+                                    >
+                                        {isLoadingMoreMaquinas ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <>Cargar más equipos <ChevronDown className="h-4 w-4" /></>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
                         </ScrollArea>
                     </CardContent>
                 </Card>

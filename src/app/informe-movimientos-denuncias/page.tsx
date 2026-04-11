@@ -4,10 +4,11 @@
 import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { type MovimientoMaquina, type Dato } from '@/lib/data';
-import { Loader2, ArrowLeftRight, ShieldAlert, Building2, Landmark, Search, Calendar, MapPin, Truck, Undo2, FileWarning } from 'lucide-react';
+import { Loader2, ArrowLeftRight, ShieldAlert, Building2, Landmark, Search, Calendar, MapPin, Truck, Undo2, FileWarning, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
@@ -27,15 +28,28 @@ export default function InformeMovimientosDenunciasPage() {
     const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
     const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
 
-    if (hasAdminFilter) return colRef;
-    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
-    if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
-    }
-    return null;
-  }, [firestore, isUserLoading, profile]);
+    let q;
+    if (hasAdminFilter) q = query(colRef, orderBy('fecha_creacion', 'desc'));
+    else if (hasDeptFilter && profile.departamento) q = query(colRef, where('departamento', '==', profile.departamento), orderBy('fecha_creacion', 'desc'));
+    else if (hasDistFilter && profile.departamento && profile.distrito) {
+        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha_creacion', 'desc'));
+    } else return null;
 
-  const { data: movements, isLoading: isLoadingMovs } = useCollectionOnce<MovimientoMaquina>(movementsQuery);
+    if (search.trim()) {
+        const term = search.trim().toUpperCase();
+        return query(q, where('maquinas_codigos', 'array-contains', term));
+    }
+
+    return q;
+  }, [firestore, isUserLoading, profile, search]);
+
+  const { 
+    data: movements, 
+    isLoading: isLoadingMovs,
+    hasMore: hasMoreMovs,
+    loadMore: loadMoreMovs,
+    isLoadingMore: isLoadingMoreMovs 
+  } = useCollectionPaginated<MovimientoMaquina>(movementsQuery, 50);
 
   const denunciasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -48,15 +62,7 @@ export default function InformeMovimientosDenunciasPage() {
     if (!movements) return [];
     
     const term = search.toLowerCase().trim();
-    const filtered = movements.filter(m => {
-        const place = (m.departamento || '') + ' ' + (m.distrito || '');
-        const responsiblesStr = m.responsables?.map(r => r.nombre).join(' ') || '';
-        const machinesStr = m.maquinas?.map(maq => maq.codigo).join(' ') || '';
-        
-        return place.toLowerCase().includes(term) || 
-               responsiblesStr.toLowerCase().includes(term) || 
-               machinesStr.toLowerCase().includes(term);
-    }).sort((a, b) => b.fecha_creacion.localeCompare(a.fecha_creacion));
+    const filtered = (movements || []).sort((a, b) => (b.fecha_creacion || '').localeCompare(a.fecha_creacion || ''));
 
     const depts: Record<string, Record<string, MovimientoMaquina[]>> = {};
 
@@ -232,6 +238,22 @@ export default function InformeMovimientosDenunciasPage() {
                                     </AccordionItem>
                                 ))}
                             </Accordion>
+                            {hasMoreMovs && (
+                                <div className="pt-8 pb-12 flex justify-center">
+                                    <Button 
+                                        onClick={loadMoreMovs} 
+                                        disabled={isLoadingMoreMovs}
+                                        variant="outline"
+                                        className="rounded-[2.2rem] font-black text-xs uppercase tracking-widest py-8 px-16 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
+                                    >
+                                        {isLoadingMoreMovs ? (
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                        ) : (
+                                            <>Cargar más movimientos <ChevronDown className="h-5 w-5" /></>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
                         </AccordionContent>
                     </AccordionItem>
                 ))}

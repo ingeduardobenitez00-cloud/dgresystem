@@ -28,6 +28,7 @@ export * from './provider';
 export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-collection-once';
+export * from './firestore/use-collection-paginated';
 export * from './firestore/use-doc';
 export * from './firestore/use-doc-once';
 export * from './auth/use-user';

@@ -7,8 +7,8 @@ import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, getDocs, getCountFromServer } from 'firebase/firestore';
+import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase } from '@/firebase';
+import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, getDocs, getCountFromServer, orderBy, limit } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
 import { 
   Loader2, 
@@ -28,6 +28,9 @@ import {
   Copy,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  ChevronDown,
+  ClipboardCheck,
   Power,
   PowerOff,
   ShieldAlert,
@@ -161,17 +164,34 @@ export default function AgendaAnexoVPage() {
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
+    
     let q;
-    if (hasAdminFilter) q = colRef;
-    else if (hasDeptFilter && profile.departamento) q = query(colRef, where('departamento', '==', profile.departamento));
-    else if (hasDistFilter && profile.departamento && profile.distrito) {
-        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    const baseConstraints = [
+        where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']),
+        orderBy('fecha', 'desc')
+    ];
+
+    if (hasAdminFilter) {
+        q = query(colRef, ...baseConstraints);
+    } else if (hasDeptFilter && profile.departamento) {
+        q = query(colRef, where('departamento', '==', profile.departamento), ...baseConstraints);
+    } else if (hasDistFilter && profile.departamento && profile.distrito) {
+        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), ...baseConstraints);
     } else return null;
 
-    return query(q, where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']));
-  }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
+    return q;
+  }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, agendaSearch]);
 
-  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
+  const { 
+    data: rawSolicitudes, 
+    isLoading: isLoadingSolicitudes,
+    hasMore: hasMoreSolicitudes,
+    loadMore: loadMoreSolicitudes,
+    isLoadingMore: isLoadingMoreSolicitudes,
+    error: paginationError,
+    updateItem,
+    mutate
+  } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 100);
 
   const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
   const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
@@ -179,12 +199,8 @@ export default function AgendaAnexoVPage() {
   useEffect(() => {
     if (!firestore || !rawSolicitudes || rawSolicitudes.length === 0) return;
     
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - 60);
-    const dateLimitStr = limitDate.toISOString().split('T')[0];
-
     const relevantIds = rawSolicitudes
-        .filter(sol => !sol.cancelada && sol.fecha >= dateLimitStr) 
+        .filter(sol => !sol.cancelada) 
         .map(sol => sol.id);
         
     if (relevantIds.length === 0) return;
@@ -217,12 +233,6 @@ export default function AgendaAnexoVPage() {
 
   }, [firestore, rawSolicitudes]);
 
-  
-
-  
-
-  
-
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
 
@@ -254,42 +264,26 @@ export default function AgendaAnexoVPage() {
   const groupedData = useMemo(() => {
     if (!rawSolicitudes || !datosData) return [];
 
-    // INDEXACIÓN POR MAPAS PARA BÚSQUEDA O(1)
-    
-    // use direct maps
-    
-    
-    // use direct maps
-
     const datosMap = new Map();
     datosData.forEach(d => {
       const key = `${d.departamento}|${d.distrito}`;
       if (!datosMap.has(key)) datosMap.set(key, d);
-      // Fallback por departamento
       if (!datosMap.has(d.departamento)) datosMap.set(d.departamento, d);
     });
 
-    const today = new Date().toISOString().split('T')[0];
+    const currentMs = currentTime.getTime();
     const searchTerm = agendaSearch.toLowerCase().trim();
 
-    // Reducimos la dependencia de currentTime para que el buscador sea fluido
-    const currentMs = currentTime.getTime();
-
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() - 60);
-    const dateLimitStr = limitDate.toISOString().split('T')[0];
-
-    const activeSolicitudes = rawSolicitudes.filter(sol => {
-        if (sol.cancelada || sol.fecha < dateLimitStr) return false;
+    const activeSolicitudes = (rawSolicitudes || []).filter((sol: SolicitudCapacitacion) => {
+        if (sol.cancelada) return false;
 
         if (sol.fecha_cumplido) {
             const completionTime = new Date(sol.fecha_cumplido);
-            const diffMins = (currentMs - completionTime.getTime()) / (1000 * 60);
-            if (diffMins > 3) return false;
-            return true; // Mantener visible durante el periodo de gracia
+            const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
+            if (diffHours > 24) return false;
+            return true;
         }
 
-        // FILTRO DE BÚSQUEDA
         const matchesSearch = !searchTerm || 
             (sol.departamento || '').toLowerCase().includes(searchTerm) || 
             (sol.distrito || '').toLowerCase().includes(searchTerm) ||
@@ -309,14 +303,13 @@ export default function AgendaAnexoVPage() {
 
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
 
-    activeSolicitudes.forEach(sol => {
+    activeSolicitudes.forEach((sol: SolicitudCapacitacion) => {
       const deptName = sol.departamento || 'SIN DEPARTAMENTO';
       const distName = sol.distrito || 'SIN DISTRITO';
       
       const key = `${deptName}|${distName}`;
       const dato = datosMap.get(key) || datosMap.get(deptName);
       
-      // Intentar extraer el código del prefijo si el nombre es "02 - SAN PEDRO"
       const extractedCode = deptName.match(/^\d+/)?.[0] || '00';
       const deptCode = (dato?.departamento_codigo && dato.departamento_codigo !== '00') ? dato.departamento_codigo : extractedCode;
       
@@ -331,7 +324,6 @@ export default function AgendaAnexoVPage() {
       depts[deptName].dists[distName].items.push(sol);
     });
 
-    // Ordenar por código de departamento (01, 02, 03...)
     return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
   }, [rawSolicitudes, datosData, movimientosMap, informesMap, currentTime, agendaSearch]);
 
@@ -350,7 +342,9 @@ export default function AgendaAnexoVPage() {
     updateDoc(docRef, { divulgadores: arrayUnion(newDivulgador) })
       .then(() => {
         toast({ title: "Personal Asignado" });
-        setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: [...(prev.divulgadores || []), newDivulgador] } : null);
+        const updatedDivs = [...(assigningSolicitud.divulgadores || []), newDivulgador];
+        setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
+        updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
         setIsUpdating(false);
       })
       .catch(async (error) => {
@@ -362,14 +356,16 @@ export default function AgendaAnexoVPage() {
   const handleRemoveDivulgador = (divulgadorId: string) => {
     if (!assigningSolicitud || !firestore) return;
     const docRef = doc(firestore, 'solicitudes-capacitacion', assigningSolicitud.id);
-    const divulgadorToRemove = (assigningSolicitud.divulgadores || []).find(d => d.id === divulgadorId);
+    const divulgadorToRemove = (assigningSolicitud.divulgadores || []).find((d: any) => d.id === divulgadorId);
 
     if (!divulgadorToRemove) return;
 
     updateDoc(docRef, { divulgadores: arrayRemove(divulgadorToRemove) })
       .then(() => {
           toast({ title: "Personal Removido" });
-          setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: (prev.divulgadores || []).filter(d => d.id !== divulgadorId) } : null);
+          const updatedDivs = (assigningSolicitud.divulgadores || []).filter(d => d.id !== divulgadorId);
+          setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
+          updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
       })
       .catch(error => { 
           errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
@@ -380,13 +376,34 @@ export default function AgendaAnexoVPage() {
     if (!firestore) return;
     const docRef = doc(firestore, 'solicitudes-capacitacion', solicitud.id);
     const newState = !solicitud.qr_enabled;
+    const now = new Date();
+    let qr_expires_at = null;
+
+    if (newState) {
+      const todayStr = now.toISOString().split('T')[0];
+      if (solicitud.fecha < todayStr) {
+        // Retroactivo: 20 minutos
+        qr_expires_at = new Date(now.getTime() + 20 * 60000).toISOString();
+      } else {
+        // Normal: Fin del día de la actividad
+        const [y, m, d] = solicitud.fecha.split('-').map(Number);
+        const endOfDay = new Date(y, m - 1, d, 23, 59, 59);
+        qr_expires_at = endOfDay.toISOString();
+      }
+    }
     
-    updateDoc(docRef, { qr_enabled: newState })
+    updateDoc(docRef, { 
+      qr_enabled: newState,
+      qr_expires_at: qr_expires_at
+    })
       .then(() => {
         toast({ 
           title: newState ? "Encuesta Habilitada" : "Encuesta Deshabilitada",
-          description: newState ? "Los ciudadanos ya pueden escanear el QR." : "El acceso público vía QR ha sido cerrado."
+          description: newState 
+            ? `Acceso abierto hasta: ${new Date(qr_expires_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${solicitud.fecha < now.toISOString().split('T')[0] ? '(20 min)' : '(Fin del día)'}` 
+            : "El acceso público vía QR ha sido cerrado."
         });
+        updateItem(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
       })
       .catch(error => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
@@ -406,6 +423,7 @@ export default function AgendaAnexoVPage() {
     })
     .then(() => {
         toast({ title: "Solicitud Suspendida", description: "Se ha registrado el motivo en el historial." });
+        updateItem(suspendingSolicitud.id, { cancelada: true });
         setSuspendingSolicitud(null);
         setSuspensionReason('');
         setIsUpdating(false);
@@ -423,6 +441,7 @@ export default function AgendaAnexoVPage() {
     deleteDoc(docRef)
         .then(() => {
             toast({ title: "Solicitud Eliminada" });
+            mutate(rawSolicitudes.filter(s => s.id !== deletingSolicitud.id));
             setDeletingSolicitud(null);
             setIsUpdating(false);
         })
@@ -462,7 +481,9 @@ export default function AgendaAnexoVPage() {
         fecha_cumplido: new Date().toISOString()
     })
     .then(() => {
+        const time = new Date().toISOString();
         toast({ title: "Ciclo Concluido", description: "La actividad ha sido movida al historial." });
+        updateItem(solicitudId, { fecha_cumplido: time });
         setConcludingSolicitud(null);
         setIsUpdating(false);
     })
@@ -589,6 +610,19 @@ export default function AgendaAnexoVPage() {
             />
         </div>
 
+        {paginationError && (
+          <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl mt-8 flex items-center gap-4">
+             <AlertTriangle className="h-8 w-8 text-red-600" />
+             <div>
+                <p className="font-black text-red-900 uppercase text-xs">Error de Base de Datos</p>
+                <p className="text-[10px] font-bold text-red-700 uppercase leading-tight">{paginationError.message}</p>
+                {paginationError.message.includes('index') && (
+                    <p className="text-[9px] text-red-800 font-black mt-2 underline">Falta un índice en Firebase para esta consulta.</p>
+                )}
+             </div>
+          </div>
+        )}
+
         {groupedData.length === 0 ? (
           <Card className="p-20 text-center border-dashed bg-white rounded-3xl">
             <p className="font-black text-muted-foreground uppercase tracking-widest opacity-30">No hay actividades agendadas en su jurisdicción</p>
@@ -654,15 +688,12 @@ export default function AgendaAnexoVPage() {
                                 const isToday = cleanDate !== '' && (cleanDate === today || cleanDate === todayReverse);
                                 const mov = movimientosMap.get(item.id); const itemInformes = informesMap.get(item.id) || []; const inf = itemInformes[0]; const assignedList = item.divulgadores || item.asignados || []; const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
                                 
-                                const missingF02 = isPast && !mov?.fecha_devolucion;
-                                const missingAnexoIII = isPast && (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
-                                const missingSalida = (isToday || isPast) && !mov;
+                                const missingF02 = !mov?.fecha_devolucion;
+                                const missingAnexoIII = (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
+                                const missingSalida = !mov;
                                 const hasAlert = missingF02 || missingAnexoIII || missingSalida;
                                 const isFulfilled = mov?.fecha_devolucion && inf;
 
-                                
-
-                                // Lógica de Guía de Pasos Independientes (Sin saltos)
                                 const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
                                 const hasSalida = !!mov;
                                 const hasRetorno = !!mov?.fecha_devolucion;
@@ -672,14 +703,22 @@ export default function AgendaAnexoVPage() {
                                 const showStep1 = !hasPersonnel;
                                 const showStep2 = hasPersonnel && !item.qr_enabled;
                                 const showStep3 = hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed;
-                                const showStep4 = hasPersonnel && (isToday || isPast) && !hasSalida && (!item.qr_enabled || isQRViewed);
+                                const showStep4 = hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed);
                                 const showStep5 = hasSalida && !hasRetorno;
                                 const showStep6 = hasRetorno && !hasInforme;
 
-                                 const GuideStep = ({ step, message, active }: { step: number, message: string, active: boolean }) => {
+                                 const GuideStep = ({ step, message, active, onClick }: { step: number, message: string, active: boolean, onClick?: () => void }) => {
                                      if (!active) return null;
                                      return (
-                                         <div className="animate-bounce">
+                                         <div 
+                                             className={cn("animate-bounce pointer-events-auto", onClick && "cursor-pointer group relative")}
+                                             onClick={(e) => {
+                                                 if (onClick) {
+                                                     e.stopPropagation();
+                                                     onClick();
+                                                 }
+                                             }}
+                                         >
                                              <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 w-[160px] leading-tight text-center justify-center">
                                                  <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">
                                                      {step}
@@ -758,7 +797,7 @@ export default function AgendaAnexoVPage() {
                                                         <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
                                                                 {missingSalida && (
                                                                     <div className="relative">
-                                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} />
+                                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
                                                                         <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
                                                                             <Truck className="h-3.5 w-3.5" />
                                                                             <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
@@ -767,7 +806,7 @@ export default function AgendaAnexoVPage() {
                                                                 )}
                                                                 {missingF02 && (
                                                                     <div className="relative">
-                                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} />
+                                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
                                                                         <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
                                                                             <ShieldAlert className="h-3 w-3" />
                                                                             <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
@@ -785,8 +824,8 @@ export default function AgendaAnexoVPage() {
 
                                                     <div className="flex gap-2 w-full max-w-[220px]">
                                                         <div className="flex-1 relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
-                                                                <GuideStep step={1} message="Asigna personal para la actividad" active={showStep1} />
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
+                                                                <GuideStep step={1} message="Asigna personal para la actividad" active={showStep1} onClick={() => setAssigningSolicitud(item)} />
                                                             </div>
                                                             <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
                                                               <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
@@ -805,8 +844,8 @@ export default function AgendaAnexoVPage() {
                                                     
                                                     <div className="flex gap-2 w-full max-w-[220px]">
                                                         <div className="relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
-                                                                <GuideStep step={2} message="Habilitar el acceso al QR" active={showStep2} />
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
+                                                                <GuideStep step={2} message="Habilitar el acceso al QR" active={showStep2} onClick={() => handleToggleQr(item)} />
                                                             </div>
                                                             <Button 
                                                                 variant="outline" 
@@ -832,16 +871,16 @@ export default function AgendaAnexoVPage() {
                                                     
                                                     <div className="flex gap-2 w-full max-w-[220px]">
                                                         <div className="flex-1 relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
-                                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} />
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
+                                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} />
                                                             </div>
                                                             <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
                                                                 <QrCode className="h-4 w-4 mr-2" /> QR
                                                             </Button>
                                                         </div>
                                                         <div className="flex-1 relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center pointer-events-none z-[100]">
-                                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={showStep6} />
+                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
+                                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={showStep6} onClick={() => { if (!inf) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} />
                                                             </div>
                                                             <Button 
                                                                 className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
@@ -871,6 +910,23 @@ export default function AgendaAnexoVPage() {
               ));
              })()}
           </Accordion>
+        )}
+
+        {hasMoreSolicitudes && (
+            <div className="pt-8 pb-12 flex justify-center">
+                <Button 
+                    onClick={loadMoreSolicitudes} 
+                    disabled={isLoadingMoreSolicitudes}
+                    variant="outline"
+                    className="rounded-[2rem] font-black text-xs uppercase tracking-widest py-8 px-16 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
+                >
+                    {isLoadingMoreSolicitudes ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                        <>Cargar más actividades <ChevronDown className="h-5 w-5" /></>
+                    )}
+                </Button>
+            </div>
         )}
       </main>
 

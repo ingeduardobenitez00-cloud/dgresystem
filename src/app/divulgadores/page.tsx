@@ -26,12 +26,13 @@ import {
   AlertTriangle, 
   FileWarning, 
   Filter,
-  Building2 
+  Building2,
+  ChevronDown 
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
-import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, writeBatch, getDocs, limit } from 'firebase/firestore';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useCollectionPaginated } from '@/firebase';
+import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, orderBy, writeBatch, getDocs, limit, startAt, endAt } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -151,19 +152,18 @@ export default function DivulgadoresPage() {
     const colRef = collection(firestore, 'divulgadores');
     
     // Condicionamos la base de la consulta según el rol
-    let baseQuery;
-    if (hasAdminFilter) {
-        baseQuery = colRef;
-    } else if (hasDeptFilter && profile.departamento) {
-        baseQuery = query(colRef, where('departamento', '==', profile.departamento));
-    } else if (hasDistFilter && profile.departamento && profile.distrito) {
-        baseQuery = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
-    } else {
-        return null;
+    let constraints: any[] = [];
+    
+    if (!hasAdminFilter) {
+        if (hasDeptFilter && profile.departamento) {
+            constraints.push(where('departamento', '==', profile.departamento));
+        } else if (hasDistFilter && profile.departamento && profile.distrito) {
+            constraints.push(where('departamento', '==', profile.departamento));
+            constraints.push(where('distrito', '==', profile.distrito));
+        }
     }
 
-    // Aplicamos filtros adicionales del UI directamente en el servidor
-    const constraints = [];
+    // Aplicamos filtros adicionales del UI
     if (filterDept !== 'all' && hasAdminFilter) {
         constraints.push(where('departamento', '==', filterDept));
     }
@@ -171,28 +171,26 @@ export default function DivulgadoresPage() {
         constraints.push(where('distrito', '==', filterDist));
     }
 
-    if (constraints.length > 0) {
-        return query(baseQuery, ...constraints);
+    // Búsqueda por nombre (Server-side prefix search)
+    const term = searchTerm.toUpperCase().trim();
+    if (term.length > 0) {
+        constraints.push(orderBy('nombre'));
+        constraints.push(startAt(term));
+        constraints.push(endAt(term + '\uf8ff'));
+    } else {
+        constraints.push(orderBy('nombre'));
     }
-    return baseQuery;
-  }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist]);
 
-  const { data: rawDivulgadores, isLoading: isLoadingDivul } = useCollectionOnce<Divulgador>(divulQuery);
+    return query(colRef, ...constraints);
+  }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist, searchTerm]);
 
-  const divulgadores = useMemo(() => {
-    if (!rawDivulgadores) return null;
-    return [...rawDivulgadores].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [rawDivulgadores]);
-
-  const filteredDivul = useMemo(() => {
-    if (!divulgadores) return [];
-    const term = searchTerm.toLowerCase().trim();
-    return divulgadores.filter(d => {
-      // Los filtros de departamento y distrito ahora están en el servidor (divulQuery)
-      const matchesSearch = d.nombre.toLowerCase().includes(term) || d.cedula.toLowerCase().includes(term);
-      return matchesSearch;
-    });
-  }, [divulgadores, searchTerm]);
+  const { 
+    data: filteredDivul, 
+    isLoading: isLoadingDivul, 
+    hasMore, 
+    loadMore, 
+    isLoadingMore 
+  } = useCollectionPaginated<Divulgador>(divulQuery, 50);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
     const cleanTerm = (cedulaInput || '').trim().toUpperCase();
@@ -623,6 +621,19 @@ export default function DivulgadoresPage() {
                     )}
                   </TableBody>
                 </Table>
+                {hasMore && (
+                  <div className="p-4 bg-muted/10 border-t flex justify-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={loadMore} 
+                      disabled={isLoadingMore}
+                      className="font-black uppercase text-[10px] gap-2 h-10 border-2 px-8"
+                    >
+                      {isLoadingMore ? <Loader2 className="animate-spin h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      Cargar más personal
+                    </Button>
+                  </div>
+                )}
             </CardContent>
           </Card>
         </div>

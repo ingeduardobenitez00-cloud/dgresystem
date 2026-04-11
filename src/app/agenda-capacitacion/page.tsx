@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch } from 'firebase/firestore';
+import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase } from '@/firebase';
+import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, orderBy, limit } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
 import { 
   Loader2, 
@@ -27,13 +27,15 @@ import {
   Copy,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Power,
   PowerOff,
   ShieldAlert,
   Printer,
   Ban,
   ImageIcon,
-  Clock
+  Clock,
+  ChevronDown
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -114,15 +116,29 @@ export default function AgendaCapacitacionPage() {
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
-    if (hasAdminFilter) return colRef;
-    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento));
+    
+    const baseConstraints = [
+        orderBy('fecha', 'desc')
+    ];
+
+    if (hasAdminFilter) return query(colRef, ...baseConstraints);
+    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento), ...baseConstraints);
     if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), ...baseConstraints);
     }
     return null;
   }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter]);
 
-  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
+  const { 
+    data: rawSolicitudes, 
+    isLoading: isLoadingSolicitudes,
+    isLoadingMore: isLoadingMoreSolicitudes,
+    hasMore: hasMoreSolicitudes,
+    loadMore: loadMoreSolicitudes,
+    error: paginationError,
+    updateItem,
+    mutate
+  } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 100);
 
   // Optimizamos las consultas secundarias para que solo descarguen datos de la jurisdicción del usuario
   const movimientosQuery = useMemoFirebase(() => {
@@ -200,29 +216,29 @@ export default function AgendaCapacitacionPage() {
 
     const today = new Date().toISOString().split('T')[0];
 
-    const activeSolicitudes = rawSolicitudes.filter(sol => {
+    const activeSolicitudes = rawSolicitudes.filter((sol: SolicitudCapacitacion) => {
         if (sol.cancelada) return false;
         
         const currentMs = currentTime.getTime();
         if (sol.fecha_cumplido) {
             const completionTime = new Date(sol.fecha_cumplido);
-            const diffMins = (currentMs - completionTime.getTime()) / (1000 * 60);
-            if (diffMins > 3) return false;
+            const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
+            if (diffHours > 24) return false;
             return true;
         }
 
-        const mov = movimientosData?.find(m => m.solicitud_id === sol.id);
-        const inf = informesData?.find(i => i.solicitud_id === sol.id);
+        const mov = movimientosData?.find((m: MovimientoMaquina) => m.solicitud_id === sol.id);
+        const inf = informesData?.find((i: InformeDivulgador) => i.solicitud_id === sol.id);
         const isClosed = !!(mov?.fecha_devolucion && inf);
         return !isClosed;
     });
 
     const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
 
-    activeSolicitudes.forEach(sol => {
+    activeSolicitudes.forEach((sol: SolicitudCapacitacion) => {
       const deptName = sol.departamento || 'SIN DEPARTAMENTO';
       const distName = sol.distrito || 'SIN DISTRITO';
-      const dato = datosData.find(d => d.departamento === deptName && d.distrito === distName);
+      const dato = (datosData || []).find((d: Dato) => d.departamento === deptName && d.distrito === distName);
       
       const deptCode = dato?.departamento_codigo || '00';
       const distCode = `${deptCode} - 00 - 00 - ${dato?.distrito_codigo || '00'}`;
@@ -254,7 +270,9 @@ export default function AgendaCapacitacionPage() {
     updateDoc(docRef, { divulgadores: arrayUnion(newDivulgador) })
       .then(() => {
         toast({ title: "Personal Asignado" });
-        setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: [...(prev.divulgadores || []), newDivulgador] } : null);
+        const updatedDivs = [...(assigningSolicitud.divulgadores || []), newDivulgador];
+        setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
+        updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
         setIsUpdating(false);
       })
       .catch(async (error) => {
@@ -273,10 +291,50 @@ export default function AgendaCapacitacionPage() {
     updateDoc(docRef, { divulgadores: arrayRemove(divulgadorToRemove) })
       .then(() => {
           toast({ title: "Personal Removido" });
-          setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: (prev.divulgadores || []).filter(d => d.id !== divulgadorId) } : null);
+          const updatedDivs = (assigningSolicitud.divulgadores || []).filter(d => d.id !== divulgadorId);
+          setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
+          updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
       })
       .catch(error => { 
           errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
+      });
+  };
+
+  const handleToggleQr = (solicitud: SolicitudCapacitacion) => {
+    if (!firestore) return;
+    const docRef = doc(firestore, 'solicitudes-capacitacion', solicitud.id);
+    const newState = !solicitud.qr_enabled;
+    const now = new Date();
+    let qr_expires_at = null;
+
+    if (newState) {
+      const todayStr = now.toISOString().split('T')[0];
+      if (solicitud.fecha < todayStr) {
+        // Retroactivo: 20 minutos
+        qr_expires_at = new Date(now.getTime() + 20 * 60000).toISOString();
+      } else {
+        // Normal: Fin del día de la actividad
+        const [y, m, d] = solicitud.fecha.split('-').map(Number);
+        const endOfDay = new Date(y, m - 1, d, 23, 59, 59);
+        qr_expires_at = endOfDay.toISOString();
+      }
+    }
+    
+    updateDoc(docRef, { 
+      qr_enabled: newState,
+      qr_expires_at: qr_expires_at
+    })
+      .then(() => {
+        toast({ 
+          title: newState ? "Encuesta Habilitada" : "Encuesta Deshabilitada",
+          description: newState 
+            ? `Acceso abierto hasta: ${new Date(qr_expires_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${solicitud.fecha < now.toISOString().split('T')[0] ? '(20 min)' : '(Fin del día)'}` 
+            : "El acceso público vía QR ha sido cerrado."
+        });
+        updateItem(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
+      })
+      .catch(error => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
       });
   };
 
@@ -293,6 +351,7 @@ export default function AgendaCapacitacionPage() {
     })
     .then(() => {
         toast({ title: "Actividad Suspendida", description: "Se ha registrado el motivo de la cancelación." });
+        updateItem(suspendingSolicitud.id, { cancelada: true });
         setSuspendingSolicitud(null);
         setSuspensionReason('');
         setIsUpdating(false);
@@ -310,6 +369,7 @@ export default function AgendaCapacitacionPage() {
     deleteDoc(docRef)
         .then(() => {
             toast({ title: "Actividad Eliminada" });
+            mutate(rawSolicitudes.filter(s => s.id !== deletingSolicitud.id));
             setDeletingSolicitud(null);
             setIsUpdating(false);
         })
@@ -332,6 +392,7 @@ export default function AgendaCapacitacionPage() {
     batch.commit()
         .then(() => {
             toast({ title: "Distrito Limpiado" });
+            mutate(rawSolicitudes.filter(s => !deletingDistrict.items.some(i => i.id === s.id)));
             setDeletingDistrict(null);
             setIsUpdating(false);
         })
@@ -349,7 +410,9 @@ export default function AgendaCapacitacionPage() {
         fecha_cumplido: new Date().toISOString()
     })
     .then(() => {
+        const time = new Date().toISOString();
         toast({ title: "Ciclo Concluido", description: "La actividad ha sido movida al historial." });
+        updateItem(solicitudId, { fecha_cumplido: time });
         setConcludingSolicitud(null);
         setIsUpdating(false);
     })
@@ -418,6 +481,19 @@ export default function AgendaCapacitacionPage() {
             </div>
         </div>
 
+        {paginationError && (
+          <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl mt-8 flex items-center gap-4">
+             <AlertTriangle className="h-8 w-8 text-red-600" />
+             <div>
+                <p className="font-black text-red-900 uppercase text-xs">Error de Base de Datos</p>
+                <p className="text-[10px] font-bold text-red-700 uppercase leading-tight">{paginationError.message}</p>
+                {paginationError.message.includes('index') && (
+                    <p className="text-[9px] text-red-800 font-black mt-2 underline">Falta un índice en Firebase para esta consulta.</p>
+                )}
+             </div>
+          </div>
+        )}
+
         {groupedData.length === 0 ? (
           <Card className="p-20 text-center border-dashed bg-white rounded-3xl">
             <p className="font-black text-muted-foreground uppercase tracking-widest opacity-30">No hay actividades agendadas en su jurisdicción</p>
@@ -472,15 +548,15 @@ export default function AgendaCapacitacionPage() {
                             {dist.items.sort((a,b) => a.fecha.localeCompare(b.fecha)).map((item) => {
                                 const today = new Date().toISOString().split('T')[0];
                                 const isPast = item.fecha < today;
-                                const mov = movimientosData?.find(m => m.solicitud_id === item.id);
-                                const inf = informesData?.find(i => i.solicitud_id === item.id);
+                                const mov = movimientosData?.find((m: MovimientoMaquina) => m.solicitud_id === item.id);
+                                const inf = informesData?.find((i: InformeDivulgador) => i.solicitud_id === item.id);
                                 
                                 const missingF02 = isPast && !mov?.fecha_devolucion;
                                 const missingAnexoIII = isPast && !inf;
                                 const hasAlert = missingF02 || missingAnexoIII;
                                 const isFulfilled = mov?.fecha_devolucion && inf;
 
-                                const itemEncuestas = encuestasData?.filter(e => e.solicitud_id === item.id) || [];
+                                const itemEncuestas = (encuestasData || []).filter((e: EncuestaSatisfaccion) => e.solicitud_id === item.id) || [];
 
                                 return (
                                     <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-200 bg-green-50/10" : "border-muted/20 bg-white")}>
@@ -558,6 +634,18 @@ export default function AgendaCapacitacionPage() {
                                                         <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)} title="Ver Ficha de Detalles">
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="icon" 
+                                                            className={cn(
+                                                                "h-11 w-11 rounded-xl border-2 transition-all", 
+                                                                item.qr_enabled ? "border-green-300 text-green-600 bg-green-50" : "border-muted/20 text-muted-foreground"
+                                                            )} 
+                                                            onClick={() => handleToggleQr(item)} 
+                                                            title={item.qr_enabled ? "Deshabilitar Encuesta Pública" : "Habilitar Encuesta Pública"}
+                                                        >
+                                                            {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                                                        </Button>
                                                         <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50 transition-all" onClick={() => setSuspendingSolicitud(item)} title="Suspender Actividad">
                                                             <Ban className="h-4 w-4" />
                                                         </Button>
@@ -608,6 +696,23 @@ export default function AgendaCapacitacionPage() {
               </AccordionItem>
             ))}
           </Accordion>
+        )}
+
+        {hasMoreSolicitudes && (
+            <div className="pt-8 pb-12 flex justify-center">
+                <Button 
+                    onClick={loadMoreSolicitudes} 
+                    disabled={isLoadingMoreSolicitudes}
+                    variant="outline"
+                    className="rounded-[2rem] font-black text-xs uppercase tracking-widest py-8 px-16 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
+                >
+                    {isLoadingMoreSolicitudes ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                        <>Cargar más actividades <ChevronDown className="h-5 w-5" /></>
+                    )}
+                </Button>
+            </div>
         )}
       </main>
 
@@ -660,8 +765,8 @@ export default function AgendaCapacitacionPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-10">
                                 {(() => {
-                                    const mov = movimientosData?.find(m => m.solicitud_id === viewingActivity.id);
-                                    const inf = informesData?.find(i => i.solicitud_id === viewingActivity.id);
+                                    const mov = movimientosData?.find((m: MovimientoMaquina) => m.solicitud_id === viewingActivity.id);
+                                    const inf = informesData?.find((i: InformeDivulgador) => i.solicitud_id === viewingActivity.id);
                                     
                                     return (
                                         <>

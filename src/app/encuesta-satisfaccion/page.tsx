@@ -10,8 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Check, Lock, DatabaseZap } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useDocOnce, useCollectionOnce } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, query, where, getDocs } from 'firebase/firestore';
+import { useUser, useFirebase, useMemoFirebase, useDocOnce, useCollectionOnce, useCollectionPaginated } from '@/firebase';
+import { collection, addDoc, serverTimestamp, doc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { type SolicitudCapacitacion } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -52,13 +52,13 @@ function EncuestaContent() {
 
   const agendaQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return collection(firestore, 'solicitudes-capacitacion');
+    return query(collection(firestore, 'solicitudes-capacitacion'), orderBy('fecha', 'desc'), limit(100));
   }, [firestore, user]);
   const { data: agendaItems } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
 
   const filteredAgendaItems = useMemo(() => {
     if (!agendaItems) return [];
-    return [...agendaItems].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    return [...agendaItems].sort((a: SolicitudCapacitacion, b: SolicitudCapacitacion) => (b.fecha || '').localeCompare(a.fecha || ''));
   }, [agendaItems]);
 
   const solicitudRef = useMemoFirebase(() => 
@@ -68,12 +68,23 @@ function EncuestaContent() {
   
   const { data: linkedSolicitud, isLoading: isLoadingLinked } = useDocOnce<SolicitudCapacitacion>(solicitudRef);
 
-  // VALIDACIÓN: Se bloquea el acceso público si la solicitud no tiene habilitado el QR
+  // VALIDACIÓN: Se bloquea el acceso público si la solicitud no tiene habilitado el QR o si expiró
   const isPublicDisabled = useMemo(() => {
     if (user) return false; // El personal siempre puede cargar
     if (!solicitudIdFromUrl) return false; // Carga manual permitida
-    if (!linkedSolicitud && !isLoadingLinked) return false; // Si no hay datos, mostramos formulario vacío
-    return linkedSolicitud ? !linkedSolicitud.qr_enabled : false; 
+    if (isLoadingLinked) return false;
+    if (!linkedSolicitud) return false; 
+    
+    // Si no tiene qr_enabled o ya expiró
+    if (!linkedSolicitud.qr_enabled) return true;
+    
+    if (linkedSolicitud.qr_expires_at) {
+        const now = new Date();
+        const expiration = new Date(linkedSolicitud.qr_expires_at);
+        if (now > expiration) return true;
+    }
+    
+    return false;
   }, [linkedSolicitud, user, solicitudIdFromUrl, isLoadingLinked]);
 
   useEffect(() => {
