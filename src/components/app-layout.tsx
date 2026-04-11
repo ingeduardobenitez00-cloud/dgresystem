@@ -11,6 +11,14 @@ import { Button } from './ui/button';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Loading from '@/app/loading';
 import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading, userError, isProfileLoading } = useUser();
@@ -89,6 +97,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const interval = setInterval(updatePresence, 300000); // 5 minutos para ahorrar lecturas/escrituras
     return () => clearInterval(interval);
   }, [mounted, user, updatePresence]);
+
+  // SISTEMA DE TIEMPO DE INACTIVIDAD (IDLE TIMER)
+  const [timer, setTimer] = useState(600); // 10 minutos (600s)
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
+
+  const resetTimer = useCallback(() => {
+    setTimer(600);
+    setShowIdleWarning(false);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !user) return;
+
+    // Escuchar eventos de actividad
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, resetTimer));
+
+    const countdown = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdown);
+          auth.signOut();
+          return 0;
+        }
+        if (prev === 61) {
+          setShowIdleWarning(true);
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, resetTimer));
+      clearInterval(countdown);
+    };
+  }, [mounted, user, resetTimer, auth]);
 
   const isPublicRoute = useMemo(() => {
     const publicRoutes = ['/login', '/encuesta-satisfaccion'];
@@ -283,6 +327,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </SidebarInset>
         </>
       )}
+
+      {/* DIÁLOGO DE ADVERTENCIA POR INACTIVIDAD */}
+      <Dialog open={showIdleWarning} onOpenChange={setShowIdleWarning}>
+        <DialogContent className="max-w-md rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="bg-amber-600 text-white p-6">
+            <DialogTitle className="font-black uppercase text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4" /> AVISO DE SEGURIDAD
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-8 space-y-6 bg-white text-center">
+            <div className="space-y-2">
+              <h3 className="font-black uppercase text-base text-primary">¿SIGUES AHÍ?</h3>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase leading-tight">
+                Tu sesión está por expirar por inactividad administrativa. Por tu seguridad, cerraremos la sesión en:
+              </p>
+            </div>
+
+            <div className="py-4">
+              <span className="text-5xl font-black text-amber-600 animate-pulse">
+                {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Button 
+                className="h-14 bg-black hover:bg-black/90 text-white rounded-xl font-black uppercase text-xs shadow-xl" 
+                onClick={resetTimer}
+              >
+                MANTENER MI SESIÓN ACTIVA
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="h-10 font-bold uppercase text-[10px] text-muted-foreground" 
+                onClick={() => auth.signOut()}
+              >
+                CERRAR SESIÓN AHORA
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }
