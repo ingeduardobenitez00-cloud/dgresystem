@@ -905,26 +905,29 @@ export default function AgendaAnexoVPage() {
                       </AccordionItem>
                     ))}
                   </Accordion>
+
+                  {hasMoreSolicitudes && (
+                    <div className="mt-8 flex justify-center">
+                        <Button 
+                            onClick={loadMoreSolicitudes} 
+                            disabled={isLoadingMoreSolicitudes}
+                            variant="outline"
+                            className="rounded-2xl font-black text-[9px] uppercase tracking-widest py-6 px-10 border-2 shadow-sm hover:bg-primary hover:text-white transition-all gap-2 bg-white"
+                        >
+                            {isLoadingMoreSolicitudes ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <>Ver más actividades de la lista global <ChevronDown className="h-4 w-4" /></>
+                            )}
+                        </Button>
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
               ));
              })()}
           </Accordion>
         )}
-
-        {hasMoreSolicitudes && (
-            <div className="pt-8 pb-12 flex justify-center">
-                <Button 
-                    onClick={loadMoreSolicitudes} 
-                    disabled={isLoadingMoreSolicitudes}
-                    variant="outline"
-                    className="rounded-[2rem] font-black text-xs uppercase tracking-widest py-8 px-16 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
-                >
-                    {isLoadingMoreSolicitudes ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                        <>Cargar más actividades <ChevronDown className="h-5 w-5" /></>
-                    )}
                 </Button>
             </div>
         )}
