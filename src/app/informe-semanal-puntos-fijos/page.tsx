@@ -61,8 +61,9 @@ import { DateRange } from "react-day-picker";
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
+  // Elimina recursivamente prefijos numéricos como "00 - ", "10 - ", "01-", "05 ", etc.
   return str.toUpperCase()
-    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .replace(/^(\d+[\s-]*\s*)+/, '') 
     .trim();
 };
 
@@ -73,6 +74,8 @@ export default function InformeSemanalAnexoIVPage() {
   const { toast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isQueryActive, setIsQueryActive] = useState(false);
+  const [isSearchingManually, setIsSearchingManually] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
@@ -111,7 +114,11 @@ export default function InformeSemanalAnexoIVPage() {
     if (!isUserLoading && profile) {
       if (!isAdminView) {
         if (profile.departamento) setSelectedDepartment(profile.departamento);
-        if (isDistView && profile.distrito) setSelectedDistrict(profile.distrito);
+        if (isDistView && profile.distrito) {
+          setSelectedDistrict(profile.distrito);
+        } else if (isJefeView) {
+          setSelectedDistrict('ALL');
+        }
       } else if (!selectedDepartment) {
         setSelectedDepartment('ALL');
         setSelectedDistrict('ALL');
@@ -132,14 +139,30 @@ export default function InformeSemanalAnexoIVPage() {
     fetchLogo();
   }, [isUserLoading, profile, isAdminView, isDistView]);
 
+  useEffect(() => {
+    setIsQueryActive(false);
+  }, [selectedDepartment, selectedDistrict, dateRange]);
+
   const informesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !isQueryActive) return null;
     const colRef = collection(firestore, 'informes-divulgador');
     
     if (isAdminView) {
-        if (!selectedDepartment || selectedDepartment === 'ALL') return colRef;
-        if (!selectedDistrict || selectedDistrict === 'ALL') return query(colRef, where('departamento', '==', selectedDepartment));
-        return query(colRef, where('departamento', '==', selectedDepartment), where('oficina', '==', selectedDistrict));
+        if (!selectedDepartment || selectedDepartment === 'ALL') {
+            if (!dateRange?.from || !dateRange?.to) return null;
+            const fromStr = format(dateRange.from, "yyyy-MM-dd");
+            const toStr = format(dateRange.to, "yyyy-MM-dd");
+            return query(colRef, where('fecha', '>=', fromStr), where('fecha', '<=', toStr));
+        }
+        
+        if (!dateRange?.from || !dateRange?.to) return null;
+        const fromStr = format(dateRange.from, "yyyy-MM-dd");
+        const toStr = format(dateRange.to, "yyyy-MM-dd");
+
+        if (!selectedDistrict || selectedDistrict === 'ALL') {
+            return query(colRef, where('departamento', '==', selectedDepartment), where('fecha', '>=', fromStr), where('fecha', '<=', toStr));
+        }
+        return query(colRef, where('departamento', '==', selectedDepartment), where('oficina', '==', selectedDistrict), where('fecha', '>=', fromStr), where('fecha', '<=', toStr));
     }
 
     if (!selectedDepartment || !selectedDistrict) return null;
@@ -151,10 +174,13 @@ export default function InformeSemanalAnexoIVPage() {
         variants.push(deptoNormalized);
     }
 
-    // Usamos 'in' para traer solo los informes del departamento (con y sin prefijo numérico)
-    // Esto protege la cuota de lecturas para 500 usuarios.
-    return query(colRef, where('departamento', 'in', variants));
-  }, [firestore, selectedDepartment, profile?.departamento]);
+    if (!dateRange?.from || !dateRange?.to) return null;
+    const fromStr = format(dateRange.from, "yyyy-MM-dd");
+    const toStr = format(dateRange.to, "yyyy-MM-dd");
+
+    // Para no-admins, filtramos por departamento y fecha en el servidor
+    return query(colRef, where('departamento', 'in', variants), where('fecha', '>=', fromStr), where('fecha', '<=', toStr));
+  }, [firestore, isQueryActive, isAdminView, isJefeView, isDistView, selectedDepartment, selectedDistrict, dateRange, profile]);
 
   const { data: rawInformesAnexoIII, isLoading: isLoadingInformes } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
@@ -555,9 +581,9 @@ export default function InformeSemanalAnexoIVPage() {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
-                                <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado ({photos.length}/12)
+                                <FileText className="h-4 w-4" /> Respaldo Anexo IV Firmado ({photos.length}/4)
                             </Label>
-                            {photos.length > 0 && photos.length < 12 && (
+                            {photos.length > 0 && photos.length < 4 && (
                                 <div className="flex gap-1">
                                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-primary/5 hover:bg-primary/10 text-primary" onClick={startCamera}>
                                         <Camera className="h-3.5 w-3.5" />
@@ -606,8 +632,22 @@ export default function InformeSemanalAnexoIVPage() {
                         )}
                     </div>
 
-                    <div className="pt-4">
-                        <Button onClick={handleSubmit} disabled={isSubmitting || isStorageUploading || informesAnexoIII.length === 0 || photos.length === 0 || selectedDepartment === 'ALL'} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
+                    <div className="pt-4 space-y-3">
+                        <Button 
+                          onClick={() => {
+                            setIsSearchingManually(true);
+                            setIsQueryActive(true);
+                            // Pequeño delay para feedback visual si la data ya está en cache
+                            setTimeout(() => setIsSearchingManually(false), 600);
+                          }} 
+                          disabled={!selectedDepartment || !dateRange?.from || !dateRange?.to || isSearchingManually}
+                          className="w-full font-black uppercase h-12 bg-primary hover:bg-primary/90 text-white"
+                        >
+                            {isSearchingManually || isLoadingInformes ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Search className="mr-2 h-4 w-4" />}
+                            GENERAR REPORTE
+                        </Button>
+
+                        <Button onClick={handleSubmit} disabled={isSubmitting || isStorageUploading || informesAnexoIII.length === 0 || photos.length === 0} className="w-full font-black uppercase h-12 bg-black hover:bg-black/90">
                             {isSubmitting || isStorageUploading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
                             GUARDAR REPORTE
                         </Button>
@@ -668,7 +708,7 @@ export default function InformeSemanalAnexoIVPage() {
                                             <TableCell colSpan={8} className="text-center py-20">
                                                 <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground opacity-20 mb-4" />
                                                 <p className="text-xs font-black text-muted-foreground uppercase">
-                                                    {!selectedDepartment ? "Seleccione un departamento para buscar informes" : `No hay informes individuales para este rango en la selección actual`}
+                                                    {!isQueryActive ? "Haga clic en GENERAR REPORTE para buscar los informes" : "No hay informes individuales para este rango en la selección actual"}
                                                 </p>
                                             </TableCell>
                                         </TableRow>

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useFirebase, useUser, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce } from '@/firebase';
-import { collection, doc, setDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, query, where, getDocs, updateDoc, limit, orderBy } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark, ImageIcon, FileUp, Images } from 'lucide-react';
