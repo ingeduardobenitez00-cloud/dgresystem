@@ -121,7 +121,10 @@ export default function CalendarioCapacitacionesPage() {
         // 1. Filtrado por permisos de usuario (Seguridad)
         if (!hasAdminFilter) {
             if (hasDeptFilter && act.departamento !== profile.departamento) return false;
-            if (hasDistFilter && (act.departamento !== profile.departamento || act.distrito !== profile.distrito)) return false;
+            // Reforzado: Si es filtro de distrito, debe coincidir exactamente distrito y departamento
+            if (hasDistFilter) {
+                if (act.departamento !== profile.departamento || act.distrito !== profile.distrito) return false;
+            }
         }
 
         // 2. Filtrado por UI (Filtros del Administrador)
@@ -181,7 +184,7 @@ export default function CalendarioCapacitacionesPage() {
             </div>
 
             <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-                {hasAdminFilter && (
+                {hasAdminFilter ? (
                     <div className="flex flex-col md:flex-row items-center gap-2 bg-white border-2 rounded-2xl p-2 shadow-sm w-full md:w-auto">
                         <div className="flex items-center gap-2 px-2 border-r pr-4">
                             <Filter className="h-3.5 w-3.5 text-muted-foreground" />
@@ -216,6 +219,13 @@ export default function CalendarioCapacitacionesPage() {
                                 />
                             </div>
                         </div>
+                    </div>
+                ) : (
+                    <div className="bg-primary/5 px-6 py-2 rounded-2xl border border-primary/10 flex items-center gap-3">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-black uppercase tracking-tight text-primary">
+                            {profile?.distrito}
+                        </span>
                     </div>
                 )}
 

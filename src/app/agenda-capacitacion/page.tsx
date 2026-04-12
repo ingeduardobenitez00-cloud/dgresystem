@@ -91,11 +91,12 @@ const DistrictSection = ({
     rawDivulgadores,
     router,
     hasAdminFilter,
-    agendaSearch
+    agendaSearch,
+    initialOpen = false
 }: any) => {
     const { toast } = useToast();
     const qrContainerRef = useRef<HTMLDivElement>(null);
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(initialOpen);
 
     const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
     const [viewingActivity, setViewingActivity] = useState<SolicitudCapacitacion | null>(null);
@@ -115,7 +116,7 @@ const DistrictSection = ({
             collection(firestore, 'solicitudes-capacitacion'),
             where('departamento', '==', deptName),
             where('distrito', '==', distName),
-            orderBy('fecha', 'desc')
+            orderBy('fecha', 'asc')
         );
     }, [firestore, isOpen, deptName, distName]);
 
@@ -126,8 +127,9 @@ const DistrictSection = ({
         hasMore, 
         loadMore, 
         updateItem, 
-        mutate 
-    } = useCollectionPaginated<SolicitudCapacitacion>(q, 20);
+        mutate,
+        error
+    } = useCollectionPaginated<SolicitudCapacitacion>(q, 50);
 
     const movementsQuery = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
@@ -147,7 +149,7 @@ const DistrictSection = ({
             if (sol.cancelada) return false;
             if (sol.fecha_cumplido) {
                 const diff = (currentTime.getTime() - new Date(sol.fecha_cumplido).getTime()) / (1000 * 60 * 60);
-                if (diff > 24) return false;
+                if (diff > 168) return false;
             } else {
                 const mov = movementsData?.find(m => m.solicitud_id === sol.id);
                 const inf = reportsData?.find(i => i.solicitud_id === sol.id);
@@ -156,6 +158,13 @@ const DistrictSection = ({
             return !term || sol.nombre_completo?.toLowerCase().includes(term) || sol.solicitante_entidad?.toLowerCase().includes(term);
         }).sort((a, b) => a.fecha.localeCompare(b.fecha));
     }, [rawItems, currentTime, movementsData, reportsData, agendaSearch]);
+
+    // Efecto de auto-carga si los items visibles están vacíos por filtros de memoria
+    useEffect(() => {
+        if (!isLoading && !isLoadingMore && hasMore && items.length === 0 && (rawItems?.length || 0) > 0) {
+            loadMore();
+        }
+    }, [isLoading, isLoadingMore, hasMore, items.length, rawItems?.length, loadMore]);
 
     const handleAssignDivulgador = (divulgador: Divulgador) => {
         if (!assigningSolicitud || !firestore) return;
@@ -238,8 +247,8 @@ const DistrictSection = ({
     const filteredDivul = useMemo(() => {
         if (!rawDivulgadores || !assigningSolicitud) return [];
         const term = divulSearch.toLowerCase().trim();
-        const assigned = new Set(assigningSolicitud.divulgadores?.map(d => d.id));
-        return rawDivulgadores.filter(d => d.distrito === distName && !assigned.has(d.id) && (d.nombre.toLowerCase().includes(term) || d.cedula.includes(term)));
+        const assigned = new Set(assigningSolicitud.divulgadores?.map((d: any) => d.id));
+        return rawDivulgadores.filter((d: Divulgador) => d.distrito === distName && !assigned.has(d.id) && (d.nombre.toLowerCase().includes(term) || d.cedula.includes(term)));
     }, [rawDivulgadores, divulSearch, assigningSolicitud, distName]);
 
     const qrImageUrl = useMemo(() => {
@@ -268,10 +277,18 @@ const DistrictSection = ({
                 <div className="flex items-center gap-3">
                     <Building2 className="h-5 w-5 text-[#1A1A1A]" />
                     <h3 className="font-black uppercase text-sm tracking-tight text-primary/80">{distName}</h3>
-                    <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">{items.length}{hasMore && '+'}</Badge>
+                    <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">{items.length}{hasMore ? '+' : ''}</Badge>
                 </div>
             </AccordionTrigger>
-            <AccordionContent className="pt-6 space-y-4 px-2">
+            <AccordionContent className="pt-4 px-6 pb-6">
+                {error && (
+                    <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
+                        <p className="text-[10px] font-black text-red-700 uppercase leading-tight">Error de Sistema (Posible falta de índice):</p>
+                        <p className="text-[9px] font-bold text-red-600 mt-1">{error.message}</p>
+                        <p className="text-[8px] italic text-red-500 mt-2 uppercase">Si ve un link en la consola del navegador (F12), por favor haga clic para crear el índice.</p>
+                    </div>
+                )}
+                <div className="pt-6 space-y-4 px-2">
                 {items.length > 0 && hasAdminFilter && (
                     <div className="flex justify-end mb-2 px-2">
                         <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase text-destructive hover:bg-destructive/10 h-8 gap-2" onClick={() => setDeletingDistrict(true)}><Trash2 className="h-3 w-3" /> VACIAR DISTRITO</Button>
@@ -329,6 +346,7 @@ const DistrictSection = ({
                         </Button>
                     </div>
                 )}
+                </div>
             </AccordionContent>
 
             {/* Diálogos compartidos pero locales al distrito para evitar duplicidad masiva */}
@@ -387,7 +405,7 @@ const DistrictSection = ({
                             <h3 className="font-bold uppercase text-[10px] text-muted-foreground">Añadir Disponible</h3>
                             <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Buscar..." value={divulSearch} onChange={e => setDivulSearch(e.target.value)} className="h-9 pl-9 font-bold border-2 rounded-xl text-[10px]" /></div>
                             <ScrollArea className="h-[280px]">
-                                {filteredDivul.map(d => (
+                                {filteredDivul.map((d: Divulgador) => (
                                     <div key={d.id} className="p-4 border-2 rounded-2xl cursor-pointer hover:bg-black hover:text-white transition-all group mb-2" onClick={() => handleAssignDivulgador(d)}><p className="font-black text-[10px] uppercase leading-none">{d.nombre}</p><span className="text-[7px] font-bold opacity-60 uppercase">{d.vinculo}</span></div>
                                 ))}
                             </ScrollArea>
@@ -462,8 +480,21 @@ const DepartmentSection = ({
     // Lista de distritos basada en datosData
     const distNames = useMemo(() => {
         if (!datosData) return [];
+
+        // Si el usuario tiene filtro de distrito, solo mostramos ese distrito SI pertenece a este departamento
+        if (profile?.role === 'jefe' || profile?.role === 'funcionario' || profile?.permissions?.includes('district_filter')) {
+            if (profile?.distrito) {
+                const targetDist = profile.distrito.trim().replace(/\s+/g, ' ');
+                const userDist = datosData.find((d: Dato) => d.distrito.trim().replace(/\s+/g, ' ') === targetDist);
+                if (userDist?.departamento === dept.label) {
+                    return [userDist.distrito]; // Usamos el nombre REAL de la colección datos
+                }
+                return [];
+            }
+        }
+
         return Array.from(new Set(datosData.filter((d: Dato) => d.departamento === dept.label).map((d: Dato) => d.distrito))).sort();
-    }, [datosData, dept.label]);
+    }, [datosData, dept.label, profile]);
 
     return (
         <AccordionItem value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden" onPointerEnter={() => !isOpen && setIsOpen(true)}>
@@ -481,8 +512,8 @@ const DepartmentSection = ({
                 </div>
             </AccordionTrigger>
             
-            <AccordionContent className="px-8 pb-8 pt-2">
-                <Accordion type="multiple" className="space-y-4">
+            <AccordionContent className="px-8 pb-8 pt-2" forceMount={distNames.length === 1 ? true : undefined}>
+                <Accordion type="multiple" className="space-y-4" defaultValue={distNames.length === 1 ? [distNames[0]] : undefined}>
                     {distNames.map((distName: any) => (
                         <DistrictSection 
                             key={distName}
@@ -496,6 +527,7 @@ const DepartmentSection = ({
                             router={router}
                             hasAdminFilter={hasAdminFilter}
                             agendaSearch={agendaSearch}
+                            initialOpen={distNames.length === 1}
                         />
                     ))}
                 </Accordion>
@@ -532,16 +564,22 @@ export default function AgendaCapacitacionPage() {
 
     const depts = useMemo(() => {
         if (!datosData || !profile) return [];
-        let allDepts = Array.from(new Set(datosData.map((d: Dato) => d.departamento))).map(name => {
+        
+        const role = (profile.role || '').toLowerCase();
+        const isRestricted = role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter');
+
+        // Si el usuario tiene restricciones, solo mostramos su departamento
+        if (isRestricted && profile.departamento) {
+            const deptName = profile.departamento;
+            const dato = datosData.find((d: Dato) => d.departamento === deptName);
+            return [{ label: deptName, code: dato?.departamento_codigo || '00' }];
+        }
+
+        return Array.from(new Set(datosData.map((d: Dato) => d.departamento))).map(name => {
             const dato = datosData.find((d: Dato) => d.departamento === name);
             return { label: name, code: dato?.departamento_codigo || '00' };
         }).sort((a, b) => a.code.localeCompare(b.code));
-
-        if (!hasAdminFilter && profile.departamento) {
-            return allDepts.filter(d => d.label === profile.departamento);
-        }
-        return allDepts;
-    }, [datosData, profile, hasAdminFilter]);
+    }, [datosData, profile]);
 
     if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
@@ -567,7 +605,7 @@ export default function AgendaCapacitacionPage() {
                     </div>
                 </div>
 
-                <Accordion type="multiple" className="space-y-6">
+                <Accordion type="multiple" className="space-y-6" defaultValue={depts.length === 1 ? [depts[0].label] : undefined}>
                     {depts.map(dept => (
                         <DepartmentSection 
                             key={dept.label}
