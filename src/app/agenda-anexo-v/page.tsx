@@ -516,7 +516,8 @@ const DepartmentSection = ({
     viewedQRs,
     markQRAsViewed,
     router,
-    registerUpdateItem
+    registerUpdateItem,
+    hasAdminFilter
 }: any) => {
     const [isOpen, setIsOpen] = useState(false);
     
@@ -526,7 +527,7 @@ const DepartmentSection = ({
         
         // Si el usuario tiene filtro de distrito, solo mostramos ese distrito SI pertenece a este departamento
         const role = (profile?.role || '').toLowerCase();
-        if (role === 'jefe' || role === 'funcionario' || profile?.permissions?.includes('district_filter')) {
+        if (!hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile?.permissions?.includes('district_filter'))) {
             if (profile?.distrito) {
                 const targetDist = profile.distrito.trim().replace(/\s+/g, ' ');
                 const userDistEntry = datosData.find((d: Dato) => d.distrito.trim().replace(/\s+/g, ' ') === targetDist);
@@ -550,9 +551,7 @@ const DepartmentSection = ({
             label: d as string,
             code: (d as string).match(/^\d+/)?.[0] || '00'
         })).sort((a, b) => a.code.localeCompare(b.code));
-    }, [datosData, dept.label, profile]);
-
-    const hasAdminFilter = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+    }, [datosData, dept.label, profile, hasAdminFilter]);
 
     return (
         <AccordionItem value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
@@ -831,7 +830,7 @@ export default function AgendaAnexoVPage() {
             : "El acceso público vía QR ha sido cerrado."
         });
         
-        const updater = updateItemRegistry.current.get(solicitud.departamento);
+        const updater = updateItemRegistry.current.get(solicitud.departamento + solicitud.distrito);
         if (updater) updater(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
       })
       .catch(error => {
@@ -1107,6 +1106,7 @@ export default function AgendaAnexoVPage() {
                     markQRAsViewed={markQRAsViewed}
                     router={router}
                     registerUpdateItem={registerUpdateItem}
+                    hasAdminFilter={hasAdminFilter}
                 />
             ))}
           </Accordion>

@@ -328,7 +328,8 @@ const DepartmentSection = ({
     handleToggleQr,
     viewedQRs,
     markQRAsViewed,
-    router
+    router,
+    hasAdminFilter
 }: any) => {
     const [isOpen, setIsOpen] = useState(false);
     
@@ -337,7 +338,7 @@ const DepartmentSection = ({
         
         // Si el usuario tiene filtro de distrito, solo mostramos ese distrito SI pertenece a este departamento
         const role = (profile?.role || '').toLowerCase();
-        if (role === 'jefe' || role === 'funcionario' || profile?.permissions?.includes('district_filter')) {
+        if (!hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile?.permissions?.includes('district_filter'))) {
             if (profile?.distrito) {
                 const targetDist = profile.distrito.trim().replace(/\s+/g, ' ');
                 const userDist = datosData.find((d: Dato) => d.distrito.trim().replace(/\s+/g, ' ') === targetDist);
@@ -349,7 +350,7 @@ const DepartmentSection = ({
         }
 
         return Array.from(new Set(datosData.filter((d: Dato) => d.departamento === dept.label).map((d: Dato) => d.distrito))).sort();
-    }, [datosData, dept.label, profile]);
+    }, [datosData, dept.label, profile, hasAdminFilter]);
 
     return (
         <AccordionItem value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
@@ -362,7 +363,7 @@ const DepartmentSection = ({
             <AccordionContent className="px-8 pb-8 pt-2" forceMount={distNames.length === 1 ? true : undefined}>
                 <Accordion type="multiple" className="space-y-4" defaultValue={distNames.length === 1 ? [distNames[0]] : undefined}>
                     {distNames.map((distName: any) => (
-                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} initialOpen={distNames.length === 1} />
+                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} initialOpen={distNames.length === 1} hasAdminFilter={hasAdminFilter} />
                     ))}
                 </Accordion>
             </AccordionContent>
@@ -869,6 +870,7 @@ export default function AgendaAnexoIPage() {
                     markQRAsViewed={markQRAsViewed}
                     registerUpdateItem={registerUpdateItem}
                     router={router}
+                    hasAdminFilter={hasAdminFilter}
                 />
             ))}
           </Accordion>
