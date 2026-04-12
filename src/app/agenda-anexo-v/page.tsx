@@ -219,7 +219,7 @@ const DistrictSection = ({
 
     if (activeSolicitudes.length === 0 && !isLoading && !isLoadingMore) {
         const isUserDist = profile?.distrito === dist.label || profile?.role === 'jefe' || profile?.role === 'funcionario';
-        if (!isUserDist) return null;
+        if (!isUserDist && !hasAdminFilter) return null;
     }
 
     return (
@@ -236,6 +236,12 @@ const DistrictSection = ({
                 </div>
             </AccordionTrigger>
             <AccordionContent className="pt-4 px-6 pb-6">
+                {(isLoading && activeSolicitudes.length === 0) && (
+                    <div className="flex flex-col gap-4 py-8 items-center justify-center text-muted-foreground animate-pulse">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Cargando actividades del distrito...</p>
+                    </div>
+                )}
                 {error && (
                     <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
                         <p className="text-[10px] font-black text-red-700 uppercase leading-tight">Error de Sistema (Posible falta de índice):</p>
