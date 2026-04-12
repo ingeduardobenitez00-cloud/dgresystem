@@ -68,7 +68,11 @@ export function useDocOnce<T = any>(
     try {
       const snapshot = await getDoc(memoizedDocRef);
       if (snapshot.exists()) {
-        setData({ ...(snapshot.data() as T), id: snapshot.id });
+        const newData = { ...(snapshot.data() as T), id: snapshot.id };
+        setData(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(newData)) return prev;
+          return newData;
+        });
       } else {
         setData(null);
       }

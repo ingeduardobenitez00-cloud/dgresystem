@@ -121,19 +121,21 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
 
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth || !context.storage) {
-    throw new Error('Firebase core services not available. Check FirebaseProvider props.');
-  }
+  return useMemo(() => {
+    if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth || !context.storage) {
+        throw new Error('Firebase core services not available. Check FirebaseProvider props.');
+    }
 
-  return {
-    firebaseApp: context.firebaseApp,
-    firestore: context.firestore,
-    auth: context.auth,
-    storage: context.storage,
-    user: context.user,
-    isUserLoading: context.isUserLoading,
-    userError: context.userError,
-  };
+    return {
+        firebaseApp: context.firebaseApp,
+        firestore: context.firestore,
+        auth: context.auth,
+        storage: context.storage,
+        user: context.user,
+        isUserLoading: context.isUserLoading,
+        userError: context.userError,
+    };
+  }, [context]);
 };
 
 /** Hook to access Firebase Auth instance. */

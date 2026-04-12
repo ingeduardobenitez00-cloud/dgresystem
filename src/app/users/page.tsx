@@ -270,13 +270,10 @@ function UsersContent() {
     return query(collection(firestore, 'users'), orderBy('username'));
   }, [firestore, isAdminView]);
 
-  const { 
-    data: firestoreUsers, 
-    isLoading: isLoadingUsers,
-    hasMore,
-    loadMore,
-    isLoadingMore
-  } = useCollectionPaginated<UserProfile>(usersQuery, 50);
+  const { data: firestoreUsers, isLoading: isLoadingUsers } = useCollectionOnce<UserProfile>(usersQuery);
+  const hasMore = false;
+  const loadMore = () => {};
+  const isLoadingMore = false;
 
   const users = useMemo(() => {
     if (!firestoreUsers) return null;

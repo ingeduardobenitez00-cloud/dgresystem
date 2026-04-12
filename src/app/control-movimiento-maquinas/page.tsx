@@ -37,7 +37,7 @@ import {
   ChevronsUpDown,
   ChevronDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollectionPaginated, useCollectionOnce, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionPaginated, useCollectionOnce, useMemoFirebase, useDocOnce } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp, getDocs, orderBy, limit } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type MaquinaVotacion, type MaquinaMovimiento } from '@/lib/data';
@@ -82,7 +82,7 @@ function ControlMovimientoContent() {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [logoDGREBase64, setLogoDGREBase64] = useState<string | null>(null);
   const [logoCIDEEBase64, setLogoCIDEEBase64] = useState<string | null>(null);
-  const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(null);
+  const [selectedSolicitudId, setSelectedSolicitudId] = useState<string | null>(solicitudIdFromUrl || null);
   const [isDevolucionGuardada, setIsDevolucionGuardada] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [openSelectors, setOpenSelectors] = useState<{ [key: number]: boolean }>({});
@@ -197,9 +197,17 @@ function ControlMovimientoContent() {
 
   const { data: rawAgendaItems, isLoading: isLoadingAgenda, hasMore: hasMoreAgenda, loadMore: loadMoreAgenda, isLoadingMore: isLoadingMoreAgenda } = useCollectionPaginated<SolicitudCapacitacion>(agendaQuery, 30);
 
+  const directSolicitudRef = useMemoFirebase(() => {
+    if (!firestore || !solicitudIdFromUrl) return null;
+    return doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl);
+  }, [firestore, solicitudIdFromUrl]);
+
+  const { data: directSolicitudData } = useDocOnce<SolicitudCapacitacion>(directSolicitudRef);
+
   const selectedSolicitud = useMemo(() => {
+    if (directSolicitudData) return directSolicitudData;
     return rawAgendaItems?.find((item: SolicitudCapacitacion) => item.id === selectedSolicitudId);
-  }, [rawAgendaItems, selectedSolicitudId]);
+  }, [rawAgendaItems, selectedSolicitudId, directSolicitudData]);
 
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
@@ -234,13 +242,17 @@ function ControlMovimientoContent() {
 
   // OPTIMIZACIÓN CRÍTICA: En lugar de cargar TODO, cargamos solo los movimientos de las solicitudes que estamos viendo
   const movimientosQuery = useMemoFirebase(() => {
-    if (!firestore || !rawAgendaItems || rawAgendaItems.length === 0) return null;
-    const ids = rawAgendaItems.map((a: SolicitudCapacitacion) => a.id);
-    // Nota: Firebase tiene un límite de 30 para 'in'. Si hay más, deberíamos dividir la carga o 
-    // simplemente cargar los más recientes. Para este caso, cargaremos los últimos 100 movimientos globales 
-    // que suele ser suficiente para la operativa actual, o filtraremos por los IDs visibles.
-    return query(collection(firestore, 'movimientos-maquinas'), orderBy('fecha_creacion', 'desc'), limit(100));
-  }, [firestore, rawAgendaItems]);
+    if (!firestore) return null;
+    const colRef = collection(firestore, 'movimientos-maquinas');
+    
+    // Si venimos de un ID directo, priorizamos traer el movimiento de ese ID
+    if (solicitudIdFromUrl) {
+      return query(colRef, where('solicitud_id', '==', solicitudIdFromUrl));
+    }
+
+    if (!rawAgendaItems || rawAgendaItems.length === 0) return null;
+    return query(colRef, orderBy('fecha_creacion', 'desc'), limit(100));
+  }, [firestore, rawAgendaItems, solicitudIdFromUrl]);
   const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
 
   const denunciasQuery = useMemoFirebase(() => {
@@ -273,12 +285,6 @@ function ControlMovimientoContent() {
     return allMovimientos?.find(m => m.solicitud_id === selectedSolicitudId) || null;
   }, [allMovimientos, selectedSolicitudId]);
 
-  useEffect(() => {
-    if (solicitudIdFromUrl && agendaItems.length > 0 && !selectedSolicitudId) {
-      const matching = agendaItems.find(item => item.id === solicitudIdFromUrl);
-      if (matching) setSelectedSolicitudId(matching.id);
-    }
-  }, [solicitudIdFromUrl, agendaItems, selectedSolicitudId]);
 
   useEffect(() => {
     // Solo inicializar si detectamos un cambio de ID de movimiento o de solicitud

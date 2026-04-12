@@ -150,12 +150,14 @@ export const useUser = (): UserHookResult => {
       isCideeStaff,
       isJefeStaff
     };
-  }, [authUser, profileData, isOwner]);
+  }, [authUser, profileData, isOwner, profileData?.role, profileData?.active]);
 
-  return {
+  const result = useMemo(() => ({
     user: enrichedUser,
     isUserLoading: isAuthLoading,
     isProfileLoading: isOwner ? false : isProfileLoading,
     userError: isOwner ? null : (authError || profileError),
-  };
-};
+  }), [enrichedUser, isAuthLoading, isProfileLoading, isOwner, authError, profileError]);
+
+  return result;
+}

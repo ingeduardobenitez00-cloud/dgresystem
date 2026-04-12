@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useCollectionPaginated } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { type AnexoI, type SolicitudCapacitacion } from '@/lib/data';
 import { 
@@ -18,10 +18,10 @@ import {
     Search, 
     ClipboardList,
     ImageIcon,
-    CheckCircle2,
-    Activity,
+    ChevronDown,
     X,
-    Maximize2
+    Maximize2,
+    Activity
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,13 @@ export default function ListaAnexoIPage() {
     return null;
   }, [firestore, isUserLoading, profile]);
 
-  const { data: anexos, isLoading } = useCollectionOnce<AnexoI>(anexosQuery);
+  const { 
+    data: anexos, 
+    isLoading,
+    hasMore,
+    loadMore,
+    isLoadingMore
+  } = useCollectionPaginated<AnexoI>(anexosQuery, 20);
 
   // OPTIMIZACIÓN: Se elimina la carga de TODA la colección de solicitudes por costo masivo.
   // const solicitudesQuery = useMemoFirebase(() => {
@@ -166,6 +172,19 @@ export default function ListaAnexoIPage() {
                         </Card>
                     );
                 })}
+
+                {hasMore && (
+                    <div className="pt-4 flex justify-center">
+                        <Button 
+                            onClick={loadMore} 
+                            disabled={isLoadingMore}
+                            variant="outline"
+                            className="rounded-2xl font-black text-xs uppercase py-8 px-12 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
+                        >
+                            {isLoadingMore ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Cargar más lotes históricos <ChevronDown className="h-5 w-5" /></>}
+                        </Button>
+                    </div>
+                )}
             </div>
         )}
       </main>

@@ -83,7 +83,10 @@ export function useCollectionOnce<T = any>(
       snapshot.forEach((doc) => {
         results.push({ ...(doc.data() as T), id: doc.id });
       });
-      setData(results);
+      setData(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(results)) return prev;
+        return results;
+      });
       setIsLoading(false);
     } catch (firestoreError: any) {
       const path: string =

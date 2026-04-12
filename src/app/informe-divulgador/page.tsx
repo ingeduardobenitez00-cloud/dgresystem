@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useFirebase, useUser, useCollectionOnce, useMemoFirebase } from '@/firebase';
+import { useFirebase, useUser, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce } from '@/firebase';
 import { collection, doc, setDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +41,7 @@ function InformeContent() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | undefined>(undefined);
+  const autoSelectedByUrl = useRef(false);
   
   const [markedCells, setMarkedCells] = useState<Set<number>>(new Set());
 
@@ -84,7 +85,18 @@ function InformeContent() {
     });
   };
 
-  const informesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
+  const informesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    const colRef = collection(firestore, 'informes-divulgador');
+    
+    // Si venimos por Deep Link, prioridad absoluta a los informes de esa actividad
+    if (solicitudIdFromUrl) {
+      return query(colRef, where('solicitud_id', '==', solicitudIdFromUrl));
+    }
+
+    return query(colRef, limit(100)); // Limite agresivo para carga inicial
+  }, [firestore, solicitudIdFromUrl]);
+  
   const { data: submittedInformes } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
   const solicitudesQuery = useMemoFirebase(() => {
@@ -107,15 +119,34 @@ function InformeContent() {
     return colRef; 
   }, [firestore, isProfileLoading, userProfile]);
 
-  const { data: rawSolicitudes, isLoading: isLoadingSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
+  const directSolicitudRef = useMemoFirebase(() => {
+    if (!firestore || !solicitudIdFromUrl) return null;
+    return doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl);
+  }, [firestore, solicitudIdFromUrl]);
+
+  const { data: directSolicitudData } = useDocOnce<SolicitudCapacitacion>(directSolicitudRef);
+
+  const { 
+    data: rawSolicitudes, 
+    isLoading: isLoadingSolicitudes,
+    hasMore,
+    loadMore,
+    isLoadingMore
+  } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 30);
 
   const linkedActivities = useMemo(() => {
-    if (!rawSolicitudes || !userProfile || !user) return [];
+    // Combinamos las solicitudes de la lista general con la cargada directamente por ID
+    const baseList = [...(rawSolicitudes || [])];
+    if (directSolicitudData && !baseList.some(s => s.id === directSolicitudData.id)) {
+        baseList.push(directSolicitudData);
+    }
+
+    if (baseList.length === 0 || !userProfile || !user) return [];
     
     const submittedReportKeys = new Set(submittedInformes?.map(inf => `${inf.solicitud_id}_${inf.divulgador_id}`) || []);
     const isManager = ['admin', 'director', 'jefe'].includes(userProfile.role || '') || userProfile.permissions?.includes('admin_filter');
 
-    return rawSolicitudes.flatMap(act => {
+    return baseList.flatMap(act => {
       if (act.cancelada) return [];
       const divulgadores = act.asignados || act.divulgadores || [];
       return divulgadores
@@ -139,11 +170,14 @@ function InformeContent() {
   }, [selectedActivityKey, linkedActivities]);
 
   useEffect(() => {
-    if (solicitudIdFromUrl && linkedActivities.length > 0 && !selectedActivityKey) {
+    if (solicitudIdFromUrl && linkedActivities.length > 0 && !autoSelectedByUrl.current) {
       const matching = linkedActivities.find(act => act.solicitudId === solicitudIdFromUrl);
-      if (matching) setSelectedActivityKey(matching.id);
+      if (matching) {
+        setSelectedActivityKey(matching.id);
+        autoSelectedByUrl.current = true;
+      }
     }
-  }, [solicitudIdFromUrl, linkedActivities, selectedActivityKey]);
+  }, [solicitudIdFromUrl, linkedActivities]);
 
   const toggleCell = (num: number) => {
     setMarkedCells(prev => {
@@ -345,6 +379,19 @@ function InformeContent() {
                                         </CommandItem>
                                     ))}
                                     </CommandGroup>
+                                    {hasMore && (
+                                        <div className="p-2 border-t bg-muted/20">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="w-full text-[9px] font-black uppercase tracking-widest h-8"
+                                                onClick={() => loadMore()}
+                                                disabled={isLoadingMore}
+                                            >
+                                                {isLoadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : "Ver actividades más antiguas ↑"}
+                                            </Button>
+                                        </div>
+                                    )}
                                 </CommandList>
                             </Command>
                         </PopoverContent>

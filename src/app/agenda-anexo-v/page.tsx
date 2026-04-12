@@ -79,9 +79,461 @@ const normalizeGeo = (str: string) => {
     .trim();
 };
 
+const DepartmentSection = ({ 
+    dept, 
+    firestore, 
+    profile, 
+    isUserLoading, 
+    currentTime, 
+    agendaSearch,
+    datosData,
+    setViewingActivity,
+    setAssigningSolicitud,
+    setQrSolicitud,
+    setDeletingSolicitud,
+    setSuspendingSolicitud,
+    setConcludingSolicitud,
+    setDeletingDistrict,
+    handleToggleQr,
+    viewedQRs,
+    markQRAsViewed,
+    router,
+    registerUpdateItem
+}: any) => {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const solicitudesQuery = useMemoFirebase(() => {
+        if (!firestore || !isOpen || !profile) return null;
+        
+        const colRef = collection(firestore, 'solicitudes-capacitacion');
+        
+        return query(
+            colRef, 
+            where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']),
+            where('departamento', '==', dept.label),
+            orderBy('fecha', 'desc')
+        );
+    }, [firestore, isOpen, profile?.role, profile?.departamento, profile?.distrito, dept.label]);
+
+    const { 
+        data: rawSolicitudes, 
+        isLoading,
+        hasMore,
+        loadMore,
+        isLoadingMore,
+        error,
+        updateItem
+    } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 50);
+
+    const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
+    const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
+
+    const fetchedIdsRef = useRef<string>('');
+
+    useEffect(() => {
+        if (registerUpdateItem) registerUpdateItem(dept.label, updateItem);
+        return () => { if (registerUpdateItem) registerUpdateItem(dept.label, null); };
+    }, [updateItem, dept.label, registerUpdateItem]);
+
+    useEffect(() => {
+        if (!firestore || !rawSolicitudes || rawSolicitudes.length === 0) return;
+        
+        const relevantIds = rawSolicitudes
+            .filter(sol => !sol.cancelada) 
+            .map(sol => sol.id);
+            
+        if (relevantIds.length === 0) return;
+
+        const idsKey = relevantIds.slice().sort().join(',');
+        if (idsKey === fetchedIdsRef.current) return; // mismos IDs, no re-fetchar
+        fetchedIdsRef.current = idsKey;
+
+        const uniqueIds = Array.from(new Set(relevantIds));
+        const chunks = [];
+        for (let i = 0; i < uniqueIds.length; i += 30) {
+            chunks.push(uniqueIds.slice(i, i + 30));
+        }
+
+        Promise.all(chunks.map(chunk => 
+            getDocs(query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', 'in', chunk)))
+        )).then(snapshots => {
+            const newMap = new Map();
+            snapshots.forEach(snap => snap.docs.forEach(doc => newMap.set(doc.data().solicitud_id, { id: doc.id, ...doc.data() })));
+            setMovimientosMap(prev => new Map([...prev, ...newMap]));
+        }).catch(e => console.error(e));
+
+        Promise.all(chunks.map(chunk => 
+            getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk)))
+        )).then(snapshots => {
+            const newMap = new Map();
+            snapshots.forEach(snap => snap.docs.forEach(doc => {
+                const id = doc.data().solicitud_id;
+                if (!newMap.has(id)) newMap.set(id, []);
+                newMap.get(id).push({ id: doc.id, ...doc.data() });
+            }));
+            setInformesMap(prev => {
+                const combined = new Map(prev);
+                newMap.forEach((val, key) => combined.set(key, val));
+                return combined;
+            });
+        }).catch(e => console.error(e));
+
+    }, [firestore, rawSolicitudes]);
+
+    const districtsData = useMemo(() => {
+        if (!rawSolicitudes) return [];
+        const searchTerm = agendaSearch.toLowerCase().trim();
+        const currentMs = currentTime.getTime();
+
+        const activeSolicitudes = rawSolicitudes.filter((sol: SolicitudCapacitacion) => {
+            if (sol.cancelada) return false;
+
+            if (sol.fecha_cumplido) {
+                const completionTime = new Date(sol.fecha_cumplido);
+                const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
+                if (diffHours > 24) return false;
+                return true;
+            }
+
+            const matchesSearch = !searchTerm || 
+                (sol.departamento || '').toLowerCase().includes(searchTerm) || 
+                (sol.distrito || '').toLowerCase().includes(searchTerm) ||
+                (sol.nombre_completo || '').toLowerCase().includes(searchTerm) ||
+                (sol.solicitante_entidad || '').toLowerCase().includes(searchTerm) ||
+                (sol.otra_entidad || '').toLowerCase().includes(searchTerm);
+
+            if (!matchesSearch) return false;
+
+            const mov = movimientosMap.get(sol.id);
+            const itemInformes = informesMap.get(sol.id) || [];
+            const inf = itemInformes.length > 0 ? itemInformes[0] : null;
+            
+            const isClosed = !!(mov?.fecha_devolucion && inf && sol.fecha_cumplido);
+            return !isClosed;
+        });
+
+        const dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> = {};
+
+        activeSolicitudes.forEach((sol) => {
+            const distName = sol.distrito || 'SIN DISTRITO';
+            if (!dists[distName]) {
+                const key = `${dept.label}|${distName}`;
+                const extractedCode = distName.match(/^\d+/)?.[0] || '00';
+                dists[distName] = { label: distName, code: extractedCode, items: [] };
+            }
+            dists[distName].items.push(sol);
+        });
+
+        return Object.values(dists).sort((a, b) => a.code.localeCompare(b.code));
+    }, [rawSolicitudes, agendaSearch, currentTime, movimientosMap, informesMap, dept.label]);
+
+    const hasAdminFilter = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+
+    return (
+        <AccordionItem value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
+            <AccordionTrigger 
+                className="hover:no-underline px-8 py-6 bg-white group"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="flex items-center gap-6 text-left">
+                    <div className="h-14 w-14 rounded-full bg-black text-white flex items-center justify-center font-black text-lg shadow-xl">
+                        {dept.code}
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.label}</h2>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                            {isOpen ? `${districtsData.length} DISTRITOS IDENTIFICADOS` : 'CLIC PARA EXPLORAR DEPARTAMENTO'}
+                        </p>
+                    </div>
+                    {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary ml-auto" />}
+                </div>
+            </AccordionTrigger>
+            
+            <AccordionContent className="px-8 pb-8 pt-2">
+                {error && (
+                    <div className="mb-6 p-4 bg-red-50 border-2 border-red-100 rounded-2xl flex items-center gap-3">
+                        <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                        <div>
+                            <p className="text-[10px] font-black text-red-900 uppercase">Error de Base de Datos en {dept.label}</p>
+                            <p className="text-[9px] font-bold text-red-700 leading-tight">{error.message}</p>
+                            {error.message.includes('index') && (
+                                <p className="text-[9px] text-red-800 font-black mt-1 underline">Falta un índice en Firebase. Revisa la consola o pide el link.</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                <Accordion type="multiple" className="space-y-4">
+                {districtsData.map((dist) => (
+                    <AccordionItem key={dist.label} value={dist.label} className="border-none">
+                    <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed">
+                        <div className="flex items-center gap-3">
+                            <Building2 className="h-5 w-5 text-[#1A1A1A]" />
+                            <h3 className="font-black uppercase text-sm tracking-tight text-primary/80">
+                                {dist.label}
+                            </h3>
+                            <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">
+                                {dist.items.length}
+                            </Badge>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-6 space-y-4 px-2">
+                        {dist.items.length > 0 && hasAdminFilter && (
+                            <div className="flex justify-end mb-2 px-2">
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-[9px] font-black uppercase text-destructive hover:bg-destructive/10 h-8 gap-2"
+                                    onClick={() => setDeletingDistrict({ dept: dept.label, dist: dist.label, items: dist.items })}
+                                    title="Vaciar todos los registros de este distrito"
+                                >
+                                    <Trash2 className="h-3 w-3" /> VACIAR DISTRITO
+                                </Button>
+                            </div>
+                        )}
+                        {dist.items.sort((a,b) => (a.fecha || '').localeCompare(b.fecha || '')).map((item) => {
+                            const now = new Date();
+                            const y = now.getFullYear();
+                            const m = String(now.getMonth() + 1).padStart(2, '0');
+                            const d = String(now.getDate()).padStart(2, '0');
+                            const today = `${y}-${m}-${d}`;
+                            const todayReverse = `${d}-${m}-${y}`;
+
+                            const mov = movimientosMap.get(item.id); const itemInformes = informesMap.get(item.id) || []; const inf = itemInformes[0]; const assignedList = item.divulgadores || item.asignados || []; const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
+                            
+                            const missingF02 = !mov?.fecha_devolucion;
+                            const missingAnexoIII = (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
+                            const missingSalida = !mov;
+                            const hasAlert = missingF02 || missingAnexoIII || missingSalida;
+                            const isFulfilled = !!(mov?.fecha_devolucion && inf);
+
+                            const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
+                            const hasSalida = !!mov;
+                            const hasRetorno = !!mov?.fecha_devolucion;
+                            const hasInforme = assignedList.length > 0 ? missingInformesFrom.length === 0 : !!inf;
+
+                            const isQRViewed = !!viewedQRs.includes(item.id);
+                            const showStep1 = !hasPersonnel;
+                            const showStep2 = !!(hasPersonnel && !item.qr_enabled);
+                            const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed);
+                            const showStep4 = !!(hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed));
+                            const showStep5 = !!(hasSalida && !hasRetorno);
+                            const showStep6 = !!(!hasInforme);
+
+                            const GuideStep = ({ step, message, active, onClick }: { step: number, message: string, active: boolean, onClick?: () => void }) => {
+                                if (!active) return null;
+                                return (
+                                    <div 
+                                        className={cn("animate-bounce pointer-events-auto flex items-center gap-0", onClick && "cursor-pointer")}
+                                        onClick={(e) => {
+                                            if (onClick) {
+                                                e.stopPropagation();
+                                                onClick();
+                                            }
+                                        }}
+                                    >
+                                        <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 w-[150px] leading-tight">
+                                            <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">
+                                                {step}
+                                            </div>
+                                            {message.toUpperCase()}
+                                        </div>
+                                        <div className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-600 -ml-0.5" />
+                                    </div>
+                                );
+                            };
+
+                            const SurveyCounter = ({ solicitudId, firestore }: any) => {
+                                const [count, setCount] = useState<number | null>(null);
+                                useEffect(() => {
+                                    if (!firestore) return;
+                                    getCountFromServer(query(collection(firestore, 'encuestas-satisfaccion'), where('solicitud_id', '==', solicitudId)))
+                                        .then(snap => setCount(snap.data().count))
+                                        .catch(() => setCount(0));
+                                }, [firestore, solicitudId]);
+                                return <span className="text-[9px] font-black uppercase text-inherit">ENCUESTAS: {count !== null ? count : '...'}</span>;
+                            };
+
+                            return (
+                                <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
+                                    <CardContent className="p-8">
+                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                                            <div className="lg:col-span-4 space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">ORIGEN PROGRAMACIÓN</p>
+                                                    {isFulfilled && (
+                                                        <Badge className="bg-green-600 text-white font-black uppercase text-[7px] px-2 py-0 h-4">CICLO COMPLETADO</Badge>
+                                                    )}
+                                                </div>
+                                                <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.solicitante_entidad}</p>
+                                                <Badge className="bg-black/5 text-black border-black/10 font-black uppercase text-[8px] px-3">{item.tipo_solicitud === 'divulgacion' ? 'ANEXO V - DIVULGACIÓN' : 'ANEXO V - CAPACITACIÓN'}</Badge>
+                                            </div>
+
+                                            <div className="lg:col-span-3 space-y-4">
+                                                <div className="flex items-center gap-3">
+                                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                    <p className="font-black text-[12px] uppercase text-[#1A1A1A]">{item.lugar_local}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <Calendar className={cn("h-4 w-4", hasAlert ? "text-destructive" : "text-muted-foreground")} />
+                                                    <p className={cn("font-black text-[12px] uppercase", hasAlert ? "text-destructive font-black" : "text-[#1A1A1A]")}>
+                                                        {formatDateToDDMMYYYY(item.fecha)} | {item.hora_desde} A {item.hora_hasta} HS
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="lg:col-span-2 space-y-4">
+                                                <div className="space-y-1">
+                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL</p>
+                                                    {(item.divulgadores || item.asignados || []).length > 0 ? (
+                                                        <div className="flex items-center gap-2 text-[#16A34A]">
+                                                            <Users className="h-4 w-4" />
+                                                            <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados || []).length} ASIGNADOS</p>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-primary pt-2 border-t border-dashed">
+                                                    <MessageSquareHeart className="h-3.5 w-3.5" />
+                                                    <SurveyCounter solicitudId={item.id} firestore={firestore} />
+                                                </div>
+                                            </div>
+
+                                            <div className="lg:col-span-3 flex flex-col items-end gap-3">
+                                                {hasAlert && (
+                                                    <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
+                                                            {missingSalida && (
+                                                                <div className="relative">
+                                                                    <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
+                                                                    <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
+                                                                        <Truck className="h-3.5 w-3.5" />
+                                                                        <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
+                                                                    </Link>
+                                                                </div>
+                                                            )}
+                                                            {missingF02 && (
+                                                                <div className="relative">
+                                                                    <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
+                                                                    <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
+                                                                        <ShieldAlert className="h-3 w-3" />
+                                                                        <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
+                                                                    </Link>
+                                                                </div>
+                                                            )}
+                                                        {missingAnexoIII && (
+                                                            <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
+                                                                <AlertCircle className="h-3 w-3" />
+                                                                <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA INFORME: {missingInformesFrom.length > 0 ? missingInformesFrom.map(f => f.nombre.split(" ")[0]).join(", ") : "REQUERIDO"}</span>
+                                                            </Link>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex gap-2 w-full max-w-[220px]">
+                                                    <div className="flex-1 relative">
+                                                        <div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]">
+                                                            <GuideStep step={1} message="Asigna personal para la actividad" active={showStep1} onClick={() => setAssigningSolicitud(item)} />
+                                                        </div>
+                                                        <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
+                                                            <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
+                                                        </Button>
+                                                    </div>
+                                                    <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)} title="Ver Ficha de Detalles">
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50 transition-all" onClick={() => setSuspendingSolicitud(item)} title="Suspender Actividad">
+                                                        <Ban className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-white transition-all" onClick={() => setDeletingSolicitud(item)} title="Eliminar Registro Definitivamente">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                                
+                                                <div className="flex gap-2 w-full max-w-[220px]">
+                                                    <div className="relative">
+                                                        <div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]">
+                                                            <GuideStep step={2} message="Habilitar el acceso al QR" active={showStep2} onClick={() => handleToggleQr(item)} />
+                                                        </div>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="icon" 
+                                                            className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 border-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} 
+                                                            onClick={() => handleToggleQr(item)}
+                                                            title={item.qr_enabled ? "Deshabilitar Encuesta Pública" : "Habilitar Encuesta Pública vía QR"}
+                                                        >
+                                                            {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                                                        </Button>
+                                                    </div>
+                                                    {!item.fecha_cumplido && isFulfilled ? (
+                                                        <Button 
+                                                            className="flex-1 h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 hover:bg-green-700 text-white shadow-lg animate-pulse"
+                                                            onClick={() => setConcludingSolicitud(item)}
+                                                        >
+                                                            CONCLUIR
+                                                        </Button>
+                                                    ) : (
+                                                        <div className="flex-1" />
+                                                    )}
+                                                </div>
+                                                
+                                                <div className="flex gap-2 w-full max-w-[220px]">
+                                                    <div className="flex-1 relative">
+                                                        <div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]">
+                                                            <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} />
+                                                        </div>
+                                                        <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
+                                                            <QrCode className="h-4 w-4 mr-2" /> QR
+                                                        </Button>
+                                                    </div>
+                                                    <div className="flex-1 relative">
+                                                        <div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]">
+                                                            <GuideStep step={6} message="Completa el Informe del Divulgador" active={showStep6} onClick={() => { if (!inf) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} />
+                                                        </div>
+                                                        <Button 
+                                                            className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
+                                                            onClick={() => {
+                                                              if (!inf) {
+                                                                  router.push(`/informe-divulgador?solicitudId=${item.id}`);
+                                                              }
+                                                          }}
+                                                          title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
+                                                        >
+                                                          {inf ? 'CUMPLIDO' : 'INFORME'}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </AccordionContent>
+                    </AccordionItem>
+                ))}
+                </Accordion>
+
+                {hasMore && (
+                    <div className="mt-8 flex justify-center">
+                        <Button 
+                            onClick={loadMore} 
+                            disabled={isLoadingMore}
+                            variant="outline"
+                            className="rounded-2xl font-black text-[9px] uppercase tracking-widest py-4 px-8 border-2 shadow-sm hover:bg-primary hover:text-white transition-all gap-2 bg-white"
+                        >
+                            {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <>MOSTRAR MÁS ACTIVIDADES DE {dept.label.toUpperCase()} <ChevronDown className="h-4 w-4" /></>}
+                        </Button>
+                    </div>
+                )}
+            </AccordionContent>
+        </AccordionItem>
+    );
+};
+
 export default function AgendaAnexoVPage() {
   const router = useRouter();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, isProfileLoading, userError } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -161,80 +613,43 @@ export default function AgendaAnexoVPage() {
     [profile, hasAdminFilter, hasDeptFilter]
   );
 
-  const solicitudesQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !profile) return null;
-    const colRef = collection(firestore, 'solicitudes-capacitacion');
+  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData, isLoading: isLoadingDatos, error: datosError } = useCollectionOnce<Dato>(datosQuery);
+
+  const updateItemRegistry = useRef<Map<string, (id: string, updates: any) => void>>(new Map());
+  const registerUpdateItem = (dept: string, fn: any) => {
+    if (fn) updateItemRegistry.current.set(dept, fn);
+    else updateItemRegistry.current.delete(dept);
+  };
+
+  const uniqueDepartments = useMemo(() => {
+    if (!datosData) return [];
     
-    let q;
-    const baseConstraints = [
-        where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']),
-        orderBy('fecha', 'desc')
-    ];
-
-    if (hasAdminFilter) {
-        q = query(colRef, ...baseConstraints);
-    } else if (hasDeptFilter && profile.departamento) {
-        q = query(colRef, where('departamento', '==', profile.departamento), ...baseConstraints);
-    } else if (hasDistFilter && profile.departamento && profile.distrito) {
-        q = query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), ...baseConstraints);
-    } else return null;
-
-    return q;
-  }, [firestore, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, agendaSearch]);
-
-  const { 
-    data: rawSolicitudes, 
-    isLoading: isLoadingSolicitudes,
-    hasMore: hasMoreSolicitudes,
-    loadMore: loadMoreSolicitudes,
-    isLoadingMore: isLoadingMoreSolicitudes,
-    error: paginationError,
-    updateItem,
-    mutate
-  } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 100);
-
-  const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
-  const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
-
-  useEffect(() => {
-    if (!firestore || !rawSolicitudes || rawSolicitudes.length === 0) return;
-    
-    const relevantIds = rawSolicitudes
-        .filter(sol => !sol.cancelada) 
-        .map(sol => sol.id);
-        
-    if (relevantIds.length === 0) return;
-
-    const uniqueIds = Array.from(new Set(relevantIds));
-    const chunks = [];
-    for (let i = 0; i < uniqueIds.length; i += 30) {
-        chunks.push(uniqueIds.slice(i, i + 30));
+    // Si el usuario tiene filtro de departamento, solo mostramos ese departamento
+    if (hasDeptFilter && profile?.departamento) {
+        const deptName = profile.departamento;
+        const code = deptName.match(/^\d+/)?.[0] || '00';
+        return [{ label: deptName, code }];
     }
 
-    Promise.all(chunks.map(chunk => 
-        getDocs(query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', 'in', chunk)))
-    )).then(snapshots => {
-        const newMap = new Map();
-        snapshots.forEach(snap => snap.docs.forEach(doc => newMap.set(doc.data().solicitud_id, { id: doc.id, ...doc.data() })));
-        setMovimientosMap(newMap);
-    }).catch(e => console.error(e));
+    // Si el usuario tiene filtro de distrito, solo mostramos el departamento de ese distrito
+    if (hasDistFilter && profile?.departamento) {
+        const deptName = profile.departamento;
+        const code = deptName.match(/^\d+/)?.[0] || '00';
+        return [{ label: deptName, code }];
+    }
 
-    Promise.all(chunks.map(chunk => 
-        getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk)))
-    )).then(snapshots => {
-        const newMap = new Map();
-        snapshots.forEach(snap => snap.docs.forEach(doc => {
-            const id = doc.data().solicitud_id;
-            if (!newMap.has(id)) newMap.set(id, []);
-            newMap.get(id).push({ id: doc.id, ...doc.data() });
-        }));
-        setInformesMap(newMap);
-    }).catch(e => console.error(e));
+    // Si es admin, mostramos todos los departamentos únicos de la colección 'datos'
+    const depts = new Map();
+    datosData.forEach(d => {
+      if (!depts.has(d.departamento)) {
+        const code = d.departamento.match(/^\d+/)?.[0] || '00';
+        depts.set(d.departamento, { label: d.departamento, code });
+      }
+    });
 
-  }, [firestore, rawSolicitudes]);
-
-  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
-  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
+    return Array.from(depts.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [datosData, hasDeptFilter, hasDistFilter, profile]);
 
   const divulgadoresQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
@@ -261,71 +676,7 @@ export default function AgendaAnexoVPage() {
     );
   }, [rawDivulgadores, divulSearch, assigningSolicitud]);
 
-  const groupedData = useMemo(() => {
-    if (!rawSolicitudes || !datosData) return [];
-
-    const datosMap = new Map();
-    datosData.forEach(d => {
-      const key = `${d.departamento}|${d.distrito}`;
-      if (!datosMap.has(key)) datosMap.set(key, d);
-      if (!datosMap.has(d.departamento)) datosMap.set(d.departamento, d);
-    });
-
-    const currentMs = currentTime.getTime();
-    const searchTerm = agendaSearch.toLowerCase().trim();
-
-    const activeSolicitudes = (rawSolicitudes || []).filter((sol: SolicitudCapacitacion) => {
-        if (sol.cancelada) return false;
-
-        if (sol.fecha_cumplido) {
-            const completionTime = new Date(sol.fecha_cumplido);
-            const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
-            if (diffHours > 24) return false;
-            return true;
-        }
-
-        const matchesSearch = !searchTerm || 
-            (sol.departamento || '').toLowerCase().includes(searchTerm) || 
-            (sol.distrito || '').toLowerCase().includes(searchTerm) ||
-            (sol.nombre_completo || '').toLowerCase().includes(searchTerm) ||
-            (sol.solicitante_entidad || '').toLowerCase().includes(searchTerm) ||
-            (sol.otra_entidad || '').toLowerCase().includes(searchTerm);
-
-        if (!matchesSearch) return false;
-
-        const mov = movimientosMap.get(sol.id);
-        const itemInformes = informesMap.get(sol.id) || [];
-        const inf = itemInformes.length > 0 ? itemInformes[0] : null;
-        
-        const isClosed = !!(mov?.fecha_devolucion && inf && sol.fecha_cumplido);
-        return !isClosed;
-    });
-
-    const depts: Record<string, { label: string, code: string, dists: Record<string, { label: string, code: string, items: SolicitudCapacitacion[] }> }> = {};
-
-    activeSolicitudes.forEach((sol: SolicitudCapacitacion) => {
-      const deptName = sol.departamento || 'SIN DEPARTAMENTO';
-      const distName = sol.distrito || 'SIN DISTRITO';
-      
-      const key = `${deptName}|${distName}`;
-      const dato = datosMap.get(key) || datosMap.get(deptName);
-      
-      const extractedCode = deptName.match(/^\d+/)?.[0] || '00';
-      const deptCode = (dato?.departamento_codigo && dato.departamento_codigo !== '00') ? dato.departamento_codigo : extractedCode;
-      
-      const distCode = `${deptCode} - 00 - 00 - ${dato?.distrito_codigo || '00'}`;
-
-      if (!depts[deptName]) {
-        depts[deptName] = { label: deptName, code: deptCode, dists: {} };
-      }
-      if (!depts[deptName].dists[distName]) {
-        depts[deptName].dists[distName] = { label: distName, code: distCode, items: [] };
-      }
-      depts[deptName].dists[distName].items.push(sol);
-    });
-
-    return Object.values(depts).sort((a, b) => a.code.localeCompare(b.code));
-  }, [rawSolicitudes, datosData, movimientosMap, informesMap, currentTime, agendaSearch]);
+  const groupedData = useMemo(() => [], []);
 
   const handleAssignDivulgador = (divulgador: Divulgador) => {
     if (!assigningSolicitud || !firestore) return;
@@ -344,7 +695,10 @@ export default function AgendaAnexoVPage() {
         toast({ title: "Personal Asignado" });
         const updatedDivs = [...(assigningSolicitud.divulgadores || []), newDivulgador];
         setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
-        updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
+        
+        const updater = updateItemRegistry.current.get(assigningSolicitud.departamento);
+        if (updater) updater(assigningSolicitud.id, { divulgadores: updatedDivs });
+        
         setIsUpdating(false);
       })
       .catch(async (error) => {
@@ -365,7 +719,9 @@ export default function AgendaAnexoVPage() {
           toast({ title: "Personal Removido" });
           const updatedDivs = (assigningSolicitud.divulgadores || []).filter(d => d.id !== divulgadorId);
           setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
-          updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
+          
+          const updater = updateItemRegistry.current.get(assigningSolicitud.departamento);
+          if (updater) updater(assigningSolicitud.id, { divulgadores: updatedDivs });
       })
       .catch(error => { 
           errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
@@ -403,7 +759,9 @@ export default function AgendaAnexoVPage() {
             ? `Acceso abierto hasta: ${new Date(qr_expires_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${solicitud.fecha < now.toISOString().split('T')[0] ? '(20 min)' : '(Fin del día)'}` 
             : "El acceso público vía QR ha sido cerrado."
         });
-        updateItem(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
+        
+        const updater = updateItemRegistry.current.get(solicitud.departamento);
+        if (updater) updater(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
       })
       .catch(error => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
@@ -423,7 +781,10 @@ export default function AgendaAnexoVPage() {
     })
     .then(() => {
         toast({ title: "Solicitud Suspendida", description: "Se ha registrado el motivo en el historial." });
-        updateItem(suspendingSolicitud.id, { cancelada: true });
+        
+        const updater = updateItemRegistry.current.get(suspendingSolicitud.departamento);
+        if (updater) updater(suspendingSolicitud.id, { cancelada: true });
+        
         setSuspendingSolicitud(null);
         setSuspensionReason('');
         setIsUpdating(false);
@@ -441,7 +802,17 @@ export default function AgendaAnexoVPage() {
     deleteDoc(docRef)
         .then(() => {
             toast({ title: "Solicitud Eliminada" });
-            mutate(rawSolicitudes.filter(s => s.id !== deletingSolicitud.id));
+            
+            const updater = updateItemRegistry.current.get(deletingSolicitud.departamento);
+            if (updater) {
+                // Para eliminar, le pasamos una marca o lo manejamos localmente
+                // En este caso useCollectionPaginated de los hijos no tiene "removeItem" fácil
+                // pero si refrescan o si el filtro los saca bastaría.
+                // Como es DELETE, forzamos un refetch en el hijo si es necesario, 
+                // o le pasamos null para que el hijo sepa que debe desaparecer.
+                updater(deletingSolicitud.id, { _deleted: true });
+            }
+            
             setDeletingSolicitud(null);
             setIsUpdating(false);
         })
@@ -483,7 +854,10 @@ export default function AgendaAnexoVPage() {
     .then(() => {
         const time = new Date().toISOString();
         toast({ title: "Ciclo Concluido", description: "La actividad ha sido movida al historial." });
-        updateItem(solicitudId, { fecha_cumplido: time });
+        
+        const updater = updateItemRegistry.current.get(concludingSolicitud!.departamento);
+        if (updater) updater(solicitudId, { fecha_cumplido: time });
+        
         setConcludingSolicitud(null);
         setIsUpdating(false);
     })
@@ -578,8 +952,30 @@ export default function AgendaAnexoVPage() {
     }
   };
 
-  if (isUserLoading || isLoadingSolicitudes) {
-    return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+  if (isUserLoading || isProfileLoading || (isLoadingDatos && !datosData)) {
+    return (
+        <div className="flex h-screen flex-col items-center justify-center p-10 bg-[#F8F9FA]">
+            <Loader2 className="animate-spin h-12 w-12 text-primary opacity-20" />
+            <p className="mt-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Inicializando Agenda...</p>
+            {(userError || datosError) && (
+                <div className="mt-8 max-w-md p-8 bg-white border-2 border-red-100 rounded-[3rem] text-center shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-red-600" />
+                    <ShieldAlert className="h-12 w-12 text-red-600 mx-auto mb-4" />
+                    <h3 className="font-black text-red-900 uppercase text-sm mb-2">Interrupción de Seguridad</h3>
+                    <p className="text-[10px] font-bold text-red-700 leading-tight uppercase mb-6">
+                        {userError?.message || datosError?.message || 'Error de conexión con la base de datos'}
+                    </p>
+                    <Button 
+                        variant="outline" 
+                        onClick={() => window.location.reload()}
+                        className="rounded-2xl font-black text-[10px] uppercase tracking-widest px-8 border-2 hover:bg-red-600 hover:text-white transition-all"
+                    >
+                        Forzar Recarga de Sistema
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
   }
 
   return (
@@ -610,322 +1006,38 @@ export default function AgendaAnexoVPage() {
             />
         </div>
 
-        {paginationError && (
-          <div className="bg-red-50 border-2 border-red-200 p-6 rounded-3xl mt-8 flex items-center gap-4">
-             <AlertTriangle className="h-8 w-8 text-red-600" />
-             <div>
-                <p className="font-black text-red-900 uppercase text-xs">Error de Base de Datos</p>
-                <p className="text-[10px] font-bold text-red-700 uppercase leading-tight">{paginationError.message}</p>
-                {paginationError.message.includes('index') && (
-                    <p className="text-[9px] text-red-800 font-black mt-2 underline">Falta un índice en Firebase para esta consulta.</p>
-                )}
-             </div>
-          </div>
-        )}
 
-        {groupedData.length === 0 ? (
+
+        {uniqueDepartments.length === 0 ? (
           <Card className="p-20 text-center border-dashed bg-white rounded-3xl">
             <p className="font-black text-muted-foreground uppercase tracking-widest opacity-30">No hay actividades agendadas en su jurisdicción</p>
           </Card>
         ) : (
           <Accordion type="multiple" className="space-y-6">
-            {(() => {
-              const now = new Date();
-              const y = now.getFullYear();
-              const m = String(now.getMonth() + 1).padStart(2, '0');
-              const d = String(now.getDate()).padStart(2, '0');
-              const today = `${y}-${m}-${d}`;
-              const todayReverse = `${d}-${m}-${y}`;
-              
-              return groupedData.map((dept) => (
-                <AccordionItem key={dept.label} value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
-                <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
-                  <div className="flex items-center gap-6 text-left">
-                    <div className="h-14 w-14 rounded-full bg-black text-white flex items-center justify-center font-black text-lg shadow-xl">
-                        {dept.code}
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.label}</h2>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                            {Object.values(dept.dists).length} DISTRITOS CON ACTIVIDADES
-                        </p>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                
-                <AccordionContent className="px-8 pb-8 pt-2">
-                  <Accordion type="multiple" className="space-y-4">
-                    {Object.values(dept.dists).map((dist) => (
-                      <AccordionItem key={dist.label} value={dist.label} className="border-none">
-                        <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed">
-                            <div className="flex items-center gap-3">
-                                <Building2 className="h-5 w-5 text-[#1A1A1A]" />
-                                <h3 className="font-black uppercase text-sm tracking-tight text-primary/80">
-                                    {dist.label}
-                                </h3>
-                                <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">
-                                    {dist.items.length}
-                                </Badge>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-6 space-y-4 px-2">
-                            {dist.items.length > 0 && hasAdminFilter && (
-                                <div className="flex justify-end mb-2 px-2">
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        className="text-[9px] font-black uppercase text-destructive hover:bg-destructive/10 h-8 gap-2"
-                                        onClick={() => setDeletingDistrict({ dept: dept.label, dist: dist.label, items: dist.items })}
-                                        title="Vaciar todos los registros de este distrito"
-                                    >
-                                        <Trash2 className="h-3 w-3" /> VACIAR DISTRITO
-                                    </Button>
-                                </div>
-                            )}
-                            {dist.items.sort((a,b) => (a.fecha || '').localeCompare(b.fecha || '')).map((item) => {
-                                const cleanDate = item.fecha?.split('T')[0]?.trim() || '';
-                                const isPast = cleanDate !== '' && cleanDate.localeCompare(today) < 0 && cleanDate !== today && cleanDate !== todayReverse;
-                                const isToday = cleanDate !== '' && (cleanDate === today || cleanDate === todayReverse);
-                                const mov = movimientosMap.get(item.id); const itemInformes = informesMap.get(item.id) || []; const inf = itemInformes[0]; const assignedList = item.divulgadores || item.asignados || []; const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
-                                
-                                const missingF02 = !mov?.fecha_devolucion;
-                                const missingAnexoIII = (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
-                                const missingSalida = !mov;
-                                const hasAlert = missingF02 || missingAnexoIII || missingSalida;
-                                const isFulfilled = mov?.fecha_devolucion && inf;
-
-                                const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
-                                const hasSalida = !!mov;
-                                const hasRetorno = !!mov?.fecha_devolucion;
-                                const hasInforme = assignedList.length > 0 ? missingInformesFrom.length === 0 : !!inf;
-
-                                const isQRViewed = viewedQRs.includes(item.id);
-                                const showStep1 = !hasPersonnel;
-                                const showStep2 = hasPersonnel && !item.qr_enabled;
-                                const showStep3 = hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed;
-                                const showStep4 = hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed);
-                                const showStep5 = hasSalida && !hasRetorno;
-                                const showStep6 = hasRetorno && !hasInforme;
-
-                                 const GuideStep = ({ step, message, active, onClick }: { step: number, message: string, active: boolean, onClick?: () => void }) => {
-                                     if (!active) return null;
-                                     return (
-                                         <div 
-                                             className={cn("animate-bounce pointer-events-auto", onClick && "cursor-pointer group relative")}
-                                             onClick={(e) => {
-                                                 if (onClick) {
-                                                     e.stopPropagation();
-                                                     onClick();
-                                                 }
-                                             }}
-                                         >
-                                             <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 w-[160px] leading-tight text-center justify-center">
-                                                 <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">
-                                                     {step}
-                                                 </div>
-                                                 {message.toUpperCase()}
-                                             </div>
-                                             <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600 mx-auto -mt-0.5" />
-                                         </div>
-                                     );
-                                 };
-
-                                const SurveyCounter = ({ solicitudId, firestore }: any) => {
-                                    const [count, setCount] = useState<number | null>(null);
-                                    useEffect(() => {
-                                        if (!firestore) return;
-                                        getCountFromServer(query(collection(firestore, 'encuestas-satisfaccion'), where('solicitud_id', '==', solicitudId)))
-                                            .then(snap => setCount(snap.data().count))
-                                            .catch(() => setCount(0));
-                                    }, [firestore, solicitudId]);
-                                    return <span className="text-[9px] font-black uppercase text-inherit">ENCUESTAS: {count !== null ? count : '...'}</span>;
-                                };
-
-                                return (
-                                    <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
-                                        <CardContent className="p-8">
-                                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                                                <div className="lg:col-span-4 space-y-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">SOLICITANTE</p>
-                                                        {isFulfilled && (
-                                                            <Badge className="bg-green-600 text-white font-black uppercase text-[7px] px-2 py-0 h-4">CICLO COMPLETADO</Badge>
-                                                        )}
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.nombre_completo}</p>
-                                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
-                                                            {item.solicitante_entidad || item.otra_entidad}
-                                                        </p>
-                                                    </div>
-                                                    <Badge className="bg-primary/5 text-primary border-primary/10 font-black uppercase text-[8px] px-3">{item.tipo_solicitud}</Badge>
-                                                </div>
-
-                                                <div className="lg:col-span-3 space-y-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                        <p className="font-black text-[12px] uppercase text-[#1A1A1A]">{item.lugar_local}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <Calendar className={cn("h-4 w-4", hasAlert ? "text-destructive" : "text-muted-foreground")} />
-                                                        <p className={cn("font-black text-[12px] uppercase", hasAlert ? "text-destructive font-black" : "text-[#1A1A1A]")}>
-                                                            {formatDateToDDMMYYYY(item.fecha)} | {item.hora_desde} A {item.hora_hasta} HS
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="lg:col-span-2 space-y-4">
-                                                    <div className="space-y-1">
-                                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL</p>
-                                                        {(item.divulgadores || item.asignados || []).length > 0 ? (
-                                                            <div className="flex items-center gap-2 text-[#16A34A]">
-                                                                <Users className="h-4 w-4" />
-                                                                <p className="font-black text-[11px] uppercase">{(item.divulgadores || item.asignados || []).length} ASIGNADOS</p>
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-primary pt-2 border-t border-dashed">
-                                                        <MessageSquareHeart className="h-3.5 w-3.5" />
-                                                        <SurveyCounter solicitudId={item.id} firestore={firestore} />
-                                                    </div>
-                                                </div>
-
-                                                <div className="lg:col-span-3 flex flex-col items-end gap-3">
-                                                    {hasAlert && (
-                                                        <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
-                                                                {missingSalida && (
-                                                                    <div className="relative">
-                                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
-                                                                        <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
-                                                                            <Truck className="h-3.5 w-3.5" />
-                                                                            <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
-                                                                        </Link>
-                                                                    </div>
-                                                                )}
-                                                                {missingF02 && (
-                                                                    <div className="relative">
-                                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
-                                                                        <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
-                                                                            <ShieldAlert className="h-3 w-3" />
-                                                                            <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
-                                                                        </Link>
-                                                                    </div>
-                                                                )}
-                                                            {missingAnexoIII && (
-                                                                <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
-                                                                    <AlertCircle className="h-3 w-3" />
-                                                                    <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA INFORME: {missingInformesFrom.length > 0 ? missingInformesFrom.map(f => f.nombre.split(" ")[0]).join(", ") : "REQUERIDO"}</span>
-                                                                </Link>
-                                                            )}
-                                                        </div>
-                                                    )}
-
-                                                    <div className="flex gap-2 w-full max-w-[220px]">
-                                                        <div className="flex-1 relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
-                                                                <GuideStep step={1} message="Asigna personal para la actividad" active={showStep1} onClick={() => setAssigningSolicitud(item)} />
-                                                            </div>
-                                                            <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
-                                                              <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
-                                                            </Button>
-                                                        </div>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)} title="Ver Ficha de Detalles">
-                                                            <Eye className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50 transition-all" onClick={() => setSuspendingSolicitud(item)} title="Suspender Solicitud">
-                                                            <Ban className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-white transition-all" onClick={() => setDeletingSolicitud(item)} title="Eliminar Registro Definitivamente">
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                    
-                                                    <div className="flex gap-2 w-full max-w-[220px]">
-                                                        <div className="relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
-                                                                <GuideStep step={2} message="Habilitar el acceso al QR" active={showStep2} onClick={() => handleToggleQr(item)} />
-                                                            </div>
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="icon" 
-                                                                className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 border-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} 
-                                                                onClick={() => handleToggleQr(item)}
-                                                                title={item.qr_enabled ? "Deshabilitar Encuesta Pública" : "Habilitar Encuesta Pública vía QR"}
-                                                            >
-                                                                {item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
-                                                            </Button>
-                                                        </div>
-                                                        {!item.fecha_cumplido && isFulfilled ? (
-                                                            <Button 
-                                                                className="flex-1 h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 hover:bg-green-700 text-white shadow-lg animate-pulse"
-                                                                onClick={() => setConcludingSolicitud(item)}
-                                                            >
-                                                                CONCLUIR
-                                                            </Button>
-                                                        ) : (
-                                                            <div className="flex-1" />
-                                                        )}
-                                                    </div>
-                                                    
-                                                    <div className="flex gap-2 w-full max-w-[220px]">
-                                                        <div className="flex-1 relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
-                                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} />
-                                                            </div>
-                                                            <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
-                                                                <QrCode className="h-4 w-4 mr-2" /> QR
-                                                            </Button>
-                                                        </div>
-                                                        <div className="flex-1 relative">
-                                                            <div className="absolute inset-x-0 -top-14 flex justify-center z-[100]">
-                                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={showStep6} onClick={() => { if (!inf) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} />
-                                                            </div>
-                                                            <Button 
-                                                                className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
-                                                                onClick={() => {
-                                                                  if (!inf) {
-                                                                      router.push(`/informe-divulgador?solicitudId=${item.id}`);
-                                                                  }
-                                                              }}
-                                                              title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
-                                                            >
-                                                              {inf ? 'CUMPLIDO' : 'INFORME'}
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-
-                  {hasMoreSolicitudes && (
-                    <div className="mt-8 flex justify-center">
-                        <Button 
-                            onClick={loadMoreSolicitudes} 
-                            disabled={isLoadingMoreSolicitudes}
-                            variant="outline"
-                            className="rounded-2xl font-black text-[9px] uppercase tracking-widest py-6 px-10 border-2 shadow-sm hover:bg-primary hover:text-white transition-all gap-2 bg-white"
-                        >
-                            {isLoadingMoreSolicitudes ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <>Ver más actividades de la lista global <ChevronDown className="h-4 w-4" /></>
-                            )}
-                        </Button>
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-              ));
-             })()}
+            {uniqueDepartments.map((dept) => (
+                <DepartmentSection 
+                    key={dept.label}
+                    dept={dept}
+                    firestore={firestore}
+                    profile={profile}
+                    isUserLoading={isUserLoading}
+                    currentTime={currentTime}
+                    agendaSearch={agendaSearch}
+                    datosData={datosData}
+                    setViewingActivity={setViewingActivity}
+                    setAssigningSolicitud={setAssigningSolicitud}
+                    setQrSolicitud={setQrSolicitud}
+                    setDeletingSolicitud={setDeletingSolicitud}
+                    setSuspendingSolicitud={setSuspendingSolicitud}
+                    setConcludingSolicitud={setConcludingSolicitud}
+                    setDeletingDistrict={setDeletingDistrict}
+                    handleToggleQr={handleToggleQr}
+                    viewedQRs={viewedQRs}
+                    markQRAsViewed={markQRAsViewed}
+                    router={router}
+                    registerUpdateItem={registerUpdateItem}
+                />
+            ))}
           </Accordion>
         )}
       </main>

@@ -4,8 +4,8 @@
 import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
-import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useCollectionPaginated } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { type InformeDivulgador } from '@/lib/data';
 import { 
   Loader2, 
@@ -19,6 +19,7 @@ import {
   Maximize2, 
   Building2, 
   Landmark, 
+  ChevronDown,
   X,
   FileText,
   Camera,
@@ -73,9 +74,19 @@ export default function GaleriaCapacitacionesPage() {
     }
   };
 
-  // Consulta directa a informes-divulgador
-  const informesRef = useMemoFirebase(() => (firestore ? collection(firestore, 'informes-divulgador') : null), [firestore]);
-  const { data: informes, isLoading } = useCollectionOnce<InformeDivulgador>(informesRef);
+  // Consulta segmentada a informes-divulgador
+  const informesRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'informes-divulgador'), orderBy('fecha', 'desc'));
+  }, [firestore]);
+  
+  const { 
+    data: informes, 
+    isLoading,
+    hasMore,
+    loadMore,
+    isLoadingMore 
+  } = useCollectionPaginated<InformeDivulgador>(informesRef, 20);
 
   // Agrupación Jerárquica: Dept -> Dist -> Informes con Fotos o Respaldo
   const groupedInformes = useMemo(() => {
@@ -250,13 +261,13 @@ export default function GaleriaCapacitacionesPage() {
                                                                         </Badge>
                                                                     </div>
                                                                 </div>
-
+ 
                                                                 <div className="lg:col-span-3 lg:border-l lg:pl-6 space-y-1">
                                                                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL OPERATIVO</p>
                                                                     <p className="font-black text-[11px] uppercase text-[#1A1A1A]">{inf.vinculo}</p>
                                                                     <p className="text-[10px] font-bold text-muted-foreground uppercase">C.I. {inf.cedula_divulgador}</p>
                                                                 </div>
-
+ 
                                                                 <div className="lg:col-span-3 bg-black text-white p-5 rounded-2xl flex flex-col items-center justify-center shadow-xl">
                                                                     <Users className="h-5 w-5 mb-1 opacity-50" />
                                                                     <p className="text-[8px] font-black uppercase tracking-[0.2em] mb-1">PERSONAS CAPACITADAS</p>
@@ -264,7 +275,7 @@ export default function GaleriaCapacitacionesPage() {
                                                                 </div>
                                                             </div>
                                                         </div>
-
+ 
                                                         <CardContent className="p-6 md:p-8">
                                                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                                                 {/* MOSTRAR PRIMERO EL RESPALDO DOCUMENTAL (EL QUE VEMOS EN EL SCREENSHOT) */}
@@ -287,7 +298,7 @@ export default function GaleriaCapacitacionesPage() {
                                                                         <div className="absolute top-2 left-2 bg-primary text-white text-[6px] font-black px-1.5 py-0.5 rounded-sm shadow-lg">DOCUMENTO FIRMADO</div>
                                                                     </div>
                                                                 )}
-
+ 
                                                                 {/* MOSTRAR FOTOS DE CAMPO ADICIONALES */}
                                                                 {reportPhotos.map((photo: string, pIdx: number) => (
                                                                     <div 
@@ -316,6 +327,22 @@ export default function GaleriaCapacitacionesPage() {
                                     </AccordionItem>
                                 ))}
                             </Accordion>
+                            {hasMore && (
+                                <div className="pt-8 flex justify-center">
+                                    <Button 
+                                        onClick={loadMore} 
+                                        disabled={isLoadingMore}
+                                        variant="outline"
+                                        className="rounded-[2.2rem] font-black text-[10px] uppercase tracking-widest py-8 px-16 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
+                                    >
+                                        {isLoadingMore ? (
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                        ) : (
+                                            <>Cargar evidencias históricas <ChevronDown className="h-5 w-5" /></>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
                         </AccordionContent>
                     </AccordionItem>
                 ))}
