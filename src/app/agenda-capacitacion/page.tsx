@@ -566,7 +566,7 @@ export default function AgendaCapacitacionPage() {
         if (!datosData || !profile) return [];
         
         const role = (profile.role || '').toLowerCase();
-        const isRestricted = role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter');
+        const isRestricted = !hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter'));
 
         // Si el usuario tiene restricciones, solo mostramos su departamento
         if (isRestricted && profile.departamento) {
@@ -579,7 +579,7 @@ export default function AgendaCapacitacionPage() {
             const dato = datosData.find((d: Dato) => d.departamento === name);
             return { label: name, code: dato?.departamento_codigo || '00' };
         }).sort((a, b) => a.code.localeCompare(b.code));
-    }, [datosData, profile]);
+    }, [datosData, profile, hasAdminFilter]);
 
     if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 

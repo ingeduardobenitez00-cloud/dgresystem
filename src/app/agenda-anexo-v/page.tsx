@@ -695,7 +695,7 @@ export default function AgendaAnexoVPage() {
     if (!datosData || !profile) return [];
     
     const role = (profile.role || '').toLowerCase();
-    const isRestricted = role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter');
+    const isRestricted = !hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter'));
     
     // Si el usuario tiene restricciones, solo mostramos su departamento
     if (isRestricted && profile.departamento) {
