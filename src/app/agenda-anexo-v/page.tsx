@@ -277,7 +277,8 @@ const DistrictSection = ({
                     const assignedList = item.divulgadores || item.asignados || []; 
                     const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
                     
-                    const todayStr = new Date().toISOString().split('T')[0];
+                    const today = new Date();
+                    const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
                     const isPast = item.fecha < todayStr;
                     const isToday = item.fecha === todayStr;
 
@@ -382,7 +383,7 @@ const DistrictSection = ({
                                     </div>
 
                                     <div className="lg:col-span-3 flex flex-col items-end gap-3">
-                                        {(hasAlert || isToday || (!isPast && (pendingSalida || pendingRetorno || pendingAnexoIII))) && (
+                                        {(pendingSalida || pendingRetorno || pendingAnexoIII) && (
                                             <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
                                                 {pendingSalida && (
                                                     <div className="relative">

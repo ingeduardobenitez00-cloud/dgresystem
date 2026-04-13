@@ -227,7 +227,8 @@ const DistrictSection = ({
                     const assignedList = item.divulgadores || item.asignados || [];
                     const isFulfilled = !!(mov?.fecha_devolucion && itemInformes.length > 0);
                     
-                    const todayStr = new Date().toISOString().split('T')[0];
+                    const today = new Date();
+                    const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
                     const isPast = item.fecha < todayStr;
                     const isToday = item.fecha === todayStr;
                     
@@ -287,7 +288,7 @@ const DistrictSection = ({
                                         <div className="flex items-center gap-2 text-primary pt-2 border-t border-dashed"><MessageSquareHeart className="h-3.5 w-3.5" /><SurveyCounter solicitudId={item.id} firestore={firestore} /></div>
                                     </div>
                                     <div className="lg:col-span-3 flex flex-col items-end gap-3">
-                                        {(hasAlert || isToday || (!isPast && (pendingSalida || pendingRetorno || pendingInforme))) && (
+                                        {(pendingSalida || pendingRetorno || pendingInforme) && (
                                             <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
                                                 {pendingSalida && (
                                                     <div className="relative">
