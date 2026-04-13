@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -63,6 +63,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ToastAction } from "@/components/ui/toast";
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
@@ -76,6 +77,7 @@ function ControlMovimientoContent() {
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const solicitudIdFromUrl = searchParams.get('solicitudId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -487,7 +489,17 @@ function ControlMovimientoContent() {
 
     addDoc(collection(firestore, 'movimientos-maquinas'), docData)
       .then(() => {
-        toast({ title: '¡Salida Registrada!' });
+        toast({ 
+            variant: "warning",
+            title: '¡SALIDA REGISTRADA!',
+            description: "La salida ha sido guardada correctamente.",
+            duration: 3000,
+            action: (
+              <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+                VOLVER A LA AGENDA
+              </ToastAction>
+            ),
+        });
         setIsSubmitting(false);
       })
       .catch(error => {
@@ -523,11 +535,34 @@ function ControlMovimientoContent() {
         setIsDevolucionGuardada(true);
         const hasTampering = movimientoData.maquinas.some(m => m.lacre_estado === 'violentado');
         if (hasTampering) {
-            toast({ title: 'Recepción Informada', description: 'Irregularidad detectada. Proceda a la denuncia.' });
+            toast({ 
+                variant: "warning",
+                title: 'Recepción Informada', 
+                description: 'Irregularidad detectada. Proceda a la denuncia.',
+                duration: 3000,
+                action: (
+                  <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+                    VOLVER A LA AGENDA
+                  </ToastAction>
+                ),
+            });
         } else {
-            toast({ title: '¡Devolución Completada!', description: 'Proceda a concluir la actividad en la Agenda.' });
+            toast({ 
+                variant: "warning",
+                title: '¡DEVOLUCIÓN COMPLETADA!', 
+                description: 'Proceda a concluir la actividad en la Agenda.',
+                duration: 3000,
+                action: (
+                  <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+                    VOLVER A LA AGENDA
+                  </ToastAction>
+                ),
+            });
             
-            setTimeout(() => setSelectedSolicitudId(null), 1500);
+            setTimeout(() => {
+                setSelectedSolicitudId(null);
+                router.back();
+            }, 1000);
         }
         setIsSubmitting(false);
       })
@@ -580,11 +615,22 @@ function ControlMovimientoContent() {
                 detalles: `Acta de denuncia para ${selectedSolicitud.lugar_local} - Máquinas: ${tampered.join(', ')}`
             });
 
-            toast({ title: "¡Denuncia Registrada!", description: "El proceso ha sido cerrado formalmente." });
+            toast({ 
+                variant: "warning",
+                title: "¡DENUNCIA REGISTRADA!", 
+                description: "El proceso ha sido cerrado formalmente.",
+                duration: 3000,
+                action: (
+                  <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+                    VOLVER A LA AGENDA
+                  </ToastAction>
+                ),
+            });
             setDenunciaDetalles('');
             setDenunciaEvidencias([]);
             setDenunciaRespaldo(null);
             setSelectedSolicitudId(null);
+            setTimeout(() => router.back(), 1500);
             setIsSubmitting(false);
         })
         .catch(error => {

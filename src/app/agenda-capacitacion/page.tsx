@@ -8,6 +8,7 @@ import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase } from '@/firebase';
+import { ToastAction } from "@/components/ui/toast";
 import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, orderBy, limit, getCountFromServer } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion } from '@/lib/data';
 import { 
@@ -202,8 +203,8 @@ const DistrictSection = ({
             const today = now.toISOString().split('T')[0];
             expiry = sol.fecha < today ? new Date(now.getTime() + 20 * 60000).toISOString() : new Date(new Date(sol.fecha).getTime() + 86399000).toISOString();
         }
+        updateItem(sol.id, { qr_enabled: newState, qr_expires_at: expiry as any });
         updateDoc(docRef, { qr_enabled: newState, qr_expires_at: expiry }).then(() => {
-            updateItem(sol.id, { qr_enabled: newState, qr_expires_at: expiry as any });
             toast({ title: newState ? "Habilitado" : "Deshabilitado" });
         });
     };
@@ -242,8 +243,15 @@ const DistrictSection = ({
     const handleManualComplete = (id: string) => {
         updateDoc(doc(firestore!, 'solicitudes-capacitacion', id), { fecha_cumplido: new Date().toISOString() }).then(() => {
             toast({ 
-                title: "Ciclo Concluido", 
-                description: "Este agenda se archivará en Archivo / Historial en 3 minutos." 
+                variant: "warning",
+                title: "CICLO CONCLUIDO", 
+                description: "Este agenda se archivará en Archivo / Historial en 3 minutos.",
+                duration: 3000,
+                action: (
+                  <ToastAction altText="Volver a la agenda" onClick={() => setConcludingSolicitud(null)}>
+                    VOLVER A LA AGENDA
+                  </ToastAction>
+                ),
             });
             updateItem(id, { fecha_cumplido: new Date().toISOString() });
             setConcludingSolicitud(null);

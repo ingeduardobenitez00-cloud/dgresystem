@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, FileText, ChevronsUpDown, Check, Calendar, User, X, Camera, Trash2, MapPin, Clock, Building2, Landmark, ImageIcon, FileUp, Images } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { ToastAction } from "@/components/ui/toast";
 import { cn } from '@/lib/utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -35,6 +36,7 @@ function InformeContent() {
   const userProfile = user?.profile;
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const solicitudIdFromUrl = searchParams.get('solicitudId');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -298,19 +300,20 @@ function InformeContent() {
       const docId = `${selectedEntry.solicitudId}_${selectedEntry.divulgador.id}`;
       await setDoc(doc(firestore, 'informes-divulgador', docId), informeData);
       
+      toast({ 
+          variant: "warning",
+          title: "¡INFORME ENVIADO!", 
+          description: "La actividad ha sido registrada correctamente.",
+          duration: 3000,
+          action: (
+            <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+              VOLVER A LA AGENDA
+            </ToastAction>
+          ),
+      });
       setSubmitSuccess(true);
-      toast({ title: '¡ENVIADO!', description: 'El informe ha sido enviado correctamente.' });
-
-      setTimeout(() => {
-        setSubmitSuccess(false);
-        setSelectedActivityKey(undefined);
-        setMarkedCells(new Set());
-        setRespaldoPhoto(null);
-        setEvidencePhotos([]);
-        if (formRef.current) formRef.current.reset();
-        setIsSubmitting(false);
-      }, 2000);
-
+      setIsSubmitting(false);
+      setTimeout(() => router.back(), 1500);
     } catch (error: any) {
       const errorMsg = error.message || String(error);
       const isSizeError = errorMsg.includes('too large') || error.code === 'out-of-range';

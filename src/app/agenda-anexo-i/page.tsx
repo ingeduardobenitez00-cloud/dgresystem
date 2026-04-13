@@ -1,13 +1,22 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce } from '@/firebase';
+import { 
+  Toast, 
+  ToastAction, 
+  ToastClose, 
+  ToastDescription, 
+  ToastProvider, 
+  ToastTitle, 
+  ToastViewport 
+} from "@/components/ui/toast";
 import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, getDocs, getCountFromServer, orderBy, limit } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion, type AnexoI } from '@/lib/data';
 import { 
@@ -79,6 +88,7 @@ const normalizeGeo = (str: string) => {
 };
 
 const DistrictSection = ({ 
+    deptName,
     distName, 
     distCode,
     firestore, 
@@ -96,17 +106,30 @@ const DistrictSection = ({
     viewedQRs,
     markQRAsViewed,
     router,
+    registerUpdateItem,
     initialOpen = false,
     allDeptItems = [],
     isDeptLoading = false
 }: any) => {
     const [isOpen, setIsOpen] = useState(initialOpen || ((allDeptItems || []).length > 0));
+    const [itemsState, setItemsState] = useState<any[]>([]);
+
+    useEffect(() => {
+        const target = normalizeGeo(distName);
+        setItemsState((allDeptItems || []).filter((sol: any) => normalizeGeo(sol.distrito) === target));
+    }, [allDeptItems, distName]);
+
+    const updateItem = useCallback((id: string, updates: any) => {
+        setItemsState(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+    }, []);
+
+    useEffect(() => {
+        if (registerUpdateItem) registerUpdateItem(deptName + distName, updateItem);
+        return () => { if (registerUpdateItem) registerUpdateItem(deptName + distName, null); };
+    }, [deptName, distName, registerUpdateItem, updateItem]);
     
     // Filtramos los items del departamento que pertenecen a este distrito usando normalizeGeo
-    const rawItems = useMemo(() => {
-        const target = normalizeGeo(distName);
-        return (allDeptItems || []).filter((sol: any) => normalizeGeo(sol.distrito) === target);
-    }, [allDeptItems, distName]);
+    const rawItems = itemsState;
 
     const isLoading = isDeptLoading;
     const isLoadingMore = false;
@@ -247,15 +270,31 @@ const DistrictSection = ({
                     const showStep4 = !!(assignedList.length > 0 && !mov && (!item.qr_enabled || isQRViewed));
                     const showStep5 = !!(mov && !mov.fecha_devolucion);
                     const showStep6 = pendingInforme;
+                    const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
 
-                    const GuideStep = ({ step, message, active, onClick }: any) => {
+                    const GuideStep = ({ step, message, active, onClick, position = 'left' }: any) => {
                         if (!active) return null;
+                        
+                        const positionClasses: Record<string, string> = {
+                            left: "right-full top-1/2 -translate-y-1/2 pr-2 flex-row",
+                            right: "left-full top-1/2 -translate-y-1/2 pl-2 flex-row-reverse",
+                            top: "bottom-full left-1/2 -translate-x-1/2 mb-2 flex-col-reverse",
+                            bottom: "top-full left-1/2 -translate-x-1/2 mt-2 flex-col",
+                        };
+
+                        const triangleClasses: Record<string, string> = {
+                            left: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-600 -ml-0.5",
+                            right: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-blue-600 -mr-0.5",
+                            top: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600 -mt-0.5",
+                            bottom: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-blue-600 -mb-0.5",
+                        };
+
                         return (
-                            <div className="animate-bounce pointer-events-auto flex items-center gap-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); if(onClick) onClick(); }}>
-                                <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 w-[150px] leading-tight">
+                            <div className={cn("absolute z-[100] animate-bounce pointer-events-auto flex items-center gap-0 cursor-pointer whitespace-nowrap", positionClasses[position])} onClick={(e) => { e.stopPropagation(); if(onClick) onClick(); }}>
+                                <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 max-w-[180px] leading-tight">
                                     <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">{step}</div>{message.toUpperCase()}
                                 </div>
-                                <div className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-600 -ml-0.5" />
+                                <div className={cn("w-0 h-0", triangleClasses[position])} />
                             </div>
                         );
                     };
@@ -292,7 +331,7 @@ const DistrictSection = ({
                                             <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
                                                 {pendingSalida && (
                                                     <div className="relative">
-                                                        <GuideStep step={4} message="Formulario SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
+                                                        <GuideStep step={4} message="SOLICITAR SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
                                                         <Link 
                                                             href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
                                                             className={cn(
@@ -309,7 +348,7 @@ const DistrictSection = ({
                                                 )}
                                                 {pendingRetorno && (
                                                     <div className="relative">
-                                                        <GuideStep step={5} message="DEVOLUCIÓN" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
+                                                        <GuideStep step={5} message="REGISTRAR RETORNO" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
                                                         <Link 
                                                             href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
                                                             className={cn(
@@ -341,18 +380,18 @@ const DistrictSection = ({
                                             </div>
                                         )}
                                         <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="flex-1 relative"><div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]"><GuideStep step={1} message="Asigna personal" active={showStep1} onClick={() => setAssigningSolicitud(item)} /></div><Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}><UserPlus className="h-4 w-4 mr-2" /> ASIGNAR</Button></div>
+                                            <div className="flex-1 relative"><GuideStep step={1} message="Asigna personal" active={showStep1} onClick={() => setAssigningSolicitud(item)} position="left" /><Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}><UserPlus className="h-4 w-4 mr-2" /> ASIGNAR</Button></div>
                                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)}><Eye className="h-4 w-4" /></Button>
                                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600" onClick={() => setSuspendingSolicitud(item)}><Ban className="h-4 w-4" /></Button>
                                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive" onClick={() => setDeletingSolicitud(item)}><Trash2 className="h-4 w-4" /></Button>
                                         </div>
                                         <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="relative"><div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]"><GuideStep step={2} message="Habilita QR" active={showStep2} onClick={() => handleToggleQr(item)} /></div><Button variant="outline" size="icon" className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} onClick={() => handleToggleQr(item)}>{item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}</Button></div>
-                                            {!item.fecha_cumplido && isFulfilled ? <Button className="flex-1 h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 text-white animate-pulse" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button> : <div className="flex-1" />}
+                                            <div className="relative"><GuideStep step={2} message="Habilita QR" active={showStep2} onClick={() => handleToggleQr(item)} position="left" /><Button variant="outline" size="icon" className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} onClick={() => handleToggleQr(item)}>{item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}</Button></div>
+                                            {!item.fecha_cumplido && isFulfilled ? <div className="flex-1 relative"><GuideStep step={7} message="CONCLUIR ACTIVIDAD" active={showStep7} onClick={() => setConcludingSolicitud(item)} position="top" /><Button className="w-full h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 text-white animate-pulse" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button></div> : <div className="flex-1" />}
                                         </div>
                                         <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="flex-1 relative"><div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]"><GuideStep step={3} message="Descarga QR" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} /></div><Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled}><QrCode className="h-4 w-4 mr-2" /> QR</Button></div>
-                                            <div className="flex-1 relative"><div className="absolute top-1/2 -translate-y-1/2 right-full pr-2 z-[100]"><GuideStep step={6} message="Informe Marcación" active={showStep6} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} /></div><Button className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px]", !showStep6 ? "bg-[#16A34A]" : "bg-black")} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }}>{!showStep6 ? 'CUMPLIDO' : 'INFORME'}</Button></div>
+                                            <div className="flex-1 relative"><GuideStep step={3} message="Descarga QR" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} position="left" /><Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled}><QrCode className="h-4 w-4 mr-2" /> QR</Button></div>
+                                            <div className="flex-1 relative"><GuideStep step={6} message="Informe Marcación" active={showStep6} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" /><Button className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px]", !showStep6 ? "bg-[#16A34A]" : "bg-black")} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }}>{!showStep6 ? 'CUMPLIDO' : 'INFORME'}</Button></div>
                                         </div>
                                     </div>
                                 </div>
@@ -390,6 +429,7 @@ const DepartmentSection = ({
     viewedQRs,
     markQRAsViewed,
     router,
+    registerUpdateItem,
     hasAdminFilter,
     initialOpen = false
 }: any) => {
@@ -477,7 +517,7 @@ const DepartmentSection = ({
             <AccordionContent className="px-8 pb-8 pt-2" forceMount={distNames.length === 1 ? true : undefined}>
                 <Accordion type="multiple" className="space-y-4" defaultValue={distNames.length === 1 ? [distNames[0]] : undefined}>
                     {distNames.map((distName: any) => (
-                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} initialOpen={distNames.length === 1} hasAdminFilter={hasAdminFilter} allDeptItems={allDeptItems} isDeptLoading={isDeptLoading} />
+                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} registerUpdateItem={registerUpdateItem} initialOpen={distNames.length === 1} hasAdminFilter={hasAdminFilter} allDeptItems={allDeptItems} isDeptLoading={isDeptLoading} />
                     ))}
                 </Accordion>
             </AccordionContent>
@@ -737,6 +777,8 @@ export default function AgendaAnexoIPage() {
       }
     }
     
+    updateItem(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
+    
     updateDoc(docRef, { 
       qr_enabled: newState,
       qr_expires_at: qr_expires_at
@@ -748,7 +790,6 @@ export default function AgendaAnexoIPage() {
             ? `Acceso abierto hasta: ${new Date(qr_expires_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${solicitud.fecha < now.toISOString().split('T')[0] ? '(20 min)' : '(Fin del día)'}` 
             : "El acceso público vía QR ha sido cerrado."
         });
-        updateItem(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
       })
       .catch(error => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
@@ -827,8 +868,15 @@ export default function AgendaAnexoIPage() {
     .then(() => {
         const time = new Date().toISOString();
         toast({ 
-            title: "Ciclo Concluido", 
-            description: "Este agenda se archivará en Archivo / Historial en 3 minutos." 
+            variant: "warning",
+            title: "CICLO CONCLUIDO", 
+            description: "Este agenda se archivará en Archivo / Historial en 3 minutos.",
+            duration: 3000,
+            action: (
+              <ToastAction altText="Volver a la agenda" onClick={() => setConcludingSolicitud(null)}>
+                VOLVER A LA AGENDA
+              </ToastAction>
+            ),
         });
         updateItem(solicitudId, { fecha_cumplido: time });
         setConcludingSolicitud(null);
@@ -1013,6 +1061,7 @@ export default function AgendaAnexoIPage() {
                     firestore={firestore}
                     profile={profile}
                     isUserLoading={isUserLoading}
+                    registerUpdateItem={registerUpdateItem}
                     currentTime={currentTime}
                     agendaSearch={agendaSearch}
                     datosData={datosData}
