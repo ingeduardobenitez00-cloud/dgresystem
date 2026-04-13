@@ -786,6 +786,10 @@ export default function AgendaAnexoVPage() {
     else updateItemRegistry.current.delete(dept);
   };
 
+  const updateItem = (id: string, updates: any) => {
+    updateItemRegistry.current.forEach(fn => fn(id, updates));
+  };
+
   const isRestricted = useMemo(() => {
     if (!profile) return false;
     const role = (profile.role || '').toLowerCase();
@@ -862,8 +866,8 @@ export default function AgendaAnexoVPage() {
         const updatedDivs = [...(assigningSolicitud.divulgadores || []), newDivulgador];
         setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
         
-        const updater = updateItemRegistry.current.get(assigningSolicitud.departamento);
-        if (updater) updater(assigningSolicitud.id, { divulgadores: updatedDivs });
+        // Actualización optimista
+        updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
         
         setIsUpdating(false);
       })
@@ -886,8 +890,8 @@ export default function AgendaAnexoVPage() {
           const updatedDivs = (assigningSolicitud.divulgadores || []).filter(d => d.id !== divulgadorId);
           setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
           
-          const updater = updateItemRegistry.current.get(assigningSolicitud.departamento);
-          if (updater) updater(assigningSolicitud.id, { divulgadores: updatedDivs });
+          // Actualización optimista
+          updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
       })
       .catch(error => { 
           errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));
@@ -914,8 +918,8 @@ export default function AgendaAnexoVPage() {
       }
     }
     
-        const updater = updateItemRegistry.current.get(solicitud.departamento + solicitud.distrito);
-        if (updater) updater(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
+    // Actualización optimista
+    updateItem(solicitud.id, { qr_enabled: newState, qr_expires_at: qr_expires_at as any });
 
         updateDoc(docRef, { 
           qr_enabled: newState,
@@ -947,7 +951,9 @@ export default function AgendaAnexoVPage() {
     })
     .then(() => {
         toast({ title: "Solicitud Suspendida", description: "Se ha registrado el motivo en el historial." });
-        
+        // Optimistic UI
+        updateItem(suspendingSolicitud.id, { cancelada: true });
+        setSuspendingSolicitud(null);
         const updater = updateItemRegistry.current.get(suspendingSolicitud.departamento);
         if (updater) updater(suspendingSolicitud.id, { cancelada: true });
         

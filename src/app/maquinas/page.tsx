@@ -80,6 +80,12 @@ export default function MaquinasPage() {
     distrito: ''
   });
 
+  // Estados para filtros
+  const [selDept, setSelDept] = useState<string>('');
+  const [selDist, setSelDist] = useState<string>('');
+  const [execDept, setExecDept] = useState<string>('');
+  const [execDist, setExecDist] = useState<string>('');
+
   const profile = user?.profile;
   const isAdminView = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
 
@@ -89,25 +95,38 @@ export default function MaquinasPage() {
   const maquinasQuery = useMemoFirebase(() => {
     if (!firestore || !profile) return null;
     const colRef = collection(firestore, 'maquinas');
-    
     let q;
-    if (isAdminView) q = query(colRef, orderBy('codigo', 'asc'));
-    else if (profile.departamento && profile.distrito) {
+
+    if (isAdminView) {
+        if (execDept) {
+            const norm = normalizeGeo(execDept);
+            const variations = Array.from(new Set([
+                execDept,
+                norm,
+                norm.charAt(0) + norm.slice(1).toLowerCase(),
+                execDept.replace(/\s*-\s*/, '-'),
+                execDept.replace(/^0+/, ''),
+                execDept.replace(/^0+/, '').replace(/\s*-\s*/, '-')
+            ])).filter(Boolean);
+            q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+        } else {
+            q = query(colRef, orderBy('codigo', 'asc'));
+        }
+    } else if (profile.departamento) {
+        // Modo Restringido
         const deptoOriginal = profile.departamento;
         const deptoNormalized = normalizeGeo(deptoOriginal);
-        const variants = [deptoOriginal];
-        if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+        const variations = Array.from(new Set([
+            deptoOriginal,
+            deptoNormalized,
+            deptoNormalized.charAt(0) + deptoNormalized.slice(1).toLowerCase()
+        ])).filter(Boolean);
         
-        q = query(colRef, where('departamento', 'in', variants), where('distrito', '==', profile.distrito), orderBy('codigo', 'asc'));
+        q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
     } else return null;
 
-    if (maqSearch.trim()) {
-        const term = maqSearch.trim().toUpperCase();
-        return query(q, where('codigo', '>=', term), where('codigo', '<=', term + '\uf8ff'));
-    }
-
     return q;
-  }, [firestore, profile, isAdminView, maqSearch]);
+  }, [firestore, profile, isAdminView, execDept]);
 
   const { 
     data: maquinasData, 
@@ -123,8 +142,25 @@ export default function MaquinasPage() {
   }, [datosData]);
 
   const filteredMaquinas = useMemo(() => {
-    return maquinasData || [];
-  }, [maquinasData]);
+    let list = maquinasData || [];
+    
+    // Filtro por distrito ejecutado
+    if (execDist) {
+        const target = normalizeGeo(execDist);
+        list = list.filter(m => normalizeGeo(m.distrito) === target);
+    }
+    
+    // Buscador local (Serie o Distrito)
+    const term = maqSearch.toLowerCase().trim();
+    if (term) {
+        list = list.filter(m => 
+            m.codigo.toLowerCase().includes(term) || 
+            m.distrito.toLowerCase().includes(term)
+        );
+    }
+    
+    return list;
+  }, [maquinasData, execDist, maqSearch]);
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -301,6 +337,78 @@ export default function MaquinasPage() {
                 </div>
             )}
         </div>
+        
+        {/* Panel de Filtros Avanzados */}
+        <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2.5rem]">
+            <CardContent className="p-8">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                    <div className="md:col-span-4 space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground ml-2">Departamento / Jurisdicción</Label>
+                        <Select 
+                            value={selDept} 
+                            onValueChange={(v) => { setSelDept(v); setSelDist(''); }}
+                            disabled={!isAdminView}
+                        >
+                            <SelectTrigger className="h-12 rounded-2xl border-2 font-black uppercase text-xs bg-muted/30">
+                                <SelectValue placeholder={!isAdminView ? (profile?.departamento || "Cargando...") : "TODOS LOS DEPARTAMENTOS"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all" className="font-black text-xs uppercase text-primary">MOSTRAR TODOS</SelectItem>
+                                {departments.map(d => (
+                                    <SelectItem key={d} value={d} className="font-bold text-xs uppercase">{d}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    
+                    <div className="md:col-span-4 space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground ml-2">Distrito / Localidad</Label>
+                        <Select 
+                            value={selDist} 
+                            onValueChange={setSelDist}
+                            disabled={!selDept && isAdminView}
+                        >
+                            <SelectTrigger className="h-12 rounded-2xl border-2 font-black uppercase text-xs bg-muted/30">
+                                <SelectValue placeholder="TODOS LOS DISTRITOS" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all" className="font-black text-xs uppercase text-primary">TODOS LOS DISTRITOS</SelectItem>
+                                {datosData?.filter(d => d.departamento === (selDept || profile?.departamento)).map(d => (
+                                    <SelectItem key={d.distrito} value={d.distrito} className="font-bold text-xs uppercase">{d.distrito}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="md:col-span-4 flex gap-2">
+                        <Button 
+                            className="flex-1 h-12 rounded-2xl bg-black hover:bg-black/90 text-white font-black uppercase text-xs shadow-lg shadow-black/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            onClick={() => {
+                                setExecDept(selDept === 'all' ? '' : selDept);
+                                setExecDist(selDist === 'all' ? '' : selDist);
+                            }}
+                        >
+                            <Search className="h-4 w-4 mr-2" /> EJECUTAR FILTRO
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-12 w-12 rounded-2xl border-2 hover:bg-muted"
+                            onClick={() => {
+                                setSelDept('');
+                                setSelDist('');
+                                setExecDept('');
+                                setExecDist('');
+                                setMaqSearch('');
+                            }}
+                            title="Limpiar Filtros"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-4 space-y-6">

@@ -61,6 +61,19 @@ import {
 import { type Dato, type Divulgador } from '@/lib/data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+const normalizeGeo = (str: string) => {
+    if (!str) return '';
+    // Quita códigos numéricos iniciales tipo "00 - " solo si hay algo después
+    const withoutCodes = str.toUpperCase().replace(/^[\d\s-]*/, "");
+    return withoutCodes.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "").trim();
+};
+
+const normalizeSearch = (str: string) => {
+    if (!str) return '';
+    // Limpieza básica para búsqueda (Nombre o CI)
+    return str.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "").trim();
+};
+
 export default function DivulgadoresPage() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
@@ -72,6 +85,9 @@ export default function DivulgadoresPage() {
   // States para filtros del listado
   const [filterDept, setFilterDept] = useState<string>('all');
   const [filterDist, setFilterDist] = useState<string>('all');
+  // States para la ejecución del filtro (manual)
+  const [execDept, setExecDept] = useState<string>('all');
+  const [execDist, setExecDist] = useState<string>('all');
 
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [selectedDist, setSelectedDist] = useState<string>('');
@@ -138,51 +154,67 @@ export default function DivulgadoresPage() {
 
   const districts = useMemo(() => {
     if (!datosData || !selectedDept) return [];
-    return [...new Set(datosData.filter(d => d.departamento === selectedDept).map(d => d.distrito))].sort();
+    return [...new Set(datosData.filter(d => normalizeGeo(d.departamento) === normalizeGeo(selectedDept)).map(d => d.distrito))].sort();
   }, [datosData, selectedDept]);
 
   // Distritos para el filtro de la tabla
   const filterDistrictsList = useMemo(() => {
     if (!datosData || filterDept === 'all') return [];
-    return [...new Set(datosData.filter(d => d.departamento === filterDept).map(d => d.distrito))].sort();
+    const target = normalizeGeo(filterDept);
+    return [...new Set(datosData.filter(d => normalizeGeo(d.departamento) === target).map(d => d.distrito))].sort();
   }, [datosData, filterDept]);
 
   const divulQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !currentUser?.uid || !profile) return null;
     const colRef = collection(firestore, 'divulgadores');
     
-    // Condicionamos la base de la consulta según el rol
     let constraints: any[] = [];
     
+    // Base segmentation must stay in the query for security/performance
     if (!hasAdminFilter) {
+        const normDept = normalizeGeo(profile.departamento || '');
+        const variations = Array.from(new Set([
+            profile.departamento,
+            normDept,
+            profile.departamento?.replace(/^\d+\s*-\s*/, ""),
+            profile.departamento?.split('-').pop()?.trim()
+        ])).filter(Boolean);
+
         if (hasDeptFilter && profile.departamento) {
-            constraints.push(where('departamento', '==', profile.departamento));
+            constraints.push(where('departamento', 'in', variations));
         } else if (hasDistFilter && profile.departamento && profile.distrito) {
-            constraints.push(where('departamento', '==', profile.departamento));
-            constraints.push(where('distrito', '==', profile.distrito));
+            constraints.push(where('departamento', 'in', variations));
         }
     }
 
-    // Aplicamos filtros adicionales del UI
-    if (filterDept !== 'all' && hasAdminFilter) {
-        constraints.push(where('departamento', '==', filterDept));
-    }
-    if (filterDist !== 'all' && (hasAdminFilter || hasDeptFilter)) {
-        constraints.push(where('distrito', '==', filterDist));
+    // Filtro de Departamento (Admin) con variaciones - USAMOS execDept
+    if (execDept !== 'all' && hasAdminFilter) {
+        const norm = normalizeGeo(execDept);
+        const variations = Array.from(new Set([
+            execDept,
+            norm,
+            execDept.replace(/^\d+\s*-\s*/, ""),
+            execDept.split('-').pop()?.trim(),
+            // Agregamos con tildes si el norm no tiene pero sabemos los comunes (esto es manual pero efectivo para los críticos)
+            norm === 'ASUNCION' ? 'ASUNCIÓN' : null,
+            norm === 'CONCEPCION' ? 'CONCEPCIÓN' : null,
+            norm === 'CAAGUAZU' ? 'CAAGUAZÚ' : null,
+            norm === 'GUAIRA' ? 'GUAIRÁ' : null,
+            norm === 'ITAPUA' ? 'ITAPÚA' : null,
+            norm === 'MISIONES' ? 'MISIONES' : null,
+            norm === 'PARAGUARI' ? 'PARAGUARÍ' : null,
+            norm === 'ALTO PARANA' ? 'ALTO PARANÁ' : null,
+            norm === 'NEMBY' ? 'ÑEMBY' : null
+        ])).filter(Boolean) as string[];
+        
+        constraints.push(where('departamento', 'in', variations));
     }
 
-    // Búsqueda por nombre (Server-side prefix search)
-    const term = searchTerm.toUpperCase().trim();
-    if (term.length > 0) {
-        constraints.push(orderBy('nombre'));
-        constraints.push(startAt(term));
-        constraints.push(endAt(term + '\uf8ff'));
-    } else {
-        constraints.push(orderBy('nombre'));
-    }
+    // Restauramos orderBy para usar índices compuestos una vez creados
+    constraints.push(orderBy('nombre'));
 
     return query(colRef, ...constraints);
-  }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist, searchTerm]);
+  }, [firestore, currentUser, isUserLoading, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, execDept]);
 
   const { 
     data: filteredDivul, 
@@ -190,7 +222,31 @@ export default function DivulgadoresPage() {
     hasMore, 
     loadMore, 
     isLoadingMore 
-  } = useCollectionPaginated<Divulgador>(divulQuery, 50);
+  } = useCollectionPaginated<Divulgador>(divulQuery, 100); // Aumentamos a 100 para mejor búsqueda local
+
+  const displayList = useMemo(() => {
+    let list = filteredDivul;
+
+    // Filtro local de Distrito (con normalización agresiva)
+    if (filterDist !== 'all') {
+        const targetDist = normalizeGeo(filterDist);
+        list = list.filter(d => normalizeGeo(d.distrito || '') === targetDist);
+    } else if (hasDistFilter && profile?.distrito) {
+        const targetDist = normalizeGeo(profile.distrito);
+        list = list.filter(d => normalizeGeo(d.distrito || '') === targetDist);
+    }
+
+    // Filtro local de Búsqueda (Cualquier coincidencia)
+    if (searchTerm.trim()) {
+        const term = normalizeSearch(searchTerm);
+        list = list.filter(d => 
+            normalizeSearch(d.nombre || '').includes(term) || 
+            normalizeSearch(d.cedula || '').includes(term)
+        );
+    }
+
+    return list.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  }, [filteredDivul, searchTerm, filterDist, hasDistFilter, profile]);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
     const cleanTerm = (cedulaInput || '').trim().toUpperCase();
@@ -531,7 +587,7 @@ export default function DivulgadoresPage() {
             <CardHeader className="bg-primary px-6 py-4 flex flex-col space-y-4">
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex flex-col">
-                  <CardTitle className="uppercase font-black text-xs text-white">LISTA DE PERSONAL ({filteredDivul.length})</CardTitle>
+                  <CardTitle className="uppercase font-black text-xs text-white">LISTA DE PERSONAL ({displayList.length})</CardTitle>
                   <CardDescription className="text-white/60 text-[9px] uppercase font-bold">Personal operativo habilitado para capacitaciones</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
@@ -556,11 +612,11 @@ export default function DivulgadoresPage() {
               </div>
 
               {/* Filtros de Ubicación para el Listado */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-white/10">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-white/10 items-end">
                 <div className="flex items-center gap-2">
                   <Landmark className="h-3.5 w-3.5 text-white/40" />
                   <Select value={filterDept} onValueChange={(v) => { setFilterDept(v); setFilterDist('all'); }}>
-                    <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white text-[10px] font-black uppercase">
+                    <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white text-[10px] font-black uppercase">
                       <SelectValue placeholder="DPTO: TODOS" />
                     </SelectTrigger>
                     <SelectContent>
@@ -572,7 +628,7 @@ export default function DivulgadoresPage() {
                 <div className="flex items-center gap-2">
                   <Building2 className="h-3.5 w-3.5 text-white/40" />
                   <Select value={filterDist} onValueChange={setFilterDist} disabled={filterDept === 'all'}>
-                    <SelectTrigger className="h-8 bg-white/10 border-white/20 text-white text-[10px] font-black uppercase">
+                    <SelectTrigger className="h-10 bg-white/10 border-white/20 text-white text-[10px] font-black uppercase">
                       <SelectValue placeholder="DIST: TODOS" />
                     </SelectTrigger>
                     <SelectContent>
@@ -581,6 +637,17 @@ export default function DivulgadoresPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button 
+                  onClick={() => {
+                    setExecDept(filterDept);
+                    setExecDist(filterDist);
+                  }}
+                  disabled={isLoadingDivul}
+                  className="h-10 bg-white text-primary hover:bg-white/90 font-black uppercase text-[10px] shadow-lg group"
+                >
+                  {isLoadingDivul ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Filter className="h-3 w-3 mr-2 transition-transform group-hover:scale-110" />}
+                  EJECUTAR FILTRO
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0 bg-white">
@@ -589,10 +656,10 @@ export default function DivulgadoresPage() {
                   <TableBody>
                     {isLoadingDivul ? (
                       <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                    ) : filteredDivul.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-20 opacity-20"><Users className="h-12 w-12 mx-auto mb-2"/><p className="text-[10px] font-black uppercase">No hay personal registrado</p></TableCell></TableRow>
+                    ) : displayList.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="text-center py-20 opacity-20"><Users className="h-12 w-12 mx-auto mb-2"/><p className="text-[10px] font-black uppercase">No se encontraron resultados</p></TableCell></TableRow>
                     ) : (
-                      filteredDivul.map(d => (
+                      displayList.map(d => (
                         <TableRow key={d.id} className="border-b hover:bg-muted/30 transition-colors">
                           <TableCell className="py-4 px-6"><p className="font-black text-xs uppercase text-primary">{d.nombre}</p><p className="text-[9px] text-muted-foreground font-bold">C.I. {d.cedula}</p></TableCell>
                           <TableCell className="py-4 px-6"><p className="text-[10px] font-black uppercase">{d.departamento}</p><p className="text-[9px] font-bold text-muted-foreground">{d.distrito}</p></TableCell>

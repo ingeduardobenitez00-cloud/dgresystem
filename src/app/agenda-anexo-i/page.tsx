@@ -728,8 +728,13 @@ export default function AgendaAnexoIPage() {
       .then(() => {
         toast({ title: "Personal Asignado" });
         const updatedDivs = [...(assigningSolicitud.divulgadores || []), newDivulgador];
+        
+        // Actualizamos el modal
         setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
+        
+        // Actualizamos la lista principal inmediatamente (Optimistic UI)
         updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
+        
         setIsUpdating(false);
       })
       .catch(async (error) => {
@@ -747,10 +752,14 @@ export default function AgendaAnexoIPage() {
 
     updateDoc(docRef, { divulgadores: arrayRemove(divulgadorToRemove) })
       .then(() => {
-          toast({ title: "Personal Removido" });
-          const updatedDivs = (assigningSolicitud.divulgadores || []).filter(d => d.id !== divulgadorId);
-          setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
-          updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
+        toast({ title: "Personal Removido" });
+        const updatedDivs = (assigningSolicitud.divulgadores || []).filter(d => d.id !== divulgadorId);
+        
+        // Actualizamos el modal
+        setAssigningSolicitud(prev => prev ? { ...prev, divulgadores: updatedDivs } : null);
+        
+        // Actualizamos la lista principal inmediatamente (Optimistic UI)
+        updateItem(assigningSolicitud.id, { divulgadores: updatedDivs });
       })
       .catch(error => { 
           errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'update' }));

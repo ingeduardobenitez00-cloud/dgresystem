@@ -1,4 +1,5 @@
 'use client';
+// Versión: Blindaje Maestro 2.0 - Publicado el 13 de Abril
 
 import { useState, useEffect } from 'react';
 import {
