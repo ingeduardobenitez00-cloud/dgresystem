@@ -1009,7 +1009,10 @@ export default function AgendaAnexoVPage() {
     })
     .then(() => {
         const time = new Date().toISOString();
-        toast({ title: "Ciclo Concluido", description: "La actividad ha sido movida al historial." });
+        toast({ 
+            title: "Ciclo Concluido", 
+            description: "Este agenda se archivará en Archivo / Historial en 3 minutos." 
+        });
         
         const updater = updateItemRegistry.current.get(concludingSolicitud!.departamento);
         if (updater) updater(solicitudId, { fecha_cumplido: time });

@@ -241,6 +241,10 @@ const DistrictSection = ({
 
     const handleManualComplete = (id: string) => {
         updateDoc(doc(firestore!, 'solicitudes-capacitacion', id), { fecha_cumplido: new Date().toISOString() }).then(() => {
+            toast({ 
+                title: "Ciclo Concluido", 
+                description: "Este agenda se archivará en Archivo / Historial en 3 minutos." 
+            });
             updateItem(id, { fecha_cumplido: new Date().toISOString() });
             setConcludingSolicitud(null);
         });
