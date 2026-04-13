@@ -128,8 +128,23 @@ const DistrictSection = ({
         Promise.all(chunks.map(chunk => getDocs(query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', 'in', chunk)))))
             .then(snapshots => {
                 const newMap = new Map();
-                snapshots.forEach(snap => snap.docs.forEach(doc => newMap.set(doc.data().solicitud_id, { id: doc.id, ...doc.data() })));
-                setMovimientosMap(prev => new Map([...prev, ...newMap]));
+                snapshots.forEach(snap => snap.docs.forEach(doc => {
+                    const data = doc.data();
+                    const solId = data.solicitud_id;
+                    const existing = newMap.get(solId);
+                    
+                    // Prioridad: Si no existe, o si el nuevo tiene fecha_devolucion y el viejo no, 
+                    // o si ambos son iguales en estado pero el nuevo es más reciente
+                    if (!existing || (!existing.fecha_devolucion && data.fecha_devolucion) || 
+                       (data.fecha_devolucion && existing.fecha_devolucion && data.fecha_creacion > existing.fecha_creacion)) {
+                        newMap.set(solId, { id: doc.id, ...data });
+                    }
+                }));
+                setMovimientosMap(prev => {
+                    const combined = new Map(prev);
+                    newMap.forEach((val, key) => combined.set(key, val));
+                    return combined;
+                });
             });
 
         Promise.all(chunks.map(chunk => getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk)))))
