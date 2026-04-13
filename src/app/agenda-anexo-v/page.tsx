@@ -75,7 +75,7 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 const normalizeGeo = (str: string) => {
   if (!str) return '';
   return str.toUpperCase()
-    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .replace(/^[\d\s-]*/, '') // Elimina TODO rastro de números, guiones y espacios al inicio
     .trim();
 };
 
@@ -98,31 +98,23 @@ const DistrictSection = ({
     markQRAsViewed,
     router,
     registerUpdateItem,
-    hasAdminFilter
+    hasAdminFilter,
+    updateItem,
+    initialOpen = false,
+    allDeptItems = [],
+    isDeptLoading = false
 }: any) => {
-    const solicitudesQuery = useMemoFirebase(() => {
-        if (!firestore || !profile) return null;
-        
-        const colRef = collection(firestore, 'solicitudes-capacitacion');
-        
-        return query(
-            colRef, 
-            where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']),
-            where('departamento', '==', deptLabel),
-            where('distrito', '==', dist.label),
-            orderBy('fecha', 'asc')
-        );
-    }, [firestore, profile?.role, deptLabel, dist.label]);
+    // Filtramos los items del departamento que pertenecen a este distrito usando normalizeGeo
+    const rawSolicitudes = useMemo(() => {
+        const target = normalizeGeo(dist.label);
+        return (allDeptItems || []).filter((sol: any) => normalizeGeo(sol.distrito) === target);
+    }, [allDeptItems, dist.label]);
 
-    const { 
-        data: rawSolicitudes, 
-        isLoading,
-        hasMore,
-        loadMore,
-        isLoadingMore,
-        error,
-        updateItem
-    } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 50);
+    const isLoading = isDeptLoading;
+    const isLoadingMore = false;
+    const hasMore = false;
+    const loadMore = () => {};
+    const error = null;
 
     const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
     const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
@@ -188,7 +180,7 @@ const DistrictSection = ({
             if (sol.fecha_cumplido) {
                 const completionTime = new Date(sol.fecha_cumplido);
                 const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
-                if (diffHours > 168) return false;
+                if (diffHours > 720) return false; // Ampliado a 30 días (720h)
                 return true;
             }
 
@@ -517,31 +509,56 @@ const DepartmentSection = ({
     markQRAsViewed,
     router,
     registerUpdateItem,
-    hasAdminFilter
+    hasAdminFilter,
+    initialOpen = false
 }: any) => {
-    const [isOpen, setIsOpen] = useState(false);
+    // Forzamos el estado abierto si el usuario solo tiene acceso a un departamento/distrito (Jefe)
+    const [isOpen, setIsOpen] = useState(initialOpen || hasAdminFilter === false);
     
     // Obtenemos los distritos del departamento desde la colección 'datos'
+    const deptQuery = useMemoFirebase(() => {
+        if (!firestore || !isOpen) return null;
+
+        const norm = normalizeGeo(dept.label);
+        const variations = Array.from(new Set([
+            dept.label,                            // 03 - CORDILLERA
+            norm,                                  // CORDILLERA
+            norm.charAt(0) + norm.slice(1).toLowerCase(), // Cordillera
+            dept.label.replace(/\s*-\s*/, '-'),    // 03-CORDILLERA
+            dept.label.replace(/^0+/, ''),         // 3 - CORDILLERA
+            dept.label.replace(/^0+/, '').replace(/\s*-\s*/, '-') // 3-COREDILLERA
+        ])).filter(Boolean);
+
+        return query(
+            collection(firestore, 'solicitudes-capacitacion'),
+            where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']),
+            where('departamento', 'in', variations)
+        );
+    }, [firestore, isOpen, dept.label]);
+
+    const { data: allDeptItems, isLoading: isDeptLoading, error: deptError } = useCollectionOnce<SolicitudCapacitacion>(deptQuery);
+
     const districtsData = useMemo(() => {
         if (!datosData) return [];
         
         // Si el usuario tiene filtro de distrito, solo mostramos ese distrito SI pertenece a este departamento
         const role = (profile?.role || '').toLowerCase();
         if (!hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile?.permissions?.includes('district_filter'))) {
-            if (profile?.distrito) {
-                const targetDist = profile.distrito.trim().replace(/\s+/g, ' ');
-                const userDistEntry = datosData.find((d: Dato) => d.distrito.trim().replace(/\s+/g, ' ') === targetDist);
+                const targetDist = normalizeGeo(profile.distrito);
+                const userDistEntry = datosData.find((d: Dato) => normalizeGeo(d.distrito) === targetDist);
                 if (userDistEntry?.departamento === dept.label) {
                     const distName = userDistEntry.distrito;
                     const code = distName.match(/^\d+/)?.[0] || '00';
                     return [{ label: distName, code }];
                 }
-                return [];
-            }
+                // Fallback: si no hay match en datos pero el perfil tiene distrito, lo usamos (con códigos)
+                return [{ label: profile.distrito, code: profile.distrito.match(/^\d+/)?.[0] || '00' }];
+            return []; // Obligamos a que si es jefe pero no hay match o no hay distrito, no vea nada
         }
 
+
         const dists = new Set();
-        datosData.forEach(d => {
+        datosData.forEach((d: any) => {
             if (d.departamento === dept.label) {
                 dists.add(d.distrito);
             }
@@ -552,6 +569,15 @@ const DepartmentSection = ({
             code: (d as string).match(/^\d+/)?.[0] || '00'
         })).sort((a, b) => a.code.localeCompare(b.code));
     }, [datosData, dept.label, profile, hasAdminFilter]);
+
+    const distFound = useMemo(() => {
+        const map: Record<string, number> = {};
+        (allDeptItems || []).forEach((s: any) => {
+            const d = normalizeGeo(s.distrito || 'S/D');
+            map[d] = (map[d] || 0) + 1;
+        });
+        return Object.entries(map).map(([k, v]) => `${k}:${v}`).join(', ');
+    }, [allDeptItems]);
 
     return (
         <AccordionItem value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
@@ -565,16 +591,23 @@ const DepartmentSection = ({
                     </div>
                     <div>
                         <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.label}</h2>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                            {isOpen ? `${districtsData.length} DISTRITOS CONFIGURADOS` : 'CLIC PARA EXPLORAR DEPARTAMENTO'}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                {isOpen ? `${districtsData.length} DISTRITOS CONFIGURADOS` : 'CLIC PARA EXPLORAR DEPARTAMENTO'}
+                            </p>
+                            {deptError && (
+                                <Badge variant="destructive" className="text-[6px] py-0 px-1 font-black uppercase">
+                                    ERR: {deptError.message.substring(0, 15)}...
+                                </Badge>
+                            )}
+                        </div>
                     </div>
                 </div>
             </AccordionTrigger>
             
             <AccordionContent className="px-8 pb-8 pt-2" forceMount={districtsData.length === 1 ? true : undefined}>
                 <Accordion type="multiple" className="space-y-4" defaultValue={districtsData.length === 1 ? [districtsData[0].label] : undefined}>
-                    {(isOpen || districtsData.length === 1) && districtsData.map((dist: any) => (
+                    {(isOpen || districtsData.length === 1) && districtsData.map((dist: { label: string, code: string }) => (
                         <DistrictSection
                             key={dist.label}
                             deptLabel={dept.label}
@@ -597,6 +630,8 @@ const DepartmentSection = ({
                             registerUpdateItem={registerUpdateItem}
                             hasAdminFilter={hasAdminFilter}
                             initialOpen={districtsData.length === 1}
+                            allDeptItems={allDeptItems}
+                            isDeptLoading={isDeptLoading}
                         />
                     ))}
                 </Accordion>
@@ -696,17 +731,23 @@ export default function AgendaAnexoVPage() {
     else updateItemRegistry.current.delete(dept);
   };
 
+  const isRestricted = useMemo(() => {
+    if (!profile) return false;
+    const role = (profile.role || '').toLowerCase();
+    return !hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter'));
+  }, [profile, hasAdminFilter]);
+
   const uniqueDepartments = useMemo(() => {
     if (!datosData || !profile) return [];
     
-    const role = (profile.role || '').toLowerCase();
-    const isRestricted = !hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter'));
-    
     // Si el usuario tiene restricciones, solo mostramos su departamento
-    if (isRestricted && profile.departamento) {
-        const deptName = profile.departamento;
-        const code = deptName.match(/^\d+/)?.[0] || '00';
-        return [{ label: deptName, code }];
+    if (isRestricted) {
+        if (profile.departamento) {
+            const deptName = profile.departamento;
+            const code = deptName.match(/^\d+/)?.[0] || '00';
+            return [{ label: deptName, code }];
+        }
+        return []; // Si es restringido y no tiene depto, falla de seguridad -> lista vacía
     }
 
     // Caso Admin: mostramos todos los departamentos únicos de la colección 'datos'
@@ -1060,9 +1101,16 @@ export default function AgendaAnexoVPage() {
                     <Activity className="h-4 w-4" /> Seguimiento nacional de actividades registradas.
                 </p>
             </div>
-             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[8px] font-black uppercase">
+                    DEBUG: DEP:{profile?.departamento} | DIST:{profile?.distrito}
+                  </Badge>
+                </div>
             </div>
         </div>
 
@@ -1107,6 +1155,7 @@ export default function AgendaAnexoVPage() {
                     router={router}
                     registerUpdateItem={registerUpdateItem}
                     hasAdminFilter={hasAdminFilter}
+                    initialOpen={uniqueDepartments.length === 1}
                 />
             ))}
           </Accordion>
@@ -1249,29 +1298,14 @@ export default function AgendaAnexoVPage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-10">
                                 {(() => {
-                                    const mov = movimientosMap.get(viewingActivity.id);
-                                    const itemInformes = informesMap.get(viewingActivity.id) || [];
-                                    const inf = itemInformes.length > 0 ? itemInformes[0] : null;
-                                    
+                                    // Búsqueda segura de datos adicionales para la ficha
                                     return (
                                         <>
-                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                                            <div className="p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2 bg-muted/10 border-transparent opacity-40">
+                                                <div className="h-8 w-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
                                                     <CheckCircle2 className="h-4 w-4" />
                                                 </div>
-                                                <p className="text-[9px] font-black uppercase">SALIDA MV</p>
-                                            </div>
-                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov?.fecha_devolucion ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov?.fecha_devolucion ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                </div>
-                                                <p className="text-[9px] font-black uppercase">RETORNO MV</p>
-                                            </div>
-                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", inf ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", inf ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                </div>
-                                                <p className="text-[9px] font-black uppercase">INFORME</p>
+                                                <p className="text-[9px] font-black uppercase">TRAZABILIDAD EN DISTRITO</p>
                                             </div>
                                         </>
                                     );

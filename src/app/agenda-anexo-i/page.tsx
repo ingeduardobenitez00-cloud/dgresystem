@@ -74,12 +74,11 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 const normalizeGeo = (str: string) => {
   if (!str) return '';
   return str.toUpperCase()
-    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
+    .replace(/^[\d\s-]*/, '') // Elimina TODO rastro de números, guiones y espacios al inicio
     .trim();
 };
 
 const DistrictSection = ({ 
-    deptName, 
     distName, 
     distCode,
     firestore, 
@@ -97,31 +96,23 @@ const DistrictSection = ({
     viewedQRs,
     markQRAsViewed,
     router,
-    initialOpen = false
+    initialOpen = false,
+    allDeptItems = [],
+    isDeptLoading = false
 }: any) => {
-    const [isOpen, setIsOpen] = useState(initialOpen);
+    const [isOpen, setIsOpen] = useState(initialOpen || ((allDeptItems || []).length > 0));
     
-    const q = useMemoFirebase(() => {
-        if (!firestore || !isOpen) return null;
-        return query(
-            collection(firestore, 'solicitudes-capacitacion'),
-            where('tipo_solicitud', '==', 'Lugar Fijo'),
-            where('departamento', '==', deptName),
-            where('distrito', '==', distName),
-            orderBy('fecha', 'asc')
-        );
-    }, [firestore, isOpen, deptName, distName]);
+    // Filtramos los items del departamento que pertenecen a este distrito usando normalizeGeo
+    const rawItems = useMemo(() => {
+        const target = normalizeGeo(distName);
+        return (allDeptItems || []).filter((sol: any) => normalizeGeo(sol.distrito) === target);
+    }, [allDeptItems, distName]);
 
-    const { 
-        data: rawItems, 
-        isLoading, 
-        isLoadingMore, 
-        hasMore, 
-        loadMore, 
-        updateItem, 
-        mutate,
-        error
-    } = useCollectionPaginated<SolicitudCapacitacion>(q, 50);
+    const isLoading = isDeptLoading;
+    const isLoadingMore = false;
+    const hasMore = false;
+    const loadMore = () => {};
+    const error = null;
 
     const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
     const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
@@ -164,7 +155,7 @@ const DistrictSection = ({
             if (sol.cancelada) return false;
             if (sol.fecha_cumplido) {
                 const diff = (currentMs - new Date(sol.fecha_cumplido).getTime()) / (1000 * 60 * 60);
-                if (diff > 168) return false;
+                if (diff > 720) return false; // Ampliado a 30 días (720h)
             }
             const matchesSearch = !searchTerm || 
                 (sol.nombre_completo || '').toLowerCase().includes(searchTerm) || 
@@ -329,10 +320,33 @@ const DepartmentSection = ({
     viewedQRs,
     markQRAsViewed,
     router,
-    hasAdminFilter
+    hasAdminFilter,
+    initialOpen = false
 }: any) => {
-    const [isOpen, setIsOpen] = useState(false);
-    
+    // Forzamos el estado abierto si el usuario solo tiene acceso a un departamento/distrito (Jefe)
+    const [isOpen, setIsOpen] = useState(initialOpen || hasAdminFilter === false);
+    const deptQuery = useMemoFirebase(() => {
+        if (!firestore || !isOpen) return null;
+        
+        const norm = normalizeGeo(dept.label);
+        const variations = Array.from(new Set([
+            dept.label,                            // 03 - CORDILLERA
+            norm,                                  // CORDILLERA
+            norm.charAt(0) + norm.slice(1).toLowerCase(), // Cordillera
+            dept.label.replace(/\s*-\s*/, '-'),    // 03-CORDILLERA
+            dept.label.replace(/^0+/, ''),         // 3 - CORDILLERA
+            dept.label.replace(/^0+/, '').replace(/\s*-\s*/, '-') // 3-CORDILLERA
+        ])).filter(Boolean);
+
+        return query(
+            collection(firestore, 'solicitudes-capacitacion'),
+            where('tipo_solicitud', '==', 'Lugar Fijo'),
+            where('departamento', 'in', variations)
+        );
+    }, [firestore, isOpen, dept.label]);
+
+    const { data: allDeptItems, isLoading: isDeptLoading, error: deptError } = useCollectionOnce<SolicitudCapacitacion>(deptQuery);
+
     const distNames = useMemo(() => {
         if (!datosData) return [];
         
@@ -340,30 +354,60 @@ const DepartmentSection = ({
         const role = (profile?.role || '').toLowerCase();
         if (!hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile?.permissions?.includes('district_filter'))) {
             if (profile?.distrito) {
-                const targetDist = profile.distrito.trim().replace(/\s+/g, ' ');
-                const userDist = datosData.find((d: Dato) => d.distrito.trim().replace(/\s+/g, ' ') === targetDist);
+                const targetDist = normalizeGeo(profile.distrito);
+                const userDist = datosData.find((d: Dato) => normalizeGeo(d.distrito) === targetDist);
                 if (userDist?.departamento === dept.label) {
-                    return [userDist.distrito]; // Usamos el nombre REAL de la colección datos
+                    return [userDist.distrito]; 
                 }
-                return [];
+                // Fallback de seguridad: si no hay match en datos pero el perfil tiene distrito, lo usamos directamente
+                return [profile.distrito];
             }
+            return []; 
         }
 
         return Array.from(new Set(datosData.filter((d: Dato) => d.departamento === dept.label).map((d: Dato) => d.distrito))).sort();
     }, [datosData, dept.label, profile, hasAdminFilter]);
 
+    const distFound = useMemo(() => {
+        const map: Record<string, number> = {};
+        (allDeptItems || []).forEach((s: any) => {
+            const d = normalizeGeo(s.distrito || 'S/D');
+            map[d] = (map[d] || 0) + 1;
+        });
+        return Object.entries(map).map(([k, v]) => `${k}:${v}`).join(', ');
+    }, [allDeptItems]);
+
     return (
-        <AccordionItem value={dept.label} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
-            <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group" onClick={() => setIsOpen(!isOpen)}>
-                <div className="flex items-center gap-6 text-left">
-                    <div className="h-14 w-14 rounded-full bg-black text-white flex items-center justify-center font-black text-lg shadow-xl">{dept.code}</div>
-                    <div><h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.label}</h2><p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">{distNames.length} DISTRITOS CONFIGURADOS</p></div>
+        <AccordionItem value={dept.label} className="border-none mb-6">
+            <AccordionTrigger 
+                className={cn(
+                    "hover:no-underline group p-6 rounded-[2.5rem] bg-white border-2 border-white shadow-xl transition-all duration-500",
+                    isOpen ? "border-primary/10 bg-primary/[0.02]" : "hover:border-primary/5 hover:bg-muted/50"
+                )}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="flex items-center gap-6 w-full text-left">
+                    <div className={cn(
+                        "h-16 w-16 rounded-[1.5rem] flex items-center justify-center text-xl font-black transition-all duration-500 shadow-lg",
+                        isOpen ? "bg-black text-white rotate-6" : "bg-muted text-muted-foreground group-hover:bg-black group-hover:text-white group-hover:-rotate-3"
+                    )}>
+                        {dept.label.split(' - ')[0]}
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-xl font-black uppercase tracking-tight">{dept.label}</h2>
+                            {isDeptLoading && <Loader2 className="h-4 w-4 animate-spin text-primary opacity-20" />}
+                        </div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 tracking-widest flex items-center gap-2">
+                            {distNames.length} DISTRITOS CONFIGURADOS
+                        </p>
+                    </div>
                 </div>
             </AccordionTrigger>
             <AccordionContent className="px-8 pb-8 pt-2" forceMount={distNames.length === 1 ? true : undefined}>
                 <Accordion type="multiple" className="space-y-4" defaultValue={distNames.length === 1 ? [distNames[0]] : undefined}>
                     {distNames.map((distName: any) => (
-                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} initialOpen={distNames.length === 1} hasAdminFilter={hasAdminFilter} />
+                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} initialOpen={distNames.length === 1} hasAdminFilter={hasAdminFilter} allDeptItems={allDeptItems} isDeptLoading={isDeptLoading} />
                     ))}
                 </Accordion>
             </AccordionContent>
@@ -376,6 +420,7 @@ export default function AgendaAnexoIPage() {
   const { user, isUserLoading, isProfileLoading, userError } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const profile = user?.profile;
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -392,7 +437,24 @@ export default function AgendaAnexoIPage() {
   const [concludingSolicitud, setConcludingSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [deletingDistrict, setDeletingDistrict] = useState<{ dept: string, dist: string, items: SolicitudCapacitacion[] } | null>(null);
   
+  const [mbocayatyFound, setMbocayatyFound] = useState<{count: number, sampleDept: string, sampleDist: string} | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  useEffect(() => {
+    if (!firestore || !user?.uid) return;
+    getDocs(query(collection(firestore, 'solicitudes-capacitacion'), where('usuario_id', '==', user.uid), limit(1)))
+    .then(snap => {
+        if (!snap.empty) {
+            setMbocayatyFound({ 
+                count: snap.size, 
+                sampleDept: String(snap.docs[0].data().departamento),
+                sampleDist: String(snap.docs[0].data().distrito)
+            });
+        } else {
+            setMbocayatyFound({ count: 0, sampleDept: 'NADA_CREADO_POR_ESTE_UID', sampleDist: 'N/A' });
+        }
+    });
+  }, [firestore, user?.uid]);
+
   const [divulSearch, setDivulSearch] = useState('');
   const [copied, setCopied] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
@@ -421,7 +483,7 @@ export default function AgendaAnexoIPage() {
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
 
-  const profile = user?.profile;
+
 
   // Cargar el documento AnexoI padre para ver la firma cuando se visualiza la ficha
   const anexoPadreRef = useMemoFirebase(() => {
@@ -466,17 +528,23 @@ export default function AgendaAnexoIPage() {
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos, error: datosError } = useCollectionOnce<Dato>(datosQuery);
 
+  const isRestricted = useMemo(() => {
+    if (!profile) return false;
+    const role = (profile.role || '').toLowerCase();
+    return !hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter'));
+  }, [profile, hasAdminFilter]);
+
   const uniqueDepartments = useMemo(() => {
     if (!datosData || !profile) return [];
     
-    const role = (profile.role || '').toLowerCase();
-    const isRestricted = !hasAdminFilter && (role === 'jefe' || role === 'funcionario' || profile.permissions?.includes('district_filter') || profile.permissions?.includes('department_filter'));
-
     // Si el usuario tiene restricciones, solo mostramos su departamento
-    if (isRestricted && profile.departamento) {
-        const deptName = profile.departamento;
-        const code = deptName.match(/^\d+/)?.[0] || '00';
-        return [{ label: deptName, code }];
+    if (isRestricted) {
+        if (profile.departamento) {
+            const deptName = profile.departamento;
+            const code = deptName.match(/^\d+/)?.[0] || '00';
+            return [{ label: deptName, code }];
+        }
+        return []; // Seguridad: si es jefe pero no tiene depto en perfil, no ve nada
     }
 
     // Caso Admin: mostramos todos los departamentos únicos
@@ -816,13 +884,20 @@ export default function AgendaAnexoIPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
             <div>
                 <h1 className="text-3xl font-black uppercase text-primary">Agenda Lugares Fijos</h1>
-                <p className="text-muted-foreground text-xs font-bold uppercase mt-1 flex items-center gap-2">
-                    <Activity className="h-4 w-4" /> Seguimiento exclusivo de puntos oficiales de divulgación.
+                <p className="text-muted-foreground text-xs font-bold uppercase flex items-center gap-2 mt-2">
+                    <Activity className="h-3.5 w-3.5" /> Seguimiento exclusivo de puntos oficiales de divulgación.
+                    {mbocayatyFound && (
+                        <span className="ml-4 bg-blue-600 px-3 py-1 rounded-full text-white text-[9px] font-black shadow-lg animate-pulse">
+                            RASTREO_ULTIMA_CARGA: {mbocayatyFound.count > 0 ? `DETECTADO EN "${mbocayatyFound.sampleDist}" (${mbocayatyFound.sampleDept})` : 'SIN REGISTROS PROPIOS'}
+                        </span>
+                    )}
                 </p>
             </div>
-             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+                </div>
             </div>
         </div>
 
@@ -843,9 +918,19 @@ export default function AgendaAnexoIPage() {
         )}
 
         {uniqueDepartments.length === 0 ? (
-          <Card className="p-20 text-center border-dashed bg-white rounded-3xl">
-            <p className="font-black text-muted-foreground uppercase tracking-widest opacity-30">No hay lugares fijos agendados en su jurisdicción</p>
-          </Card>
+          <div className="flex flex-col gap-4">
+            <div className="p-2 bg-slate-100 rounded-lg text-[8px] font-mono text-slate-500 flex gap-4 uppercase font-bold">
+                <span>PROFILE: {profile ? 'OK' : 'NULL'}</span>
+                <span>DEPT: {profile?.departamento || 'N/A'}</span>
+                <span>RESTRICTED: {String(isRestricted)}</span>
+                <span>ADMIN: {String(hasAdminFilter)}</span>
+                <span>DATOS: {datosData ? datosData.length : (isLoadingDatos ? 'LOADING' : 'NULL')}</span>
+                {datosError && <span className="text-red-500">ERR: {datosError.message.substring(0, 20)}</span>}
+            </div>
+            <Card className="p-20 text-center border-dashed bg-white rounded-3xl">
+              <p className="font-black text-muted-foreground uppercase tracking-widest opacity-30">No hay lugares fijos agendados en su jurisdicción</p>
+            </Card>
+          </div>
         ) : (
           <Accordion type="multiple" className="space-y-6" defaultValue={uniqueDepartments.length === 1 ? [uniqueDepartments[0].label] : undefined}>
             {uniqueDepartments.map((dept) => (
@@ -871,6 +956,7 @@ export default function AgendaAnexoIPage() {
                     registerUpdateItem={registerUpdateItem}
                     router={router}
                     hasAdminFilter={hasAdminFilter}
+                    initialOpen={uniqueDepartments.length === 1}
                 />
             ))}
           </Accordion>
@@ -1107,6 +1193,12 @@ export default function AgendaAnexoIPage() {
                                 className="rounded-[1.5rem]" 
                                 crossOrigin="anonymous" 
                             />
+                        )}
+                        {isRestricted && (
+                            <Badge variant="outline" className="bg-white/50 backdrop-blur-sm border-black/10 text-black/60 font-black text-[8px] tracking-widest uppercase py-1 px-3 rounded-full flex items-center gap-1.5 shadow-sm mt-4">
+                                <div className="h-1 w-1 rounded-full bg-black/40 animate-pulse" />
+                                Vista Operativa
+                            </Badge>
                         )}
                     </div>
                     
