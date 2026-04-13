@@ -277,10 +277,15 @@ const DistrictSection = ({
                     const assignedList = item.divulgadores || item.asignados || []; 
                     const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
                     
-                    const missingF02 = !mov?.fecha_devolucion;
-                    const missingAnexoIII = (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
-                    const missingSalida = !mov;
-                    const hasAlert = missingF02 || missingAnexoIII || missingSalida;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const isPast = item.fecha < todayStr;
+                    const isToday = item.fecha === todayStr;
+
+                    const pendingSalida = !mov;
+                    const pendingRetorno = mov && !mov.fecha_devolucion;
+                    const pendingAnexoIII = (assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length);
+                    
+                    const hasAlert = isPast && (pendingSalida || pendingRetorno || pendingAnexoIII);
                     const isFulfilled = !!(mov?.fecha_devolucion && inf);
 
                     const hasPersonnel = (item.divulgadores || item.asignados || []).length > 0;
@@ -294,7 +299,7 @@ const DistrictSection = ({
                     const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed);
                     const showStep4 = !!(hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed));
                     const showStep5 = !!(hasSalida && !hasRetorno);
-                    const showStep6 = !!(!hasInforme);
+                    const showStep6 = !!(pendingAnexoIII);
 
                     const GuideStep = ({ step, message, active, onClick }: { step: number, message: string, active: boolean, onClick?: () => void }) => {
                         if (!active) return null;
@@ -377,30 +382,54 @@ const DistrictSection = ({
                                     </div>
 
                                     <div className="lg:col-span-3 flex flex-col items-end gap-3">
-                                        {hasAlert && (
+                                        {(hasAlert || isToday || (!isPast && (pendingSalida || pendingRetorno || pendingAnexoIII))) && (
                                             <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
-                                                    {missingSalida && (
-                                                        <div className="relative">
-                                                            <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
-                                                            <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive text-white px-3 py-1.5 rounded-lg border border-destructive shadow-lg hover:bg-destructive/90 transition-all animate-pulse">
-                                                                <Truck className="h-3.5 w-3.5" />
-                                                                <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">COMPLETA TU FORMULARIO DE SALIDA DE EQUIPOS</span>
-                                                            </Link>
-                                                        </div>
-                                                    )}
-                                                    {missingF02 && (
-                                                        <div className="relative">
-                                                            <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
-                                                            <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
-                                                                <ShieldAlert className="h-3 w-3" />
-                                                                <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA RETORNO (F02)</span>
-                                                            </Link>
-                                                        </div>
-                                                    )}
-                                                {missingAnexoIII && (
-                                                    <Link href={`/informe-divulgador?solicitudId=${item.id}`} className="flex items-center gap-2 bg-destructive/10 text-destructive px-3 py-1 rounded-lg border border-destructive/20 hover:bg-destructive/20 transition-colors animate-pulse">
+                                                {pendingSalida && (
+                                                    <div className="relative">
+                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
+                                                        <Link 
+                                                            href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
+                                                            className={cn(
+                                                                "flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-lg transition-all",
+                                                                isPast ? "bg-destructive text-white border-destructive animate-pulse" : "bg-blue-600 text-white border-blue-700"
+                                                            )}
+                                                        >
+                                                            <Truck className="h-3.5 w-3.5" />
+                                                            <span className="text-[7.5px] font-black uppercase tracking-tight leading-none">
+                                                                {isPast ? "COMPLETA TU FORMULARIO DE SALIDA (ATRASADO)" : "COMPLETA TU FORMULARIO DE SALIDA"}
+                                                            </span>
+                                                        </Link>
+                                                    </div>
+                                                )}
+                                                {pendingRetorno && (
+                                                    <div className="relative">
+                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} />
+                                                        <Link 
+                                                            href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
+                                                            className={cn(
+                                                                "flex items-center gap-2 px-3 py-1 rounded-lg border transition-colors",
+                                                                isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                            )}
+                                                        >
+                                                            <ShieldAlert className="h-3 w-3" />
+                                                            <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">
+                                                                {isPast ? "FALTA RETORNO (F02)" : "PENDIENTE RETORNO (F02)"}
+                                                            </span>
+                                                        </Link>
+                                                    </div>
+                                                )}
+                                                {pendingAnexoIII && (
+                                                    <Link 
+                                                        href={`/informe-divulgador?solicitudId=${item.id}`} 
+                                                        className={cn(
+                                                            "flex items-center gap-2 px-3 py-1 rounded-lg border transition-colors",
+                                                            isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                        )}
+                                                    >
                                                         <AlertCircle className="h-3 w-3" />
-                                                        <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">FALTA INFORME: {missingInformesFrom.length > 0 ? missingInformesFrom.map(f => f.nombre.split(" ")[0]).join(", ") : "REQUERIDO"}</span>
+                                                        <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">
+                                                            {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}: {missingInformesFrom.length > 0 ? missingInformesFrom.map(f => f.nombre.split(" ")[0]).join(", ") : "REQUERIDO"}
+                                                        </span>
                                                     </Link>
                                                 )}
                                             </div>

@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -35,7 +36,8 @@ import {
   Ban,
   ImageIcon,
   Clock,
-  ChevronDown
+  ChevronDown,
+  Truck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -303,9 +305,15 @@ const DistrictSection = ({
                 {items.map(item => {
                     const today = new Date().toISOString().split('T')[0];
                     const isPast = item.fecha < today;
+                    const isToday = item.fecha === today;
                     const mov = movementsData?.find(m => m.solicitud_id === item.id);
                     const inf = reportsData?.find(i => i.solicitud_id === item.id);
-                    const hasAlert = isPast && (!mov?.fecha_devolucion || !inf);
+                    
+                    const pendingSalida = !mov;
+                    const pendingRetorno = mov && !mov.fecha_devolucion;
+                    const pendingInforme = (item.divulgadores || []).length > 0 ? !(inf) : !inf; // Simplificado, asumiendo que inf ya cubre la existencia de informes
+
+                    const hasAlert = isPast && (pendingSalida || pendingRetorno || pendingInforme);
                     const isFulfilled = mov?.fecha_devolucion && inf;
                     return (
                         <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-200 bg-green-50/10" : "border-muted/20 bg-white")}>
@@ -326,6 +334,56 @@ const DistrictSection = ({
                                         <div className="flex items-center gap-2 text-primary pt-2 border-t border-dashed"><MessageSquareHeart className="h-3.5 w-3.5" /><SurveyCounter solicitudId={item.id} firestore={firestore} /></div>
                                     </div>
                                     <div className="lg:col-span-3 flex flex-col items-end gap-3">
+                                        {(hasAlert || isToday || (!isPast && (pendingSalida || pendingRetorno || pendingInforme))) && (
+                                            <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
+                                                {pendingSalida && (
+                                                    <div className="relative">
+                                                        <Link 
+                                                            href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
+                                                            className={cn(
+                                                                "flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-lg transition-all",
+                                                                isPast ? "bg-destructive text-white border-destructive animate-pulse" : "bg-blue-600 text-white border-blue-700"
+                                                            )}
+                                                        >
+                                                            <Truck className="h-3.5 w-3.5" />
+                                                            <span className="text-[7.5px] font-black uppercase">
+                                                                {isPast ? "SALIDA EQUIPOS (ATRASADO)" : "SALIDA EQUIPOS"}
+                                                            </span>
+                                                        </Link>
+                                                    </div>
+                                                )}
+                                                {pendingRetorno && (
+                                                    <div className="relative">
+                                                        <Link 
+                                                            href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
+                                                            className={cn(
+                                                                "flex items-center gap-2 px-3 py-1 rounded-lg border transition-all",
+                                                                isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                            )}
+                                                        >
+                                                            <ShieldAlert className="h-3 w-3" />
+                                                            <span className="text-[8px] font-black uppercase">
+                                                                {isPast ? "FALTA RETORNO" : "PENDIENTE RETORNO"}
+                                                            </span>
+                                                        </Link>
+                                                    </div>
+                                                )}
+                                                {pendingInforme && (
+                                                    <Link 
+                                                        href={`/informe-divulgador?solicitudId=${item.id}`} 
+                                                        className={cn(
+                                                            "flex items-center gap-2 px-3 py-1 rounded-lg border transition-all",
+                                                            isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                        )}
+                                                    >
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        <span className="text-[8px] font-black uppercase">
+                                                            {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
+                                                        </span>
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        )}
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}><UserPlus className="h-4 w-4 mr-2" /> ASIGNAR</Button>
                                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)}><Eye className="h-4 w-4" /></Button>
