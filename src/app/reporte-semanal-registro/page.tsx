@@ -20,7 +20,8 @@ import {
     Users, 
     FileText,
     History,
-    Archive
+    Archive,
+    Clock
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -71,6 +72,13 @@ export default function ReporteSemanalRegistroPage() {
   }, [firestore]);
 
   const { data: informes, isLoading: isLoadingInformes } = useCollectionOnce<InformeSemanalRegistro>(informesQuery);
+  
+  // CARGAR USUARIOS Y PRESENCIA PARA EL MONITOR
+  const usersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]);
+  const { data: allUsers } = useCollectionOnce<any>(usersQuery);
+  
+  const presenceQuery = useMemoFirebase(() => firestore ? collection(firestore, 'presencia') : null, [firestore]);
+  const { data: presenceData } = useCollectionOnce<any>(presenceQuery);
 
   // Agrupación y Procesamiento de Cumplimiento (EXCLUYENDO SEDE CENTRAL)
   const hierarchy = useMemo(() => {
@@ -99,18 +107,40 @@ export default function ReporteSemanalRegistroPage() {
 
     // Convertir a array y filtrar por búsqueda
     return Object.values(depts)
-      .map(dept => ({
-        ...dept,
-        districts: Object.values(dept.districts)
-          .filter(dist => 
-            dist.name.toLowerCase().includes(term) || 
-            dept.name.toLowerCase().includes(term)
-          )
-          .sort((a, b) => a.name.localeCompare(b.name))
-      }))
+      .map(dept => {
+        const deptDistricts = Object.values(dept.districts);
+        const fulfilledDistricts = deptDistricts.filter(d => d.reports.length > 0);
+        const pendingDistricts = deptDistricts.filter(d => d.reports.length === 0);
+        
+        return {
+          ...dept,
+          districts: deptDistricts
+            .filter(dist => 
+              dist.name.toLowerCase().includes(term) || 
+              dept.name.toLowerCase().includes(term)
+            )
+            .map(dist => {
+                // Vincular usuarios asignados a este distrito
+                const assignedUsers = allUsers?.filter((u: any) => 
+                    u.departamento === dept.name && u.distrito === dist.name
+                ) || [];
+                
+                // Vincular presencia a esos usuarios
+                const usersWithPresence = assignedUsers.map((u: any) => ({
+                    ...u,
+                    presencia: presenceData?.find((p: any) => p.usuario_id === u.id || p.id === u.id)
+                }));
+
+                return { ...dist, assignedUsers: usersWithPresence };
+            })
+            .sort((a, b) => a.name.localeCompare(b.name)),
+          fulfilledCount: fulfilledDistricts.length,
+          pendingCount: pendingDistricts.length
+        };
+      })
       .filter(dept => dept.districts.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [datosData, informes, searchTerm]);
+  }, [datosData, informes, searchTerm, allUsers, presenceData]);
 
   const totalDistritos = useMemo(() => {
     if (!datosData) return 0;
@@ -275,9 +305,16 @@ export default function ReporteSemanalRegistroPage() {
                                         <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
                                             {dept.districts.length} DISTRITOS EN JURISDICCIÓN
                                         </p>
-                                        <Badge variant="secondary" className="bg-green-100 text-green-700 text-[8px] font-black border-none">
-                                            {dept.districts.filter(d => d.reports.length > 0).length} CUMPLIDOS
-                                        </Badge>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="secondary" className="bg-green-100 text-green-700 text-[8px] font-black border-none">
+                                                {dept.fulfilledCount} CUMPLIDOS
+                                            </Badge>
+                                            {dept.pendingCount > 0 && (
+                                                <Badge variant="secondary" className="bg-destructive/10 text-destructive text-[8px] font-black border-none">
+                                                    {dept.pendingCount} PENDIENTES
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -306,8 +343,40 @@ export default function ReporteSemanalRegistroPage() {
                                                     </div>
                                                 </AccordionTrigger>
                                                 <AccordionContent className="p-6 bg-white border-t border-dashed">
+                                                    <div className="mb-6 space-y-4">
+                                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest border-b pb-2">Personal Asignado y Conexión</p>
+                                                        {dist.assignedUsers && dist.assignedUsers.length > 0 ? (
+                                                            <div className="grid grid-cols-1 gap-2">
+                                                                {dist.assignedUsers.map((u: any) => {
+                                                                    const lastSeen = u.presencia?.ultima_actividad;
+                                                                    const timeStr = lastSeen ? (typeof lastSeen.toDate === 'function' ? lastSeen.toDate().toLocaleString() : new Date(lastSeen).toLocaleString()) : 'SIN REGISTRO';
+                                                                    
+                                                                    return (
+                                                                        <div key={u.id} className="flex items-center justify-between p-3 bg-muted/5 rounded-xl border">
+                                                                            <div className="flex items-center gap-3">
+                                                                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary">
+                                                                                    {u.username?.substring(0, 2).toUpperCase()}
+                                                                                </div>
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-[10px] font-black uppercase text-foreground/80">{u.username}</span>
+                                                                                    <span className="text-[8px] font-bold text-muted-foreground uppercase">{u.role}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2 text-muted-foreground">
+                                                                                <Clock className="h-3 w-3 opacity-40" />
+                                                                                <span className="text-[8px] font-black uppercase tracking-tighter">Última actividad: {timeStr}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-[9px] font-bold text-muted-foreground uppercase italic px-2">No hay personal asignado directamente a este distrito</p>
+                                                        )}
+                                                    </div>
+
                                                     {!isCumplido ? (
-                                                        <div className="py-8 text-center space-y-2">
+                                                        <div className="py-8 text-center space-y-2 border-t border-dashed pt-8">
                                                             <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground opacity-20" />
                                                             <p className="text-[10px] font-bold text-muted-foreground uppercase">Sin registros operativos presentados</p>
                                                         </div>
