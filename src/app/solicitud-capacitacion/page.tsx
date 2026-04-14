@@ -437,7 +437,7 @@ export default function SolicitudCapacitacionPage() {
           detalles: `Nueva solicitud para ${formData.lugar_local} (Storage)`
         });
 
-        toast({ title: "¡Solicitud Registrada!" });
+        toast({ variant: "warning", title: "¡Solicitud Registrada!" });
         setFormData(p => ({ 
             ...p, 
             solicitante_entidad: '', 

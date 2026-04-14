@@ -355,7 +355,7 @@ function DenunciaContent() {
             detalles: `Denuncia oficial de lacres (Storage) para ${selectedSolicitud.lugar_local} (${reportedMaquinas.join(', ')})`
         });
 
-        toast({ title: "¡Denuncia Oficial Registrada!" });
+        toast({ variant: "warning", title: "¡Denuncia Oficial Registrada!" });
         setFormData(p => ({ ...p, detalles: '' }));
         setDenunciaFotos([]);
         setRespaldoPhoto(null);
