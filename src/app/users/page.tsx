@@ -371,27 +371,39 @@ function UsersContent() {
         depts[dept].districts[dist] = { name: dist, users: [] };
       }
       
+      // Adjuntar presencia al usuario
+      const presence = presenceData?.find((p: any) => p.usuario_id === u.id || p.id === u.id);
+      const userWithPresence = { ...u, presence };
+
       // Agregar usuario al distrito correspondiente
-      depts[dept].districts[dist].users.push(u);
+      depts[dept].districts[dist].users.push(userWithPresence);
     });
 
     return Object.values(depts)
-      .map(dept => ({
-        ...dept,
-        districts: Object.values(dept.districts)
-          .filter(dist => {
-            const matchesLocation = dist.name.toLowerCase().includes(term) || dept.name.toLowerCase().includes(term);
-            const matchesUser = dist.users.some(u => 
-                u.username.toLowerCase().includes(term) || 
-                u.email.toLowerCase().includes(term)
-            );
-            return matchesLocation || matchesUser;
-          })
-          .sort((a, b) => a.name.localeCompare(b.name))
-      }))
+      .map(dept => {
+        const deptDistricts = Object.values(dept.districts);
+        const filledDistricts = deptDistricts.filter(d => d.users.length > 0);
+        const pendingDistricts = deptDistricts.filter(d => d.users.length === 0);
+        
+        return {
+          ...dept,
+          districts: deptDistricts
+            .filter(dist => {
+              const matchesLocation = dist.name.toLowerCase().includes(term) || dept.name.toLowerCase().includes(term);
+              const matchesUser = dist.users.some(u => 
+                  u.username.toLowerCase().includes(term) || 
+                  u.email.toLowerCase().includes(term)
+              );
+              return matchesLocation || matchesUser;
+            })
+            .sort((a, b) => a.name.localeCompare(b.name)),
+          fulfilledCount: filledDistricts.length,
+          pendingCount: pendingDistricts.length
+        };
+      })
       .filter(dept => dept.districts.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [datosData, users, searchTerm]);
+  }, [datosData, users, searchTerm, presenceData]);
 
   const handleTogglePerm = (permId: string, isEditing = false) => {
     if (isEditing && editingUser) {
@@ -501,7 +513,10 @@ function UsersContent() {
     if (!firestore || user.email === currentUser?.email) return;
     const currentStatus = user.active !== false;
     updateDoc(doc(firestore, 'users', user.id), { active: !currentStatus })
-      .then(() => toast({ title: currentStatus ? 'Acceso Revocado' : 'Acceso Restaurado' }));
+      .then(() => {
+        toast({ title: currentStatus ? 'Acceso Revocado' : 'Acceso Restaurado' });
+        setTimeout(() => window.location.reload(), 1000);
+      });
   };
 
   const handleDeleteUser = (user: UserProfile) => {
@@ -519,6 +534,7 @@ function UsersContent() {
         .then(() => {
             toast({ title: 'Usuario eliminado del directorio' });
             setIsSubmitting(false);
+            setTimeout(() => window.location.reload(), 1000);
         })
         .catch(async (error) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'users/batch-delete', operation: 'delete' }));
@@ -571,6 +587,7 @@ function UsersContent() {
           setSelectedModules(new Set()); 
           setSelectedPerms(new Set());
           setIsSubmitting(false);
+          setTimeout(() => window.location.reload(), 1000);
       }).catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({ 
             path: userDocRef.path, 
@@ -619,6 +636,7 @@ function UsersContent() {
             toast({ title: "Perfil Sincronizado y Actualizado" });
             setEditModalOpen(false);
             setIsSubmitting(false);
+            setTimeout(() => window.location.reload(), 1000);
         })
         .catch(async (error) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ 
@@ -668,6 +686,7 @@ function UsersContent() {
       
       await batch.commit();
       toast({ title: "Sincronización Exitosa", description: `Se han normalizado ${count} perfiles de Jefes.` });
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: "Error en reparación", description: "No se pudo completar la acción." });
@@ -686,6 +705,7 @@ function UsersContent() {
         });
         await batch.commit();
         toast({ title: "Radar Limpiado", description: "Se han eliminado los rastros de usuarios sin perfil." });
+        setTimeout(() => window.location.reload(), 1000);
     } catch (e) {
         toast({ variant: 'destructive', title: "Error al limpiar radar" });
     } finally {
@@ -882,9 +902,16 @@ function UsersContent() {
                                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{dept.districts.length} DISTRITOS EN JURISDICCIÓN</p>
                                             </div>
                                         </div>
-                                        <Badge variant="secondary" className="bg-black text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
-                                            {filledCount} CUMPLIDOS
-                                        </Badge>
+                                        <div className="flex items-center gap-3">
+                                            <Badge variant="secondary" className="bg-black text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
+                                                {dept.fulfilledCount} CUMPLIDOS
+                                            </Badge>
+                                            {dept.pendingCount > 0 && (
+                                                <Badge variant="secondary" className="bg-destructive text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
+                                                    {dept.pendingCount} PENDIENTES
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-2">
@@ -921,6 +948,7 @@ function UsersContent() {
                                                                         <TableRow>
                                                                             <TableHead className="text-[9px] font-black uppercase px-8">Funcionario Autorizado</TableHead>
                                                                             <TableHead className="text-[9px] font-black uppercase">Rol Sistema</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase">Última Conexión</TableHead>
                                                                             <TableHead className="text-[9px] font-black uppercase">Estado</TableHead>
                                                                             <TableHead className="text-right text-[9px] font-black uppercase px-8">Gestión</TableHead>
                                                                         </TableRow>
@@ -943,6 +971,18 @@ function UsersContent() {
                                                                                     <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10 bg-primary/[0.02]">
                                                                                         {u.role}
                                                                                     </Badge>
+                                                                                </TableCell>
+                                                                                <TableCell>
+                                                                                    <div className="flex items-center gap-2 text-muted-foreground whitespace-nowrap">
+                                                                                        <Clock className="h-3 w-3 opacity-40" />
+                                                                                        <span className="text-[8px] font-black uppercase tracking-tighter">
+                                                                                            {u.presence?.ultima_actividad 
+                                                                                                ? (typeof u.presence.ultima_actividad.toDate === 'function' 
+                                                                                                    ? u.presence.ultima_actividad.toDate().toLocaleString() 
+                                                                                                    : new Date(u.presence.ultima_actividad).toLocaleString())
+                                                                                                : 'SIN REGISTRO'}
+                                                                                        </span>
+                                                                                    </div>
                                                                                 </TableCell>
                                                                                 <TableCell>
                                                                                     <div className="flex items-center gap-2">
