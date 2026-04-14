@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useFirebase, useUser, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce } from '@/firebase';
+import { useFirebase, useUser, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce, useStorage } from '@/firebase';
 import { collection, doc, setDoc, query, where, getDocs, updateDoc, limit, orderBy } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type InformeDivulgador } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
@@ -43,6 +43,7 @@ function InformeContent() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | undefined>(undefined);
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const autoSelectedByUrl = useRef(false);
   
   const [markedCells, setMarkedCells] = useState<Set<number>>(new Set());
@@ -274,30 +275,55 @@ function InformeContent() {
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
 
-    const informeData: Omit<InformeDivulgador, 'id'> = {
-      solicitud_id: selectedEntry.solicitudId,
-      divulgador_id: selectedEntry.divulgador.id,
-      nombre_divulgador: selectedEntry.divulgador.nombre,
-      cedula_divulgador: selectedEntry.divulgador.cedula,
-      vinculo: selectedEntry.divulgador.vinculo,
-      lugar_divulgacion: selectedEntry.activityData.lugar_local,
-      fecha: selectedEntry.activityData.fecha,
-      hora_desde: selectedEntry.activityData.hora_desde,
-      hora_hasta: selectedEntry.activityData.hora_hasta,
-      oficina: selectedEntry.activityData.distrito,
-      distrito: selectedEntry.activityData.distrito,
-      departamento: selectedEntry.activityData.departamento,
-      total_personas: markedCells.size,
-      marcaciones: Array.from(markedCells),
-      observaciones: (formData.get('observaciones') as string || '').toUpperCase(),
-      foto_respaldo_documental: respaldoPhoto,
-      fotos: evidencePhotos,
-      fecha_creacion: new Date().toISOString(),
-      usuario_id: user.uid
-    };
-
     try {
       const docId = `${selectedEntry.solicitudId}_${selectedEntry.divulgador.id}`;
+      
+      // 1. Subir Respaldo Documental a Storage
+      let finalRespaldoUrl = respaldoPhoto;
+      if (respaldoPhoto && respaldoPhoto.startsWith('data:')) {
+        finalRespaldoUrl = await uploadFile(
+          `informes-divulgador/${docId}/respaldo_${Date.now()}.jpg`, 
+          respaldoPhoto
+        );
+      }
+
+      // 2. Subir Fotos de Evidencia a Storage
+      const finalEvidenceUrls = [];
+      for (let i = 0; i < evidencePhotos.length; i++) {
+        const photo = evidencePhotos[i];
+        if (photo.startsWith('data:')) {
+          const url = await uploadFile(
+            `informes-divulgador/${docId}/evidencia_${i}_${Date.now()}.jpg`, 
+            photo
+          );
+          finalEvidenceUrls.push(url);
+        } else {
+          finalEvidenceUrls.push(photo);
+        }
+      }
+
+      const informeData: Omit<InformeDivulgador, 'id'> = {
+        solicitud_id: selectedEntry.solicitudId,
+        divulgador_id: selectedEntry.divulgador.id,
+        nombre_divulgador: selectedEntry.divulgador.nombre,
+        cedula_divulgador: selectedEntry.divulgador.cedula,
+        vinculo: selectedEntry.divulgador.vinculo,
+        lugar_divulgacion: selectedEntry.activityData.lugar_local,
+        fecha: selectedEntry.activityData.fecha,
+        hora_desde: selectedEntry.activityData.hora_desde,
+        hora_hasta: selectedEntry.activityData.hora_hasta,
+        oficina: selectedEntry.activityData.distrito,
+        distrito: selectedEntry.activityData.distrito,
+        departamento: selectedEntry.activityData.departamento,
+        total_personas: markedCells.size,
+        marcaciones: Array.from(markedCells),
+        observaciones: (formData.get('observaciones') as string || '').toUpperCase(),
+        foto_respaldo_documental: finalRespaldoUrl,
+        fotos: finalEvidenceUrls,
+        fecha_creacion: new Date().toISOString(),
+        usuario_id: user.uid
+      };
+
       await setDoc(doc(firestore, 'informes-divulgador', docId), informeData);
       
       toast({ 
@@ -573,10 +599,15 @@ function InformeContent() {
                         "w-full h-12 font-black uppercase text-xs tracking-widest shadow-lg transition-all",
                         submitSuccess ? "bg-green-600 hover:bg-green-600" : "bg-black hover:bg-black/90"
                     )} 
-                    disabled={isSubmitting || !respaldoPhoto || markedCells.size === 0 || submitSuccess}
+                    disabled={isSubmitting || isStorageUploading || !respaldoPhoto || markedCells.size === 0 || submitSuccess}
                 >
-                  {isSubmitting ? (
-                    submitSuccess ? <span className="animate-in zoom-in duration-300">¡ENVIADO CORRECTAMENTE!</span> : <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                  {isSubmitting || isStorageUploading ? (
+                    submitSuccess ? <span className="animate-in zoom-in duration-300">¡ENVIADO CORRECTAMENTE!</span> : (
+                        <div className="flex items-center gap-2">
+                            <Loader2 className="animate-spin h-4 w-4" />
+                            {isStorageUploading ? "SUBIENDO EVIDENCIAS..." : "ENVIANDO INFORME..."}
+                        </div>
+                    )
                   ) : "ENVIAR INFORME"}
                 </Button>
               </CardFooter>

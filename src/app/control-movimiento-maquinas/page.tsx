@@ -37,7 +37,7 @@ import {
   ChevronsUpDown,
   ChevronDown
 } from 'lucide-react';
-import { useUser, useFirebase, useCollectionPaginated, useCollectionOnce, useMemoFirebase, useDocOnce } from '@/firebase';
+import { useUser, useFirebase, useCollectionPaginated, useCollectionOnce, useMemoFirebase, useDocOnce, useStorage } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp, getDocs, orderBy, limit } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type MaquinaVotacion, type MaquinaMovimiento } from '@/lib/data';
@@ -75,6 +75,7 @@ const normalizeGeo = (str: string) => {
 function ControlMovimientoContent() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
+  const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -475,20 +476,32 @@ function ControlMovimientoContent() {
     }
 
     setIsSubmitting(true);
-    const docData: Omit<MovimientoMaquina, 'id'> = {
-      solicitud_id: selectedSolicitudId!,
-      departamento: selectedSolicitud.departamento || '',
-      distrito: selectedSolicitud.distrito || '',
-      maquinas: movimientoData.maquinas,
-      fecha_salida: movimientoData.fecha_salida,
-      hora_salida: movimientoData.hora_salida,
-      foto_salida: salidaFotos,
-      responsables: selectedSolicitud.divulgadores || selectedSolicitud.asignados || [],
-      fecha_creacion: new Date().toISOString(),
-    };
+    
+    const performSave = async () => {
+      try {
+        const idBatch = Date.now();
+        const distPath = (selectedSolicitud.distrito || 'desconocido').replace(/\s+/g, '_');
+        
+        // 1. Subir fotos de salida a Storage
+        const uploadPromises = salidaFotos.map((foto, idx) => 
+          uploadFile(`movimientos/${distPath}/${idBatch}_salida_${idx}.jpg`, foto)
+        );
+        const uploadedUrls = await Promise.all(uploadPromises);
 
-    addDoc(collection(firestore, 'movimientos-maquinas'), docData)
-      .then(() => {
+        const docData: Omit<MovimientoMaquina, 'id'> = {
+          solicitud_id: selectedSolicitudId!,
+          departamento: selectedSolicitud.departamento || '',
+          distrito: selectedSolicitud.distrito || '',
+          maquinas: movimientoData.maquinas,
+          fecha_salida: movimientoData.fecha_salida,
+          hora_salida: movimientoData.hora_salida,
+          foto_salida: uploadedUrls, // Ahora son URLs de Storage
+          responsables: selectedSolicitud.divulgadores || selectedSolicitud.asignados || [],
+          fecha_creacion: new Date().toISOString(),
+        };
+
+        await addDoc(collection(firestore, 'movimientos-maquinas'), docData);
+        
         toast({ 
             variant: "warning",
             title: '¡SALIDA REGISTRADA!',
@@ -500,17 +513,20 @@ function ControlMovimientoContent() {
               </ToastAction>
             ),
         });
-        setIsSubmitting(false);
-      })
-      .catch(error => {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+      } catch (error: any) {
+        console.error("Error saving salida:", error);
+        const errorMsg = error.message || String(error);
         if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
-          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo que estás adjuntando supera el límite permitido (1MB). Por favor, intenta con una foto menos pesada.' });
+          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo supera el límite (1MB).' });
         } else {
           errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'movimientos-maquinas', operation: 'create' }));
         }
+      } finally {
         setIsSubmitting(false);
-      });
+      }
+    };
+
+    performSave();
   };
 
   const handleSaveDevolucion = () => {
@@ -519,62 +535,68 @@ function ControlMovimientoContent() {
         toast({ variant: 'destructive', title: 'Verificación incompleta', description: 'Verifique el lacre de todos los equipos.' }); return;
     }
     if (devolucionFotos.length === 0) {
-      toast({ variant: 'destructive', title: 'Falta F02', description: 'Cargue al menos una foto del F02 firmado.' }); return;
+      toast({ variant: 'destructive', title: 'Falta F02', description: 'Cargue al menos una foto del F02 firmado.' }); 
+      return;
     }
 
     setIsSubmitting(true);
-    const updateData = {
-      fecha_devolucion: movimientoData.fecha_devolucion,
-      hora_devolucion: movimientoData.hora_devolucion,
-      maquinas: movimientoData.maquinas,
-      foto_devolucion: devolucionFotos
-    };
+    
+    const performUpdate = async () => {
+      try {
+        const idBatch = Date.now();
+        const distPath = (selectedSolicitud.distrito || 'desconocido').replace(/\s+/g, '_');
 
-    updateDoc(doc(firestore, 'movimientos-maquinas', currentMovimiento.id), updateData)
-      .then(async () => {
+        // 1. Subir fotos de devolución a Storage
+        const uploadPromises = devolucionFotos.map((foto, idx) => {
+          if (foto.startsWith('http')) return Promise.resolve(foto);
+          return uploadFile(`movimientos/${distPath}/${idBatch}_devolucion_${idx}.jpg`, foto);
+        });
+        const uploadedUrls = await Promise.all(uploadPromises);
+
+        const updateData = {
+          fecha_devolucion: movimientoData.fecha_devolucion,
+          hora_devolucion: movimientoData.hora_devolucion,
+          maquinas: movimientoData.maquinas,
+          foto_devolucion: uploadedUrls
+        };
+
+        await updateDoc(doc(firestore, 'movimientos-maquinas', currentMovimiento.id), updateData);
+        
         setIsDevolucionGuardada(true);
         const hasTampering = movimientoData.maquinas.some(m => m.lacre_estado === 'violentado');
-        if (hasTampering) {
-            toast({ 
-                variant: "warning",
-                title: 'Recepción Informada', 
-                description: 'Irregularidad detectada. Proceda a la denuncia.',
-                duration: 3000,
-                action: (
-                  <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
-                    VOLVER A LA AGENDA
-                  </ToastAction>
-                ),
-            });
-        } else {
-            toast({ 
-                variant: "warning",
-                title: '¡DEVOLUCIÓN COMPLETADA!', 
-                description: 'Proceda a concluir la actividad en la Agenda.',
-                duration: 3000,
-                action: (
-                  <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
-                    VOLVER A LA AGENDA
-                  </ToastAction>
-                ),
-            });
-            
-            setTimeout(() => {
-                setSelectedSolicitudId(null);
-                router.back();
-            }, 1000);
+        
+        toast({ 
+            variant: "warning",
+            title: hasTampering ? 'Recepción Informada' : '¡DEVOLUCIÓN COMPLETADA!', 
+            description: hasTampering ? 'Irregularidad detectada. Proceda a la denuncia.' : 'Proceda a concluir la actividad en la Agenda.',
+            duration: 3000,
+            action: (
+              <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+                VOLVER A LA AGENDA
+              </ToastAction>
+            ),
+        });
+        
+        if (!hasTampering) {
+          setTimeout(() => {
+            setSelectedSolicitudId(null);
+            router.back();
+          }, 1000);
         }
-        setIsSubmitting(false);
-      })
-      .catch(error => {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+      } catch (error: any) {
+        console.error("Error updating devolucion:", error);
+        const errorMsg = error.message || String(error);
         if (errorMsg.includes('too large') || errorMsg.includes('size limit')) {
-          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo que estás adjuntando supera el límite permitido (1MB). Por favor, intenta con una foto menos pesada.' });
+          toast({ variant: 'destructive', title: 'Archivo muy pesado', description: 'El archivo supera el límite (1MB).' });
         } else {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: currentMovimiento.id, operation: 'update' }));
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ path: currentMovimiento?.id || 'error', operation: 'update' }));
         }
+      } finally {
         setIsSubmitting(false);
-      });
+      }
+    };
+
+    performUpdate();
   };
 
   const handleSaveDenuncia = () => {
@@ -584,59 +606,77 @@ function ControlMovimientoContent() {
     }
 
     setIsSubmitting(true);
-    const tampered = movimientoData.maquinas.filter(m => m.lacre_estado === 'violentado').map(m => m.codigo);
     
-    const denunciaData = {
-        solicitud_id: selectedSolicitudId,
-        departamento: selectedSolicitud.departamento,
-        distrito: selectedSolicitud.distrito,
-        lugar: selectedSolicitud.lugar_local,
-        maquinas_denunciadas: tampered,
-        detalles: denunciaDetalles.toUpperCase(),
-        foto_evidencia: denunciaEvidencias,
-        foto_respaldo_documental: denunciaRespaldo,
-        usuario_id: user.uid,
-        username: profile?.username || user.email,
-        fecha_denuncia: new Date().toISOString().split('T')[0],
-        hora_denuncia: new Date().toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false }),
-        fecha_creacion: new Date().toISOString(),
-        server_timestamp: serverTimestamp(),
+    const performDenuncia = async () => {
+      try {
+        const idBatch = Date.now();
+        const distPath = (selectedSolicitud.distrito || 'desconocido').replace(/\s+/g, '_');
+        const tampered = movimientoData.maquinas.filter(m => m.lacre_estado === 'violentado').map(m => m.codigo);
+
+        // 1. Subir evidencias
+        const evidenciaPromises = denunciaEvidencias.map((foto, idx) => 
+          uploadFile(`denuncias/${distPath}/${idBatch}_evidencia_${idx}.jpg`, foto)
+        );
+        const uploadedEvidencias = await Promise.all(evidenciaPromises);
+
+        // 2. Subir respaldo documental
+        const uploadedRespaldo = await uploadFile(`denuncias/${distPath}/${idBatch}_respaldo.jpg`, denunciaRespaldo!);
+
+        const denunciaData = {
+            solicitud_id: selectedSolicitudId,
+            departamento: selectedSolicitud.departamento,
+            distrito: selectedSolicitud.distrito,
+            lugar: selectedSolicitud.lugar_local,
+            maquinas_denunciadas: tampered,
+            detalles: denunciaDetalles.toUpperCase(),
+            foto_evidencia: uploadedEvidencias,
+            foto_respaldo_documental: uploadedRespaldo,
+            usuario_id: user.uid,
+            username: profile?.username || user.email,
+            fecha_denuncia: new Date().toISOString().split('T')[0],
+            hora_denuncia: new Date().toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            fecha_creacion: new Date().toISOString(),
+            server_timestamp: serverTimestamp(),
+        };
+
+        const docRef = await addDoc(collection(firestore, 'denuncias-lacres'), denunciaData);
+        
+        recordAuditLog(firestore, {
+            usuario_id: user.uid,
+            usuario_nombre: profile?.username || user.email || 'Usuario',
+            usuario_rol: profile?.role || 'funcionario',
+            accion: 'CREAR',
+            modulo: 'denuncia-lacres',
+            documento_id: docRef.id,
+            detalles: `Acta de denuncia para ${selectedSolicitud.lugar_local} - Máquinas: ${tampered.join(', ')}`
+        });
+
+        toast({ 
+            variant: "warning",
+            title: "¡DENUNCIA REGISTRADA!", 
+            description: "El proceso ha sido cerrado formalmente.",
+            duration: 3000,
+            action: (
+              <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
+                VOLVER A LA AGENDA
+              </ToastAction>
+            ),
+        });
+        
+        setDenunciaDetalles('');
+        setDenunciaEvidencias([]);
+        setDenunciaRespaldo(null);
+        setSelectedSolicitudId(null);
+        setTimeout(() => router.back(), 1500);
+      } catch (error: any) {
+        console.error("Error saving denuncia:", error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'denuncias-lacres', operation: 'create' }));
+      } finally {
+        setIsSubmitting(false);
+      }
     };
 
-    addDoc(collection(firestore, 'denuncias-lacres'), denunciaData)
-        .then((docRef) => {
-            recordAuditLog(firestore, {
-                usuario_id: user.uid,
-                usuario_nombre: profile?.username || user.email || 'Usuario',
-                usuario_rol: profile?.role || 'funcionario',
-                accion: 'CREAR',
-                modulo: 'denuncia-lacres',
-                documento_id: docRef.id,
-                detalles: `Acta de denuncia para ${selectedSolicitud.lugar_local} - Máquinas: ${tampered.join(', ')}`
-            });
-
-            toast({ 
-                variant: "warning",
-                title: "¡DENUNCIA REGISTRADA!", 
-                description: "El proceso ha sido cerrado formalmente.",
-                duration: 3000,
-                action: (
-                  <ToastAction altText="Volver a la agenda" onClick={() => router.back()}>
-                    VOLVER A LA AGENDA
-                  </ToastAction>
-                ),
-            });
-            setDenunciaDetalles('');
-            setDenunciaEvidencias([]);
-            setDenunciaRespaldo(null);
-            setSelectedSolicitudId(null);
-            setTimeout(() => router.back(), 1500);
-            setIsSubmitting(false);
-        })
-        .catch(error => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'denuncias-lacres', operation: 'create' }));
-            setIsSubmitting(false);
-        });
+    performDenuncia();
   };
 
   const generatePDF = () => {

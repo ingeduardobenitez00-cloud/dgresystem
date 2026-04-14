@@ -252,7 +252,7 @@ function DenunciaContent() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.6); // Bajamos de 0.7 a 0.6
+        const dataUri = canvas.toDataURL('image/jpeg', 0.4); 
         if (activeCameraTarget === 'evidencia') {
             setDenunciaFotos(prev => [...prev, dataUri].slice(0, 5));
         }
