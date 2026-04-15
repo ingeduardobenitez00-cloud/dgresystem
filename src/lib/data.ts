@@ -208,7 +208,7 @@ export type InformeDivulgador = {
   total_personas: number;
   marcaciones: number[];
   fotos?: string[];
-  foto_respaldo_documental: string;
+  foto_respaldo_documental?: string;
   usuario_id: string;
   fecha_creacion: string;
   solicitud_id: string;

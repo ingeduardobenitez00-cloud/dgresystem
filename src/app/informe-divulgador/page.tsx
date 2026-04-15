@@ -267,10 +267,13 @@ function InformeContent() {
       return;
     }
 
+    // Comentamos la validación obligatoria de respaldoPhoto ya que ahora es opcional
+    /*
     if (!respaldoPhoto) {
         toast({ variant: 'destructive', title: 'Faltan documentos', description: 'Debe adjuntar la foto del Anexo III firmado.' });
         return;
     }
+    */
 
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
@@ -318,7 +321,7 @@ function InformeContent() {
         total_personas: markedCells.size,
         marcaciones: Array.from(markedCells),
         observaciones: (formData.get('observaciones') as string || '').toUpperCase(),
-        foto_respaldo_documental: finalRespaldoUrl,
+        foto_respaldo_documental: finalRespaldoUrl || undefined,
         fotos: finalEvidenceUrls,
         fecha_creacion: new Date().toISOString(),
         usuario_id: user.uid
@@ -550,7 +553,7 @@ function InformeContent() {
                 <div className="space-y-2 pt-2 border-t border-dashed">
                     <div className="flex items-center gap-2">
                         <FileText className="h-3.5 w-3.5 text-primary" />
-                        <Label className="font-black uppercase text-[8px]">Respaldo Documental (Anexo III Firmado) *</Label>
+                        <Label className="font-black uppercase text-[8px]">Respaldo Documental (Anexo III Firmado)</Label>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -599,7 +602,7 @@ function InformeContent() {
                         "w-full h-12 font-black uppercase text-xs tracking-widest shadow-lg transition-all",
                         submitSuccess ? "bg-green-600 hover:bg-green-600" : "bg-black hover:bg-black/90"
                     )} 
-                    disabled={isSubmitting || isStorageUploading || !respaldoPhoto || markedCells.size === 0 || submitSuccess}
+                    disabled={isSubmitting || isStorageUploading || markedCells.size === 0 || submitSuccess}
                 >
                   {isSubmitting || isStorageUploading ? (
                     submitSuccess ? <span className="animate-in zoom-in duration-300">¡ENVIADO CORRECTAMENTE!</span> : (
