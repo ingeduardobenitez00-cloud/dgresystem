@@ -321,8 +321,8 @@ function ControlMovimientoContent() {
   }, [currentMovimiento?.id, selectedSolicitudId]);
 
   const handleAddMaquina = () => {
-    if (movimientoData.maquinas.length >= 3) {
-        toast({ variant: 'destructive', title: "Límite alcanzado", description: "Máximo 3 equipos por solicitud." });
+    if (movimientoData.maquinas.length >= 10) {
+        toast({ variant: 'destructive', title: "Límite alcanzado", description: "Máximo 10 equipos por solicitud." });
         return;
     }
     setMovimientoData(prev => ({
@@ -713,7 +713,21 @@ function ControlMovimientoContent() {
     doc.setFont('helvetica', 'bold');
     doc.text("IDENTIFICACIÓN DEL EQUIPO (DESPACHO)", margin, y);
     
+    const checkPageBreak = (needed: number) => {
+        if (y + needed > 270) {
+            doc.addPage();
+            doc.addImage(logoBase64, 'PNG', margin, 8, 10, 10);
+            doc.addImage(logoDGREBase64, 'PNG', pageWidth - margin - 25, 8, 25, 10);
+            doc.setFontSize(6);
+            doc.text("CONTINUACIÓN - FORMULARIO SALIDA / DEVOLUCIÓN", pageWidth / 2, 15, { align: "center" });
+            y = 25;
+            return true;
+        }
+        return false;
+    };
+
     movimientoData.maquinas.forEach((maq, idx) => {
+        checkPageBreak(25);
         y += 2;
         doc.setDrawColor(200, 200, 200);
         doc.roundedRect(margin, y, boxWidth, 16, 4, 4);
@@ -743,6 +757,7 @@ function ControlMovimientoContent() {
     });
 
     if (!isOnlySalida) {
+        checkPageBreak(40);
         y += 5;
         doc.setDrawColor(0);
         doc.setLineWidth(0.3);
@@ -765,6 +780,7 @@ function ControlMovimientoContent() {
         doc.text("AUDITORÍA DE RETORNO POR EQUIPO", margin, y);
 
         movimientoData.maquinas.forEach((maq, idx) => {
+            checkPageBreak(30);
             y += 2;
             const isViolentado = maq.lacre_estado === 'violentado';
             
@@ -807,6 +823,7 @@ function ControlMovimientoContent() {
         });
     }
 
+    checkPageBreak(60);
     const signatureStartY = doc.internal.pageSize.getHeight() - 65;
     y = Math.max(y + 10, signatureStartY);
 
