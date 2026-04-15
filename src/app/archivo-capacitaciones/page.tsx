@@ -205,7 +205,8 @@ export default function ArchivoCapacitacionesPage() {
     isLoading: isLoadingSolicitudes,
     hasMore,
     loadMore,
-    isLoadingMore 
+    isLoadingMore,
+    error: solicitudesError
   } = useCollectionPaginated<SolicitudCapacitacion>(solicitudesQuery, 30);
 
   const groupedData = useMemo(() => {
@@ -216,7 +217,14 @@ export default function ArchivoCapacitacionesPage() {
     const filtered = allSolicitudes.filter(sol => {
         const matchesSearch = !term || sol.lugar_local.toLowerCase().includes(term) || 
                              sol.solicitante_entidad.toLowerCase().includes(term);
-        return matchesSearch;
+        
+        // El ARCHIVO solo debe mostrar cosas del PASADO o CANCELADAS.
+        // Si es hoy o futuro y NO está cancelada, no pertenece al "Historial" (es de la Agenda).
+        const itemDate = new Date(sol.fecha + 'T23:59:59'); // Fin del día del item
+        const isPast = itemDate < new Date();
+        const belongsToArchive = isPast || sol.cancelada || !!sol.fecha_cumplido;
+
+        return matchesSearch && belongsToArchive;
     });
 
     const depts: Record<string, Record<string, SolicitudCapacitacion[]>> = {};
@@ -308,6 +316,20 @@ export default function ArchivoCapacitacionesPage() {
                     </Select>
                 </div>
             </div>
+        
+        {solicitudesError && (
+            <div className="mb-4 p-6 bg-red-50 border-2 border-red-200 rounded-[2rem] shadow-sm">
+                <div className="flex items-center gap-3 text-red-700 mb-2">
+                    <FileWarning className="h-5 w-5" />
+                    <p className="font-black uppercase text-xs tracking-widest">Error de Sincronización / Falta de Índice</p>
+                </div>
+                <p className="text-[10px] font-bold text-red-600/80 uppercase leading-tight">
+                    Es posible que falte un índice compuesto en Firestore para este nivel de segmentación administrativa. 
+                    Por favor, verifique la consola del navegador (F12) y haga clic en el enlace de creación automática si aparece.
+                </p>
+                <p className="text-[9px] italic text-red-500 mt-2">Detalle: {solicitudesError.message}</p>
+            </div>
+        )}
         </div>
         </div>
 
