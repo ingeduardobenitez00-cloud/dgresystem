@@ -63,6 +63,9 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
     const isFinished = mov?.fecha_devolucion && hasReport;
     const totalCapacitados = reports?.reduce((acc, r) => acc + (r.total_personas || 0), 0) || 0;
 
+    const itemDate = new Date(item.fecha + 'T23:59:59');
+    const isPast = itemDate < new Date();
+
     return (
         <tr className={cn("border-b hover:bg-muted/10 transition-colors", isCancelled && "bg-destructive/[0.01]")}>
             <td className="px-8 py-6">
@@ -137,9 +140,11 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
                         )}
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5 text-amber-500">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span className="text-[8px] font-black uppercase">PROCESANDO</span>
+                    <div className={cn("flex items-center gap-1.5", isPast ? "text-red-500" : "text-amber-500")}>
+                        {isPast ? <ShieldAlert className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+                        <span className="text-[8px] font-black uppercase">
+                            {isPast ? (hasReport ? 'PENDIENTE RETORNO' : 'PENDIENTE REPORTE') : 'PROCESANDO'}
+                        </span>
                     </div>
                 )}
             </td>
