@@ -11,7 +11,7 @@ import { Loader2, PieChart as PieIcon, RefreshCw, Printer, AlertTriangle, CheckC
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { cn, formatDateToDDMMYYYY } from "@/lib/utils";
+import { cn, formatDateToDDMMYYYY, normalizeGeo } from "@/lib/utils";
 import html2canvas from "html2canvas";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -101,16 +101,21 @@ export default function ReportesPDFPage() {
                 }
             });
 
-            // 4. Procesar Informes (Ejecución Real)
+            // 4. Procesar Informes (Ejecución Real con Normalización)
             let globalCapacitados = 0;
             informes.forEach((inf: any) => {
                 const deptoKey = inf.departamento;
-                const distKey = inf.oficina || inf.distrito;
+                const distName = inf.oficina || inf.distrito;
+                if (!deptoKey || !distName || !deptoMap[deptoKey]) return;
+
+                const normDist = normalizeGeo(distName);
+                // Buscar el distrito que coincida normalizado
+                const realDistKey = Object.keys(deptoMap[deptoKey].distritos).find(k => normalizeGeo(k) === normDist);
                 
-                if (deptoKey && distKey && deptoMap[deptoKey] && deptoMap[deptoKey].distritos[distKey]) {
+                if (realDistKey) {
                     const nroCapt = Number(inf.total_personas || 0);
                     deptoMap[deptoKey].capacitados += nroCapt;
-                    deptoMap[deptoKey].distritos[distKey].capacitados += nroCapt;
+                    deptoMap[deptoKey].distritos[realDistKey].capacitados += nroCapt;
                     globalCapacitados += nroCapt;
                 }
             });
@@ -156,9 +161,12 @@ export default function ReportesPDFPage() {
                 const distKey = e.distrito;
 
                 if (deptoKey && distKey && deptoMap[deptoKey]) {
+                    const normDist = normalizeGeo(distKey);
+                    const realDistKey = Object.keys(deptoMap[deptoKey].distritos).find(k => normalizeGeo(k) === normDist);
+                    
                     deptoMap[deptoKey].encuestas += 1;
-                    if (deptoMap[deptoKey].distritos[distKey]) {
-                        deptoMap[deptoKey].distritos[distKey].encuestas += 1;
+                    if (realDistKey) {
+                        deptoMap[deptoKey].distritos[realDistKey].encuestas += 1;
                     }
                 }
 

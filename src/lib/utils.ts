@@ -30,3 +30,10 @@ export const formatDateToDDMMYYYY = (dateString: string | undefined): string => 
   }
   return dateString;
 }
+
+export const normalizeGeo = (str: string) => {
+  if (!str) return '';
+  return str.toUpperCase()
+    .replace(/^[\d\s-]*/, '') // Elimina TODO rastro de números, guiones y espacios al inicio
+    .trim();
+};
