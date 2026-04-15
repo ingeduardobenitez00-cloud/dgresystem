@@ -21,6 +21,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import Image from 'next/image';
+import { compressImage, captureVideoFrame } from '@/lib/image-utils';
 
 // Utility local para formato DD/MM/AAAA
 const formatToOfficialDate = (dateStr: string | undefined) => {
@@ -58,35 +59,6 @@ function InformeContent() {
   const streamRef = useRef<MediaStream | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Helper de compresión robusto para evitar exceder 1MB de Firestore
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Ancho reducido para optimizar espacio
-          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad 0.4 para permitir más adjuntos en Firestore
-          resolve(canvas.toDataURL('image/jpeg', 0.4));
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
 
   const informesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -217,21 +189,13 @@ function InformeContent() {
 
   const takePhoto = () => {
     if (videoRef.current && activeCameraTarget) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        // Calidad 0.4
-        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
+        const dataUri = captureVideoFrame(videoRef.current);
         if (activeCameraTarget === 'respaldo') {
             setRespaldoPhoto(dataUri);
         } else {
             setEvidencePhotos(prev => [...prev, dataUri].slice(0, 10));
         }
         stopCamera();
-      }
     }
   };
 

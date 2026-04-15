@@ -372,12 +372,15 @@ const DistrictSection = ({
 
                     const isQRViewed = !!viewedQRs.includes(item.id);
                     
-                    // Lógica de expiración de QR
-                    const [h, m] = (item.hora_hasta || "23:59").split(':');
-                    const [y, mon, d] = item.fecha.split('-').map(Number);
-                    const eventEnd = new Date(y, mon - 1, d, parseInt(h), parseInt(m), 59);
-                    const isPastEvent = currentTime > eventEnd;
-                    const qrActive = item.qr_enabled && !isPastEvent;
+                     // Lógica de expiración de QR
+                     const [h, m] = (item.hora_hasta || "23:59").split(':');
+                     const [y, mon, d] = item.fecha.split('-').map(Number);
+                     const eventEnd = new Date(y, mon - 1, d, parseInt(h), parseInt(m), 59);
+                     const isPastEvent = currentTime > eventEnd;
+
+                     // Si tiene expiración manual, manda esa sobre el fin del evento
+                     const isManuallyActive = item.qr_expires_at && currentTime < new Date(item.qr_expires_at);
+                     const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
                     const showStep1 = !hasPersonnel;
                     const showStep2 = !!(hasPersonnel && !item.qr_enabled && !isPastEvent);

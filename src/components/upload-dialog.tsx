@@ -20,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { cleanFileName } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
+import { compressImage } from '@/lib/image-utils';
 
 const photoCategories = [
     { id: 'frente', label: 'FOTOGRAFIA #1 DEL FRENTE DEL REGISTRO', multiple: false, max: 1 },
@@ -83,7 +84,7 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
 
       for (const filePreview of filePreviews) {
           try {
-              const dataUri = await processSingleFile(filePreview.file);
+              const dataUri = await compressImage(filePreview.file);
               setFilesByCategory(prev => {
                   const updatedCategoryFiles = (prev[categoryId] || []).map(f =>
                       f.id === filePreview.id ? { ...f, previewUrl: dataUri } : f
@@ -139,34 +140,6 @@ export function UploadDialog({ isOpen, onOpenChange, onImagesUploaded }: UploadD
     event.target.value = ''; // Reset file input
   };
   
-  const processSingleFile = (file: File): Promise<string> => {
-      return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-              const img = document.createElement('img');
-              img.onload = () => {
-                  const canvas = document.createElement('canvas');
-                  const MAX_WIDTH = 1200;
-                  const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-                  canvas.width = img.width * scaleSize;
-                  canvas.height = img.height * scaleSize;
-                  
-                  const ctx = canvas.getContext('2d');
-                  if (ctx) {
-                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                      const dataUri = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.7);
-                      resolve(dataUri);
-                  } else {
-                      reject(new Error(`No se pudo procesar: ${file.name}.`));
-                  }
-              };
-              img.onerror = () => reject(new Error(`Error al cargar: ${file.name}.`));
-              img.src = e.target?.result as string;
-          };
-          reader.onerror = () => reject(new Error('Error al leer el archivo.'));
-          reader.readAsDataURL(file);
-      });
-  };
 
   const handleRemoveFile = (categoryId: string, fileId: string) => {
     setFilesByCategory(prev => ({

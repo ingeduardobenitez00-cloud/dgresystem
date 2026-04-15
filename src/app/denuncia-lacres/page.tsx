@@ -17,6 +17,7 @@ import jsPDF from 'jspdf';
 import { type SolicitudCapacitacion, type MovimientoMaquina } from '@/lib/data';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
+import { compressImage, captureVideoFrame } from '@/lib/image-utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -94,36 +95,6 @@ function DenunciaContent() {
     fetchLogos();
   }, []);
 
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Optimización de espacio
-          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return reject('No context');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad 0.4 para ahorrar espacio
-          resolve(canvas.toDataURL('image/jpeg', 0.4));
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
 
   const movsQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !user?.profile) return null;
@@ -246,17 +217,13 @@ function DenunciaContent() {
 
   const takePhoto = () => {
     if (videoRef.current && activeCameraTarget) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.4); 
+      const dataUri = captureVideoFrame(videoRef.current);
+      if (dataUri) {
         if (activeCameraTarget === 'evidencia') {
-            setDenunciaFotos(prev => [...prev, dataUri].slice(0, 5));
+            setDenunciaFotos(prev => [...prev, dataUri].slice(0, 8));
+        } else {
+            setRespaldoPhoto(dataUri);
         }
-        else setRespaldoPhoto(dataUri);
         stopCamera();
       }
     }

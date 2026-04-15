@@ -26,6 +26,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { compressImage } from '@/lib/image-utils';
 
 export default function PerfilPage() {
   const { user, isUserLoading } = useUser();
@@ -54,29 +55,6 @@ export default function PerfilPage() {
     }
   }, [user]);
 
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return reject('No context');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad 0.4 para subidas rápidas y poco peso en DB
-          resolve(canvas.toDataURL('image/jpeg', 0.4));
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

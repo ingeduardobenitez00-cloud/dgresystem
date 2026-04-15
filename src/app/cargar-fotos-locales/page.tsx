@@ -13,6 +13,7 @@ import { collection, doc, writeBatch } from 'firebase/firestore';
 import { type LocalVotacion } from '@/lib/data';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { compressImage } from '@/lib/image-utils';
 
 type FilePreview = {
   id: string;
@@ -73,33 +74,6 @@ export default function CargarFotosLocalesPage() {
     setResults(null);
   };
 
-  const processFileToDataURL = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = document.createElement('img');
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 1200;
-            const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-            canvas.width = img.width * scaleSize;
-            canvas.height = img.height * scaleSize;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const dataUri = canvas.toDataURL('image/jpeg', 0.7);
-                resolve(dataUri);
-            } else {
-                reject(new Error(`No se pudo procesar: ${file.name}.`));
-            }
-        };
-        img.onerror = () => reject(new Error(`Error al cargar: ${file.name}.`));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('Error al leer el archivo.'));
-      reader.readAsDataURL(file);
-    });
-  };
 
   const handleSaveData = async () => {
     if (!firestore || filesToUpload.length === 0 || !localesData) {
@@ -131,7 +105,7 @@ export default function CargarFotosLocalesPage() {
             if (match) {
                 try {
                     // 1. Procesar y comprimir localmente
-                    const dataUrl = await processFileToDataURL(filePreview.file);
+                    const dataUrl = await compressImage(filePreview.file);
                     
                     // 2. Subir a Firebase Storage
                     const fileName = filePreview.file.name.replace(/\s+/g, '_');

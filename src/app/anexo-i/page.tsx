@@ -28,6 +28,7 @@ import { collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { compressImage, captureVideoFrame } from '@/lib/image-utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format, addDays, parseISO } from 'date-fns';
@@ -98,34 +99,6 @@ export default function AnexoIPage() {
 
   const profile = user?.profile;
 
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Ajuste global para optimizar Firestore
-          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad 0.4
-          resolve(canvas.toDataURL('image/jpeg', 0.4));
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
 
   const startCamera = async () => {
     setIsCameraOpen(true);
@@ -151,16 +124,8 @@ export default function AnexoIPage() {
 
   const takePhoto = () => {
     if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      const MAX_WIDTH = 800;
-      const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
-      canvas.width = videoRef.current.videoWidth * scaleSize;
-      canvas.height = videoRef.current.videoHeight * scaleSize;
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
+      const dataUri = captureVideoFrame(videoRef.current);
+      if (dataUri) {
         setFotoRespaldo(dataUri);
         stopCamera();
       }

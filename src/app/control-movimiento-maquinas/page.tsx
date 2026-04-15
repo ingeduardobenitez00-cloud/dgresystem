@@ -44,6 +44,7 @@ import { type SolicitudCapacitacion, type MovimientoMaquina, type MaquinaVotacio
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
+import { compressImage, captureVideoFrame } from '@/lib/image-utils';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Textarea } from '@/components/ui/textarea';
@@ -159,29 +160,6 @@ function ControlMovimientoContent() {
     fetchLogos();
   }, []);
 
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Optimización de espacio en Firestore
-          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return reject('No context');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad 0.4 para permitir más fotos por registro
-          resolve(canvas.toDataURL('image/jpeg', 0.4));
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
 
   const profile = user?.profile;
 
@@ -401,24 +379,16 @@ function ControlMovimientoContent() {
 
   const takePhoto = () => {
     if (videoRef.current && activeCameraTarget) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-        const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        // Compresión agresiva para asegurar envío de 5 fotos
-        const dataUri = canvas.toDataURL('image/jpeg', 0.6);
-        if (activeCameraTarget === 'salida') {
-            setSalidaFotos(prev => [...prev, dataUri].slice(0, 5));
-        }
-        else if (activeCameraTarget === 'devolucion') {
-            setDevolucionFotos(prev => [...prev, dataUri].slice(0, 5));
-        }
-        else if (activeCameraTarget === 'denuncia_evidencia') setDenunciaEvidencias(prev => [...prev, dataUri].slice(0, 5));
-        else if (activeCameraTarget === 'denuncia_respaldo') setDenunciaRespaldo(dataUri);
-        stopCamera();
+      const dataUri = captureVideoFrame(videoRef.current);
+      if (activeCameraTarget === 'salida') {
+          setSalidaFotos(prev => [...prev, dataUri].slice(0, 5));
       }
+      else if (activeCameraTarget === 'devolucion') {
+          setDevolucionFotos(prev => [...prev, dataUri].slice(0, 5));
+      }
+      else if (activeCameraTarget === 'denuncia_evidencia') setDenunciaEvidencias(prev => [...prev, dataUri].slice(0, 5));
+      else if (activeCameraTarget === 'denuncia_respaldo') setDenunciaRespaldo(dataUri);
+      stopCamera();
     }
   };
 

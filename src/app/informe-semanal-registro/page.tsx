@@ -20,6 +20,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Image from 'next/image';
+import { compressImage, captureVideoFrame } from '@/lib/image-utils';
 import {
   Popover,
   PopoverContent,
@@ -76,36 +77,6 @@ export default function InformeSemanalRegistroPage() {
   });
 
   const profile = user?.profile;
-
-  const compressImage = (file: File, currentPhotoCount: number = 0): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          // Compresión adaptativa: si hay muchas fotos, reducimos más el tamaño
-          const MAX_WIDTH = currentPhotoCount > 8 ? 600 : 800;
-          const scaleSize = Math.min(1, MAX_WIDTH / img.width);
-          canvas.width = img.width * scaleSize;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Calidad reducida a 0.4 para permitir mas fotos
-          resolve(canvas.toDataURL('image/jpeg', 0.4));
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
 
   useEffect(() => {
     if (!isUserLoading && profile) {
@@ -192,16 +163,8 @@ export default function InformeSemanalRegistroPage() {
 
   const takePhoto = () => {
     if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      const MAX_WIDTH = photos.length > 8 ? 600 : 800;
-      const scaleSize = Math.min(1, MAX_WIDTH / videoRef.current.videoWidth);
-      canvas.width = videoRef.current.videoWidth * scaleSize;
-      canvas.height = videoRef.current.videoHeight * scaleSize;
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUri = canvas.toDataURL('image/jpeg', 0.4);
+      const dataUri = captureVideoFrame(videoRef.current);
+      if (dataUri) {
         setPhotos(prev => [...prev, dataUri].slice(0, 12));
         stopCamera();
       }
@@ -215,7 +178,7 @@ export default function InformeSemanalRegistroPage() {
       const selection = Array.from(files).slice(0, remaining);
       for (const file of selection) {
         try {
-          const compressed = await compressImage(file, photos.length);
+          const compressed = await compressImage(file);
           setPhotos(prev => [...prev, compressed].slice(0, 12));
         } catch (err) {
           toast({ variant: 'destructive', title: "Error al procesar archivo" });
