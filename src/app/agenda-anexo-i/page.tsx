@@ -262,7 +262,7 @@ const DistrictSection = ({
             if (sol.cancelada) return false;
             if (sol.fecha_cumplido) {
                 const diff = (currentMs - new Date(sol.fecha_cumplido).getTime()) / (1000 * 60 * 60);
-                if (diff > 720) return false; // Ampliado a 30 días (720h)
+                if (diff > 0.05) return false; // Archivamiento automático después de 3 minutos (0.05h)
             }
             const matchesSearch = !searchTerm || 
                 (sol.nombre_completo || '').toLowerCase().includes(searchTerm) || 
@@ -303,7 +303,7 @@ const DistrictSection = ({
                 {error && (
                     <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
                         <p className="text-[10px] font-black text-red-700 uppercase leading-tight">Error de Sistema (Posible falta de índice):</p>
-                        <p className="text-[9px] font-bold text-red-600 mt-1">{error.message}</p>
+                        <p className="text-[9px] font-bold text-red-600 mt-1">{(error as any)?.message}</p>
                         <p className="text-[8px] italic text-red-500 mt-2 uppercase">Si ve un link en la consola del navegador (F12), por favor haga clic para crear el índice.</p>
                     </div>
                 )}
@@ -332,11 +332,16 @@ const DistrictSection = ({
 
                     const hasAlert = isPast && (pendingSalida || pendingRetorno || pendingInforme);
                     const isQRViewed = !!viewedQRs.includes(item.id);
+                    const [h, m] = (item.hora_hasta || "23:59").split(':');
+                    const [y, mon, day] = item.fecha.split('-').map(Number);
+                    const eventEnd = new Date(y, mon - 1, day, parseInt(h), parseInt(m), 59);
+                    const isPastEvent = currentTime > eventEnd;
+                    const qrActive = item.qr_enabled && !isPastEvent;
 
                     const showStep1 = assignedList.length === 0;
-                    const showStep2 = !!(assignedList.length > 0 && !item.qr_enabled);
-                    const showStep3 = !!(assignedList.length > 0 && !!item.qr_enabled && !mov && !isQRViewed);
-                    const showStep4 = !!(assignedList.length > 0 && !mov && (!item.qr_enabled || isQRViewed));
+                    const showStep2 = !!(assignedList.length > 0 && !item.qr_enabled && !isPastEvent);
+                    const showStep3 = !!(assignedList.length > 0 && !!item.qr_enabled && !mov && !isQRViewed && !isPastEvent);
+                    const showStep4 = !!(assignedList.length > 0 && !mov && (!item.qr_enabled || isQRViewed) && !isPastEvent);
                     const showStep5 = !!(mov && !mov.fecha_devolucion);
                     const showStep6 = pendingInforme;
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
@@ -422,7 +427,21 @@ const DistrictSection = ({
                                             {!item.fecha_cumplido && isFulfilled ? <div className="flex-1 relative"><GuideStep step={7} message="CONCLUIR ACTIVIDAD" active={showStep7} onClick={() => setConcludingSolicitud(item)} position="top" /><Button className="w-full h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 text-white animate-pulse" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button></div> : <div className="flex-1" />}
                                         </div>
                                         <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="flex-1 relative"><GuideStep step={3} message="Descarga QR" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} position="left" /><Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled}><QrCode className="h-4 w-4 mr-2" /> QR</Button></div>
+                                            <div className="flex-1 relative">
+                                                <GuideStep step={3} message="Descarga QR" active={showStep3} onClick={() => { if(qrActive) { setQrSolicitud(item); markQRAsViewed(item.id); } }} position="left" />
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className={cn(
+                                                        "w-full h-11 rounded-xl font-black uppercase text-[10px] border-2 transition-all",
+                                                        item.qr_enabled && !qrActive ? "opacity-20 grayscale" : ""
+                                                    )} 
+                                                    onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} 
+                                                    disabled={!qrActive}
+                                                >
+                                                    <QrCode className="h-4 w-4 mr-2" /> {!qrActive && item.qr_enabled ? 'EXPIRADO' : 'QR'}
+                                                </Button>
+                                            </div>
                                             <div className="flex-1 relative"><GuideStep step={6} message="Informe Marcación" active={showStep6} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" /><Button className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px]", !showStep6 ? "bg-[#16A34A]" : "bg-black")} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }}>{!showStep6 ? 'CUMPLIDO' : 'INFORME'}</Button></div>
                                         </div>
                                     </div>

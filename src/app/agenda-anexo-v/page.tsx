@@ -166,7 +166,7 @@ const DistrictSection = ({
     const isLoadingMore = false;
     const hasMore = false;
     const loadMore = () => {};
-    const error = null;
+    const error: any = null;
 
     const [movimientosMap, setMovimientosMap] = useState<Map<string, MovimientoMaquina>>(new Map());
     const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador[]>>(new Map());
@@ -243,7 +243,7 @@ const DistrictSection = ({
             if (sol.fecha_cumplido) {
                 const completionTime = new Date(sol.fecha_cumplido);
                 const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
-                if (diffHours > 720) return false; // Ampliado a 30 días (720h)
+                if (diffHours > 0.05) return false; // Archivamiento automático después de 3 minutos (0.05h)
                 return true;
             }
 
@@ -300,7 +300,7 @@ const DistrictSection = ({
                 {error && (
                     <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-2xl">
                         <p className="text-[10px] font-black text-red-700 uppercase leading-tight">Error de Sistema (Posible falta de índice):</p>
-                        <p className="text-[9px] font-bold text-red-600 mt-1">{error.message}</p>
+                        <p className="text-[9px] font-bold text-red-600 mt-1">{(error as any)?.message}</p>
                         <p className="text-[8px] italic text-red-500 mt-2 uppercase">Si ve un link en la consola del navegador (F12), por favor haga clic para crear el índice.</p>
                     </div>
                 )}
@@ -343,10 +343,18 @@ const DistrictSection = ({
                     const hasInforme = assignedList.length > 0 ? missingInformesFrom.length === 0 : !!inf;
 
                     const isQRViewed = !!viewedQRs.includes(item.id);
+                    
+                    // Lógica de expiración de QR
+                    const [h, m] = (item.hora_hasta || "23:59").split(':');
+                    const [y, mon, d] = item.fecha.split('-').map(Number);
+                    const eventEnd = new Date(y, mon - 1, d, parseInt(h), parseInt(m), 59);
+                    const isPastEvent = currentTime > eventEnd;
+                    const qrActive = item.qr_enabled && !isPastEvent;
+
                     const showStep1 = !hasPersonnel;
-                    const showStep2 = !!(hasPersonnel && !item.qr_enabled);
-                    const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed);
-                    const showStep4 = !!(hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed));
+                    const showStep2 = !!(hasPersonnel && !item.qr_enabled && !isPastEvent);
+                    const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed && !isPastEvent);
+                    const showStep4 = !!(hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed) && !isPastEvent);
                     const showStep5 = !!(hasSalida && !hasRetorno);
                     const showStep6 = !!(pendingAnexoIII);
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
@@ -499,9 +507,19 @@ const DistrictSection = ({
                                         
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <div className="flex-1 relative">
-                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} position="left" />
-                                                <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} disabled={!item.qr_enabled} title="Ver y Descargar Código QR">
-                                                    <QrCode className="h-4 w-4 mr-2" /> QR
+                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} onClick={() => { if(qrActive) { setQrSolicitud(item); markQRAsViewed(item.id); } }} position="left" />
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    className={cn(
+                                                        "w-full h-11 rounded-xl font-black uppercase text-[10px] border-2 transition-all",
+                                                        item.qr_enabled && !qrActive ? "opacity-20 grayscale" : ""
+                                                    )} 
+                                                    onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} 
+                                                    disabled={!qrActive} 
+                                                    title={qrActive ? "Ver y Descargar Código QR" : "QR No disponible o expirado"}
+                                                >
+                                                    <QrCode className="h-4 w-4 mr-2" /> {!qrActive && item.qr_enabled ? 'EXPIRADO' : 'QR'}
                                                 </Button>
                                             </div>
                                             <div className="flex-1 relative">
