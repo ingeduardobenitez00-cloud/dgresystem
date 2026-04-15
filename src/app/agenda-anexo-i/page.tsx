@@ -211,6 +211,7 @@ const DistrictSection = ({
 }: any) => {
     const [isOpen, setIsOpen] = useState(initialOpen || ((allDeptItems || []).length > 0));
     const [itemsState, setItemsState] = useState<any[]>([]);
+    const [visibleCount, setVisibleCount] = useState(5);
 
     useEffect(() => {
         const target = normalizeGeo(distName);
@@ -305,6 +306,8 @@ const DistrictSection = ({
         }).sort((a,b) => (a.fecha || '').localeCompare(b.fecha || ''));
     }, [rawItems, agendaSearch, currentTime, movimientosMap, informesMap]);
 
+    const hasMoreItems = items.length > visibleCount;
+
     // Efecto de auto-carga si los items visibles están vacíos por filtros de memoria
     useEffect(() => {
         if (!isLoading && !isLoadingMore && hasMore && items.length === 0 && (rawItems?.length || 0) > 0) {
@@ -342,7 +345,7 @@ const DistrictSection = ({
                         <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase text-destructive hover:bg-destructive/10 h-8 gap-2" onClick={() => setDeletingDistrict({ dept: deptName, dist: distName, items: items })}><Trash2 className="h-3 w-3" /> VACIAR DISTRITO</Button>
                     </div>
                 )}
-                {items.map(item => {
+                {items.slice(0, visibleCount).map(item => {
                     const mov = movimientosMap.get(item.id);
                     const itemInformes = informesMap.get(item.id) || [];
                     const inf = itemInformes[0];
@@ -438,18 +441,43 @@ const DistrictSection = ({
                                                     </div>
                                                 )}
                                                 {pendingInforme && (
-                                                    <Link 
-                                                        href={`/informe-divulgador?solicitudId=${item.id}`} 
-                                                        className={cn(
-                                                            "flex items-center gap-2 px-3 py-1 rounded-lg border transition-all",
-                                                            isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                    <div className="flex flex-col gap-1 w-full max-w-[220px]">
+                                                        {missingInformesFrom.length > 0 ? (
+                                                            missingInformesFrom.map((d) => (
+                                                                <Link 
+                                                                    key={d.id}
+                                                                    href={`/informe-divulgador?solicitudId=${item.id}&reporterUid=${d.id}`} 
+                                                                    className={cn(
+                                                                        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all hover:scale-[1.02] active:scale-95 group",
+                                                                        isPast ? "bg-destructive text-white border-destructive shadow-lg animate-pulse" : "bg-blue-600 text-white border-blue-700 shadow-lg"
+                                                                    )}
+                                                                >
+                                                                    <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                                                                        <FileText className="h-3 w-3" />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[6px] font-black uppercase opacity-60 leading-none">FALTA INFORME</span>
+                                                                        <span className="text-[9px] font-black uppercase leading-tight">
+                                                                            {d.nombre}
+                                                                        </span>
+                                                                    </div>
+                                                                </Link>
+                                                            ))
+                                                        ) : (
+                                                            <Link 
+                                                                href={`/informe-divulgador?solicitudId=${item.id}`} 
+                                                                className={cn(
+                                                                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
+                                                                    isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                                )}
+                                                            >
+                                                                <AlertCircle className="h-3 w-3" />
+                                                                <span className="text-[9px] font-black uppercase">
+                                                                    {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
+                                                                </span>
+                                                            </Link>
                                                         )}
-                                                    >
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        <span className="text-[8px] font-black uppercase">
-                                                            {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
-                                                        </span>
-                                                    </Link>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
@@ -487,10 +515,17 @@ const DistrictSection = ({
                         </Card>
                     );
                 })}
-                {hasMore && (
-                    <div className="mt-4 flex justify-center">
-                        <Button onClick={loadMore} disabled={isLoadingMore} variant="outline" className="rounded-2xl font-black text-[9px] uppercase tracking-widest py-6 px-10 border-2">
-                            {isLoadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Ver más de {distName} <ChevronDown className="h-4 w-4" /></>}
+
+                {hasMoreItems && (
+                    <div className="flex justify-center mt-6">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setVisibleCount(prev => prev + 10)}
+                            className="font-black text-[9px] uppercase tracking-widest hover:bg-white gap-2 h-10 px-6 rounded-xl border border-dashed border-muted-foreground/20 shadow-sm"
+                        >
+                            VER MÁS ACTIVIDADES ({items.length - visibleCount})
+                            <ChevronDown className="h-3 w-3" />
                         </Button>
                     </div>
                 )}

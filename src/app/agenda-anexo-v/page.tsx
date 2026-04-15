@@ -172,6 +172,7 @@ const DistrictSection = ({
 }: any) => {
     const [isOpen, setIsOpen] = useState(initialOpen || hasAdminFilter === false);
     const [solicitudesState, setSolicitudesState] = useState<SolicitudCapacitacion[]>([]);
+    const [visibleCount, setVisibleCount] = useState(5);
 
     useEffect(() => {
         const target = normalizeGeo(dist.label);
@@ -293,6 +294,8 @@ const DistrictSection = ({
         });
     }, [rawSolicitudes, agendaSearch, currentTime, movimientosMap, informesMap]);
 
+    const hasMoreItems = activeSolicitudes.length > visibleCount;
+
     // Efecto de auto-carga si los items visibles están vacíos por filtros de memoria
     useEffect(() => {
         if (!isLoading && !isLoadingMore && hasMore && activeSolicitudes.length === 0 && (rawSolicitudes?.length || 0) > 0) {
@@ -346,7 +349,7 @@ const DistrictSection = ({
                         </Button>
                     </div>
                 )}
-                {activeSolicitudes.map((item) => {
+                {activeSolicitudes.slice(0, visibleCount).map((item) => {
                     const mov = movimientosMap.get(item.id); 
                     const itemInformes = informesMap.get(item.id) || []; 
                     const inf = itemInformes[0]; 
@@ -475,18 +478,43 @@ const DistrictSection = ({
                                                     </div>
                                                 )}
                                                 {pendingAnexoIII && (
-                                                    <Link 
-                                                        href={`/informe-divulgador?solicitudId=${item.id}`} 
-                                                        className={cn(
-                                                            "flex items-center gap-2 px-3 py-1 rounded-lg border transition-colors",
-                                                            isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                    <div className="flex flex-col gap-1 w-full max-w-[220px]">
+                                                        {missingInformesFrom.length > 0 ? (
+                                                            missingInformesFrom.map((d) => (
+                                                                <Link 
+                                                                    key={d.id}
+                                                                    href={`/informe-divulgador?solicitudId=${item.id}&reporterUid=${d.id}`} 
+                                                                    className={cn(
+                                                                        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all hover:scale-[1.02] active:scale-95 group",
+                                                                        isPast ? "bg-destructive text-white border-destructive shadow-lg animate-pulse" : "bg-blue-600 text-white border-blue-700 shadow-lg"
+                                                                    )}
+                                                                >
+                                                                    <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                                                                        <FileText className="h-3 w-3" />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[6px] font-black uppercase opacity-60 leading-none">FALTA INFORME</span>
+                                                                        <span className="text-[9px] font-black uppercase leading-tight">
+                                                                            {d.nombre}
+                                                                        </span>
+                                                                    </div>
+                                                                </Link>
+                                                            ))
+                                                        ) : (
+                                                            <Link 
+                                                                href={`/informe-divulgador?solicitudId=${item.id}`} 
+                                                                className={cn(
+                                                                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
+                                                                    isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                                )}
+                                                            >
+                                                                <AlertCircle className="h-3 w-3" />
+                                                                <span className="text-[9px] font-black uppercase">
+                                                                    {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
+                                                                </span>
+                                                            </Link>
                                                         )}
-                                                    >
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        <span className="text-[8px] font-black uppercase underline decoration-2 underline-offset-2">
-                                                            {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}: {missingInformesFrom.length > 0 ? missingInformesFrom.map(f => f.nombre.split(" ")[0]).join(", ") : "REQUERIDO"}
-                                                        </span>
-                                                    </Link>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
@@ -576,19 +604,20 @@ const DistrictSection = ({
                     );
                 })}
 
-                {hasMore && (
-                    <div className="pt-4 flex justify-center">
+                {hasMoreItems && (
+                    <div className="flex justify-center mt-6">
                         <Button 
-                            onClick={loadMore} 
-                            disabled={isLoadingMore}
-                            variant="ghost"
-                            className="text-[10px] font-black uppercase text-primary/60 hover:text-primary h-8"
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setVisibleCount(prev => prev + 10)}
+                            className="font-black text-[9px] uppercase tracking-widest hover:bg-white gap-2 h-10 px-6 rounded-xl border border-dashed border-muted-foreground/20 shadow-sm"
                         >
-                            {isLoadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <ChevronDown className="h-3 w-3 mr-2" />}
-                            MOSTRAR MÁS DE {dist.label.toUpperCase()}
+                            VER MÁS ACTIVIDADES ({activeSolicitudes.length - visibleCount})
+                            <ChevronDown className="h-3 w-3" />
                         </Button>
                     </div>
                 )}
+
                 </div>
             </AccordionContent>
         </AccordionItem>

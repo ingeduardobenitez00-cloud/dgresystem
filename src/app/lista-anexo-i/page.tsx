@@ -32,7 +32,191 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
+import { 
+  Accordion, 
+  AccordionContent, 
+  AccordionItem, 
+  AccordionTrigger 
+} from "@/components/ui/accordion";
+import { normalizeGeo } from '@/lib/utils';
+
+type Dato = {
+    departamento: string;
+    distrito: string;
+};
+
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+
+const DistrictSection = ({ 
+    deptName,
+    distName, 
+    allDeptItems, 
+    setViewingAnexo,
+    initialOpen = false
+}: any) => {
+    const [isOpen, setIsOpen] = useState(initialOpen);
+    const [visibleCount, setVisibleCount] = useState(5);
+
+    const districtItems = useMemo(() => {
+        const target = normalizeGeo(distName);
+        return (allDeptItems || []).filter((a: any) => normalizeGeo(a.distrito || '') === target);
+    }, [allDeptItems, distName]);
+
+    const hasMoreItems = districtItems.length > visibleCount;
+
+    if (districtItems.length === 0) return null;
+
+    return (
+        <AccordionItem value={distName} className="border-none">
+            <AccordionTrigger onClick={() => setIsOpen(true)} className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border border-dashed hover:border-solid transition-all">
+                <div className="flex items-center gap-3">
+                    <Building2 className="h-5 w-5 text-[#1A1A1A]" />
+                    <h3 className="font-black uppercase text-sm tracking-tight text-primary/80">{distName}</h3>
+                    <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">{districtItems.length}</Badge>
+                </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4 px-2 pb-6">
+                <div className="grid grid-cols-1 gap-4">
+                    {districtItems.slice(0, visibleCount).map((anexo: any) => (
+                        <Card key={anexo.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl overflow-hidden bg-white group border-2 border-transparent hover:border-primary/10">
+                            <div className="flex flex-col md:flex-row items-center p-6 gap-6">
+                                <div className="h-10 w-10 rounded-xl bg-primary/5 text-primary flex items-center justify-center shrink-0">
+                                    <ClipboardList className="h-5 w-5" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <h2 className="text-base font-black uppercase text-[#1A1A1A] truncate">{anexo.distrito}</h2>
+                                        <Badge variant="outline" className="text-[7px] font-black uppercase border-primary/10">{anexo.tipo_oficina}</Badge>
+                                        <Badge className="bg-black text-white text-[6px] font-black uppercase h-4">LOTE: {anexo.id.substring(0,8)}</Badge>
+                                    </div>
+                                    <div className="flex flex-wrap gap-4 text-[9px] font-bold text-muted-foreground uppercase tracking-tight">
+                                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> CREADO: {formatDateToDDMMYYYY(anexo.fecha_creacion?.split('T')[0] || '')}</span>
+                                        <span className="flex items-center gap-1 text-primary font-black"><FileText className="h-3 w-3" /> {anexo.filas?.length || 0} LUGARES</span>
+                                    </div>
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="h-10 rounded-xl border-2 hover:bg-primary hover:text-white transition-all font-black uppercase text-[10px] gap-2 px-4"
+                                    onClick={() => setViewingAnexo(anexo)}
+                                >
+                                    <Eye className="h-4 w-4" /> VER DETALLE
+                                </Button>
+                            </div>
+                        </Card>
+                    ))}
+                    
+                    {hasMoreItems && (
+                        <div className="flex justify-center mt-4">
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setVisibleCount(prev => prev + 10)}
+                                className="font-black text-[9px] uppercase tracking-widest hover:bg-white gap-2 h-10 px-6 rounded-xl border border-dashed border-muted-foreground/20 shadow-sm"
+                            >
+                                VER MÁS LOTES ({districtItems.length - visibleCount})
+                                <ChevronDown className="h-3 w-3" />
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+    );
+};
+
+const DepartmentSection = ({ 
+    deptName, 
+    firestore, 
+    profile, 
+    datosData,
+    setViewingAnexo,
+    initialOpen = false 
+}: any) => {
+    const [isOpen, setIsOpen] = useState(initialOpen || !['admin', 'director'].includes(profile?.role || ''));
+
+    const deptQuery = useMemoFirebase(() => {
+        if (!firestore || !isOpen) return null;
+        const norm = normalizeGeo(deptName);
+        const variations = Array.from(new Set([deptName, norm, norm.charAt(0) + norm.slice(1).toLowerCase()])).filter(Boolean);
+        return query(
+            collection(firestore, 'anexo-i'),
+            where('departamento', 'in', variations)
+        );
+    }, [firestore, isOpen, deptName]);
+
+    const { data: allDeptItems, isLoading: isDeptLoading } = useCollectionOnce<AnexoI>(deptQuery);
+
+    const districts = useMemo(() => {
+        if (!datosData) return [];
+        const role = (profile?.role || '').toLowerCase();
+        const hasAdminFilter = ['admin', 'director'].includes(role) || profile?.permissions?.includes('admin_filter');
+        const hasDeptFilter = !hasAdminFilter && (role === 'coordinador' || profile?.permissions?.includes('department_filter'));
+        
+        const dists = new Set<string>();
+        datosData.forEach((d: Dato) => {
+            if (normalizeGeo(d.departamento) === normalizeGeo(deptName)) {
+                dists.add(d.distrito);
+            }
+        });
+
+        const sortedDists = Array.from(dists).sort();
+
+        if (!hasAdminFilter && !hasDeptFilter && (profile?.distrito)) {
+            const targetDist = normalizeGeo(profile.distrito);
+            return sortedDists.filter(d => normalizeGeo(d) === targetDist);
+        }
+
+        return sortedDists;
+    }, [datosData, deptName, profile]);
+
+    const itemsCount = (allDeptItems || []).length;
+
+    return (
+        <AccordionItem value={deptName} className="border-none bg-white rounded-[2rem] shadow-xl overflow-hidden">
+            <AccordionTrigger onClick={() => setIsOpen(true)} className="hover:no-underline p-8 group">
+                <div className="flex items-center gap-6 text-left">
+                    <div className="h-16 w-16 rounded-[1.25rem] bg-primary/5 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all border-2 border-transparent group-hover:border-primary/20 shadow-inner">
+                        <Landmark className="h-8 w-8" />
+                    </div>
+                    <div className="space-y-1">
+                        <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{deptName}</h2>
+                        <div className="flex items-center gap-3">
+                            <Badge variant="secondary" className="bg-black text-white font-black uppercase text-[8px] py-0 px-2 h-5">
+                                {itemsCount} LOTES REGISTRADOS
+                            </Badge>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest hidden sm:block">
+                                {isOpen ? `${districts.length} DISTRITOS CONFIGURADOS` : 'CLIC PARA EXPLORAR DEPARTAMENTO'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </AccordionTrigger>
+            
+            <AccordionContent className="px-8 pb-8 pt-2">
+                {isDeptLoading ? (
+                    <div className="flex flex-col gap-4 py-8 items-center justify-center text-muted-foreground animate-pulse">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Cargando lotes del departamento...</p>
+                    </div>
+                ) : (
+                    <Accordion type="multiple" className="space-y-4" defaultValue={districts.length === 1 ? [districts[0]] : undefined}>
+                        {districts.map(dist => (
+                            <DistrictSection 
+                                key={dist}
+                                deptName={deptName}
+                                distName={dist}
+                                allDeptItems={allDeptItems}
+                                setViewingAnexo={setViewingAnexo}
+                                initialOpen={districts.length === 1}
+                            />
+                        ))}
+                    </Accordion>
+                )}
+            </AccordionContent>
+        </AccordionItem>
+    );
+};
 
 export default function ListaAnexoIPage() {
   const { user, isUserLoading } = useUser();
@@ -43,60 +227,37 @@ export default function ListaAnexoIPage() {
 
   const profile = user?.profile;
 
-  const anexosQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !profile) return null;
-    const colRef = collection(firestore, 'anexo-i');
-    const hasAdminFilter = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
-    const hasDeptFilter = !hasAdminFilter && profile.permissions?.includes('department_filter');
-    const hasDistFilter = !hasAdminFilter && !hasDeptFilter && (profile.permissions?.includes('district_filter') || profile.role === 'jefe' || profile.role === 'funcionario');
+  // Carga de la estructura de departamentos y distritos
+  const datosQuery = useMemoFirebase(() => {
+    if (!firestore || isUserLoading) return null;
+    return collection(firestore, 'datos');
+  }, [firestore, isUserLoading]);
+  const { data: datosData, isLoading: isDatosLoading } = useCollectionOnce<Dato>(datosQuery);
 
-    if (hasAdminFilter) return query(colRef, orderBy('fecha_creacion', 'desc'));
-    if (hasDeptFilter && profile.departamento) return query(colRef, where('departamento', '==', profile.departamento), orderBy('fecha_creacion', 'desc'));
-    if (hasDistFilter && profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito), orderBy('fecha_creacion', 'desc'));
-    }
-    return null;
-  }, [firestore, isUserLoading, profile]);
+  const filterableDepts = useMemo(() => {
+    if (!datosData) return [];
+    const depts = new Set<string>();
+    datosData.forEach(d => depts.add(d.departamento));
+    return Array.from(depts).sort();
+  }, [datosData]);
 
-  const { 
-    data: anexos, 
-    isLoading,
-    hasMore,
-    loadMore,
-    isLoadingMore
-  } = useCollectionPaginated<AnexoI>(anexosQuery, 20);
-
-  // OPTIMIZACIÓN: Se elimina la carga de TODA la colección de solicitudes por costo masivo.
-  // const solicitudesQuery = useMemoFirebase(() => {
-  //   if (!firestore) return null;
-  //   return collection(firestore, 'solicitudes-capacitacion');
-  // }, [firestore]);
-  // const { data: allSolicitudes } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
-  const allSolicitudes: any[] = []; 
-
-  const filteredAnexos = useMemo(() => {
-    if (!anexos) return [];
-    const term = searchTerm.toLowerCase().trim();
-    return anexos.filter(a => 
-        a.departamento.toLowerCase().includes(term) || 
-        a.distrito.toLowerCase().includes(term)
-    );
-  }, [anexos, searchTerm]);
-
-  const getBatchStats = (anexoId: string) => {
-    if (!allSolicitudes) return { total: 0, completed: 0, percent: 0 };
-    const batchItems = allSolicitudes.filter(s => s.anexo_id === anexoId);
-    if (batchItems.length === 0) return { total: 0, completed: 0, percent: 0 };
+  // Si el usuario tiene filtro de departamento, solo mostramos ese departamento
+  const filteredDepts = useMemo(() => {
+    const role = (profile?.role || '').toLowerCase();
+    const hasAdminFilter = ['admin', 'director'].includes(role) || profile?.permissions?.includes('admin_filter');
     
-    // Se considera completado si ya no está en agenda activa (tiene informe y devolución)
-    const completed = batchItems.filter(s => {
-        return false; 
-    }).length;
+    if (!hasAdminFilter && (role === 'coordinador' || profile?.permissions?.includes('department_filter'))) {
+        return filterableDepts.filter(d => normalizeGeo(d) === normalizeGeo(profile?.departamento || ''));
+    }
+    
+    if (searchTerm) {
+        return filterableDepts.filter(d => d.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+    
+    return filterableDepts;
+  }, [filterableDepts, profile, searchTerm]);
 
-    return { total: batchItems.length, completed, percent: Math.round((completed / batchItems.length) * 100) };
-  };
-
-  if (isUserLoading || isLoading) {
+  if (isUserLoading || isDatosLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
   }
 
@@ -115,7 +276,7 @@ export default function ListaAnexoIPage() {
             <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
                 <Input 
-                    placeholder="Buscar oficina o departamento..." 
+                    placeholder="Buscar departamento..." 
                     className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
@@ -123,69 +284,27 @@ export default function ListaAnexoIPage() {
             </div>
         </div>
 
-        {filteredAnexos.length === 0 ? (
+        {filteredDepts.length === 0 ? (
             <Card className="p-20 text-center border-dashed bg-white rounded-[2.5rem]">
                 <div className="flex flex-col items-center justify-center opacity-20">
                     <FileText className="h-20 w-20 mb-4" />
-                    <p className="font-black uppercase tracking-widest text-sm">No hay formularios registrados</p>
+                    <p className="font-black uppercase tracking-widest text-sm">No se encontraron departamentos</p>
                 </div>
             </Card>
         ) : (
-            <div className="grid grid-cols-1 gap-4">
-                {filteredAnexos.map((anexo) => {
-                    const stats = getBatchStats(anexo.id);
-                    return (
-                        <Card key={anexo.id} className="border-none shadow-sm hover:shadow-md transition-all rounded-2xl overflow-hidden bg-white group">
-                            <div className="flex flex-col md:flex-row items-center p-6 gap-6">
-                                <div className="h-12 w-12 rounded-xl bg-primary/5 text-primary flex items-center justify-center shrink-0">
-                                    <Building2 className="h-6 w-6" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h2 className="text-lg font-black uppercase text-[#1A1A1A] truncate">{anexo.distrito}</h2>
-                                        <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10">{anexo.tipo_oficina}</Badge>
-                                        <Badge className="bg-black text-white text-[7px] font-black uppercase">ID Lote: {anexo.id.substring(0,8)}</Badge>
-                                    </div>
-                                    <div className="flex flex-wrap gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
-                                        <span className="flex items-center gap-1"><Landmark className="h-3 w-3" /> {anexo.departamento}</span>
-                                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Creado: {formatDateToDDMMYYYY(anexo.fecha_creacion.split('T')[0])}</span>
-                                        <span className="flex items-center gap-1 text-primary"><FileText className="h-3 w-3" /> {anexo.filas?.length || 0} Lugares Planificados</span>
-                                    </div>
-                                    {stats.total > 0 && (
-                                        <div className="mt-3 flex items-center gap-4 max-w-sm">
-                                            <div className="flex-1">
-                                                <Progress value={stats.percent} className="h-1.5" />
-                                            </div>
-                                            <span className="text-[8px] font-black uppercase text-muted-foreground">{stats.percent}% EJECUTADO</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-12 w-12 rounded-xl border-2 hover:bg-primary hover:text-white transition-all"
-                                    onClick={() => setViewingAnexo(anexo)}
-                                >
-                                    <Eye className="h-5 w-5" />
-                                </Button>
-                            </div>
-                        </Card>
-                    );
-                })}
-
-                {hasMore && (
-                    <div className="pt-4 flex justify-center">
-                        <Button 
-                            onClick={loadMore} 
-                            disabled={isLoadingMore}
-                            variant="outline"
-                            className="rounded-2xl font-black text-xs uppercase py-8 px-12 border-2 shadow-xl hover:bg-primary hover:text-white transition-all gap-3 bg-white"
-                        >
-                            {isLoadingMore ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Cargar más lotes históricos <ChevronDown className="h-5 w-5" /></>}
-                        </Button>
-                    </div>
-                )}
-            </div>
+            <Accordion type="multiple" className="space-y-4">
+                {filteredDepts.map(dept => (
+                    <DepartmentSection 
+                        key={dept}
+                        deptName={dept}
+                        firestore={firestore}
+                        profile={profile}
+                        datosData={datosData}
+                        setViewingAnexo={setViewingAnexo}
+                        initialOpen={filteredDepts.length === 1}
+                    />
+                ))}
+            </Accordion>
         )}
       </main>
 

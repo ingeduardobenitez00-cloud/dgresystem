@@ -327,7 +327,13 @@ const DistrictSection = ({
                     
                     const pendingSalida = !mov;
                     const pendingRetorno = mov && !mov.fecha_devolucion;
-                    const pendingInforme = (item.divulgadores || []).length > 0 ? !(inf) : !inf; 
+                    
+                    // Identificar quiénes faltan informar (Anexo III)
+                    const assignedDivs = item.divulgadores || item.asignados || [];
+                    const reportsForItem = reportsData?.filter(i => i.solicitud_id === item.id) || [];
+                    const missingDivs = assignedDivs.filter(div => !reportsForItem.some(rep => rep.divulgador_id === div.id));
+                    
+                    const pendingInforme = assignedDivs.length > 0 ? (missingDivs.length > 0) : !inf; 
 
                     // Lógica de expiración de QR
                     const [h, m] = (item.hora_hasta || "23:59").split(':');
@@ -393,18 +399,43 @@ const DistrictSection = ({
                                                     </div>
                                                 )}
                                                 {pendingInforme && (
-                                                    <Link 
-                                                        href={`/informe-divulgador?solicitudId=${item.id}`} 
-                                                        className={cn(
-                                                            "flex items-center gap-2 px-3 py-1 rounded-lg border transition-all",
-                                                            isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                    <div className="flex flex-col gap-1 w-full max-w-[220px]">
+                                                        {missingDivs.length > 0 ? (
+                                                            missingDivs.map((d) => (
+                                                                <Link 
+                                                                    key={d.id}
+                                                                    href={`/informe-divulgador?solicitudId=${item.id}&reporterUid=${d.id}`} 
+                                                                    className={cn(
+                                                                        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all hover:scale-[1.02] active:scale-95 group",
+                                                                        isPast ? "bg-destructive text-white border-destructive shadow-lg animate-pulse" : "bg-blue-600 text-white border-blue-700 shadow-lg"
+                                                                    )}
+                                                                >
+                                                                    <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                                                                        <FileText className="h-3 w-3" />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[6px] font-black uppercase opacity-60 leading-none">FALTA INFORME</span>
+                                                                        <span className="text-[9px] font-black uppercase leading-tight">
+                                                                            {d.nombre}
+                                                                        </span>
+                                                                    </div>
+                                                                </Link>
+                                                            ))
+                                                        ) : (
+                                                            <Link 
+                                                                href={`/informe-divulgador?solicitudId=${item.id}`} 
+                                                                className={cn(
+                                                                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
+                                                                    isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
+                                                                )}
+                                                            >
+                                                                <AlertCircle className="h-3 w-3" />
+                                                                <span className="text-[9px] font-black uppercase">
+                                                                    {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
+                                                                </span>
+                                                            </Link>
                                                         )}
-                                                    >
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        <span className="text-[8px] font-black uppercase">
-                                                            {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
-                                                        </span>
-                                                    </Link>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}

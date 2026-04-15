@@ -81,7 +81,9 @@ export default function AppSidebar() {
         { href: "/galeria-capacitaciones", label: "Galería Evidencias", icon: Images },
         { href: "/informe-semanal-puntos-fijos", label: "Anexo IV - Informe Semanal", icon: TableProperties },
         { href: "/lista-anexo-iv", label: "Listado de Anexo IV", icon: ClipboardList },
-        { href: "/archivo-capacitaciones", label: "Archivo / Historial", icon: History },
+        { href: "/archivo-anexo-i", label: "Historial Anexo I", icon: History },
+        { href: "/archivo-anexo-v", label: "Historial Anexo V", icon: History },
+        { href: "/archivo-capacitaciones", label: "Historial General", icon: History },
         { href: "/divulgadores", label: "Directorio Divulgadores", icon: UserCircle },
         { href: "/encuesta-satisfaccion", label: "Anexo II - Encuesta de Satisfacción", icon: MessageSquareHeart },
       ]

@@ -229,16 +229,24 @@ function DistrictArchiveSection({
 function DepartmentSection({ dept, firestore, profile, searchTerm }: any) {
     const [isOpen, setIsOpen] = useState(false);
 
-    // Fetch ALL department items for history
+    // Fetch ALL department items for Anexo I (Lugar Fijo)
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
         return query(
             collection(firestore, 'solicitudes-capacitacion'),
+            where('tipo_solicitud', '==', 'Lugar Fijo'),
             where('departamento', '==', dept.name)
         );
     }, [firestore, dept.name, isOpen]);
 
     const { data: allDeptItems, isLoading: isDeptLoading } = useCollectionOnce<SolicitudCapacitacion>(q);
+
+    const districts = useMemo(() => {
+        if (!dept.name) return [];
+        // Aquí podrías filtrar distritos de datosData si fuera necesario, 
+        // pero vamos a usar la función ya definida en el componente padre
+        return []; 
+    }, [dept]);
 
     return (
         <AccordionItem value={dept.name} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
@@ -285,7 +293,7 @@ function DistrictTable({ items }: { items: SolicitudCapacitacion[] }) {
         <Card className="border-none shadow-xl overflow-hidden rounded-[1.5rem]">
             <div className="bg-black text-white px-8 py-4 flex items-center gap-3">
                 <Archive className="h-4 w-4 opacity-50" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em]">REGISTRO DE ACTIVIDADES ARCHIVADAS</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">ANEXO I - REGISTRO DE LUGARES FIJOS ARCHIVADOS</span>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full">
@@ -322,7 +330,7 @@ function DistrictTable({ items }: { items: SolicitudCapacitacion[] }) {
     );
 }
 
-export default function ArchivoCapacitacionesPage() {
+export default function ArchivoAnexoIPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const [searchTerm, setSearchTerm] = useState('');
@@ -370,14 +378,14 @@ export default function ArchivoCapacitacionesPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
-      <Header title="Archivo Institucional" />
+      <Header title="Archivo Anexo I" />
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8">
         
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
-                <h1 className="text-3xl font-black tracking-tight text-primary uppercase leading-none">Historial / Archivo</h1>
+                <h1 className="text-3xl font-black tracking-tight text-primary uppercase leading-none">Anexo I - Historial</h1>
                 <p className="text-muted-foreground text-[10px] font-bold uppercase flex items-center gap-2 mt-2 tracking-widest">
-                    <History className="h-3.5 w-3.5" /> Actividades finalizadas y ciclo logístico cerrado
+                    <History className="h-3.5 w-3.5" /> Lugares Fijos con ciclo logístico cerrado
                 </p>
             </div>
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-8">

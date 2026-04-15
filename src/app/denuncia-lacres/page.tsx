@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download } from 'lucide-react';
+import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download, MapPin } from 'lucide-react';
 import { useUser, useFirebase, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,6 +49,11 @@ function DenunciaContent() {
   const [logoDGRE, setLogoDGRE] = useState<string | null>(null);
 
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(solicitudIdFromUrl);
+  
+  // Filtros Jurisdiccionales para Carga Inteligente
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+
   const [reportedMaquinas, setReportedMaquinas] = useState<string[]>([]);
   
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -102,15 +107,27 @@ function DenunciaContent() {
     const profile = user.profile;
     const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
 
-    if (isAdminGlobal) return colRef;
+    if (isAdminGlobal) {
+        if (!selectedDepartment || !selectedDistrict) return null;
+        return query(colRef, where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
+    }
 
     const deptoOriginal = profile.departamento || '';
-    const deptoNormalized = normalizeGeo(deptoOriginal);
-    const variants = [deptoOriginal];
-    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+    if (!deptoOriginal) return null;
+    
+    // Si no es admin pero tiene filtro de departamento, dejamos filtrar por distrito si quiere
+    if (profile.permissions?.includes('department_filter')) {
+        if (selectedDistrict && selectedDistrict !== 'ALL') {
+            return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', selectedDistrict));
+        }
+        return query(colRef, where('departamento', '==', deptoOriginal));
+    }
 
-    return query(colRef, where('departamento', 'in', variants));
-  }, [firestore, user, isUserLoading]);
+    // Caso estándar para funcionarios/jefes (su distrito)
+    const distOriginal = profile.distrito || '';
+    if (!distOriginal) return null;
+    return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', distOriginal));
+  }, [firestore, user, isUserLoading, selectedDepartment, selectedDistrict]);
   
   const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movsQuery);
 
@@ -120,15 +137,25 @@ function DenunciaContent() {
     const profile = user.profile;
     const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
 
-    if (isAdminGlobal) return colRef;
+    if (isAdminGlobal) {
+        if (!selectedDepartment || !selectedDistrict) return null;
+        return query(colRef, where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
+    }
 
     const deptoOriginal = profile.departamento || '';
-    const deptoNormalized = normalizeGeo(deptoOriginal);
-    const variants = [deptoOriginal];
-    if (deptoNormalized && deptoNormalized !== deptoOriginal) variants.push(deptoNormalized);
+    if (!deptoOriginal) return null;
 
-    return query(colRef, where('departamento', 'in', variants));
-  }, [firestore, user, isUserLoading]);
+    if (profile.permissions?.includes('department_filter')) {
+        if (selectedDistrict && selectedDistrict !== 'ALL') {
+            return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', selectedDistrict));
+        }
+        return query(colRef, where('departamento', '==', deptoOriginal));
+    }
+
+    const distOriginal = profile.distrito || '';
+    if (!distOriginal) return null;
+    return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', distOriginal));
+  }, [firestore, user, isUserLoading, selectedDepartment, selectedDistrict]);
 
   const { data: allDenuncias } = useCollectionOnce<any>(densQuery);
 
@@ -138,14 +165,69 @@ function DenunciaContent() {
     const profile = user.profile;
     const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
     
-    if (isAdminGlobal) return colRef;
-    if (profile.departamento && profile.distrito) {
-        return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
+    if (isAdminGlobal) {
+        if (!selectedDepartment || !selectedDistrict) return null;
+        return query(colRef, where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
     }
-    return null;
-  }, [firestore, user, isUserLoading]);
 
-  const { data: rawAgendaItems } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
+    const deptoOriginal = profile.departamento || '';
+    if (!deptoOriginal) return null;
+
+    if (profile.permissions?.includes('department_filter')) {
+        if (selectedDistrict && selectedDistrict !== 'ALL') {
+             return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', selectedDistrict));
+        }
+        return query(colRef, where('departamento', '==', deptoOriginal));
+    }
+
+    const distOriginal = profile.distrito || '';
+    if (!distOriginal) return null;
+    return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', distOriginal));
+  }, [firestore, user, isUserLoading, selectedDepartment, selectedDistrict]);
+
+  // JURISDICTIONAL DATA FETCHING
+  const datosRef = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData } = useCollectionOnce<any>(datosRef);
+
+  const departments = useMemo(() => {
+    if (!datosData) return [];
+    return [...new Set(datosData.map((d: any) => d.departamento))].sort();
+  }, [datosData]);
+
+  const districts = useMemo(() => {
+    if (!datosData || !selectedDepartment) return [];
+    return [...new Set(datosData.filter((d: any) => d.departamento === selectedDepartment).map((d: any) => d.distrito))].sort();
+  }, [datosData, selectedDepartment]);
+
+  // DEEP LINKING: Fetch direct solicitud if Id in URL
+  const directSolicitudRef = useMemoFirebase(() => {
+    if (!firestore || !solicitudIdFromUrl) return null;
+    return doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl);
+  }, [firestore, solicitudIdFromUrl]);
+
+  const { data: directSolicitudData } = useDocOnce<SolicitudCapacitacion>(directSolicitudRef);
+
+  // INITIAL JURISDICTION SETUP
+  useEffect(() => {
+    // Caso 1: Deep Link - Prioridad absoluta
+    if (directSolicitudData) {
+        setSelectedDepartment(directSolicitudData.departamento);
+        setSelectedDistrict(directSolicitudData.distrito);
+        setSelectedAgendaId(directSolicitudData.id); // Pre-seleccionar actividad
+        return;
+    }
+
+    // Caso 2: Perfil del usuario
+    if (!isUserLoading && user?.profile) {
+      const profile = user.profile;
+      if (profile.departamento && !selectedDepartment) {
+        setSelectedDepartment(profile.departamento);
+      }
+      if (profile.distrito && !selectedDistrict) {
+        setSelectedDistrict(profile.distrito);
+      }
+    }
+  }, [isUserLoading, user?.profile, directSolicitudData]);
 
   const agendaItems = useMemo(() => {
     if (!rawAgendaItems || !allMovimientos || !allDenuncias) return [];
@@ -476,27 +558,66 @@ function DenunciaContent() {
           </CardHeader>
           <CardContent className="space-y-10 p-8">
             
-            <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Actividad Pendiente de Informe</Label>
-                <Select onValueChange={setSelectedAgendaId} value={selectedAgendaId || undefined}>
-                    <SelectTrigger className="h-14 border-2 font-black uppercase">
-                        <SelectValue placeholder="Seleccione la actividad con irregularidad..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agendaItems.length === 0 ? (
-                            <div className="p-10 text-center space-y-2 opacity-40">
-                                <CheckCircle2 className="h-8 w-8 mx-auto text-green-600" />
-                                <p className="text-[9px] font-black uppercase">No hay actividades con irregularidades pendientes</p>
-                            </div>
-                        ) : (
-                            agendaItems.map(item => (
-                                <SelectItem key={item.id} value={item.id} className="font-bold uppercase text-xs">
-                                    {formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local}
-                                </SelectItem>
-                            ))
-                        )}
-                    </SelectContent>
-                </Select>
+            <div className="p-8 border-2 border-dashed rounded-[2rem] bg-muted/10 space-y-6">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                    <MapPin className="h-4 w-4" /> FILTROS DE UBICACIÓN (CARGA INTELIGENTE)
+                </Label>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">DEPARTAMENTO</Label>
+                        {(user?.profile?.role === 'admin' || user?.profile?.role === 'director' || user?.profile?.permissions?.includes('admin_filter')) ? (
+                            <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); setSelectedAgendaId(null); }} value={selectedDepartment || undefined}>
+                                <SelectTrigger className="h-12 border-2 font-black uppercase bg-white">
+                                    <SelectValue placeholder="SELECCIONAR DPTO..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {departments.map(d => <SelectItem key={d} value={d} className="font-bold">{d}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        ) : <Input value={selectedDepartment || ''} readOnly className="h-12 border-2 font-black uppercase bg-muted/30" />}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">DISTRITO</Label>
+                        {(user?.profile?.role === 'admin' || user?.profile?.role === 'director' || user?.profile?.permissions?.includes('admin_filter') || user?.profile?.permissions?.includes('department_filter')) ? (
+                            <Select onValueChange={(v) => { setSelectedDistrict(v); setSelectedAgendaId(null); }} value={selectedDistrict || undefined} disabled={!selectedDepartment}>
+                                <SelectTrigger className="h-12 border-2 font-black uppercase bg-white">
+                                    <SelectValue placeholder="SELECCIONAR DISTRITO..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {districts.map(d => <SelectItem key={d} value={d} className="font-bold">{d}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        ) : <Input value={selectedDistrict || ''} readOnly className="h-12 border-2 font-black uppercase bg-muted/30" />}
+                    </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t-2 border-white">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Actividad con Irregularidad Detectada</Label>
+                    <Select onValueChange={setSelectedAgendaId} value={selectedAgendaId || undefined} disabled={!selectedDistrict}>
+                        <SelectTrigger className="h-14 border-2 font-black uppercase bg-white shadow-sm">
+                            <SelectValue placeholder={!selectedDistrict ? "SELECCIONE UBICACIÓN PRIMERO..." : "SELECCIONAR ACTIVIDAD..."} />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                            {agendaItems.length === 0 ? (
+                                <div className="p-10 text-center space-y-2 opacity-40">
+                                    <CheckCircle2 className="h-8 w-8 mx-auto text-green-600" />
+                                    <p className="text-[9px] font-black uppercase tracking-widest leading-relaxed">No hay actividades con máquinas<br/>violentadas pendientes en este distrito.</p>
+                                </div>
+                            ) : (
+                                agendaItems.map(item => (
+                                    <SelectItem key={item.id} value={item.id} className="font-bold uppercase text-xs p-3">
+                                        <div className="flex flex-col">
+                                            <span>{formatDateToDDMMYYYY(item.fecha)} | {item.lugar_local}</span>
+                                            <span className="text-[8px] opacity-40">CÓDIGO: {item.id}</span>
+                                        </div>
+                                    </SelectItem>
+                                ))
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
             {selectedSolicitud && (

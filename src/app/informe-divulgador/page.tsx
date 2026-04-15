@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { compressImage, captureVideoFrame } from '@/lib/image-utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Utility local para formato DD/MM/AAAA
 const formatToOfficialDate = (dateStr: string | undefined) => {
@@ -39,11 +40,17 @@ function InformeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const solicitudIdFromUrl = searchParams.get('solicitudId');
+  const reporterUidFromUrl = searchParams.get('reporterUid');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | undefined>(undefined);
+  
+  // Filtros Jurisdiccionales para Carga Inteligente
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+
   const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const autoSelectedByUrl = useRef(false);
   
@@ -82,24 +89,68 @@ function InformeContent() {
     const permissions = userProfile.permissions || [];
     const isAdminGlobal = role === 'admin' || role === 'director' || permissions.includes('admin_filter');
 
-    if (isAdminGlobal) return colRef;
-    if (permissions.includes('department_filter') && userProfile.departamento) {
-        return query(colRef, where('departamento', '==', userProfile.departamento));
+    // MODO INTELIGENTE: Si es Admin, obligamos a elegir distrito antes de traer data
+    if (isAdminGlobal) {
+        if (!selectedDepartment || !selectedDistrict) return null;
+        return query(colRef, where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
     }
+
+    if (permissions.includes('department_filter') && userProfile.departamento) {
+        if (!selectedDistrict || selectedDistrict === 'ALL') {
+          return query(colRef, where('departamento', '==', userProfile.departamento));
+        }
+        return query(colRef, where('departamento', '==', userProfile.departamento), where('distrito', '==', selectedDistrict));
+    }
+    
     if (role === 'jefe' || permissions.includes('district_filter')) {
-        // GUARDIA: Evitar consulta si faltan campos requeridos
         if (!userProfile.departamento || !userProfile.distrito) return null;
         return query(colRef, where('departamento', '==', userProfile.departamento), where('distrito', '==', userProfile.distrito));
     }
     return colRef; 
-  }, [firestore, isProfileLoading, userProfile]);
+  }, [firestore, isProfileLoading, userProfile, selectedDepartment, selectedDistrict]);
 
+  // Cargar datos de departamentos/distritos
+  const datosRef = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData } = useCollectionOnce<any>(datosRef);
+
+  const departments = useMemo(() => {
+    if (!datosData) return [];
+    return [...new Set(datosData.map((d: any) => d.departamento))].sort();
+  }, [datosData]);
+
+  const districts = useMemo(() => {
+    if (!datosData || !selectedDepartment) return [];
+    return [...new Set(datosData.filter((d: any) => d.departamento === selectedDepartment).map((d: any) => d.distrito))].sort();
+  }, [datosData, selectedDepartment]);
+
+  // DEEP LINKING: Fetch direct solicitud if Id in URL
   const directSolicitudRef = useMemoFirebase(() => {
     if (!firestore || !solicitudIdFromUrl) return null;
     return doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl);
   }, [firestore, solicitudIdFromUrl]);
 
   const { data: directSolicitudData } = useDocOnce<SolicitudCapacitacion>(directSolicitudRef);
+
+  // Inicializar jurisdicción por perfil O por Deep Link (ID en URL)
+  useEffect(() => {
+    // Caso 1: Deep Link - Prioridad absoluta
+    if (directSolicitudData) {
+        setSelectedDepartment(directSolicitudData.departamento);
+        setSelectedDistrict(directSolicitudData.distrito);
+        setSelectedActivityKey(directSolicitudData.id); // Pre-seleccionar actividad
+        return;
+    }
+
+    // Caso 2: Perfil del usuario
+    if (!isProfileLoading && userProfile) {
+      if (userProfile.departamento && !selectedDepartment) {
+        setSelectedDepartment(userProfile.departamento);
+      }
+      if (userProfile.distrito && !selectedDistrict) {
+        setSelectedDistrict(userProfile.distrito);
+      }
+    }
+  }, [isProfileLoading, userProfile, directSolicitudData]);
 
   const { 
     data: rawSolicitudes, 
@@ -146,13 +197,21 @@ function InformeContent() {
 
   useEffect(() => {
     if (solicitudIdFromUrl && linkedActivities.length > 0 && !autoSelectedByUrl.current) {
-      const matching = linkedActivities.find(act => act.solicitudId === solicitudIdFromUrl);
+      // Find the specific combination of activity and reporter if UID is provided
+      const targetId = reporterUidFromUrl 
+        ? `${solicitudIdFromUrl}-${reporterUidFromUrl}` 
+        : null;
+      
+      const matching = targetId 
+        ? linkedActivities.find(act => act.id === targetId)
+        : linkedActivities.find(act => act.solicitudId === solicitudIdFromUrl);
+
       if (matching) {
         setSelectedActivityKey(matching.id);
         autoSelectedByUrl.current = true;
       }
     }
-  }, [solicitudIdFromUrl, linkedActivities]);
+  }, [solicitudIdFromUrl, reporterUidFromUrl, linkedActivities]);
 
   const toggleCell = (num: number) => {
     setMarkedCells(prev => {
@@ -354,44 +413,76 @@ function InformeContent() {
                         VINCULAR ACTIVIDAD ASIGNADA
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="p-2">
-                    <Popover open={open} onOpenChange={setOpen}>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9 font-black text-[9px] uppercase border-2 rounded-lg shadow-sm">
-                            <span className="truncate">{selectedActivityKey ? linkedActivities.find((act) => act.id === selectedActivityKey)?.label : "Seleccionar actividad..."}</span>
-                            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-30 shrink-0" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-lg border-none overflow-hidden">
-                            <Command>
-                                <CommandInput placeholder="Buscar..." className="h-9 text-[10px]" />
-                                <CommandList>
-                                    <CommandEmpty className="py-4 text-center text-[8px] font-black uppercase text-muted-foreground">No hay actividades pendientes.</CommandEmpty>
-                                    <CommandGroup>
-                                    {linkedActivities.map((act) => (
-                                        <CommandItem key={act.id} value={act.label} onSelect={() => { setSelectedActivityKey(act.id); setOpen(false);}} className="font-bold p-2 border-b last:border-0 cursor-pointer text-[9px]">
-                                        {act.label}
-                                        <Check className={cn("ml-auto h-3 w-3", selectedActivityKey === act.id ? "opacity-100" : "opacity-0")} />
-                                        </CommandItem>
-                                    ))}
-                                    </CommandGroup>
-                                    {hasMore && (
-                                        <div className="p-2 border-t bg-muted/20">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                className="w-full text-[9px] font-black uppercase tracking-widest h-8"
-                                                onClick={() => loadMore()}
-                                                disabled={isLoadingMore}
-                                            >
-                                                {isLoadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : "Ver actividades más antiguas ↑"}
-                                            </Button>
-                                        </div>
-                                    )}
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
+                <CardContent className="p-2 space-y-2">
+                    {/* Filtros de Carga Inteligente (Visibles para Admins o si no hay distrito) */}
+                    {(userProfile?.role === 'admin' || userProfile?.role === 'director' || userProfile?.permissions?.includes('admin_filter')) && (
+                        <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-top-1 duration-300">
+                            <div className="space-y-1">
+                                <Label className="text-[6px] font-black uppercase text-muted-foreground ml-1">DEPARTAMENTO</Label>
+                                <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); setSelectedActivityKey(undefined); }} value={selectedDepartment || undefined}>
+                                    <SelectTrigger className="h-8 text-[8px] font-black border-2 rounded-lg bg-white/50">
+                                        <SelectValue placeholder="DPTO..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {departments.map(d => <SelectItem key={d} value={d} className="text-[9px] font-bold">{d}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[6px] font-black uppercase text-muted-foreground ml-1">DISTRITO</Label>
+                                <Select onValueChange={(v) => { setSelectedDistrict(v); setSelectedActivityKey(undefined); }} value={selectedDistrict || undefined} disabled={!selectedDepartment}>
+                                    <SelectTrigger className="h-8 text-[8px] font-black border-2 rounded-lg bg-white/50">
+                                        <SelectValue placeholder="DIST..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {districts.map(d => <SelectItem key={d} value={d} className="text-[9px] font-bold">{d}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-1">
+                        <Label className="text-[6px] font-black uppercase text-muted-foreground ml-1">ACTIVIDAD DE LA AGENDA</Label>
+                        <Popover open={open} onOpenChange={setOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between h-9 font-black text-[9px] uppercase border-2 rounded-lg shadow-sm" disabled={!selectedDistrict}>
+                                <span className="truncate">{selectedActivityKey ? linkedActivities.find((act) => act.id === selectedActivityKey)?.label : (!selectedDistrict ? "SELECCIONE UBICACIÓN PRIMERO" : "SELECCIONAR ACTIVIDAD...")}</span>
+                                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 opacity-30 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-lg border-none overflow-hidden">
+                                <Command>
+                                    <CommandInput placeholder="Buscar actividad..." className="h-9 text-[10px]" />
+                                    <CommandList>
+                                        <CommandEmpty className="py-4 text-center text-[8px] font-black uppercase text-muted-foreground">No hay actividades para este distrito.</CommandEmpty>
+                                        <CommandGroup>
+                                        {linkedActivities.map((act) => (
+                                            <CommandItem key={act.id} value={act.label} onSelect={() => { setSelectedActivityKey(act.id); setOpen(false);}} className="font-bold p-2 border-b last:border-0 cursor-pointer text-[9px]">
+                                            {act.label}
+                                            <Check className={cn("ml-auto h-3 w-3", selectedActivityKey === act.id ? "opacity-100" : "opacity-0")} />
+                                            </CommandItem>
+                                        ))}
+                                        </CommandGroup>
+                                        {hasMore && (
+                                            <div className="p-2 border-t bg-muted/20">
+                                                <Button 
+                                                    type="button"
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="w-full text-[9px] font-black uppercase tracking-widest h-8"
+                                                    onClick={() => loadMore()}
+                                                    disabled={isLoadingMore}
+                                                >
+                                                    {isLoadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : "Ver actividades más antiguas ↑"}
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </CardContent>
             </Card>
         </div>
