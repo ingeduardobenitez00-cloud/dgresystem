@@ -292,6 +292,7 @@ const DistrictSection = ({
             if (sol.fecha_cumplido) {
                 const diff = (currentMs - new Date(sol.fecha_cumplido).getTime()) / (1000 * 60 * 60);
                 if (diff > 0.05) return false; // Archivamiento automático después de 3 minutos (0.05h)
+                return true;
             }
             const matchesSearch = !searchTerm || 
                 (sol.nombre_completo || '').toLowerCase().includes(searchTerm) || 
