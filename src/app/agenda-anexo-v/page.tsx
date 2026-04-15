@@ -118,6 +118,34 @@ const SurveyCounter = ({ solicitudId, firestore }: any) => {
     return <span className="text-[9px] font-black uppercase text-inherit">ENCUESTAS: {count !== null ? count : '...'}</span>;
 };
 
+const ArchiveCountdown = ({ completionTime }: { completionTime: string }) => {
+    const [timeLeft, setTimeLeft] = useState<number>(0);
+
+    useEffect(() => {
+        const calculate = () => {
+            const now = new Date().getTime();
+            const completed = new Date(completionTime).getTime();
+            const diff = 180 - Math.floor((now - completed) / 1000); // 180s = 3 min
+            setTimeLeft(Math.max(0, diff));
+        };
+        calculate();
+        const interval = setInterval(calculate, 1000);
+        return () => clearInterval(interval);
+    }, [completionTime]);
+
+    if (timeLeft <= 0) return null;
+
+    const mins = Math.floor(timeLeft / 60);
+    const secs = timeLeft % 60;
+
+    return (
+        <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 font-black uppercase text-[7px] px-2 py-0 h-4 flex items-center gap-1 animate-pulse">
+            <Clock className="h-2.5 w-2.5" />
+            SE ARCHIVARÁ EN {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+        </Badge>
+    );
+};
+
 const DistrictSection = ({ 
     deptLabel,
     dist,
@@ -364,11 +392,12 @@ const DistrictSection = ({
                             <CardContent className="p-8">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                     <div className="lg:col-span-4 space-y-3">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center flex-wrap gap-2">
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">ORIGEN PROGRAMACIÓN</p>
                                             {isFulfilled && (
                                                 <Badge className="bg-green-600 text-white font-black uppercase text-[7px] px-2 py-0 h-4">CICLO COMPLETADO</Badge>
                                             )}
+                                            {item.fecha_cumplido && <ArchiveCountdown completionTime={item.fecha_cumplido} />}
                                         </div>
                                         <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.solicitante_entidad}</p>
                                         <Badge className="bg-black/5 text-black border-black/10 font-black uppercase text-[8px] px-3">{item.tipo_solicitud === 'divulgacion' ? 'ANEXO V - DIVULGACIÓN' : 'ANEXO V - CAPACITACIÓN'}</Badge>
