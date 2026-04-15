@@ -201,11 +201,14 @@ const DistrictSection = ({
         if (newState) {
             const now = new Date();
             const today = now.toISOString().split('T')[0];
-            expiry = sol.fecha < today ? new Date(now.getTime() + 20 * 60000).toISOString() : new Date(new Date(sol.fecha).getTime() + 86399000).toISOString();
+            expiry = sol.fecha < today ? new Date(now.getTime() + 24 * 60 * 60000).toISOString() : new Date(new Date(sol.fecha).getTime() + 86399000).toISOString();
         }
         updateItem(sol.id, { qr_enabled: newState, qr_expires_at: expiry as any });
         updateDoc(docRef, { qr_enabled: newState, qr_expires_at: expiry }).then(() => {
-            toast({ title: newState ? "Habilitado" : "Deshabilitado" });
+            toast({ 
+                title: newState ? "Habilitado" : "Deshabilitado",
+                description: newState && sol.fecha < new Date().toISOString().split('T')[0] ? "Ventana de 24 horas abierta para regularización." : undefined
+            });
         });
     };
 
@@ -324,7 +327,15 @@ const DistrictSection = ({
                     
                     const pendingSalida = !mov;
                     const pendingRetorno = mov && !mov.fecha_devolucion;
-                    const pendingInforme = (item.divulgadores || []).length > 0 ? !(inf) : !inf; // Simplificado, asumiendo que inf ya cubre la existencia de informes
+                    const pendingInforme = (item.divulgadores || []).length > 0 ? !(inf) : !inf; 
+
+                    // Lógica de expiración de QR
+                    const [h, m] = (item.hora_hasta || "23:59").split(':');
+                    const [y, mon, d] = item.fecha.split('-').map(Number);
+                    const eventEnd = new Date(y, mon - 1, d, parseInt(h), parseInt(m), 59);
+                    const isPastEvent = currentTime > eventEnd;
+                    const isManuallyActive = item.qr_expires_at && currentTime < new Date(item.qr_expires_at);
+                    const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
                     const hasAlert = isPast && (pendingSalida || pendingRetorno || pendingInforme);
                     const isFulfilled = mov?.fecha_devolucion && inf;
@@ -403,7 +414,16 @@ const DistrictSection = ({
                                         </div>
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <Button variant="outline" size="icon" className={cn("h-11 w-11 rounded-xl border-2", item.qr_enabled ? "bg-green-600/10 border-green-600 text-green-600" : "border-muted-foreground/30 text-muted-foreground")} onClick={() => handleToggleQr(item)}>{item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}</Button>
-                                            <Button variant="outline" size="sm" className="h-11 flex-1 rounded-xl font-black uppercase text-[10px] border-2" onClick={() => setQrSolicitud(item)} disabled={!item.qr_enabled}><QrCode className="h-4 w-4 mr-2" /> QR</Button>
+                                            <Button variant="outline" size="sm" className={cn(
+                                                    "h-11 flex-1 rounded-xl font-black uppercase text-[10px] border-2 transition-all",
+                                                    item.qr_enabled && !qrActive ? "opacity-20 grayscale" : ""
+                                                )} 
+                                                onClick={() => setQrSolicitud(item)} 
+                                                disabled={!qrActive}
+                                            >
+                                                <QrCode className="h-4 w-4 mr-2" /> {!qrActive && item.qr_enabled ? 'EXPIRADO' : 'QR'}
+                                            </Button>
+
                                             {!item.fecha_cumplido && isFulfilled && <Button className="flex-1 h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 text-white animate-pulse" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>}
                                         </div>
                                         <div className="flex gap-2 w-full max-w-[220px]">

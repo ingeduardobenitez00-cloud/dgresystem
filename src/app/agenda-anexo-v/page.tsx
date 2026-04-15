@@ -958,8 +958,8 @@ export default function AgendaAnexoVPage() {
     if (newState) {
       const todayStr = now.toISOString().split('T')[0];
       if (solicitud.fecha < todayStr) {
-        // Retroactivo: 20 minutos
-        qr_expires_at = new Date(now.getTime() + 20 * 60000).toISOString();
+        // Retroactivo: 24 horas para permitir regularización
+        qr_expires_at = new Date(now.getTime() + 24 * 60 * 60000).toISOString();
       } else {
         // Normal: Fin del día de la actividad
         const [y, m, d] = solicitud.fecha.split('-').map(Number);
@@ -979,7 +979,7 @@ export default function AgendaAnexoVPage() {
             toast({ 
               title: newState ? "Encuesta Habilitada" : "Encuesta Deshabilitada",
               description: newState 
-                ? `Acceso abierto hasta: ${new Date(qr_expires_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${solicitud.fecha < now.toISOString().split('T')[0] ? '(20 min)' : '(Fin del día)'}` 
+                ? `Acceso abierto hasta: ${new Date(qr_expires_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${solicitud.fecha < now.toISOString().split('T')[0] ? '(24 horas)' : '(Fin del día)'}` 
                 : "El acceso público vía QR ha sido cerrado."
             });
           })
