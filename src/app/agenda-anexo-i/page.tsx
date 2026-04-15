@@ -87,6 +87,75 @@ const normalizeGeo = (str: string) => {
     .trim();
 };
 
+const GuideStep = ({ step, message, active, onClick, position = 'left' }: any) => {
+    if (!active) return null;
+    
+    const positionClasses: Record<string, string> = {
+        left: "right-full top-1/2 -translate-y-1/2 pr-2 flex-row",
+        right: "left-full top-1/2 -translate-y-1/2 pl-2 flex-row-reverse",
+        top: "bottom-full left-1/2 -translate-x-1/2 mb-2 flex-col-reverse",
+        bottom: "top-full left-1/2 -translate-x-1/2 mt-2 flex-col",
+    };
+
+    const triangleClasses: Record<string, string> = {
+        left: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-600 -ml-0.5",
+        right: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-blue-600 -mr-0.5",
+        top: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600 -mt-0.5",
+        bottom: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-blue-600 -mb-0.5",
+    };
+
+    return (
+        <div className={cn("absolute z-[100] animate-bounce pointer-events-auto flex items-center gap-0 cursor-pointer whitespace-nowrap", positionClasses[position])} onClick={(e) => { e.stopPropagation(); if(onClick) onClick(); }}>
+            <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 max-w-[180px] leading-tight">
+                <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">{step}</div>{message.toUpperCase()}
+            </div>
+            <div className={cn("w-0 h-0", triangleClasses[position])} />
+        </div>
+    );
+};
+
+const SurveyCounter = ({ solicitudId, firestore }: any) => {
+    const [cnt, setCnt] = useState<number | null>(null);
+    useEffect(() => {
+        if (!firestore) return;
+        getCountFromServer(query(collection(firestore, 'encuestas-satisfaccion'), where('solicitud_id', '==', solicitudId)))
+            .then(snap => setCnt(snap.data().count)).catch(() => setCnt(0));
+    }, [firestore, solicitudId]);
+    return <span className="text-[9px] font-black uppercase text-inherit">ENCUESTAS: {cnt !== null ? cnt : '...'}</span>;
+};
+
+const TrazabilidadSection = ({ firestore, solicitudId }: any) => {
+    const movRef = useMemoFirebase(() => firestore ? doc(firestore, 'movimientos-maquinas', solicitudId) : null, [firestore, solicitudId]);
+    const { data: mov } = useDocOnce<MovimientoMaquina>(movRef);
+    
+    const infQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'informes-divulgador'), where('solicitud_id', '==', solicitudId), limit(1)) : null, [firestore, solicitudId]);
+    const { data: itemInformes } = useCollectionOnce<InformeDivulgador>(infQuery);
+    const inf = (itemInformes && itemInformes.length > 0) ? itemInformes[0] : null;
+
+    return (
+        <>
+            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
+                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                    <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <p className="text-[9px] font-black uppercase">SALIDA MV</p>
+            </div>
+            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov?.fecha_devolucion ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
+                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov?.fecha_devolucion ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                    <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <p className="text-[9px] font-black uppercase">RETORNO MV</p>
+            </div>
+            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", inf ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
+                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", inf ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
+                    <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <p className="text-[9px] font-black uppercase">INFORME</p>
+            </div>
+        </>
+    );
+};
+
 const DistrictSection = ({ 
     deptName,
     distName, 
@@ -271,43 +340,6 @@ const DistrictSection = ({
                     const showStep5 = !!(mov && !mov.fecha_devolucion);
                     const showStep6 = pendingInforme;
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
-
-                    const GuideStep = ({ step, message, active, onClick, position = 'left' }: any) => {
-                        if (!active) return null;
-                        
-                        const positionClasses: Record<string, string> = {
-                            left: "right-full top-1/2 -translate-y-1/2 pr-2 flex-row",
-                            right: "left-full top-1/2 -translate-y-1/2 pl-2 flex-row-reverse",
-                            top: "bottom-full left-1/2 -translate-x-1/2 mb-2 flex-col-reverse",
-                            bottom: "top-full left-1/2 -translate-x-1/2 mt-2 flex-col",
-                        };
-
-                        const triangleClasses: Record<string, string> = {
-                            left: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-600 -ml-0.5",
-                            right: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-blue-600 -mr-0.5",
-                            top: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600 -mt-0.5",
-                            bottom: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-blue-600 -mb-0.5",
-                        };
-
-                        return (
-                            <div className={cn("absolute z-[100] animate-bounce pointer-events-auto flex items-center gap-0 cursor-pointer whitespace-nowrap", positionClasses[position])} onClick={(e) => { e.stopPropagation(); if(onClick) onClick(); }}>
-                                <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 max-w-[180px] leading-tight">
-                                    <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">{step}</div>{message.toUpperCase()}
-                                </div>
-                                <div className={cn("w-0 h-0", triangleClasses[position])} />
-                            </div>
-                        );
-                    };
-
-                    const SurveyCounter = ({ solicitudId, firestore }: any) => {
-                        const [cnt, setCnt] = useState<number | null>(null);
-                        useEffect(() => {
-                            if (!firestore) return;
-                            getCountFromServer(query(collection(firestore, 'encuestas-satisfaccion'), where('solicitud_id', '==', solicitudId)))
-                                .then(snap => setCnt(snap.data().count)).catch(() => setCnt(0));
-                        }, [firestore, solicitudId]);
-                        return <span className="text-[9px] font-black uppercase text-inherit">ENCUESTAS: {cnt !== null ? cnt : '...'}</span>;
-                    };
 
                     return (
                         <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
@@ -1216,42 +1248,7 @@ export default function AgendaAnexoIPage() {
                                 <h3 className="font-black uppercase text-xs tracking-widest">Trazabilidad Logística</h3>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-10">
-                                {(() => {
-                                    // Fetch dinámico para la trazabilidad en la ficha
-                                    // eslint-disable-next-line react-hooks/rules-of-hooks
-                                    const movRef = useMemoFirebase(() => firestore ? doc(firestore, 'movimientos-maquinas', viewingActivity.id) : null, [firestore, viewingActivity.id]);
-                                    // eslint-disable-next-line react-hooks/rules-of-hooks
-                                    const { data: mov } = useDocOnce<MovimientoMaquina>(movRef);
-                                    
-                                    // eslint-disable-next-line react-hooks/rules-of-hooks
-                                    const infQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'informes-divulgador'), where('solicitud_id', '==', viewingActivity.id), limit(1)) : null, [firestore, viewingActivity.id]);
-                                    // eslint-disable-next-line react-hooks/rules-of-hooks
-                                    const { data: itemInformes } = useCollectionOnce<InformeDivulgador>(infQuery);
-                                    const inf = (itemInformes && itemInformes.length > 0) ? itemInformes[0] : null;
-                                    
-                                    return (
-                                        <>
-                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                </div>
-                                                <p className="text-[9px] font-black uppercase">SALIDA MV</p>
-                                            </div>
-                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", mov?.fecha_devolucion ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", mov?.fecha_devolucion ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                </div>
-                                                <p className="text-[9px] font-black uppercase">RETORNO MV</p>
-                                            </div>
-                                            <div className={cn("p-5 rounded-2xl border-2 flex flex-col items-center text-center gap-2", inf ? "bg-green-50 border-green-200" : "bg-muted/10 border-transparent opacity-40")}>
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", inf ? "bg-green-600 text-white" : "bg-muted text-muted-foreground")}>
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                </div>
-                                                <p className="text-[9px] font-black uppercase">INFORME</p>
-                                            </div>
-                                        </>
-                                    );
-                                })()}
+                                    <TrazabilidadSection firestore={firestore} solicitudId={viewingActivity.id} />
                             </div>
                         </div>
                     </div>
