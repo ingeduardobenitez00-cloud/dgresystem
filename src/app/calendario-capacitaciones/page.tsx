@@ -101,10 +101,52 @@ export default function CalendarioCapacitacionesPage() {
     const start = format(startOfWeek(startOfMonth(currentMonth)), 'yyyy-MM-dd');
     const end = format(endOfWeek(endOfMonth(currentMonth)), 'yyyy-MM-dd');
 
-    return query(colRef, where('fecha', '>=', start), where('fecha', '<=', end));
-  }, [firestore, isUserLoading, profile, currentMonth]);
+    let q = query(colRef, where('fecha', '>=', start), where('fecha', '<=', end));
 
-  const { data: rawActivities, isLoading: isLoadingActivities } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
+    if (hasAdminFilter) {
+        if (filterDept !== 'all') {
+            if (filterDist !== 'all') {
+                q = query(colRef, 
+                    where('departamento', '==', filterDept), 
+                    where('distrito', '==', filterDist),
+                    where('fecha', '>=', start), 
+                    where('fecha', '<=', end)
+                );
+            } else {
+                q = query(colRef, 
+                    where('departamento', '==', filterDept), 
+                    where('fecha', '>=', start), 
+                    where('fecha', '<=', end)
+                );
+            }
+        }
+    } else {
+        // Modo Restringido por Perfil
+        const depto = profile.departamento;
+        if (hasDeptFilter) {
+             q = query(colRef, 
+                where('departamento', '==', depto), 
+                where('fecha', '>=', start), 
+                where('fecha', '<=', end)
+            );
+        } else if (hasDistFilter) {
+            q = query(colRef, 
+                where('departamento', '==', depto), 
+                where('distrito', '==', profile.distrito),
+                where('fecha', '>=', start), 
+                where('fecha', '<=', end)
+            );
+        }
+    }
+
+    return q;
+  }, [firestore, isUserLoading, profile, currentMonth, filterDept, filterDist, hasAdminFilter, hasDeptFilter, hasDistFilter]);
+
+  const { 
+    data: rawActivities, 
+    isLoading: isLoadingActivities,
+    error: errorActivities
+  } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
@@ -113,30 +155,16 @@ export default function CalendarioCapacitacionesPage() {
    * Filtrado Geográfico y por Nombre en Cliente
    */
   const filteredActivities = useMemo(() => {
-    if (!rawActivities || !profile) return [];
-
+    if (!rawActivities) return [];
     const term = searchDistrito.toLowerCase().trim();
+    if (!term) return rawActivities;
 
-    return rawActivities.filter(act => {
-        // 1. Filtrado por permisos de usuario (Seguridad)
-        if (!hasAdminFilter) {
-            if (hasDeptFilter && act.departamento !== profile.departamento) return false;
-            // Reforzado: Si es filtro de distrito, debe coincidir exactamente distrito y departamento
-            if (hasDistFilter) {
-                if (act.departamento !== profile.departamento || act.distrito !== profile.distrito) return false;
-            }
-        }
-
-        // 2. Filtrado por UI (Filtros del Administrador)
-        if (hasAdminFilter) {
-            if (filterDept !== 'all' && act.departamento !== filterDept) return false;
-            if (filterDist !== 'all' && act.distrito !== filterDist) return false;
-            if (term && !act.distrito.toLowerCase().includes(term)) return false;
-        }
-
-        return true;
-    });
-  }, [rawActivities, profile, hasAdminFilter, hasDeptFilter, hasDistFilter, filterDept, filterDist, searchDistrito]);
+    // El filtrado geográfico ya lo hace Firestore. Aquí solo filtramos por texto si el usuario busca algo específico.
+    return rawActivities.filter(act => 
+        act.distrito.toLowerCase().includes(term) || 
+        act.lugar_local.toLowerCase().includes(term)
+    );
+  }, [rawActivities, searchDistrito]);
 
   const departments = useMemo<string[]>(() => {
     if (!datosData) return [];
@@ -251,6 +279,22 @@ export default function CalendarioCapacitacionesPage() {
                     <div className="flex flex-col items-center gap-3">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Sincronizando agenda...</p>
+                    </div>
+                </div>
+            )}
+
+            {errorActivities && (
+                <div className="absolute inset-x-0 top-0 z-30 p-6">
+                    <div className="bg-red-50 border border-red-200 rounded-3xl p-6 shadow-2xl animate-in fade-in slide-in-from-top-4">
+                        <div className="flex items-center gap-3 text-red-600 mb-2">
+                            <AlertCircle className="h-5 w-5" />
+                            <span className="font-black text-[11px] uppercase tracking-tighter">Error de Sincronización</span>
+                        </div>
+                        <p className="text-[10px] font-bold text-red-800 uppercase leading-relaxed">
+                            {errorActivities.message.includes('index') ? 
+                                "Falta un índice compuesto en Firestore para este mes. Por favor, abre la consola del navegador para crearlo con el enlace proporcionado por Firebase." : 
+                                "No se han podido cargar las actividades de este mes."}
+                        </p>
                     </div>
                 </div>
             )}
