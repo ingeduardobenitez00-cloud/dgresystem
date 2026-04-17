@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -383,7 +383,7 @@ const DistrictSection = ({
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
 
                     return (
-                        <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
+                        <Card id={`activity-${item.id}`} key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative transition-all duration-700", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
                             <CardContent className="p-8">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                     <div className="lg:col-span-4 space-y-3">
@@ -554,6 +554,9 @@ const DepartmentSection = ({
     router,
     registerUpdateItem,
     hasAdminFilter,
+    targetId,
+    targetDept,
+    targetDist,
     initialOpen = false
 }: any) => {
     // Forzamos el estado abierto si el usuario solo tiene acceso a un departamento/distrito (Jefe)
@@ -640,7 +643,31 @@ const DepartmentSection = ({
             <AccordionContent className="px-8 pb-8 pt-2" forceMount={distNames.length === 1 ? true : undefined}>
                 <Accordion type="multiple" className="space-y-4" defaultValue={distNames.length === 1 ? [distNames[0]] : undefined}>
                     {distNames.map((distName: any) => (
-                        <DistrictSection key={distName} deptName={dept.label} distName={distName} firestore={firestore} profile={profile} currentTime={currentTime} agendaSearch={agendaSearch} setViewingActivity={setViewingActivity} setAssigningSolicitud={setAssigningSolicitud} setQrSolicitud={setQrSolicitud} setDeletingSolicitud={setDeletingSolicitud} setSuspendingSolicitud={setSuspendingSolicitud} setConcludingSolicitud={setConcludingSolicitud} setDeletingDistrict={setDeletingDistrict} handleToggleQr={handleToggleQr} viewedQRs={viewedQRs} markQRAsViewed={markQRAsViewed} router={router} registerUpdateItem={registerUpdateItem} initialOpen={distNames.length === 1} hasAdminFilter={hasAdminFilter} allDeptItems={allDeptItems} isDeptLoading={isDeptLoading} />
+                        <DistrictSection 
+                            key={distName} 
+                            deptName={dept.label} 
+                            distName={distName} 
+                            firestore={firestore} 
+                            profile={profile} 
+                            currentTime={currentTime} 
+                            agendaSearch={agendaSearch} 
+                            setViewingActivity={setViewingActivity} 
+                            setAssigningSolicitud={setAssigningSolicitud} 
+                            setQrSolicitud={setQrSolicitud} 
+                            setDeletingSolicitud={setDeletingSolicitud} 
+                            setSuspendingSolicitud={setSuspendingSolicitud} 
+                            setConcludingSolicitud={setConcludingSolicitud} 
+                            setDeletingDistrict={setDeletingDistrict} 
+                            handleToggleQr={handleToggleQr} 
+                            viewedQRs={viewedQRs} 
+                            markQRAsViewed={markQRAsViewed} 
+                            router={router} 
+                            registerUpdateItem={registerUpdateItem} 
+                            initialOpen={distNames.length === 1 || (targetDist && normalizeGeo(distName) === normalizeGeo(targetDist))} 
+                            hasAdminFilter={hasAdminFilter} 
+                            allDeptItems={allDeptItems} 
+                            isDeptLoading={isDeptLoading} 
+                        />
                     ))}
                 </Accordion>
             </AccordionContent>
@@ -650,6 +677,10 @@ const DepartmentSection = ({
 
 export default function AgendaAnexoIPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetId = searchParams.get('id');
+  const targetDept = searchParams.get('dept');
+  const targetDist = searchParams.get('dist');
   const { user, isUserLoading, isProfileLoading, userError } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
@@ -740,6 +771,25 @@ export default function AgendaAnexoIPage() {
     };
     fetchLogo();
   }, []);
+  
+  // Efecto para scroll automático y resaltado si viene un ID de actividad
+  useEffect(() => {
+    if (targetId) {
+        // Un pequeño delay para asegurar que el DOM y el acordeón estén listos
+        const timer = setTimeout(() => {
+            const element = document.getElementById(`activity-${targetId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Añadir un efecto visual de resaltado temporal
+                element.classList.add('ring-4', 'ring-primary', 'shadow-2xl', 'scale-[1.02]', 'z-50');
+                setTimeout(() => {
+                    element.classList.remove('ring-4', 'ring-primary', 'shadow-2xl', 'scale-[1.02]', 'z-50');
+                }, 4000);
+            }
+        }, 800);
+        return () => clearTimeout(timer);
+    }
+  }, [targetId]);
 
 
 
@@ -1210,7 +1260,10 @@ export default function AgendaAnexoIPage() {
                     registerUpdateItem={registerUpdateItem}
                     router={router}
                     hasAdminFilter={hasAdminFilter}
-                    initialOpen={uniqueDepartments.length === 1}
+                    targetId={targetId}
+                    targetDept={targetDept}
+                    targetDist={targetDist}
+                    initialOpen={uniqueDepartments.length === 1 || (targetDept && normalizeGeo(dept.label) === normalizeGeo(targetDept))}
                 />
             ))}
           </Accordion>

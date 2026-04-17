@@ -5,8 +5,8 @@ import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
-import { type SolicitudCapacitacion, type Dato } from '@/lib/data';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { type SolicitudCapacitacion, type Dato, type InformeDivulgador } from '@/lib/data';
 import { 
   Loader2, 
   ChevronLeft, 
@@ -23,7 +23,10 @@ import {
   Search,
   Filter,
   Landmark,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  Maximize2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +61,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from 'next/link';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import Image from 'next/image';
+import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 export default function CalendarioCapacitacionesPage() {
   const { user, isUserLoading } = useUser();
@@ -66,6 +79,9 @@ export default function CalendarioCapacitacionesPage() {
   const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDayActivities, setSelectedDayActivities] = useState<SolicitudCapacitacion[] | null>(null);
+  const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador>>(new Map());
+  const [viewingReport, setViewingReport] = useState<InformeDivulgador | null>(null);
+  const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
   // Estados de Filtro
   const [filterDept, setFilterDept] = useState<string>('all');
@@ -147,6 +163,30 @@ export default function CalendarioCapacitacionesPage() {
     isLoading: isLoadingActivities,
     error: errorActivities
   } = useCollectionOnce<SolicitudCapacitacion>(solicitudesQuery);
+
+  /**
+   * Carga de Informes (Resultados) para las actividades cargadas
+   */
+  useEffect(() => {
+    if (!firestore || !rawActivities || rawActivities.length === 0) return;
+
+    const ids = rawActivities.map(a => a.id);
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 30) {
+        chunks.push(ids.slice(i, i + 30));
+    }
+
+    Promise.all(chunks.map(chunk => 
+        getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk)))
+    )).then(snapshots => {
+        const newMap = new Map();
+        snapshots.forEach(snap => snap.docs.forEach(doc => {
+            const data = doc.data() as InformeDivulgador;
+            newMap.set(data.solicitud_id, { ...data, id: doc.id });
+        }));
+        setInformesMap(newMap);
+    }).catch(e => console.error("Error cargando informes:", e));
+  }, [firestore, rawActivities]);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
@@ -347,6 +387,7 @@ export default function CalendarioCapacitacionesPage() {
                                             onClick={() => setSelectedDayActivities(dayActivities)}
                                             className={cn(
                                                 "px-2 py-1.5 rounded-lg border-l-4 cursor-pointer transition-all hover:translate-x-1 shadow-sm text-left mb-1 last:mb-0",
+                                                informesMap.has(act.id) ? "bg-green-100/50 border-l-green-600 ring-1 ring-green-600/20" :
                                                 act.tipo_solicitud === 'divulgacion' ? "bg-blue-50 border-l-blue-600" :
                                                 act.tipo_solicitud === 'capacitacion' ? "bg-blue-50 border-l-blue-600" :
                                                 "bg-green-50 border-l-green-600"
@@ -370,6 +411,12 @@ export default function CalendarioCapacitacionesPage() {
                                                 <Clock className="h-2 w-2" />
                                                 <span className="text-[6.5px] font-bold uppercase">{act.hora_desde} A {act.hora_hasta} HS</span>
                                             </div>
+                                            {informesMap.has(act.id) && (
+                                                <div className="flex items-center gap-1 mt-1 text-green-700">
+                                                    <CheckCircle2 className="h-2 w-2" />
+                                                    <span className="text-[6.5px] font-black uppercase tracking-tighter">REPORTADO: {informesMap.get(act.id)?.total_personas}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -461,11 +508,23 @@ export default function CalendarioCapacitacionesPage() {
                                 <Building2 className="h-3.5 w-3.5 text-primary opacity-40" />
                                 <span className="text-[9px] font-black uppercase opacity-60">{act.distrito}</span>
                             </div>
-                            <Button variant="ghost" size="sm" className="h-8 font-black uppercase text-[8px] tracking-widest hover:bg-black hover:text-white" asChild>
-                                <Link href={act.tipo_solicitud === 'Lugar Fijo' ? '/agenda-anexo-i' : '/agenda-anexo-v'}>
-                                    VER EN AGENDA
-                                </Link>
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" size="sm" className="h-8 font-black uppercase text-[8px] tracking-widest hover:bg-black hover:text-white" asChild>
+                                    <Link href={`${act.tipo_solicitud === 'Lugar Fijo' ? '/agenda-anexo-i' : '/agenda-anexo-v'}?id=${act.id}&dept=${encodeURIComponent(act.departamento)}&dist=${encodeURIComponent(act.distrito)}`}>
+                                        VER EN AGENDA
+                                    </Link>
+                                </Button>
+                                {informesMap.has(act.id) && (
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-8 font-black uppercase text-[8px] tracking-widest border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+                                        onClick={() => setViewingReport(informesMap.get(act.id)!)}
+                                    >
+                                        VER RESULTADOS
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -473,6 +532,110 @@ export default function CalendarioCapacitacionesPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={!!viewingReport} onOpenChange={(o) => !o && setViewingReport(null)}>
+        <DialogContent className="max-w-4xl h-[90vh] p-0 border-none shadow-2xl overflow-hidden rounded-[2.5rem] flex flex-col">
+          {viewingReport && (
+            <div className="flex flex-col h-full bg-white">
+                                <div className="bg-green-600 text-white p-8 shrink-0">
+                                    <DialogHeader>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shadow-lg">
+                                                    <ClipboardCheck className="h-6 w-6" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <DialogTitle className="text-2xl font-black uppercase leading-none tracking-tight">RESULTADOS DE ACTIVIDAD</DialogTitle>
+                                                        <Badge className="bg-white text-green-700 font-black uppercase text-[10px]">CUMPLIDO</Badge>
+                                                    </div>
+                                                    <DialogDescription className="text-white/80 font-bold uppercase text-[10px] mt-2 tracking-widest flex items-center gap-2">
+                                                        {viewingReport.departamento} | {viewingReport.distrito}
+                                                    </DialogDescription>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </DialogHeader>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-8 scrollbar-thin scrollbar-thumb-black/10">
+                                    <div className="space-y-10">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div className="space-y-4">
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">MÉTRICAS CLAVE</p>
+                                                <Card className="border-2 border-green-100 bg-green-50/30 overflow-hidden shadow-sm">
+                                                    <CardContent className="p-8">
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <h3 className="text-4xl font-black text-green-700 tracking-tighter">{viewingReport.total_personas || 0}</h3>
+                                                                <p className="text-[10px] font-black uppercase text-green-600/60 mt-2">CIUDADANOS ALCANZADOS</p>
+                                                            </div>
+                                                            <div className="h-16 w-16 rounded-2xl bg-green-600/10 flex items-center justify-center">
+                                                                <Users className="h-8 w-8 text-green-600" />
+                                                            </div>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">INFORME DE GESTIÓN</p>
+                                                <div className="p-8 bg-[#F8F9FA] rounded-[2rem] border-2 border-dashed border-muted/20">
+                                                    <p className="text-xs font-black uppercase text-muted-foreground mb-4 leading-none">Resumen del Divulgador:</p>
+                                                    <p className="text-[13px] font-bold text-primary leading-relaxed whitespace-pre-wrap italic">
+                                                        {viewingReport.observaciones || viewingReport.lugar_divulgacion || 'SIN OBSERVACIONES REGISTRADAS'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <Separator className="border-dashed" />
+
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3">
+                                                <ImageIcon className="h-5 w-5 text-green-600" />
+                                                <h3 className="font-black uppercase text-[10px] tracking-[0.2em]">Galería de Evidencia</h3>
+                                            </div>
+                                            
+                                            {viewingReport.fotos && viewingReport.fotos.length > 0 ? (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-10">
+                                                    {viewingReport.fotos.map((foto, idx) => (
+                                                        <div 
+                                                            key={idx} 
+                                                            className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-muted/20 bg-muted cursor-pointer hover:border-green-600 transition-all shadow-sm"
+                                                            onClick={() => setFullViewerImage(foto)}
+                                                        >
+                                                            <Image src={foto} alt={`Evidencia ${idx + 1}`} fill className="object-cover transition-transform group-hover:scale-110" />
+                                                            <div className="absolute inset-0 bg-green-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                <Maximize2 className="h-6 w-6 text-white" />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="p-20 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center opacity-20 bg-muted/20">
+                                                    <ImageIcon className="h-10 w-10 mb-2" />
+                                                    <p className="text-[10px] font-black uppercase">SIN REGISTRO FOTOGRÁFICO</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-6 bg-[#F8F9FA] border-t shrink-0 flex justify-end">
+                                    <Button className="h-12 px-8 bg-black text-white rounded-xl font-black uppercase text-[10px]" onClick={() => setViewingReport(null)}>
+                                        CERRAR INFORME
+                                    </Button>
+                                </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ImageViewerDialog 
+        isOpen={!!fullViewerImage}
+        onOpenChange={(o) => !o && setFullViewerImage(null)}
+        image={fullViewerImage}
+      />
     </div>
   );
 }

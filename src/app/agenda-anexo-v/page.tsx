@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -166,6 +166,9 @@ const DistrictSection = ({
     router,
     registerUpdateItem,
     hasAdminFilter,
+    targetId,
+    targetDept,
+    targetDist,
     initialOpen = false,
     allDeptItems = [],
     isDeptLoading = false
@@ -394,7 +397,7 @@ const DistrictSection = ({
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
 
                     return (
-                        <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
+                        <Card id={`activity-${item.id}`} key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative transition-all duration-700", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
                             <CardContent className="p-8">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                     <div className="lg:col-span-4 space-y-3">
@@ -644,6 +647,9 @@ const DepartmentSection = ({
     router,
     registerUpdateItem,
     hasAdminFilter,
+    targetId,
+    targetDept,
+    targetDist,
     initialOpen = false
 }: any) => {
     // Forzamos el estado abierto si el usuario solo tiene acceso a un departamento/distrito (Jefe)
@@ -763,7 +769,10 @@ const DepartmentSection = ({
                             router={router}
                             registerUpdateItem={registerUpdateItem}
                             hasAdminFilter={hasAdminFilter}
-                            initialOpen={districtsData.length === 1}
+                            targetId={targetId}
+                            targetDept={targetDept}
+                            targetDist={targetDist}
+                            initialOpen={districtsData.length === 1 || (targetDist && normalizeGeo(dist.label) === normalizeGeo(targetDist))}
                             allDeptItems={allDeptItems}
                             isDeptLoading={isDeptLoading}
                         />
@@ -776,6 +785,10 @@ const DepartmentSection = ({
 
 export default function AgendaAnexoVPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetId = searchParams.get('id');
+  const targetDept = searchParams.get('dept');
+  const targetDist = searchParams.get('dist');
   const { user, isUserLoading, isProfileLoading, userError } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
@@ -785,6 +798,23 @@ export default function AgendaAnexoVPage() {
     const interval = setInterval(() => setCurrentTime(new Date()), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Efecto para scroll automático y resaltado si viene un ID de actividad
+  useEffect(() => {
+    if (targetId) {
+        const timer = setTimeout(() => {
+            const element = document.getElementById(`activity-${targetId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.classList.add('ring-4', 'ring-primary', 'shadow-2xl', 'scale-[1.02]', 'z-50');
+                setTimeout(() => {
+                    element.classList.remove('ring-4', 'ring-primary', 'shadow-2xl', 'scale-[1.02]', 'z-50');
+                }, 4000);
+            }
+        }, 800);
+        return () => clearTimeout(timer);
+    }
+  }, [targetId]);
 
   const [assigningSolicitud, setAssigningSolicitud] = useState<SolicitudCapacitacion | null>(null);
   const [viewingActivity, setViewingActivity] = useState<SolicitudCapacitacion | null>(null);
@@ -1281,7 +1311,7 @@ export default function AgendaAnexoVPage() {
             <p className="font-black text-muted-foreground uppercase tracking-widest opacity-30">No hay actividades agendadas en su jurisdicción</p>
           </Card>
         ) : (
-          <Accordion type="multiple" className="space-y-6" defaultValue={uniqueDepartments.length === 1 ? [uniqueDepartments[0].label] : undefined}>
+          <Accordion type="multiple" className="space-y-6" defaultValue={uniqueDepartments.length === 1 ? [uniqueDepartments[0].label] : (targetDept ? [targetDept] : undefined)}>
             {uniqueDepartments.map((dept) => (
                 <DepartmentSection 
                     key={dept.label}
@@ -1305,7 +1335,10 @@ export default function AgendaAnexoVPage() {
                     router={router}
                     registerUpdateItem={registerUpdateItem}
                     hasAdminFilter={hasAdminFilter}
-                    initialOpen={uniqueDepartments.length === 1}
+                    targetId={targetId}
+                    targetDept={targetDept}
+                    targetDist={targetDist}
+                    initialOpen={uniqueDepartments.length === 1 || (targetDept && normalizeGeo(dept.label) === normalizeGeo(targetDept))}
                 />
             ))}
           </Accordion>
