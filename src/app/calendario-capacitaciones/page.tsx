@@ -340,9 +340,18 @@ export default function CalendarioCapacitacionesPage() {
             )}
 
             <div className="grid grid-cols-7 bg-black text-white border-b border-black">
-                {['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'].map(day => (
-                    <div key={day} className="py-4 text-center">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">{day}</span>
+                {[
+                    { f: 'Domingo', s: 'DOM' },
+                    { f: 'Lunes', s: 'LUN' },
+                    { f: 'Martes', s: 'MAR' },
+                    { f: 'Miércoles', s: 'MIE' },
+                    { f: 'Jueves', s: 'JUE' },
+                    { f: 'Viernes', s: 'VIE' },
+                    { f: 'Sábado', s: 'SAB' }
+                ].map(day => (
+                    <div key={day.f} className="py-4 text-center">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] hidden md:inline">{day.f}</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.1em] md:hidden">{day.s}</span>
                     </div>
                 ))}
             </div>
