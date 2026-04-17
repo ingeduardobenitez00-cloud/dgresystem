@@ -290,13 +290,10 @@ function InformeContent() {
       return;
     }
 
-    // Comentamos la validación obligatoria de respaldoPhoto ya que ahora es opcional
-    /*
     if (!respaldoPhoto) {
         toast({ variant: 'destructive', title: 'Faltan documentos', description: 'Debe adjuntar la foto del Anexo III firmado.' });
         return;
     }
-    */
 
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
@@ -657,7 +654,7 @@ function InformeContent() {
                         "w-full h-12 font-black uppercase text-xs tracking-widest shadow-lg transition-all",
                         submitSuccess ? "bg-green-600 hover:bg-green-600" : "bg-black hover:bg-black/90"
                     )} 
-                    disabled={isSubmitting || isStorageUploading || markedCells.size === 0 || submitSuccess}
+                    disabled={isSubmitting || isStorageUploading || submitSuccess}
                 >
                   {isSubmitting || isStorageUploading ? (
                     submitSuccess ? <span className="animate-in zoom-in duration-300">¡ENVIADO CORRECTAMENTE!</span> : (
