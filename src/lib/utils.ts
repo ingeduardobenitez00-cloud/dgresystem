@@ -34,6 +34,44 @@ export const formatDateToDDMMYYYY = (dateString: string | undefined): string => 
 export const normalizeGeo = (str: string) => {
   if (!str) return '';
   return str.toUpperCase()
-    .replace(/^[\d\s-]*/, '') // Elimina TODO rastro de números, guiones y espacios al inicio
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Elimina acentos
+    .replace(/^[\d\s-]*/, '') // Elimina números, guiones y espacios al inicio
+    .replace(/\s+/g, ' ') // Espacios múltiples a uno solo
     .trim();
+};
+
+export const getFuzzyMatch = (str1: string, str2: string): number => {
+  const s1 = normalizeGeo(str1);
+  const s2 = normalizeGeo(str2);
+  if (s1 === s2) return 1;
+  if (s1.length < 2 || s2.length < 2) return 0;
+
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  const longerLength = longer.length;
+
+  const distance = (s1: string, s2: string) => {
+    const costs = [];
+    for (let i = 0; i <= s1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= s2.length; j++) {
+            if (i === 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    let newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) !== s2.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+  };
+
+  const editDistance = distance(longer, shorter);
+  return (longerLength - editDistance) / longerLength;
 };

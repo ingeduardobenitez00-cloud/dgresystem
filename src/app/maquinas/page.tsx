@@ -45,14 +45,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, getFuzzyMatch, normalizeGeo } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { getDocs } from 'firebase/firestore';
 
-const normalizeGeo = (str: string) => {
-  if (!str) return '';
-  return str.toUpperCase()
-    .replace(/^\d+[\s-]*\s*/, '') // Elimina "10 - ", "10-", "10 " al inicio
-    .trim();
-};
+// normalizeGeo movido a src/lib/utils.ts
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -80,6 +78,11 @@ export default function MaquinasPage() {
     distrito: ''
   });
 
+  // Estados para importación inteligente
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [verifiedMaq, setVerifiedMaq] = useState<(Omit<MaquinaVotacion, 'id' | 'fecha_registro'> & { status: 'new' | 'duplicate' | 'warning', message?: string })[]>([]);
+
   // Estados para filtros
   const [selDept, setSelDept] = useState<string>('');
   const [selDist, setSelDist] = useState<string>('');
@@ -99,42 +102,54 @@ export default function MaquinasPage() {
 
     if (isAdminView) {
         if (execDept) {
-            const norm = normalizeGeo(execDept);
+            const deptoNorm = normalizeGeo(execDept);
             const variations = Array.from(new Set([
                 execDept,
-                norm,
-                norm.charAt(0) + norm.slice(1).toLowerCase(),
-                execDept.replace(/\s*-\s*/, '-'),
-                execDept.replace(/^0+/, ''),
-                execDept.replace(/^0+/, '').replace(/\s*-\s*/, '-')
+                deptoNorm,
+                execDept.replace(/^[\d\s-]*/, '').trim()
             ])).filter(Boolean);
-            q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+
+            if (execDist) {
+                q = query(colRef, 
+                    where('departamento', 'in', variations), 
+                    where('distrito', 'in', [execDist, normalizeGeo(execDist)]),
+                    orderBy('codigo', 'asc')
+                );
+            } else {
+                q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+            }
+        } else if (maqSearch && maqSearch.length >= 3) {
+            const term = maqSearch.toUpperCase().trim();
+            q = query(colRef, where('codigo', '>=', term), where('codigo', '<=', term + '\uf8ff'), orderBy('codigo', 'asc'));
         } else {
             q = query(colRef, orderBy('codigo', 'asc'));
         }
     } else if (profile.departamento) {
-        // Modo Restringido
-        const deptoOriginal = profile.departamento;
-        const deptoNormalized = normalizeGeo(deptoOriginal);
-        const variations = Array.from(new Set([
-            deptoOriginal,
-            deptoNormalized,
-            deptoNormalized.charAt(0) + deptoNormalized.slice(1).toLowerCase()
-        ])).filter(Boolean);
-        
-        q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+        const depto = profile.departamento;
+        const variations = Array.from(new Set([depto, normalizeGeo(depto)])).filter(Boolean);
+        if (execDist) {
+            q = query(colRef, 
+                where('departamento', 'in', variations), 
+                where('distrito', 'in', [execDist, normalizeGeo(execDist)]),
+                orderBy('codigo', 'asc')
+            );
+        } else {
+            q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+        }
     } else return null;
 
     return q;
-  }, [firestore, profile, isAdminView, execDept]);
+  }, [firestore, profile, isAdminView, execDept, execDist, maqSearch]);
 
   const { 
     data: maquinasData, 
     isLoading: isLoadingMaquinas,
+    error: errorMaquinas,
     hasMore: hasMoreMaquinas,
     loadMore: loadMoreMaquinas,
-    isLoadingMore: isLoadingMoreMaquinas
-  } = useCollectionPaginated<MaquinaVotacion>(maquinasQuery, 50);
+    isLoadingMore: isLoadingMoreMaquinas,
+    refetch: refetchMaquinas
+  } = useCollectionPaginated<MaquinaVotacion>(maquinasQuery, 100);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -142,25 +157,10 @@ export default function MaquinasPage() {
   }, [datosData]);
 
   const filteredMaquinas = useMemo(() => {
-    let list = maquinasData || [];
-    
-    // Filtro por distrito ejecutado
-    if (execDist) {
-        const target = normalizeGeo(execDist);
-        list = list.filter(m => normalizeGeo(m.distrito) === target);
-    }
-    
-    // Buscador local (Serie o Distrito)
-    const term = maqSearch.toLowerCase().trim();
-    if (term) {
-        list = list.filter(m => 
-            m.codigo.toLowerCase().includes(term) || 
-            m.distrito.toLowerCase().includes(term)
-        );
-    }
-    
-    return list;
-  }, [maquinasData, execDist, maqSearch]);
+    const list = maquinasData || [];
+    // Ordenar por código (cliente) para no requerir índices compuestos en Firestore
+    return [...list].sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }, [maquinasData]);
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -186,50 +186,123 @@ export default function MaquinasPage() {
         const distKey = findHeader(['DISTRITO', 'OFICINA', 'LOCALIDAD']);
 
         const mapped = json.map((row: any) => {
-          const rawDep = String(depKey ? row[depKey] : '').trim().toUpperCase();
-          const rawDist = String(distKey ? row[distKey] : '').trim().toUpperCase();
+          const rawDep = String(depKey ? row[depKey] : '').trim();
+          const rawDist = String(distKey ? row[distKey] : '').trim();
+          const rawCod = String(codKey ? row[codKey] : '').trim().toUpperCase();
           
           const normDep = normalizeGeo(rawDep);
           const normDist = normalizeGeo(rawDist);
 
-          // Intentar encontrar el nombre oficial en datosData
-          const officialEntry = datosData?.find(d => 
+          // Fuzzy match para geografía
+          let officialEntry = datosData?.find(d => 
             normalizeGeo(d.departamento) === normDep && 
             normalizeGeo(d.distrito) === normDist
           );
 
+          let status: 'new' | 'warning' = 'new';
+          let message = '';
+
+          if (!officialEntry && datosData) {
+            // Buscar mejor coincidencia por fuzzy match en el departamento
+            const deptoEntries = (datosData as Dato[]).filter((d: Dato) => normalizeGeo(d.departamento) === normDep);
+            let bestMatch: Dato | null = null;
+            let bestScore = 0;
+
+            deptoEntries.forEach((d) => {
+              const score = getFuzzyMatch(normDist, (d as Dato).distrito);
+              if (score > bestScore) {
+                bestScore = score;
+                bestMatch = d;
+              }
+            });
+
+            if (bestMatch && bestScore > 0.7) {
+              officialEntry = bestMatch;
+              status = 'warning';
+              message = `Corregido de "${rawDist}" a "${bestMatch.distrito}"`;
+            } else {
+              status = 'warning';
+              message = `Jurisdicción no encontrada: ${rawDist}`;
+            }
+          }
+
           return {
-            codigo: String(codKey ? row[codKey] : '').trim().toUpperCase(),
+            codigo: rawCod,
             departamento: officialEntry ? officialEntry.departamento : rawDep,
             distrito: officialEntry ? officialEntry.distrito : rawDist,
+            status,
+            message
           };
-        }).filter(m => m.codigo && m.departamento && m.distrito);
+        }).filter(m => m.codigo);
 
-        setPreviewMaq(mapped);
-        toast({ title: "Archivo procesado", description: `Se han detectado ${mapped.length} máquinas.` });
+        setVerifiedMaq(mapped);
+        toast({ title: "Archivo analizado", description: "Verifica el lote antes de confirmar." });
       } catch (err) { toast({ variant: 'destructive', title: 'Error al procesar archivo' }); }
       finally { setIsParsingMaq(false); }
     };
     reader.readAsBinaryString(file);
   };
 
+  const checkDuplicates = async () => {
+    if (!firestore || verifiedMaq.length === 0) return;
+    setIsCheckingDuplicates(true);
+    try {
+      const BATCH_SIZE = 30;
+      const updated = [...verifiedMaq];
+      
+      for (let i = 0; i < updated.length; i += BATCH_SIZE) {
+        const chunk = updated.slice(i, i + BATCH_SIZE);
+        const q = query(collection(firestore, 'maquinas'), where('codigo', 'in', chunk.map(m => m.codigo)));
+        const snap = await getDocs(q);
+        const existingCodes = snap.docs.map(d => d.data().codigo);
+        
+        chunk.forEach(m => {
+          if (existingCodes.includes(m.codigo)) {
+            const idx = updated.findIndex(u => u.codigo === m.codigo);
+            updated[idx].status = 'duplicate';
+            updated[idx].message = 'Este equipo ya está registrado';
+          }
+        });
+      }
+      setVerifiedMaq(updated);
+      toast({ title: "Verificación completada", description: "Se han identificado los duplicados." });
+    } catch (err) {
+      toast({ variant: 'destructive', title: "Error al verificar duplicados" });
+    } finally {
+      setIsCheckingDuplicates(false);
+    }
+  };
+
   const handleSaveMaquinas = async () => {
-    if (!firestore || previewMaq.length === 0) return;
+    if (!firestore || verifiedMaq.length === 0) return;
+    const toSave = verifiedMaq.filter(m => m.status !== 'duplicate');
+    if (toSave.length === 0) {
+        toast({ variant: 'destructive', title: "Nada que guardar", description: "Todos los equipos son duplicados." });
+        return;
+    }
+
     setIsUploadingMaq(true);
+    setUploadProgress(0);
     try {
       const BATCH_SIZE = 100;
-      for (let i = 0; i < previewMaq.length; i += BATCH_SIZE) {
+      for (let i = 0; i < toSave.length; i += BATCH_SIZE) {
         const batch = writeBatch(firestore);
-        previewMaq.slice(i, i + BATCH_SIZE).forEach(item => {
+        const chunk = toSave.slice(i, i + BATCH_SIZE);
+        chunk.forEach(item => {
+          const { status, message, ...data } = item;
           const newDoc = doc(collection(firestore, 'maquinas'));
-          batch.set(newDoc, { ...item, fecha_registro: new Date().toISOString() });
+          batch.set(newDoc, { ...data, fecha_registro: new Date().toISOString() });
         });
         await batch.commit(); 
+        setUploadProgress(Math.round(((i + chunk.length) / toSave.length) * 100));
         await delay(300);
       }
-      toast({ title: 'Inventario Actualizado' }); setPreviewMaq([]); setFileNameMaq(null);
+      toast({ title: 'Inventario Actualizado', description: `Se guardaron ${toSave.length} máquinas.` }); 
+      setVerifiedMaq([]); 
+      setPreviewMaq([]); 
+      setFileNameMaq(null);
     } catch (err) { toast({ variant: 'destructive', title: 'Error al guardar' }); }
-    finally { setIsUploadingMaq(false); }
+    finally { setIsUploadingMaq(false); setUploadProgress(0); }
   };
 
   const handleManualSaveMaq = async () => {
@@ -386,6 +459,8 @@ export default function MaquinasPage() {
                             onClick={() => {
                                 setExecDept(selDept === 'all' ? '' : selDept);
                                 setExecDist(selDist === 'all' ? '' : selDist);
+                                // Forzar refresco inmediato con el nuevo filtro
+                                setTimeout(() => refetchMaquinas && refetchMaquinas(), 50);
                             }}
                         >
                             <Search className="h-4 w-4 mr-2" /> EJECUTAR FILTRO
@@ -457,17 +532,76 @@ export default function MaquinasPage() {
                     </CardFooter>
                 </Card>
 
-                {previewMaq.length > 0 && (
-                    <Card className="shadow-2xl border-none animate-in zoom-in duration-300">
-                        <CardHeader className="bg-green-600 text-white py-4">
-                            <CardTitle className="text-xs font-black uppercase">Lote para Cargar ({previewMaq.length})</CardTitle>
-                        </CardHeader>
-                        <CardFooter className="p-4 bg-muted/30">
-                            <div className="flex flex-col gap-2 w-full">
-                                <Button className="w-full h-12 bg-green-600 hover:bg-green-700 font-black uppercase text-[10px]" onClick={handleSaveMaquinas} disabled={isUploadingMaq}>
-                                    {isUploadingMaq ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Download className="mr-2 h-4 w-4" />} CONFIRMAR IMPORTACIÓN
+                {verifiedMaq.length > 0 && (
+                    <Card className="shadow-2xl border-none animate-in zoom-in duration-300 col-span-full">
+                        <CardHeader className="bg-black text-white py-4 flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-xs font-black uppercase">Verificación de Lote ({verifiedMaq.length} equipos)</CardTitle>
+                                <p className="text-[9px] font-bold text-white/60 uppercase">Analiza el estado de cada registro antes de confirmar</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button 
+                                    className="bg-white text-black hover:bg-white/90 font-black uppercase text-[10px] h-9" 
+                                    onClick={checkDuplicates} 
+                                    disabled={isCheckingDuplicates || isUploadingMaq}
+                                >
+                                    {isCheckingDuplicates ? <Loader2 className="animate-spin mr-2 h-3 w-3" /> : <Search className="mr-2 h-3 w-3" />} 
+                                    {isCheckingDuplicates ? "VERIFICANDO..." : "DETECTAR DUPLICADOS"}
                                 </Button>
-                                <Button variant="ghost" className="text-destructive font-black uppercase text-[9px]" onClick={() => setPreviewMaq([])}>CANCELAR</Button>
+                                <Button variant="ghost" className="text-white hover:bg-white/10 font-black uppercase text-[10px] h-9" onClick={() => setVerifiedMaq([])}>CANCELAR</Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <ScrollArea className="h-[300px]">
+                                <Table>
+                                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                                        <TableRow>
+                                            <TableHead className="text-[10px] font-black uppercase">Serie</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Destino</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Estado</TableHead>
+                                            <TableHead className="text-[10px] font-black uppercase">Observación</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {verifiedMaq.map((m, idx) => (
+                                            <TableRow key={idx} className={cn(m.status === 'duplicate' ? "bg-red-50" : m.status === 'warning' ? "bg-orange-50" : "")}>
+                                                <TableCell className="font-black text-xs uppercase">{m.codigo}</TableCell>
+                                                <TableCell className="text-[10px] font-bold uppercase">{m.distrito}, {m.departamento}</TableCell>
+                                                <TableCell>
+                                                    <Badge className={cn(
+                                                        "text-[9px] font-black uppercase",
+                                                        m.status === 'new' ? "bg-green-100 text-green-700 hover:bg-green-100" :
+                                                        m.status === 'duplicate' ? "bg-red-100 text-red-700 hover:bg-red-100" :
+                                                        "bg-orange-100 text-orange-700 hover:bg-orange-100"
+                                                    )}>
+                                                        {m.status === 'new' ? "LISTO" : m.status === 'duplicate' ? "DUPLICADO" : "ALERTA"}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-[10px] font-medium text-muted-foreground italic">{m.message || 'Datos correctos'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </ScrollArea>
+                        </CardContent>
+                        <CardFooter className="p-6 bg-muted/30 border-t flex flex-col gap-4">
+                            {isUploadingMaq && (
+                                <div className="w-full space-y-2">
+                                    <div className="flex justify-between text-[10px] font-black uppercase">
+                                        <span>Procesando equipos...</span>
+                                        <span>{uploadProgress}%</span>
+                                    </div>
+                                    <Progress value={uploadProgress} className="h-2" />
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center w-full">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase max-w-md">
+                                    Se guardarán <span className="text-primary font-black">{verifiedMaq.filter(m => m.status !== 'duplicate').length}</span> equipos. Los duplicados serán ignorados automáticamente.
+                                </p>
+                                <Button className="px-10 h-12 bg-green-600 hover:bg-green-700 font-black uppercase text-[10px] shadow-lg shadow-green-200" onClick={handleSaveMaquinas} disabled={isUploadingMaq || isCheckingDuplicates}>
+                                    {isUploadingMaq ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Download className="mr-2 h-4 w-4" />} 
+                                    {isUploadingMaq ? "SUBIENDO..." : "CONFIRMAR IMPORTACIÓN"}
+                                </Button>
                             </div>
                         </CardFooter>
                     </Card>
@@ -499,6 +633,20 @@ export default function MaquinasPage() {
                                 <TableBody className="bg-white">
                                     {isLoadingMaquinas ? (
                                         <TableRow><TableCell colSpan={3} className="text-center py-20"><Loader2 className="h-10 w-10 animate-spin mx-auto text-primary opacity-20"/></TableCell></TableRow>
+                                    ) : errorMaquinas ? (
+                                        <TableRow><TableCell colSpan={3} className="text-center py-10 px-8">
+                                            <div className="bg-red-50 p-6 rounded-2xl border border-red-200">
+                                                <div className="flex items-center gap-3 text-red-600 mb-2">
+                                                    <ShieldAlert className="h-5 w-5" />
+                                                    <span className="font-black text-[10px] uppercase">Error de Consulta</span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-red-800 uppercase leading-relaxed">
+                                                    {(errorMaquinas as any)?.message?.includes('index') ? 
+                                                        "Falta un índice en la base de datos para esta combinación de filtros. Por favor, revisa la consola de Firebase." : 
+                                                        errorMaquinas.message || "No se ha podido cargar el inventario."}
+                                                </p>
+                                            </div>
+                                        </TableCell></TableRow>
                                     ) : filteredMaquinas.length === 0 ? (
                                         <TableRow><TableCell colSpan={3} className="text-center py-20 text-[10px] font-black uppercase opacity-20">Sin equipos registrados</TableCell></TableRow>
                                     ) : (
