@@ -366,12 +366,25 @@ export default function ReportesPDFPage() {
         doc.setFont("helvetica", "bold");
         doc.text("3. VISUALIZACIÓN ESTADÍSTICA", margin, 20);
 
-        const chartElements = ['top-distritos-chart', 'satisfaccion-pie-chart'];
+        const chartElements = ['top-distritos-chart', 'satisfaccion-pie-chart', 'demografia-chart'];
         let chartY = 30;
 
         for (const id of chartElements) {
             const element = document.getElementById(id);
             if (element) {
+                // Título del gráfico en el PDF
+                const titles: Record<string, string> = {
+                    'top-distritos-chart': 'ALCANCE POR DEPARTAMENTO',
+                    'satisfaccion-pie-chart': 'PERCEPCIÓN DE UTILIDAD',
+                    'demografia-chart': 'RANGOS DE EDAD DE PARTICIPANTES'
+                };
+                
+                if (chartY > 20) {
+                    doc.setFontSize(9);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(titles[id] || '', margin, chartY);
+                }
+
                 const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                 const imgData = canvas.toDataURL('image/png');
                 const imgWidth = 180;
@@ -383,7 +396,29 @@ export default function ReportesPDFPage() {
             }
         }
 
-        currentY = chartY;
+        // Agregar Tabla de Edades explícita
+        if (summary.edadesData) {
+            doc.addPage();
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.text("4. DESGLOSE DEMOGRÁFICO", margin, 20);
+            
+            autoTable(doc, {
+                startY: 30,
+                head: [['Rango de Edad', 'Cantidad de Participantes', 'Porcentaje']],
+                body: summary.edadesData.map((e: any) => [
+                    e.name, 
+                    e.value.toLocaleString(), 
+                    `${((e.value / summary.totalEncuestas) * 100).toFixed(1)}%`
+                ]),
+                theme: 'grid',
+                headStyles: { fillColor: [26, 26, 26], fontSize: 9 },
+                bodyStyles: { fontSize: 8 }
+            });
+            currentY = (doc as any).lastAutoTable.finalY + 15;
+        } else {
+            currentY = chartY;
+        }
 
         // Firmas
         if (currentY > 230) { doc.addPage(); currentY = 30; }
