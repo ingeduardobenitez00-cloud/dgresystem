@@ -106,6 +106,7 @@ export default function AppSidebar() {
         { href: "/resumen", label: "Resumen Ubicaciones", icon: BarChart3 },
         { href: "/informe-general", label: "Informe General PDF", icon: FileArchive },
         { href: "/reportes-pdf", label: "Reportes PDF y Estadísticas", icon: PieChart },
+        { href: "/estadisticas-solicitudes", label: "Estadísticas Solicitudes", icon: BarChart3 },
       ]
     },
     {

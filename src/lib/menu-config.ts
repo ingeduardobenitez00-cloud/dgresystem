@@ -195,6 +195,12 @@ export const dashboardMenuItems = [
     description: 'Análisis detallado de capacitados y encuestas con exportación PDF.',
   },
   {
+    href: '/estadisticas-solicitudes',
+    label: 'Estadísticas de Solicitudes',
+    icon: BarChart3,
+    description: 'Análisis de participación de partidos políticos y distribución territorial.',
+  },
+  {
     href: '/importar-reportes',
     label: 'Importar Reportes',
     icon: FileUp,

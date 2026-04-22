@@ -48,6 +48,7 @@ export const MODULE_STRUCTURE = [
       { id: 'resumen', label: 'RESUMEN UBICACIONES' },
       { id: 'informe-general', label: 'INFORME GENERAL PDF' },
       { id: 'reportes-pdf', label: 'REPORTES PDF Y ESTADÍSTICAS' },
+      { id: 'estadisticas-solicitudes', label: 'ESTADÍSTICAS SOLICITUDES' },
       { id: 'informe-territorial', label: 'INFORME TERRITORIAL' },
       { id: 'conexiones', label: 'MONITOREO CONEXIONES' },
     ]

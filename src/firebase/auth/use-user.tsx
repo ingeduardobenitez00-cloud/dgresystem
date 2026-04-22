@@ -86,7 +86,7 @@ export const useUser = (): UserHookResult => {
         'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
         'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
-        'reportes-pdf', 'puntos-fijos'
+        'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes'
       ];
 
       const allPermissions = [
@@ -125,24 +125,28 @@ export const useUser = (): UserHookResult => {
     const isCideeStaff = role === 'coordinador';
     const isJefeStaff = role === 'jefe';
 
-    let modules = profileData?.modules || [];
-    let permissions = profileData?.permissions || [];
+    let enrichedModules = [...(profileData?.modules || [])];
+    let enrichedPermissions = [...(profileData?.permissions || [])];
 
     // ASIGNACIÓN AUTOMÁTICA DE MÓDULOS Y PERMISOS POR ROL
-    if (isCideeStaff && modules.length === 0) {
-      modules = [...CIDEE_MODULES];
-      CIDEE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => permissions.push(`${m}:${a}`)));
-    } else if (isJefeStaff && modules.length === 0) {
-      modules = [...JEFE_MODULES];
-      JEFE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => permissions.push(`${m}:${a}`)));
+    if (isCideeStaff && enrichedModules.length === 0) {
+      enrichedModules = [...CIDEE_MODULES];
+      const autoPerms: string[] = [];
+      CIDEE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
+      enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
+    } else if (isJefeStaff && enrichedModules.length === 0) {
+      enrichedModules = [...JEFE_MODULES];
+      const autoPerms: string[] = [];
+      JEFE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
+      enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
     }
 
     return {
       ...authUser,
       profile: {
         ...profileData,
-        modules: modules.length > 0 ? modules : profileData?.modules,
-        permissions: permissions.length > 0 ? permissions : profileData?.permissions,
+        modules: enrichedModules.length > 0 ? enrichedModules : profileData?.modules,
+        permissions: enrichedPermissions.length > 0 ? enrichedPermissions : profileData?.permissions,
         username: profileData?.username || (isStaff ? role?.toUpperCase() : 'USUARIO'),
         role: profileData?.role || (isStaff ? role : 'funcionario'),
         active: profileData?.active ?? true,
@@ -156,7 +160,7 @@ export const useUser = (): UserHookResult => {
       isCideeStaff,
       isJefeStaff
     };
-  }, [authUser, profileData, isOwner, profileData?.role, profileData?.active]);
+  }, [authUser, profileData, isOwner]);
 
   const result = useMemo(() => ({
     user: enrichedUser,

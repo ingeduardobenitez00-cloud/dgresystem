@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useStorage } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, where, getDocs, limit, doc, updateDoc, increment } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -392,6 +392,9 @@ export default function SolicitudCapacitacionPage() {
         
         const docRef = await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
         
+        // Incrementar contadores atómicos en tiempo real
+        await updateStats(docData, 1);
+
         recordAuditLog(firestore, {
           usuario_id: user.uid,
           usuario_nombre: profile?.username || user.email || 'Usuario Desconocido',
@@ -431,6 +434,45 @@ export default function SolicitudCapacitacionPage() {
     performSubmit();
   };
 
+  const updateStats = async (solData: any, val: number) => {
+    if (!firestore) return;
+    try {
+      const entity = (solData.solicitante_entidad || '').toUpperCase();
+      const isOffice = entity.includes('OFICINA') || entity.includes('CENTRO CÍVICO') || entity.includes('CENTRO CIVICO') || entity.includes('REGISTRO ELECTORAL');
+      const isPolitical = !!solData.solicitante_entidad && (!solData.otra_entidad || solData.otra_entidad === '') && !isOffice;
+      if (!isPolitical) return;
+
+      let partyBase = (solData.solicitante_entidad || '').toUpperCase().trim();
+      let movementName = (solData.movimiento_politico || 'NO SE ESPECIFICO MOVIMIENTO').toUpperCase().trim();
+
+      if (partyBase.includes(' - ')) {
+          const parts = partyBase.split(' - ');
+          partyBase = parts[0].trim();
+          const movementFromEntity = parts.slice(1).join(' - ').trim();
+          if (movementName === 'NO SE ESPECIFICO MOVIMIENTO' || movementName === '') {
+              movementName = movementFromEntity;
+          }
+      }
+
+      const partyKey = partyBase.replace(/\./g, '_');
+      const movKey = movementName.replace(/\./g, '_');
+      const depto = solData.departamento;
+      const type = solData.tipo_solicitud === 'capacitacion' ? 'capacitacion' : 'divulgacion';
+
+      const statsRef = doc(firestore, 'stats-summary', 'solicitudes');
+      await updateDoc(statsRef, {
+        totalSolicitudes: increment(val),
+        [`deptos.${depto}`]: increment(val),
+        [`parties.${partyKey}`]: increment(val),
+        [`partyMovements.${partyKey}.${movKey}`]: increment(val),
+        [`types.${type}`]: increment(val),
+        lastUpdate: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error("Error updating stats counters:", e);
+    }
+  };
+
   const handleSuspendAndSave = async () => {
     if (!firestore || !conflictingFixedPlace) return;
     setIsSubmitting(true);
@@ -443,6 +485,9 @@ export default function SolicitudCapacitacionPage() {
             fecha_cancelacion: new Date().toISOString(),
             usuario_cancelacion: profile?.username || user?.email || 'SISTEMA'
         });
+
+        // Decrementar contadores de la solicitud cancelada
+        await updateStats(conflictingFixedPlace, -1);
 
         toast({ title: "Lugar Fijo Suspendido", description: "Agenda liberada. Guardando nueva solicitud..." });
         setIsStockConflict(false);
