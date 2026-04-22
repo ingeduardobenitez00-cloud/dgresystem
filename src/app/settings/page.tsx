@@ -21,6 +21,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
+import { ACTION_LABELS, MODULE_STRUCTURE, GLOBAL_PERMS } from '@/lib/permissions-config';
+import {
+  Shield,
+  FileCheck,
+  Layout,
+  Bookmark
+} from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +68,102 @@ export default function SettingsPage() {
 
   const [isResetting, setIsResetting] = useState(false);
   const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
+
+  // --- PERFILES DE ACCESO ---
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState('');
+  const [selectedProfileModules, setSelectedProfileModules] = useState<Set<string>>(new Set());
+  const [selectedProfilePerms, setSelectedProfilePerms] = useState<Set<string>>(new Set());
+
+  const fetchProfiles = async () => {
+    if (!firestore) return;
+    setIsLoadingProfiles(true);
+    try {
+      const snapshot = await getDocs(collection(firestore, 'permisos_perfiles'));
+      setProfiles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) { console.error(err); }
+    finally { setIsLoadingProfiles(false); }
+  };
+
+  useMemo(() => {
+    fetchProfiles();
+  }, [firestore]);
+
+  const handleSaveProfile = async () => {
+    if (!firestore || !profileName) return;
+    setIsSavingProfile(true);
+    try {
+      const data = {
+        name: profileName,
+        modules: Array.from(selectedProfileModules),
+        permissions: Array.from(selectedProfilePerms)
+      };
+      if (editingProfileId) {
+        await updateDoc(doc(firestore, 'permisos_perfiles', editingProfileId), data);
+        toast({ title: 'Perfil actualizado' });
+      } else {
+        await addDoc(collection(firestore, 'permisos_perfiles'), data);
+        toast({ title: 'Perfil creado' });
+      }
+      setProfileName('');
+      setSelectedProfileModules(new Set());
+      setSelectedProfilePerms(new Set());
+      setEditingProfileId(null);
+      fetchProfiles();
+    } catch (err) { toast({ variant: 'destructive', title: 'Error al guardar perfil' }); }
+    finally { setIsSavingProfile(false); }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    if (!firestore) return;
+    try {
+      await deleteDoc(doc(firestore, 'permisos_perfiles', id));
+      toast({ title: 'Perfil eliminado' });
+      fetchProfiles();
+    } catch (err) { toast({ variant: 'destructive', title: 'Error al eliminar' }); }
+  };
+
+  const handleEditProfile = (profile: any) => {
+    setEditingProfileId(profile.id);
+    setProfileName(profile.name);
+    setSelectedProfileModules(new Set(profile.modules));
+    setSelectedProfilePerms(new Set(profile.permissions));
+  };
+
+  const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  
+  const handleSyncProfileUsers = async (profile: any) => {
+    if (!firestore) return;
+    setIsSyncing(profile.id);
+    try {
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where('profileId', '==', profile.id));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+            toast({ title: 'No hay usuarios vinculados a este perfil' });
+            return;
+        }
+
+        const batch = writeBatch(firestore);
+        snapshot.docs.forEach(uDoc => {
+            batch.update(uDoc.ref, {
+                modules: profile.modules,
+                permissions: profile.permissions
+            });
+        });
+
+        await batch.commit();
+        toast({ title: `Sincronización completa: ${snapshot.size} usuarios actualizados` });
+    } catch (err) {
+        toast({ variant: 'destructive', title: 'Error al sincronizar usuarios' });
+    } finally {
+        setIsSyncing(null);
+    }
+  };
 
   const isAdminView = useMemo(() => 
     currentUser?.profile?.role === 'admin' || 
@@ -241,6 +344,9 @@ export default function SettingsPage() {
             <TabsTrigger value="geografia" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Database className="h-3.5 w-3.5" /> Geografía
             </TabsTrigger>
+            <TabsTrigger value="perfiles" className="gap-2 font-black uppercase text-[10px] py-2">
+                <Shield className="h-3.5 w-3.5" /> Perfiles Acceso
+            </TabsTrigger>
             <TabsTrigger value="produccion" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Rocket className="h-3.5 w-3.5" /> Producción
             </TabsTrigger>
@@ -337,6 +443,208 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
                 </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="perfiles" className="space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-12">
+                <Card className="shadow-2xl border-none rounded-[2.5rem] overflow-hidden bg-white">
+                  <CardHeader className="bg-black text-white p-8">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
+                          <Shield className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-xl font-black uppercase tracking-tight">Diseñador de Perfiles de Acceso</CardTitle>
+                          <CardDescription className="text-white/60 font-bold uppercase text-[10px] tracking-widest mt-1">Crea plantillas de permisos para asignar a usuarios rápidamente.</CardDescription>
+                        </div>
+                      </div>
+                      {editingProfileId && (
+                        <Button variant="ghost" onClick={() => { setEditingProfileId(null); setProfileName(''); setSelectedProfileModules(new Set()); setSelectedProfilePerms(new Set()); }} className="text-white hover:bg-white/10 font-bold uppercase text-[10px]">
+                          <X className="mr-2 h-4 w-4" /> Cancelar Edición
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-10 space-y-8">
+                    <div className="max-w-md space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground mr-2">Nombre del Perfil (Template)</Label>
+                        <div className="flex gap-4">
+                          <Input 
+                            value={profileName} 
+                            onChange={e => setProfileName(e.target.value)} 
+                            placeholder="Ej: JEFE DE OFICINA"
+                            className="h-14 font-black uppercase border-2 rounded-2xl shadow-sm text-lg"
+                          />
+                          <Button 
+                            className="h-14 px-8 font-black uppercase shadow-xl rounded-2xl gap-3" 
+                            disabled={isSavingProfile || !profileName}
+                            onClick={handleSaveProfile}
+                          >
+                            {isSavingProfile ? <Loader2 className="animate-spin h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                            {editingProfileId ? 'ACTUALIZAR' : 'CREAR PERFIL'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-8 border-2 border-dashed rounded-[2rem] p-8 bg-muted/5">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-black uppercase text-sm tracking-widest text-primary flex items-center gap-3">
+                          <Layout className="h-5 w-5" /> Configurar Matriz de Seguridad del Perfil
+                        </h3>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-6">
+                        {MODULE_STRUCTURE.map((cat) => (
+                          <div key={cat.category} className="space-y-4">
+                            <div className="flex items-center gap-4">
+                              <div className="h-px flex-1 bg-muted"></div>
+                              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{cat.category}</span>
+                              <div className="h-px flex-1 bg-muted"></div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {cat.items.map((item) => (
+                                <Card key={item.id} className={cn(
+                                  "p-4 border-2 transition-all cursor-pointer hover:border-primary/40",
+                                  selectedProfileModules.has(item.id) ? "border-primary bg-primary/[0.02]" : "border-muted shadow-none"
+                                )} onClick={() => {
+                                  const newMods = new Set(selectedProfileModules);
+                                  if (newMods.has(item.id)) {
+                                    newMods.delete(item.id);
+                                    // Remove all permissions for this module
+                                    const newPerms = new Set(selectedProfilePerms);
+                                    ACTION_LABELS.forEach(a => newPerms.delete(`${item.id}:${a.id}`));
+                                    setSelectedProfilePerms(newPerms);
+                                  } else {
+                                    newMods.add(item.id);
+                                    // Add 'view' permission by default
+                                    const newPerms = new Set(selectedProfilePerms);
+                                    newPerms.add(`${item.id}:view`);
+                                    setSelectedProfilePerms(newPerms);
+                                  }
+                                  setSelectedProfileModules(newMods);
+                                }}>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase">{item.label}</span>
+                                    {selectedProfileModules.has(item.id) && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                                  </div>
+                                  
+                                  {selectedProfileModules.has(item.id) && (
+                                    <div className="mt-4 flex flex-wrap gap-2 pt-4 border-t border-dashed" onClick={e => e.stopPropagation()}>
+                                      {ACTION_LABELS.map(a => (
+                                        <Badge 
+                                          key={a.id} 
+                                          variant="outline" 
+                                          className={cn(
+                                            "text-[8px] font-black uppercase cursor-pointer py-1 px-3",
+                                            selectedProfilePerms.has(`${item.id}:${a.id}`) ? "bg-black text-white" : "text-muted-foreground opacity-40"
+                                          )}
+                                          onClick={() => {
+                                            const newPerms = new Set(selectedProfilePerms);
+                                            if (newPerms.has(`${item.id}:${a.id}`)) newPerms.delete(`${item.id}:${a.id}`);
+                                            else newPerms.add(`${item.id}:${a.id}`);
+                                            setSelectedProfilePerms(newPerms);
+                                          }}
+                                        >
+                                          {a.label}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-4 pt-12">
+                        <div className="flex items-center gap-4">
+                          <div className="h-px flex-1 bg-muted"></div>
+                          <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">FILTROS Y PERSMISOS GLOBALES</span>
+                          <div className="h-px flex-1 bg-muted"></div>
+                        </div>
+                        <div className="flex flex-wrap gap-4 justify-center">
+                          {GLOBAL_PERMS.map(p => (
+                            <Button 
+                              key={p.id}
+                              variant={selectedProfilePerms.has(p.id) ? "default" : "outline"}
+                              className={cn("h-12 px-6 font-black uppercase text-[10px] rounded-xl border-2", selectedProfilePerms.has(p.id) ? "bg-black" : "")}
+                              onClick={() => {
+                                const newPerms = new Set(selectedProfilePerms);
+                                if (newPerms.has(p.id)) newPerms.delete(p.id);
+                                else newPerms.add(p.id);
+                                setSelectedProfilePerms(newPerms);
+                              }}
+                            >
+                              {p.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="lg:col-span-12">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-black uppercase text-primary flex items-center gap-3">
+                    <Bookmark className="h-6 w-6" /> Perfiles Registrados
+                  </h3>
+                </div>
+                
+                {isLoadingProfiles ? (
+                  <div className="flex justify-center py-20"><Loader2 className="animate-spin h-10 w-10 opacity-20" /></div>
+                ) : profiles.length === 0 ? (
+                  <Card className="p-20 text-center border-4 border-dashed rounded-[3rem] opacity-30 bg-white">
+                    <p className="font-black uppercase tracking-widest">No hay perfiles configurados</p>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {profiles.map((p) => (
+                      <Card key={p.id} className="shadow-lg border-none rounded-[2rem] overflow-hidden bg-white group">
+                        <CardHeader className="bg-muted/30 border-b p-6">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-lg font-black uppercase leading-tight">{p.name}</CardTitle>
+                              <CardDescription className="text-[9px] font-bold uppercase mt-1">{p.modules?.length || 0} Módulos Activos</CardDescription>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className={cn("h-10 w-10 rounded-xl hover:bg-amber-500 hover:text-white", isSyncing === p.id && "animate-pulse")} 
+                                onClick={() => handleSyncProfileUsers(p)}
+                                title="Sincronizar Permisos a Usuarios"
+                              >
+                                {isSyncing === p.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-black hover:text-white" onClick={() => handleEditProfile(p)}><Edit className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-destructive hover:bg-destructive hover:text-white" onClick={() => handleDeleteProfile(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <ScrollArea className="h-32">
+                                <div className="flex flex-wrap gap-2">
+                                    {(p.modules || []).map((m: string) => (
+                                        <Badge key={m} variant="secondary" className="text-[8px] font-black uppercase bg-muted text-muted-foreground">
+                                            {MODULE_STRUCTURE.flatMap(cat => cat.items).find(i => i.id === m)?.label || m}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
 

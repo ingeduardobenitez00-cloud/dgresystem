@@ -7,7 +7,7 @@ import { type User } from 'firebase/auth';
 
 export interface UserProfile {
   username?: string;
-  role?: 'admin' | 'director' | 'coordinador' | 'jefe' | 'funcionario' | 'viewer';
+  role?: 'admin' | 'superadmin' | 'director' | 'coordinador' | 'jefe' | 'funcionario' | 'viewer';
   departamento?: string;
   distrito?: string;
   modules?: string[];
@@ -37,6 +37,7 @@ export const JEFE_MODULES = [
 export type AppUser = User & {
   profile?: UserProfile | null;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
   isOwner?: boolean;
   isStaff?: boolean;
   isCideeStaff?: boolean;
@@ -102,7 +103,7 @@ export const useUser = (): UserHookResult => {
         ...authUser,
         profile: {
           username: profileData?.username || 'SÚPER ADMINISTRADOR',
-          role: 'admin' as const,
+          role: 'superadmin' as const,
           active: true,
           departamento: profileData?.departamento || 'SEDE CENTRAL',
           distrito: profileData?.distrito || 'ASUNCIÓN',
@@ -111,13 +112,16 @@ export const useUser = (): UserHookResult => {
           permissions: allPermissions
         },
         isAdmin: true,
+        isSuperAdmin: true,
         isOwner: true,
         isStaff: true
       };
     }
     
     const role = profileData?.role;
-    const isStaff = role === 'admin' || role === 'director' || role === 'coordinador' || role === 'jefe';
+    const isSuperAdmin = role === 'superadmin' || isOwner;
+    const isAdmin = role === 'admin' || isSuperAdmin;
+    const isStaff = isAdmin || role === 'director' || role === 'coordinador' || role === 'jefe';
     const isCideeStaff = role === 'coordinador';
     const isJefeStaff = role === 'jefe';
 
@@ -145,7 +149,8 @@ export const useUser = (): UserHookResult => {
         departamento: profileData?.departamento || '',
         distrito: profileData?.distrito || ''
       },
-      isAdmin: role === 'admin',
+      isAdmin,
+      isSuperAdmin,
       isOwner: isOwner,
       isStaff,
       isCideeStaff,

@@ -69,92 +69,18 @@ type UserProfile = {
   id: string;
   username: string;
   email: string;
-  role: 'admin' | 'director' | 'coordinador' | 'jefe' | 'funcionario' | 'viewer';
+  role: 'admin' | 'superadmin' | 'director' | 'coordinador' | 'jefe' | 'funcionario' | 'viewer';
   modules: string[];
   permissions: string[];
   departamento?: string;
   distrito?: string;
   active?: boolean;
+  presence?: any;
+  profileId?: string;
+  registration_method?: string;
 };
 
-const ACTION_LABELS = [
-  { id: 'view', label: 'VER' },
-  { id: 'add', label: 'GUARDAR' },
-  { id: 'edit', label: 'EDITAR' },
-  { id: 'delete', label: 'BORRAR' },
-  { id: 'pdf', label: 'PDF' },
-];
-
-const MODULE_STRUCTURE = [
-  {
-    category: "CIDEE - CAPACITACIONES",
-    items: [
-      { id: 'calendario-capacitaciones', label: 'CALENDARIO MENSUAL' },
-      { id: 'anexo-i', label: 'ANEXO I - LUGARES FIJOS' },
-      { id: 'lista-anexo-i', label: 'LISTADO DE ANEXO I' },
-      { id: 'solicitud-capacitacion', label: 'ANEXO V - SOLICITUDES' },
-      { id: 'agenda-anexo-i', label: 'AGENDA ANEXO I' },
-      { id: 'agenda-anexo-v', label: 'AGENDA ANEXO V' },
-      { id: 'maquinas', label: 'INVENTARIO DE MÁQUIS' },
-      { id: 'control-movimiento-maquinas', label: 'MOVIMIENTO DE MÁQUINAS' },
-      { id: 'denuncia-lacres', label: 'DENUNCIA DE LACRES' },
-      { id: 'informe-movimientos-denuncias', label: 'TRAZABILIDAD LOGÍSTICA' },
-      { id: 'informe-divulgador', label: 'ANEXO III - INFORME DEL DIVULGADOR' },
-      { id: 'galeria-capacitaciones', label: 'GALERÍA DE EVIDENCIAS' },
-      { id: 'informe-semanal-puntos-fijos', label: 'ANEXO IV - INFORME SEMANAL' },
-      { id: 'lista-anexo-iv', label: 'LISTADO DE ANEXO IV' },
-      { id: 'divulgadores', label: 'DIRECTORIO DIVULGADORES' },
-      { id: 'estadisticas-capacitacion', label: 'ESTADÍSTICAS CIDEE' },
-      { id: 'encuesta-satisfaccion', label: 'ANEXO II - ENCUESTA DE SATISFACCIÓN' },
-      { id: 'archivo-capacitaciones', label: 'HISTORIAL / ARCHIVO' },
-    ]
-  },
-  {
-    category: "REGISTROS ELECTORALES",
-    items: [
-      { id: 'ficha', label: 'VISTA DE FICHA' },
-      { id: 'fotos', label: 'GALERÍA FOTOGRÁFICA' },
-      { id: 'cargar-ficha', label: 'CARGAR FICHA' },
-      { id: 'configuracion-semanal', label: 'CONFIGURACIÓN FECHAS' },
-      { id: 'informe-semanal-registro', label: 'INF. SEMANAL REGISTRO' },
-      { id: 'reporte-semanal-registro', label: 'MONITOR DE INFORMES' },
-      { id: 'archivo-semanal-registro', label: 'ARCHIVO DE INFORMES' },
-    ]
-  },
-  {
-    category: "ANÁLISIS Y REPORTES",
-    items: [
-      { id: 'resumen', label: 'RESUMEN UBICACIONES' },
-      { id: 'informe-general', label: 'INFORME GENERAL PDF' },
-      { id: 'reportes-pdf', label: 'REPORTES PDF Y ESTADÍSTICAS' },
-      { id: 'informe-territorial', label: 'INFORME TERRITORIAL' },
-      { id: 'conexiones', label: 'MONITOREO CONEXIONES' },
-    ]
-  },
-  {
-    category: "LOCALES DE VOTACIÓN",
-    items: [
-      { id: 'locales-votacion', label: 'BUSCADOR DE LOCALES' },
-      { id: 'cargar-fotos-locales', label: 'CARGAR FOTOS LOTE' },
-    ]
-  },
-  {
-    category: "SISTEMA",
-    items: [
-      { id: 'users', label: 'GESTIÓN USUARIOS' },
-      { id: 'settings', label: 'CONFIGURACIÓN' },
-      { id: 'documentacion', label: 'DOCUMENTACIÓN' },
-      { id: 'auditoria', label: 'AUDITORÍA DEL SISTEMA' },
-    ]
-  }
-];
-
-const GLOBAL_PERMS = [
-  { id: 'admin_filter', label: 'FILTRO NACIONAL' },
-  { id: 'department_filter', label: 'FILTRO DEPARTAMENTAL' },
-  { id: 'district_filter', label: 'FILTRO DISTRITAL' },
-  { id: 'assign_staff', label: 'ASIGNAR PERSONAL' },
-];
+import { ACTION_LABELS, MODULE_STRUCTURE, GLOBAL_PERMS } from '@/lib/permissions-config';
 
 const PermissionMatrix = ({ 
   userObj, 
@@ -257,12 +183,51 @@ function UsersContent() {
   const { user: currentUser, isUserLoading: isAuthLoading } = useUser();
   const searchParams = useSearchParams();
 
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+
+  const fetchTemplates = async () => {
+    if (!firestore) return;
+    setIsLoadingTemplates(true);
+    try {
+      const snapshot = await getDocs(collection(firestore, 'permisos_perfiles'));
+      setTemplates(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) { console.error(err); }
+    finally { setIsLoadingTemplates(false); }
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [firestore]);
+
+  const applyTemplate = (template: any, editing: boolean) => {
+    const modules = new Set(template.modules || []);
+    const perms = new Set(template.permissions || []);
+    
+    if (editing && editingUser) {
+        setEditingUser({
+            ...editingUser,
+            modules: Array.from(modules) as string[],
+            permissions: Array.from(perms) as string[],
+            profileId: template.id
+        });
+        // We also need to update selectedModules and selectedPerms if they are being used as secondary states
+        setSelectedModules(modules as Set<string>);
+        setSelectedPerms(perms as Set<string>);
+    } else {
+        setSelectedModules(modules as Set<string>);
+        setSelectedPerms(perms as Set<string>);
+        setSelectedProfileId(template.id);
+    }
+    toast({ title: `Perfil "${template.name}" aplicado` });
+  };
+
   const isMasterAdmin = useMemo(() => {
-    return !!(currentUser?.isOwner);
+    return !!(currentUser?.isSuperAdmin || currentUser?.isOwner);
   }, [currentUser]);
 
   const isAdminView = useMemo(() => {
-    return !!(currentUser?.isAdmin || currentUser?.isOwner || currentUser?.isStaff);
+    return !!(currentUser?.isAdmin || currentUser?.isOwner || currentUser?.isStaff || currentUser?.isSuperAdmin);
   }, [currentUser]);
 
   const usersQuery = useMemoFirebase(() => {
@@ -307,6 +272,7 @@ function UsersContent() {
   
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -553,15 +519,17 @@ function UsersContent() {
     const password = formData.get('password') as string;
     const username = (formData.get('username') as string || '').toUpperCase();
     
-    const newUserProfile = { 
-      username, 
-      email, 
-      role: regRole, 
-      modules: Array.from(selectedModules), 
-      permissions: Array.from(selectedPerms), 
-      departamento: regDepartamento || 'ALCANCE NACIONAL', 
-      distrito: regDistrito || 'TODOS LOS DISTRITOS', 
-      active: regRole === 'jefe', // Jefes se habilitan automáticamente, otros requieren verificación
+    const newUser: UserProfile = {
+      id: '',
+      username,
+      email: email.toLowerCase(),
+      role: regRole as any,
+      modules: Array.from(selectedModules),
+      permissions: Array.from(selectedPerms),
+      departamento: regDepartamento || 'ALCANCE NACIONAL',
+      distrito: regDistrito || 'TODOS LOS DISTRITOS',
+      active: regRole === 'jefe',
+      profileId: selectedProfileId || undefined,
       registration_method: 'creado_por_admin'
     };
 
@@ -578,7 +546,7 @@ function UsersContent() {
       
       // PATRÓN NO BLOQUEANTE CON EMISOR DE ERROR
       setDoc(userDocRef, {
-        ...newUserProfile,
+        ...newUser,
         id: newUid,
         fecha_creacion: new Date().toISOString()
       }).then(() => {
@@ -586,13 +554,14 @@ function UsersContent() {
           form.reset(); 
           setSelectedModules(new Set()); 
           setSelectedPerms(new Set());
+          setSelectedProfileId(null);
           setIsSubmitting(false);
           setTimeout(() => window.location.reload(), 1000);
       }).catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({ 
             path: userDocRef.path, 
             operation: 'create',
-            requestResourceData: newUserProfile
+            requestResourceData: newUser
           }));
           setIsSubmitting(false);
       });
@@ -847,10 +816,30 @@ function UsersContent() {
                     </Select>
                 </div>
               </div>
-              <div className="flex justify-end pt-4">
-                  <Button type="button" variant="outline" className="font-black text-[9px] uppercase border-2 h-10 px-6 rounded-xl gap-2 hover:bg-black hover:text-white transition-all" onClick={() => handleApplyJefeProfile(false)}>
-                    <UserCheck className="h-4 w-4" /> Aplicar Perfil Jefe Estándar
-                  </Button>
+              <div className="space-y-4 pt-4 border-t border-dashed">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Perfiles de Acceso Rápidos</Label>
+                    <Button variant="link" className="text-[8px] font-black uppercase h-auto p-0" onClick={() => window.location.href='/settings#perfiles'}>Gestionar Perfiles</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {isLoadingTemplates ? (
+                        <Loader2 className="h-4 w-4 animate-spin opacity-20" />
+                    ) : templates.length === 0 ? (
+                        <span className="text-[8px] font-bold uppercase text-muted-foreground opacity-40">No hay perfiles definidos en configuración</span>
+                    ) : (
+                        templates.map(t => (
+                            <Button 
+                                key={t.id} 
+                                type="button" 
+                                variant="outline" 
+                                className="font-black text-[9px] uppercase border-2 h-9 px-4 rounded-xl gap-2 hover:bg-black hover:text-white transition-all bg-white shadow-sm" 
+                                onClick={() => applyTemplate(t, false)}
+                            >
+                                <Zap className="h-3.5 w-3.5 text-amber-500" /> {t.name}
+                            </Button>
+                        ))
+                    )}
+                  </div>
               </div>
               <PermissionMatrix selectedPerms={selectedPerms} selectedModules={selectedModules} onTogglePerm={handleTogglePerm} onToggleModuleAction={handleToggleModuleAction} onToggleColumn={handleToggleColumn} />
             </CardContent>
@@ -968,9 +957,15 @@ function UsersContent() {
                                                                                     </div>
                                                                                 </TableCell>
                                                                                 <TableCell>
-                                                                                    <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10 bg-primary/[0.02]">
-                                                                                        {u.role}
-                                                                                    </Badge>
+                                                                                    {u.role === 'superadmin' ? (
+                                                                                        <Badge className="bg-green-700 text-white text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1 shadow-md border-b-2 border-green-900">
+                                                                                            <Shield className="h-3 w-3" /> SÚPER ADMIN
+                                                                                        </Badge>
+                                                                                    ) : (
+                                                                                        <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10 bg-primary/[0.02]">
+                                                                                            {u.role}
+                                                                                        </Badge>
+                                                                                    )}
                                                                                 </TableCell>
                                                                                 <TableCell>
                                                                                     <div className="flex items-center gap-2 text-muted-foreground whitespace-nowrap">
@@ -997,32 +992,36 @@ function UsersContent() {
                                                                                 </TableCell>
                                                                                 <TableCell className="text-right px-8">
                                                                                     <div className="flex justify-end gap-2">
-                                                                                        <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-primary/5 text-primary/40 hover:text-primary transition-all" onClick={() => { setEditingUser(u); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
-                                                                                        <Button variant="ghost" size="icon" className={cn("h-9 w-9 transition-all", u.active !== false ? "text-amber-600/40 hover:text-amber-600 hover:bg-amber-50" : "text-green-600/40 hover:text-green-600 hover:bg-green-50")} onClick={() => toggleUserStatus(u)}>
-                                                                                            {u.active !== false ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                                                                                        </Button>
-                                                                                        <AlertDialog>
-                                                                                            <AlertDialogTrigger asChild>
-                                                                                                <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-4 w-4" /></Button>
-                                                                                            </AlertDialogTrigger>
-                                                                                            <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-8">
-                                                                                                <AlertDialogHeader className="space-y-4">
-                                                                                                    <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
-                                                                                                        <ShieldAlert className="h-8 w-8 text-destructive" />
-                                                                                                    </div>
-                                                                                                    <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR ACCESO DEFINITIVAMENTE?</AlertDialogTitle>
-                                                                                                    <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
-                                                                                                        Se borrará el perfil de <span className="text-primary font-black">{u.username}</span> en Firestore y su rastro de conexión. El acceso será revocado de inmediato.
-                                                                                                    </AlertDialogDescription>
-                                                                                                </AlertDialogHeader>
-                                                                                                <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
-                                                                                                    <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
-                                                                                                    <AlertDialogAction onClick={() => handleDeleteUser(u)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl">
-                                                                                                        SÍ, ELIMINAR PERFIL
-                                                                                                    </AlertDialogAction>
-                                                                                                </AlertDialogFooter>
-                                                                                            </AlertDialogContent>
-                                                                                        </AlertDialog>
+                                                                                        {(isMasterAdmin || u.role !== 'admin') && (
+                                                                                            <>
+                                                                                                <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-primary/5 text-primary/40 hover:text-primary transition-all" onClick={() => { setEditingUser(u); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
+                                                                                                <Button variant="ghost" size="icon" className={cn("h-9 w-9 transition-all", u.active !== false ? "text-amber-600/40 hover:text-amber-600 hover:bg-amber-50" : "text-green-600/40 hover:text-green-600 hover:bg-green-50")} onClick={() => toggleUserStatus(u)}>
+                                                                                                    {u.active !== false ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                                                                                                </Button>
+                                                                                                <AlertDialog>
+                                                                                                    <AlertDialogTrigger asChild>
+                                                                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-4 w-4" /></Button>
+                                                                                                    </AlertDialogTrigger>
+                                                                                                    <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-8">
+                                                                                                        <AlertDialogHeader className="space-y-4">
+                                                                                                            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
+                                                                                                                <ShieldAlert className="h-8 w-8 text-destructive" />
+                                                                                                            </div>
+                                                                                                            <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR ACCESO DEFINITIVAMENTE?</AlertDialogTitle>
+                                                                                                            <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
+                                                                                                                Se borrará el perfil de <span className="text-primary font-black">{u.username}</span> en Firestore y su rastro de conexión. El acceso será revocado de inmediato.
+                                                                                                            </AlertDialogDescription>
+                                                                                                        </AlertDialogHeader>
+                                                                                                        <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
+                                                                                                            <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
+                                                                                                            <AlertDialogAction onClick={() => handleDeleteUser(u)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl">
+                                                                                                                SÍ, ELIMINAR PERFIL
+                                                                                                            </AlertDialogAction>
+                                                                                                        </AlertDialogFooter>
+                                                                                                    </AlertDialogContent>
+                                                                                                </AlertDialog>
+                                                                                            </>
+                                                                                        )}
                                                                                     </div>
                                                                                 </TableCell>
                                                                             </TableRow>
@@ -1060,8 +1059,34 @@ function UsersContent() {
                             <DialogDescription className="text-white/60 font-bold uppercase text-[10px] tracking-widest mt-2">USUARIO: {editingUser.email}</DialogDescription>
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <Button type="button" variant="outline" className="font-black uppercase text-[10px] h-10 bg-transparent text-white border-white/30 hover:bg-white/10 px-6 rounded-xl" onClick={() => handleApplyJefeProfile(true)}>MODO JEFE</Button>
+
+                    <div className="space-y-4 pt-4 border-t border-dashed">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] font-black uppercase text-muted-foreground">Perfiles de Acceso Rápidos</Label>
+                          <Button variant="link" className="text-[8px] font-black uppercase h-auto p-0" onClick={() => window.location.href='/settings#perfiles'}>Gestionar Perfiles</Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {isLoadingTemplates ? (
+                              <Loader2 className="h-4 w-4 animate-spin opacity-20" />
+                          ) : templates.length === 0 ? (
+                              <span className="text-[8px] font-bold uppercase text-muted-foreground opacity-40">No hay perfiles definidos en configuración</span>
+                          ) : (
+                              templates.map(t => (
+                                  <Button 
+                                      key={t.id} 
+                                      type="button" 
+                                      variant="outline" 
+                                      className="font-black text-[9px] uppercase border-2 h-9 px-4 rounded-xl gap-2 hover:bg-black hover:text-white transition-all bg-white shadow-sm" 
+                                      onClick={() => applyTemplate(t, true)}
+                                  >
+                                      <Zap className="h-3.5 w-3.5 text-amber-500" /> {t.name}
+                                  </Button>
+                              ))
+                          )}
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-black/5">
                         <Button variant="ghost" size="icon" onClick={() => setEditModalOpen(false)} className="text-white/40 hover:text-white"><X className="h-6 w-6"/></Button>
                     </div>
                 </div>
@@ -1073,6 +1098,7 @@ function UsersContent() {
                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-muted-foreground">Rol de Sistema</Label>
                             <select value={editingUser.role} onChange={(e) => setEditingUser({...editingUser, role: e.target.value as any})} className="w-full h-12 border-2 rounded-xl font-black uppercase text-[10px] px-4 bg-white">
                                 <option value="admin">ADMIN</option>
+                                <option value="superadmin">SÚPER ADMIN</option>
                                 <option value="director">DIRECTOR</option>
                                 <option value="coordinador">COORDINADOR</option>
                                 <option value="jefe">JEFE</option>
