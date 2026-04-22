@@ -99,16 +99,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [mounted, user, updatePresence]);
 
   // SISTEMA DE TIEMPO DE INACTIVIDAD (IDLE TIMER)
-  const [timer, setTimer] = useState(600); // 10 minutos (600s)
+  const IDLE_TIMEOUT = (user?.isAdmin || user?.isOwner) ? 1200 : 600;
+  const [timer, setTimer] = useState(IDLE_TIMEOUT);
   const [showIdleWarning, setShowIdleWarning] = useState(false);
 
   const resetTimer = useCallback(() => {
-    setTimer(600);
+    setTimer(IDLE_TIMEOUT);
     setShowIdleWarning(false);
-  }, []);
+  }, [IDLE_TIMEOUT]);
 
   useEffect(() => {
     if (!mounted || !user) return;
+
+    // Resetear al cambiar de timeout base (por login/cambio de rol)
+    setTimer(IDLE_TIMEOUT);
 
     // Escuchar eventos de actividad
     const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
@@ -121,6 +125,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           auth.signOut();
           return 0;
         }
+        // Mostrar advertencia 1 minuto antes de expirar
         if (prev === 61) {
           setShowIdleWarning(true);
         }

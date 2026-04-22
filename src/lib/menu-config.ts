@@ -21,6 +21,12 @@ export const dashboardMenuItems = [
     description: 'Consulta y visualización de formularios de lugares fijos enviados.',
   },
   {
+    href: '/puntos-fijos',
+    label: 'Puntos Fijos Divulgación',
+    icon: MapPin,
+    description: 'Gestión y consulta de puntos fijos de divulgación nacional.',
+  },
+  {
     href: '/solicitud-capacitacion',
     label: 'Anexo V - Solicitudes',
     icon: ClipboardCheck,
@@ -88,21 +94,27 @@ export const dashboardMenuItems = [
   },
   {
     href: '/archivo-capacitaciones',
-    label: 'Historial / Archivo',
+    label: 'Historial General',
     icon: History,
     description: 'Consulta de actividades finalizadas y archivadas por jurisdicción.',
+  },
+  {
+    href: '/archivo-anexo-i',
+    label: 'Historial Anexo I',
+    icon: History,
+    description: 'Archivo histórico de formularios Anexo I enviados.',
+  },
+  {
+    href: '/archivo-anexo-v',
+    label: 'Historial Anexo V',
+    icon: History,
+    description: 'Archivo histórico de solicitudes Anexo V procesadas.',
   },
   {
     href: '/divulgadores',
     label: 'Directorio Divulgadores',
     icon: UserCircle,
     description: 'Gestiona la lista de personal operativo del CIDEE.',
-  },
-  {
-    href: '/estadisticas-capacitacion',
-    label: 'Estadísticas CIDEE',
-    icon: PieChart,
-    description: 'Análisis de resultados de las encuestas de satisfacción.',
   },
   {
     href: '/encuesta-satisfaccion',
