@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ShieldAlert, FileWarning, Camera, Trash2, CheckCircle2, FileText, Printer, X, ImageIcon, FileUp, Cpu, Check, Plus, Download, MapPin } from 'lucide-react';
-import { useUser, useFirebase, useMemoFirebase, useCollectionOnce, useStorage } from '@/firebase';
+import { useUser, useFirebase, useMemoFirebase, useCollectionOnce, useDocOnce, useStorage } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
@@ -105,7 +105,7 @@ function DenunciaContent() {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'movimientos-maquinas');
     const profile = user.profile;
-    const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    const isAdminGlobal = user?.isAdmin || profile.role === 'director' || profile.permissions?.includes('admin_filter');
 
     if (isAdminGlobal) {
         if (!selectedDepartment || !selectedDistrict) return null;
@@ -135,7 +135,7 @@ function DenunciaContent() {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'denuncias-lacres');
     const profile = user.profile;
-    const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    const isAdminGlobal = !!user?.isAdmin || profile.permissions?.includes('admin_filter');
 
     if (isAdminGlobal) {
         if (!selectedDepartment || !selectedDistrict) return null;
@@ -163,7 +163,7 @@ function DenunciaContent() {
     if (!firestore || isUserLoading || !user?.profile) return null;
     const colRef = collection(firestore, 'solicitudes-capacitacion');
     const profile = user.profile;
-    const isAdminGlobal = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
+    const isAdminGlobal = !!user?.isAdmin || profile.permissions?.includes('admin_filter');
     
     if (isAdminGlobal) {
         if (!selectedDepartment || !selectedDistrict) return null;
@@ -184,6 +184,8 @@ function DenunciaContent() {
     if (!distOriginal) return null;
     return query(colRef, where('departamento', '==', deptoOriginal), where('distrito', '==', distOriginal));
   }, [firestore, user, isUserLoading, selectedDepartment, selectedDistrict]);
+  
+  const { data: rawAgendaItems } = useCollectionOnce<SolicitudCapacitacion>(agendaQuery);
 
   // JURISDICTIONAL DATA FETCHING
   const datosRef = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
@@ -566,7 +568,7 @@ function DenunciaContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">DEPARTAMENTO</Label>
-                        {(user?.profile?.role === 'admin' || user?.profile?.role === 'director' || user?.profile?.permissions?.includes('admin_filter')) ? (
+                        {(user?.isAdmin || user?.profile?.permissions?.includes('admin_filter')) ? (
                             <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); setSelectedAgendaId(null); }} value={selectedDepartment || undefined}>
                                 <SelectTrigger className="h-12 border-2 font-black uppercase bg-white">
                                     <SelectValue placeholder="SELECCIONAR DPTO..." />

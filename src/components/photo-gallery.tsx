@@ -74,7 +74,7 @@ export default function PhotoGallery() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const canGeneratePdf = user?.profile?.role === 'admin' || user?.profile?.permissions?.includes('generar_pdf');
+  const canGeneratePdf = user?.isAdmin || user?.profile?.permissions?.includes('generar_pdf');
 
    useEffect(() => {
     const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
@@ -107,7 +107,7 @@ export default function PhotoGallery() {
   useEffect(() => {
     if (isUserLoading || !datosData) return;
 
-    if (user?.profile?.role === 'funcionario' && user.profile.departamento && user.profile.distrito) {
+    if (!user?.isAdmin && user?.profile?.role === 'funcionario' && user.profile.departamento && user.profile.distrito) {
       const { departamento, distrito } = user.profile;
       const dato = datosData.find(d => d.departamento === departamento && d.distrito === distrito);
       
@@ -481,7 +481,7 @@ export default function PhotoGallery() {
                 <AccordionTrigger className="text-lg font-medium hover:no-underline data-[state=open]:text-primary flex-1">
                     <div className="flex items-center gap-4">
                       <span>{department.departamento_codigo ? `${department.departamento_codigo} - ${department.name}` : department.name}</span>
-                      {completionPercentage !== null && user?.profile?.role === 'admin' && (
+                      {completionPercentage !== null && user?.isAdmin && (
                         <Badge variant={completionPercentage === 100 ? 'default' : 'secondary'} className="text-sm">
                           {completionPercentage}%
                         </Badge>

@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { type Dato } from '@/lib/data';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useFirebase, useMemoFirebase, useUser, useCollectionOnce, useDocOnce } from '@/firebase';
-import { collection, doc, setDoc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit } from 'firebase/firestore';
+import { collection, doc, setDoc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit, where } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -26,7 +26,9 @@ import {
   Shield,
   FileCheck,
   Layout,
-  Bookmark
+  Bookmark,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -165,12 +167,7 @@ export default function SettingsPage() {
     }
   };
 
-  const isAdminView = useMemo(() => 
-    currentUser?.profile?.role === 'admin' || 
-    currentUser?.profile?.role === 'director' || 
-    currentUser?.profile?.permissions?.includes('admin_filter'),
-    [currentUser]
-  );
+  const isAdminView = !!currentUser?.isAdmin || !!currentUser?.profile?.permissions?.includes('admin_filter');
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: rawDatosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);

@@ -27,7 +27,7 @@ export default function ReportesPDFPage() {
     const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'capacitaciones') : null, [firestore]);
     const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
-    const isAdmin = user?.profile?.role === 'admin' || user?.isOwner;
+    const isAdmin = user?.isAdmin || user?.isOwner;
 
     const handleSync = async () => {
         if (!firestore || !isAdmin) return;

@@ -23,7 +23,7 @@ export default function CargarFichaPage() {
         const deptParam = encodeURIComponent(assignedDept);
         const distParam = encodeURIComponent(assignedDist);
         router.replace(`/ficha?dept=${deptParam}&dist=${distParam}`);
-      } else if (user.profile?.role === 'admin') {
+      } else if (user.isAdmin) {
          setMessage('Como administrador, tienes acceso a todos los distritos. Por favor, usa el buscador en "Vista de Ficha".');
       } else {
         setMessage('No tienes un departamento y distrito asignado. Por favor, contacta a un administrador.');

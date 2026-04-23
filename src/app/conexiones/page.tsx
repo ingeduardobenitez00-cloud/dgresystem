@@ -231,7 +231,7 @@ export default function ConexionesPage() {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
   }
 
-  const isAdmin = currentUser?.profile?.role === 'admin' || currentUser?.profile?.role === 'director';
+  const isAdmin = currentUser?.isAdmin || currentUser?.profile?.role === 'director';
 
   if (!isAdmin) {
     return (

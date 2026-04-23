@@ -107,7 +107,7 @@ export default function ResumenPage() {
   const [logo1Base64, setLogo1Base64] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
-  const canGeneratePdf = currentUser?.profile?.role === 'admin' || currentUser?.profile?.permissions?.includes('generar_pdf');
+  const canGeneratePdf = currentUser?.isAdmin || currentUser?.profile?.permissions?.includes('generar_pdf');
 
   useEffect(() => {
     const fetchLogo = async (path: string, setter: (data: string | null) => void) => {
@@ -214,7 +214,7 @@ const handleGeneratePdf = async () => {
                     Los datos del resumen aún no han sido generados. 
                     Por favor, solicita al administrador que realice una <b>Sincronización de Datos</b> desde el panel de Reportes.
                  </p>
-                 {currentUser?.profile?.role === 'admin' && (
+                  {currentUser?.isAdmin && (
                      <Button onClick={() => router.push('/reportes-pdf')} className="mt-4">
                          Ir a Sincronizar
                      </Button>

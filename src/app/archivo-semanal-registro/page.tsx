@@ -42,7 +42,7 @@ export default function ArchivoSemanalesRegistroPage() {
   const [isExporting, setIsExporting] = useState<string | null>(null);
 
   const profile = user?.profile;
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = !!user?.isAdmin;
 
   // Cargar lista de semanas archivadas
   const archivosQuery = useMemoFirebase(() => {

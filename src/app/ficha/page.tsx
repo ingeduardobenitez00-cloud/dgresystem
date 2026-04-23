@@ -85,7 +85,7 @@ function FichaContent() {
   const [isUploadOpen, setUploadOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   
-  const isAdmin = currentUser?.profile?.role === 'admin';
+  const isAdmin = currentUser?.isAdmin;
   const isFuncionario = currentUser?.profile?.role === 'funcionario';
   
   // New Granular Permissions

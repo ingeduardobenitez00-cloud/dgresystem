@@ -31,7 +31,7 @@ export default function AuditoriaPage() {
   const [search, setSearch] = useState('');
 
   const isAdmin = useMemo(() => 
-    currentUser?.profile?.role === 'admin' || currentUser?.profile?.role === 'director',
+    currentUser?.isAdmin || currentUser?.profile?.role === 'director',
     [currentUser]
   );
 

@@ -27,7 +27,7 @@ export default function InformeGeneralPage() {
   const [logo1, setLogo1] = useState<string | null>(null);
   const [logo2, setLogo2] = useState<string | null>(null);
   
-  const canGenerate = currentUser?.profile?.role === 'admin' || currentUser?.profile?.permissions?.includes('generar_pdf');
+  const canGenerate = currentUser?.isAdmin || currentUser?.profile?.permissions?.includes('generar_pdf');
 
   useEffect(() => {
     const fetchLogos = async () => {

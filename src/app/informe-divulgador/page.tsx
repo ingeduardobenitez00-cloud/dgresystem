@@ -87,7 +87,7 @@ function InformeContent() {
     
     const role = userProfile.role;
     const permissions = userProfile.permissions || [];
-    const isAdminGlobal = role === 'admin' || role === 'director' || permissions.includes('admin_filter');
+    const isAdminGlobal = user?.isAdmin || role === 'director' || permissions.includes('admin_filter');
 
     // MODO INTELIGENTE: Si es Admin, obligamos a elegir distrito antes de traer data
     if (isAdminGlobal) {
@@ -170,7 +170,7 @@ function InformeContent() {
     if (baseList.length === 0 || !userProfile || !user) return [];
     
     const submittedReportKeys = new Set(submittedInformes?.map(inf => `${inf.solicitud_id}_${inf.divulgador_id}`) || []);
-    const isManager = ['admin', 'director', 'jefe'].includes(userProfile.role || '') || userProfile.permissions?.includes('admin_filter');
+    const isManager = !!user?.isAdmin || ['director', 'jefe'].includes(userProfile.role || '') || userProfile.permissions?.includes('admin_filter');
 
     return baseList.flatMap(act => {
       if (act.cancelada) return [];
@@ -412,7 +412,7 @@ function InformeContent() {
                 </CardHeader>
                 <CardContent className="p-2 space-y-2">
                     {/* Filtros de Carga Inteligente (Visibles para Admins o si no hay distrito) */}
-                    {(userProfile?.role === 'admin' || userProfile?.role === 'director' || userProfile?.permissions?.includes('admin_filter')) && (
+                    {user?.isAdmin && (
                         <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-top-1 duration-300">
                             <div className="space-y-1">
                                 <Label className="text-[6px] font-black uppercase text-muted-foreground ml-1">DEPARTAMENTO</Label>

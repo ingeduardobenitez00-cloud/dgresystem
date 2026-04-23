@@ -142,7 +142,7 @@ function DistrictArchiveSection({
                 </div>
             </AccordionTrigger>
             <AccordionContent className="pt-6 px-2 pb-6 space-y-4">
-                {items.slice(0, visibleCount).map(mov => (
+                {items.slice(0, visibleCount).map((mov: any) => (
                     <MovementRow key={mov.id} mov={mov} denuncias={denuncias} />
                 ))}
                 
@@ -232,7 +232,7 @@ export default function InformeMovimientosDenunciasPage() {
   const profile = user?.profile;
   const role = profile?.role;
   const permissions = profile?.permissions || [];
-  const isAdminGlobal = role === 'admin' || role === 'director' || permissions.includes('admin_filter');
+  const isAdminGlobal = !!user?.isAdmin || permissions.includes('admin_filter');
 
   // Cargar datos de departamentos/distritos para los filtros
   const datosRef = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);

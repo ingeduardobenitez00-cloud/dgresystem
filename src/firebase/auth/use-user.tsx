@@ -120,8 +120,8 @@ export const useUser = (): UserHookResult => {
     
     const role = profileData?.role;
     const isSuperAdmin = role === 'superadmin' || isOwner;
-    const isAdmin = role === 'admin' || isSuperAdmin;
-    const isStaff = isAdmin || role === 'director' || role === 'coordinador' || role === 'jefe';
+    const isAdmin = role === 'admin' || role === 'director' || isSuperAdmin;
+    const isStaff = isAdmin || role === 'coordinador' || role === 'jefe';
     const isCideeStaff = role === 'coordinador';
     const isJefeStaff = role === 'jefe';
 
@@ -164,10 +164,10 @@ export const useUser = (): UserHookResult => {
 
   const result = useMemo(() => ({
     user: enrichedUser,
-    isUserLoading: isAuthLoading,
+    isUserLoading: isAuthLoading || (!!authUser && isProfileLoading && !isOwner),
     isProfileLoading: isOwner ? false : isProfileLoading,
     userError: isOwner ? null : (authError || profileError),
-  }), [enrichedUser, isAuthLoading, isProfileLoading, isOwner, authError, profileError]);
+  }), [enrichedUser, isAuthLoading, isProfileLoading, isOwner, authError, profileError, authUser]);
 
   return result;
 }

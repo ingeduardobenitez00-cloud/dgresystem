@@ -65,7 +65,7 @@ export default function ConfiguracionSemanalPage() {
 
   if (isUserLoading || isLoadingConfig) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
-  const isAdmin = user?.profile?.role === 'admin';
+  const isAdmin = !!user?.isAdmin;
 
   if (!isAdmin) {
     return (

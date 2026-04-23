@@ -49,7 +49,7 @@ export default function ReporteSemanalRegistroPage() {
   const [isArchiving, setIsArchiving] = useState(false);
 
   const profile = user?.profile;
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = !!user?.isAdmin;
 
   // CARGAR CONFIGURACIÓN GLOBAL (FECHAS)
   const configRef = useMemoFirebase(() => firestore ? doc(firestore, 'config', 'reporte_semanal') : null, [firestore]);

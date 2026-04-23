@@ -355,7 +355,7 @@ export default function InformeSemanalRegistroPage() {
 
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Departamento</Label>
-                    {user?.profile?.role === 'admin' ? (
+                    {user?.isAdmin ? (
                         <Select value={formData.departamento} onValueChange={(v) => setFormData(p => ({...p, departamento: v, distrito: ''}))}>
                             <SelectTrigger className="h-12 border-2 rounded-xl font-bold"><SelectValue placeholder="Selecciona un departamento" /></SelectTrigger>
                             <SelectContent>{departments.map((d: string) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
@@ -365,7 +365,7 @@ export default function InformeSemanalRegistroPage() {
 
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Distrito</Label>
-                    {user?.profile?.role === 'admin' ? (
+                    {user?.isAdmin ? (
                         <Select value={formData.distrito} onValueChange={(v) => setFormData(p => ({...p, distrito: v}))} disabled={!formData.departamento}>
                             <SelectTrigger className="h-12 border-2 rounded-xl font-bold"><SelectValue placeholder="Selecciona un distrito" /></SelectTrigger>
                             <SelectContent>{districts.map((d: string) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>

@@ -222,7 +222,7 @@ export default function ListaAnexoIVPage() {
     const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
     const profile = user?.profile;
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'director' || !!profile?.permissions?.includes('admin_filter');
+    const isAdmin = !!user?.isAdmin || !!profile?.permissions?.includes('admin_filter');
     const isOwner = user?.isOwner || false;
 
     // Solo cargamos la estructura de departamentos/distritos (datos)
