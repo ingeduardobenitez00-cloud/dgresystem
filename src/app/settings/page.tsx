@@ -115,7 +115,7 @@ export default function SettingsPage() {
       setSelectedProfilePerms(new Set());
       setEditingProfileId(null);
       fetchProfiles();
-    } catch (err) { toast({ variant: 'destructive', title: 'Error al guardar perfil' }); }
+    } catch (err: any) { toast({ variant: 'destructive', title: 'Error al guardar perfil', description: err.message || 'No se pudo completar la acción.' }); }
     finally { setIsSavingProfile(false); }
   };
 

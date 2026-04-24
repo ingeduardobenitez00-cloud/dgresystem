@@ -76,7 +76,7 @@ type UserProfile = {
   distrito?: string;
   active?: boolean;
   presence?: any;
-  profileId?: string;
+  profileId?: string | null;
   registration_method?: string;
 };
 
@@ -529,7 +529,7 @@ function UsersContent() {
       departamento: regDepartamento || 'ALCANCE NACIONAL',
       distrito: regDistrito || 'TODOS LOS DISTRITOS',
       active: regRole === 'jefe',
-      profileId: selectedProfileId || undefined,
+      profileId: selectedProfileId || null,
       registration_method: 'creado_por_admin'
     };
 

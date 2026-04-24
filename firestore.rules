@@ -181,6 +181,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /permisos_perfiles/{perfilId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     /** Control de Sistema (Modo Mantenimiento) **/
     match /sysconfig/{document=**} {
       allow read: if isSignedIn();
