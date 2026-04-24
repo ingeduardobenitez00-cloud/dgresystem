@@ -102,12 +102,12 @@ export const useUser = (): UserHookResult => {
       return {
         ...authUser,
         profile: {
-          username: profileData?.username || 'SÚPER ADMINISTRADOR',
+          username: profileData?.username || authUser.displayName || 'SÚPER ADMINISTRADOR',
           role: 'superadmin' as const,
           active: true,
           departamento: profileData?.departamento || 'SEDE CENTRAL',
           distrito: profileData?.distrito || 'ASUNCIÓN',
-          photo_url: profileData?.photo_url || null,
+          photo_url: profileData?.photo_url || authUser.photoURL || null,
           modules: allModules,
           permissions: allPermissions
         },
@@ -147,7 +147,8 @@ export const useUser = (): UserHookResult => {
         ...profileData,
         modules: enrichedModules.length > 0 ? enrichedModules : profileData?.modules,
         permissions: enrichedPermissions.length > 0 ? enrichedPermissions : profileData?.permissions,
-        username: profileData?.username || (isStaff ? role?.toUpperCase() : 'USUARIO'),
+        username: profileData?.username || authUser.displayName || (isStaff ? role?.toUpperCase() : 'USUARIO'),
+        photo_url: profileData?.photo_url || authUser.photoURL || null,
         role: profileData?.role || (isStaff ? role : 'funcionario'),
         active: profileData?.active ?? true,
         departamento: profileData?.departamento || '',

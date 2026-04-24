@@ -45,15 +45,18 @@ export default function PerfilPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const hasLoaded = useRef(false);
 
   useEffect(() => {
-    if (user && !hasLoaded.current) {
-      setUsername(user.profile?.username || user.displayName || '');
-      setPhotoUrl(user.photoURL || user.profile?.photo_url || null);
-      hasLoaded.current = true;
+    if (user) {
+      // Priorizamos los datos persistidos en Firestore (user.profile) sobre los de Auth
+      const name = user.profile?.username || user.displayName || '';
+      const photo = user.profile?.photo_url || user.photoURL || null;
+      
+      // Solo inicializamos si el estado actual está vacío (primera carga)
+      if (!username && name) setUsername(name);
+      if (!photoUrl && photo) setPhotoUrl(photo);
     }
-  }, [user]);
+  }, [user, username, photoUrl]);
 
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
