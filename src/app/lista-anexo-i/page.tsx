@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useCollectionPaginated } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { type AnexoI, type SolicitudCapacitacion } from '@/lib/data';
 import { 
     Loader2, 
@@ -21,7 +21,9 @@ import {
     ChevronDown,
     X,
     Maximize2,
-    Activity
+    Activity,
+    Trash2,
+    ShieldAlert
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,18 @@ import {
   AccordionItem, 
   AccordionTrigger 
 } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 import { normalizeGeo } from '@/lib/utils';
 
 type Dato = {
@@ -56,6 +70,25 @@ const DistrictSection = ({
 }: any) => {
     const [isOpen, setIsOpen] = useState(initialOpen);
     const [visibleCount, setVisibleCount] = useState(5);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const { toast } = useToast();
+    const { firestore, user } = useFirebase();
+
+    const isAdmin = !!user?.isAdmin || user?.profile?.role === 'superadmin' || user?.profile?.role === 'admin' || user?.isOwner;
+
+    const handleDeleteAnexo = async (id: string) => {
+        if (!firestore) return;
+        setIsDeleting(true);
+        try {
+            await deleteDoc(doc(firestore, 'anexo-i', id));
+            toast({ title: 'Lote eliminado', description: 'El Anexo I ha sido borrado permanentemente.' });
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error al eliminar', description: 'No tienes permisos o ocurrió un error técnico.' });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const districtItems = useMemo(() => {
         const target = normalizeGeo(distName);
@@ -94,14 +127,51 @@ const DistrictSection = ({
                                         <span className="flex items-center gap-1 text-primary font-black"><FileText className="h-3 w-3" /> {anexo.filas?.length || 0} LUGARES</span>
                                     </div>
                                 </div>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-10 rounded-xl border-2 hover:bg-primary hover:text-white transition-all font-black uppercase text-[10px] gap-2 px-4"
-                                    onClick={() => setViewingAnexo(anexo)}
-                                >
-                                    <Eye className="h-4 w-4" /> VER DETALLE
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-10 rounded-xl border-2 hover:bg-primary hover:text-white transition-all font-black uppercase text-[10px] gap-2 px-4 shadow-sm"
+                                        onClick={() => setViewingAnexo(anexo)}
+                                    >
+                                        <Eye className="h-4 w-4" /> VER DETALLE
+                                    </Button>
+
+                                    {isAdmin && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    disabled={isDeleting}
+                                                    className="h-10 w-10 rounded-xl text-destructive/40 hover:text-destructive hover:bg-destructive/5 transition-all"
+                                                >
+                                                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl p-8">
+                                                <AlertDialogHeader className="space-y-4">
+                                                    <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
+                                                        <ShieldAlert className="h-8 w-8 text-destructive" />
+                                                    </div>
+                                                    <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR LOTE DEFINITIVAMENTE?</AlertDialogTitle>
+                                                    <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
+                                                        Esta acción borrará de forma permanente el lote <span className="text-primary font-black">#{anexo.id.substring(0,8)}</span> de la base de datos Firestore. Esta operación no se puede deshacer.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
+                                                    <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
+                                                    <AlertDialogAction 
+                                                        onClick={() => handleDeleteAnexo(anexo.id)} 
+                                                        className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl"
+                                                    >
+                                                        SÍ, ELIMINAR LOTE
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+                                </div>
                             </div>
                         </Card>
                     ))}

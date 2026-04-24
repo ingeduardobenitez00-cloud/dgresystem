@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useFirebase, useCollectionOnce, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, doc, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, doc, getDocs, orderBy, deleteDoc } from 'firebase/firestore';
 import { type AnexoIV } from '@/lib/data';
 import { 
     Loader2, 
@@ -24,7 +24,9 @@ import {
     ChevronRight,
     MapPin,
     AlertTriangle,
-    Plus
+    Plus,
+    Trash2,
+    ShieldAlert
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +38,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 
 // --- SUB-COMPONENTES PARA JERARQUÍA ---
 
@@ -43,11 +57,30 @@ interface DistrictAnexoIVSectionProps {
     districtName: string;
     items: AnexoIV[];
     onView: (anexo: AnexoIV) => void;
+    isAdmin: boolean;
 }
 
-function DistrictAnexoIVSection({ districtName, items, onView }: DistrictAnexoIVSectionProps) {
+function DistrictAnexoIVSection({ districtName, items, onView, isAdmin }: DistrictAnexoIVSectionProps) {
     const [visibleCount, setVisibleCount] = useState(10);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const { toast } = useToast();
+    const { firestore } = useFirebase();
+
     const visibleItems = items.slice(0, visibleCount);
+
+    const handleDelete = async (id: string) => {
+        if (!firestore) return;
+        setIsDeleting(true);
+        try {
+            await deleteDoc(doc(firestore, 'informes-semanales-anexo-iv', id));
+            toast({ title: 'Informe eliminado', description: 'El Anexo IV ha sido borrado permanentemente.' });
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error al eliminar', description: 'No tienes permisos o ocurrió un error técnico.' });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     return (
         <div className="space-y-4 mb-8 last:mb-0">
@@ -77,14 +110,51 @@ function DistrictAnexoIVSection({ districtName, items, onView }: DistrictAnexoIV
                                         <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="h-3 w-3" /> {totalP} CAPACITADOS</span>
                                     </div>
                                 </div>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-10 px-4 rounded-xl border-2 font-black uppercase text-[10px] gap-2 hover:bg-primary hover:text-white transition-all shadow-sm"
-                                    onClick={() => onView(anexo)}
-                                >
-                                    <Eye className="h-4 w-4" /> VER DETALLE
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-10 px-4 rounded-xl border-2 font-black uppercase text-[10px] gap-2 hover:bg-primary hover:text-white transition-all shadow-sm"
+                                        onClick={() => onView(anexo)}
+                                    >
+                                        <Eye className="h-4 w-4" /> VER DETALLE
+                                    </Button>
+
+                                    {isAdmin && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    disabled={isDeleting}
+                                                    className="h-10 w-10 rounded-xl text-destructive/40 hover:text-destructive hover:bg-destructive/5 transition-all"
+                                                >
+                                                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl p-8">
+                                                <AlertDialogHeader className="space-y-4">
+                                                    <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
+                                                        <ShieldAlert className="h-8 w-8 text-destructive" />
+                                                    </div>
+                                                    <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR INFORME DEFINITIVAMENTE?</AlertDialogTitle>
+                                                    <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
+                                                        Esta acción borrará de forma permanente el informe <span className="text-primary font-black">#{anexo.id.substring(0,8)}</span> de la base de datos. Esta operación no se puede deshacer.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
+                                                    <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2 text-primary">CANCELAR</AlertDialogCancel>
+                                                    <AlertDialogAction 
+                                                        onClick={() => handleDelete(anexo.id)} 
+                                                        className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl"
+                                                    >
+                                                        SÍ, ELIMINAR INFORME
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+                                </div>
                             </div>
                         </Card>
                     );
@@ -203,6 +273,7 @@ function DepartmentAnexoIVSection({
                                 districtName={dist.name}
                                 items={dist.items}
                                 onView={onView}
+                                isAdmin={isAdmin}
                             />
                         ))}
                     </div>
