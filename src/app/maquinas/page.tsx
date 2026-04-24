@@ -109,15 +109,7 @@ export default function MaquinasPage() {
                 execDept.replace(/^[\d\s-]*/, '').trim()
             ])).filter(Boolean);
 
-            if (execDist) {
-                q = query(colRef, 
-                    where('departamento', 'in', variations), 
-                    where('distrito', 'in', [execDist, normalizeGeo(execDist)]),
-                    orderBy('codigo', 'asc')
-                );
-            } else {
-                q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
-            }
+            q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
         } else if (maqSearch && maqSearch.length >= 3) {
             const term = maqSearch.toUpperCase().trim();
             q = query(colRef, where('codigo', '>=', term), where('codigo', '<=', term + '\uf8ff'), orderBy('codigo', 'asc'));
@@ -127,15 +119,7 @@ export default function MaquinasPage() {
     } else if (profile.departamento) {
         const depto = profile.departamento;
         const variations = Array.from(new Set([depto, normalizeGeo(depto)])).filter(Boolean);
-        if (execDist) {
-            q = query(colRef, 
-                where('departamento', 'in', variations), 
-                where('distrito', 'in', [execDist, normalizeGeo(execDist)]),
-                orderBy('codigo', 'asc')
-            );
-        } else {
-            q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
-        }
+        q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
     } else return null;
 
     return q;
@@ -157,10 +141,20 @@ export default function MaquinasPage() {
   }, [datosData]);
 
   const filteredMaquinas = useMemo(() => {
-    const list = maquinasData || [];
+    let list = maquinasData || [];
+    
+    // Filtro local de Distrito - para evitar limitación de Firestore (múltiples 'in')
+    if (execDist) {
+        const distNorm = normalizeGeo(execDist);
+        list = list.filter(m => 
+            m.distrito === execDist || 
+            normalizeGeo(m.distrito) === distNorm
+        );
+    }
+
     // Ordenar por código (cliente) para no requerir índices compuestos en Firestore
     return [...list].sort((a, b) => a.codigo.localeCompare(b.codigo));
-  }, [maquinasData]);
+  }, [maquinasData, execDist]);
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
