@@ -235,7 +235,7 @@ function UsersContent() {
     return query(collection(firestore, 'users'), orderBy('username'));
   }, [firestore, isAdminView]);
 
-  const { data: firestoreUsers, isLoading: isLoadingUsers } = useCollectionOnce<UserProfile>(usersQuery);
+  const { data: firestoreUsers, isLoading: isLoadingUsers, setData: setFirestoreUsers } = useCollectionOnce<UserProfile>(usersQuery);
   const hasMore = false;
   const loadMore = () => {};
   const isLoadingMore = false;
@@ -481,7 +481,9 @@ function UsersContent() {
     updateDoc(doc(firestore, 'users', user.id), { active: !currentStatus })
       .then(() => {
         toast({ title: currentStatus ? 'Acceso Revocado' : 'Acceso Restaurado' });
-        setTimeout(() => window.location.reload(), 1000);
+        if (setFirestoreUsers) {
+          setFirestoreUsers(prev => prev ? prev.map(u => u.id === user.id ? { ...u, active: !currentStatus } : u) : null);
+        }
       });
   };
 
@@ -499,8 +501,10 @@ function UsersContent() {
     batch.commit()
         .then(() => {
             toast({ title: 'Usuario eliminado del directorio' });
+            if (setFirestoreUsers) {
+              setFirestoreUsers(prev => prev ? prev.filter(u => u.id !== user.id) : null);
+            }
             setIsSubmitting(false);
-            setTimeout(() => window.location.reload(), 1000);
         })
         .catch(async (error) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'users/batch-delete', operation: 'delete' }));
@@ -551,12 +555,16 @@ function UsersContent() {
         fecha_creacion: new Date().toISOString()
       }).then(() => {
           toast({ title: 'Usuario registrado con éxito' });
+          
+          if (setFirestoreUsers) {
+            setFirestoreUsers(prev => prev ? [...prev, { ...newUser, id: newUid, active: true } as UserProfile].sort((a,b) => a.username.localeCompare(b.username)) : null);
+          }
+
           form.reset(); 
           setSelectedModules(new Set()); 
           setSelectedPerms(new Set());
           setSelectedProfileId(null);
           setIsSubmitting(false);
-          setTimeout(() => window.location.reload(), 1000);
       }).catch(async (error) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({ 
             path: userDocRef.path, 
@@ -603,9 +611,13 @@ function UsersContent() {
     }, { merge: true })
         .then(() => {
             toast({ title: "Perfil Sincronizado y Actualizado" });
+            
+            if (setFirestoreUsers) {
+              setFirestoreUsers(prev => prev ? prev.map(u => u.id === editingUser.id ? { ...u, ...updateData } : u) : null);
+            }
+
             setEditModalOpen(false);
             setIsSubmitting(false);
-            setTimeout(() => window.location.reload(), 1000);
         })
         .catch(async (error) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ 
@@ -655,7 +667,11 @@ function UsersContent() {
       
       await batch.commit();
       toast({ title: "Sincronización Exitosa", description: `Se han normalizado ${count} perfiles de Jefes.` });
-      setTimeout(() => window.location.reload(), 1000);
+      // Refrecamos localmente todos los que coincidan con el rol de jefe
+      if (setFirestoreUsers) {
+        setFirestoreUsers(prev => prev ? prev.map(u => u.role === 'jefe' ? { ...u, modules: jefeModules, permissions: jefePermissions, active: true } : u) : null);
+      }
+
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: "Error en reparación", description: "No se pudo completar la acción." });
@@ -674,7 +690,11 @@ function UsersContent() {
         });
         await batch.commit();
         toast({ title: "Radar Limpiado", description: "Se han eliminado los rastros de usuarios sin perfil." });
-        setTimeout(() => window.location.reload(), 1000);
+        // No requiere update local de users porque ghostUsers es derivado de presenceData
+        // Y useCollectionOnce de presenceData lo traerá de vuelta si usamos refetch o snapshot.
+        // Pero como es un radar de limpieza, el usuario puede esperar o podemos forzar un refetch de presenceData si existiera.
+        // Por ahora, al menos quitamos el reload.
+
     } catch (e) {
         toast({ variant: 'destructive', title: "Error al limpiar radar" });
     } finally {

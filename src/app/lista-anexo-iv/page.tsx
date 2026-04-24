@@ -58,9 +58,10 @@ interface DistrictAnexoIVSectionProps {
     items: AnexoIV[];
     onView: (anexo: AnexoIV) => void;
     isAdmin: boolean;
+    setRawAnexos?: (data: any) => void;
 }
 
-function DistrictAnexoIVSection({ districtName, items, onView, isAdmin }: DistrictAnexoIVSectionProps) {
+function DistrictAnexoIVSection({ districtName, items, onView, isAdmin, setRawAnexos }: DistrictAnexoIVSectionProps) {
     const [visibleCount, setVisibleCount] = useState(10);
     const [isDeleting, setIsDeleting] = useState(false);
     const { toast } = useToast();
@@ -74,7 +75,11 @@ function DistrictAnexoIVSection({ districtName, items, onView, isAdmin }: Distri
         try {
             await deleteDoc(doc(firestore, 'informes-semanales-anexo-iv', id));
             toast({ title: 'Informe eliminado', description: 'El Anexo IV ha sido borrado permanentemente.' });
-            setTimeout(() => window.location.reload(), 1000);
+            
+            // ACTUALIZACIÓN OPTIMISTA
+            if (setRawAnexos) {
+                setRawAnexos((prev: any[] | null) => prev ? prev.filter(item => item.id !== id) : null);
+            }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error al eliminar', description: 'No tienes permisos o ocurrió un error técnico.' });
         } finally {
@@ -190,6 +195,7 @@ interface DepartmentAnexoIVSectionProps {
 function DepartmentAnexoIVSection({ 
     deptName, 
     firestore, 
+    isAdmin,
     onView, 
     datosData, 
     profile 
@@ -205,7 +211,7 @@ function DepartmentAnexoIVSection({
         );
     }, [firestore, deptName, isExpanded]);
 
-    const { data: rawAnexos, isLoading } = useCollectionOnce<AnexoIV>(anexosQuery);
+    const { data: rawAnexos, isLoading, setData: setRawAnexos } = useCollectionOnce<AnexoIV>(anexosQuery);
 
     const anexos = useMemo(() => {
         if (!rawAnexos) return null;
@@ -274,6 +280,7 @@ function DepartmentAnexoIVSection({
                                 items={dist.items}
                                 onView={onView}
                                 isAdmin={isAdmin}
+                                setRawAnexos={setRawAnexos}
                             />
                         ))}
                     </div>

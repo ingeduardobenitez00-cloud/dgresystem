@@ -221,7 +221,9 @@ export default function DivulgadoresPage() {
     isLoading: isLoadingDivul, 
     hasMore, 
     loadMore, 
-    isLoadingMore 
+    isLoadingMore,
+    mutate,
+    updateItem
   } = useCollectionPaginated<Divulgador>(divulQuery, 100); // Aumentamos a 100 para mejor búsqueda local
 
   const displayList = useMemo(() => {
@@ -305,6 +307,7 @@ export default function DivulgadoresPage() {
       updateDoc(docRef, docData)
         .then(() => {
           toast({ title: "¡Actualizado!" });
+          updateItem(editingDivulgador.id, docData);
           setEditingDivulgador(null);
           setIsSubmitting(false);
           (e.target as HTMLFormElement).reset();
@@ -323,8 +326,9 @@ export default function DivulgadoresPage() {
         fecha_registro: new Date().toISOString() 
       };
       addDoc(collection(firestore, 'divulgadores'), newDocData)
-        .then(() => {
+        .then((docRef) => {
           toast({ title: "¡Registrado!" });
+          mutate([{ ...newDocData, id: docRef.id } as Divulgador, ...filteredDivul]);
           (e.target as HTMLFormElement).reset();
           setIsSubmitting(false);
         })
@@ -349,10 +353,12 @@ export default function DivulgadoresPage() {
   const handleDelete = useCallback((id: string) => {
     if (!firestore) return;
     const docRef = doc(firestore, 'divulgadores', id);
-    deleteDoc(docRef).catch(async () => {
+    deleteDoc(docRef).then(() => {
+        mutate(filteredDivul.filter(d => d.id !== id));
+    }).catch(async () => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
     });
-  }, [firestore]);
+  }, [firestore, filteredDivul, mutate]);
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -465,6 +471,7 @@ export default function DivulgadoresPage() {
       }
 
       toast({ title: "Importación Exitosa", description: `${importPreview.length} divulgadores cargados.` });
+      mutate([...importPreview.map((d, i) => ({ ...d, id: `temp-${Date.now()}-${i}`, fecha_registro: new Date().toISOString() })), ...filteredDivul]); 
       setIsImportModalOpen(false);
       setImportPreview([]);
       setImportFileName(null);

@@ -132,7 +132,9 @@ export default function MaquinasPage() {
     hasMore: hasMoreMaquinas,
     loadMore: loadMoreMaquinas,
     isLoadingMore: isLoadingMoreMaquinas,
-    refetch: refetchMaquinas
+    refetch: refetchMaquinas,
+    mutate,
+    updateItem
   } = useCollectionPaginated<MaquinaVotacion>(maquinasQuery, 100);
 
   const departments = useMemo(() => {
@@ -292,6 +294,7 @@ export default function MaquinasPage() {
         await delay(300);
       }
       toast({ title: 'Inventario Actualizado', description: `Se guardaron ${toSave.length} máquinas.` }); 
+      refetchMaquinas();
       setVerifiedMaq([]); 
       setPreviewMaq([]); 
       setFileNameMaq(null);
@@ -314,13 +317,15 @@ export default function MaquinasPage() {
       if (editingMaquinaId) {
         await updateDoc(doc(firestore, 'maquinas', editingMaquinaId), docData);
         toast({ title: 'Máquina actualizada' });
+        updateItem(editingMaquinaId, docData);
         setEditingMaquinaId(null);
       } else {
-        await addDoc(collection(firestore, 'maquinas'), {
+        const docRef = await addDoc(collection(firestore, 'maquinas'), {
           ...docData,
           fecha_registro: new Date().toISOString()
         });
         toast({ title: 'Máquina registrada' });
+        mutate([{ ...docData, id: docRef.id, fecha_registro: new Date().toISOString() } as MaquinaVotacion, ...maquinasData]);
       }
       setManualMaq({ codigo: '', departamento: '', distrito: '' });
     } catch (err) { toast({ variant: 'destructive', title: 'Error' }); }
@@ -340,7 +345,10 @@ export default function MaquinasPage() {
   const handleDeleteMaquina = (id: string) => {
     if (!firestore) return;
     const docRef = doc(firestore, 'maquinas', id);
-    deleteDoc(docRef).then(() => toast({ title: "Registro eliminado" }))
+    deleteDoc(docRef).then(() => {
+        toast({ title: "Registro eliminado" });
+        mutate(maquinasData.filter(m => m.id !== id));
+    })
       .catch(error => errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' })));
   };
 
@@ -371,7 +379,18 @@ export default function MaquinasPage() {
           }
         });
         
-        if (batchNeeded) await batch.commit();
+        if (batchNeeded) {
+          await batch.commit();
+          // Update local state for the normalized machines
+          chunk.forEach(maq => {
+            const normDep = normalizeGeo(maq.departamento);
+            const normDist = normalizeGeo(maq.distrito);
+            const official = datosData.find(d => normalizeGeo(d.departamento) === normDep && normalizeGeo(d.distrito) === normDist);
+            if (official) {
+              updateItem(maq.id, { departamento: official.departamento, distrito: official.distrito });
+            }
+          });
+        }
       }
       toast({ title: "Normalización completada", description: `Se actualizaron ${count} máquinas.` });
     } catch (err) { toast({ variant: 'destructive', title: "Error al normalizar" }); }

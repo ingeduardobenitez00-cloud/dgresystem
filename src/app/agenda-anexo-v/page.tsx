@@ -84,23 +84,28 @@ const GuideStep = ({ step, message, active, onClick, position = 'left' }: any) =
     if (!active) return null;
     
     const positionClasses: Record<string, string> = {
-        left: "right-full top-1/2 -translate-y-1/2 pr-2 flex-row",
-        right: "left-full top-1/2 -translate-y-1/2 pl-2 flex-row-reverse",
-        top: "bottom-full left-1/2 -translate-x-1/2 mb-2 flex-col-reverse",
-        bottom: "top-full left-1/2 -translate-x-1/2 mt-2 flex-col",
+        left: "right-full top-1/2 -translate-y-1/2 pr-1.5 flex-row",
+        right: "left-full top-1/2 -translate-y-1/2 pl-1.5 flex-row-reverse",
+        top: "bottom-full left-1/2 -translate-x-1/2 mb-1.5 flex-col-reverse",
+        bottom: "top-full left-1/2 -translate-x-1/2 mt-1.5 flex-col",
     };
 
     const triangleClasses: Record<string, string> = {
-        left: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-600 -ml-0.5",
-        right: "border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-blue-600 -mr-0.5",
-        top: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-blue-600 -mt-0.5",
-        bottom: "border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-blue-600 -mb-0.5",
+        left: "border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-blue-600 -ml-0.5",
+        right: "border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-r-[6px] border-r-blue-600 -mr-0.5",
+        top: "border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-blue-600 -mt-0.5",
+        bottom: "border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[6px] border-b-blue-600 -mb-0.5",
     };
+
+    const words = message.toUpperCase().split(' ');
 
     return (
         <div className={cn("absolute z-[100] animate-bounce pointer-events-auto flex items-center gap-0 cursor-pointer whitespace-nowrap", positionClasses[position])} onClick={(e) => { e.stopPropagation(); if(onClick) onClick(); }}>
-            <div className="bg-blue-600 text-white text-[8px] font-black px-3 py-2 rounded-xl shadow-2xl border-2 border-white flex items-center gap-2 max-w-[180px] leading-tight">
-                <div className="h-4 w-4 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[10px]">{step}</div>{message.toUpperCase()}
+            <div className="bg-blue-600 text-white text-[7px] font-black px-2 py-1.5 rounded-lg shadow-2xl border border-white flex items-center gap-1.5 max-w-[120px] leading-[1.1]">
+                <div className="h-3.5 w-3.5 shrink-0 rounded-full bg-white text-blue-600 flex items-center justify-center text-[9px]">{step}</div>
+                <div className="flex flex-col items-start">
+                    {words.map((w: string, i: number) => <span key={i}>{w}</span>)}
+                </div>
             </div>
             <div className={cn("w-0 h-0", triangleClasses[position])} />
         </div>
@@ -296,6 +301,10 @@ const DistrictSection = ({
             return !isClosed;
         });
     }, [rawSolicitudes, agendaSearch, currentTime, movimientosMap, informesMap]);
+    
+    const liveCount = useMemo(() => {
+        return activeSolicitudes.filter(sol => !sol.fecha_cumplido).length;
+    }, [activeSolicitudes]);
 
     const hasMoreItems = activeSolicitudes.length > visibleCount;
 
@@ -320,7 +329,7 @@ const DistrictSection = ({
                         {dist.label}
                     </h3>
                     <Badge variant="secondary" className="bg-black text-white text-[8px] font-black px-2">
-                        {activeSolicitudes.length}{hasMore ? '+' : ''}
+                        {liveCount}{hasMore ? '+' : ''}
                     </Badge>
                 </div>
             </AccordionTrigger>
@@ -396,6 +405,19 @@ const DistrictSection = ({
                     const showStep6 = !!(pendingAnexoIII);
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
 
+                    // Lógica correlativa: Solo mostrar el paso más bajo que esté activo
+                    const activeSteps = [
+                        { step: 1, show: showStep1 },
+                        { step: 2, show: showStep2 },
+                        { step: 3, show: showStep3 },
+                        { step: 4, show: showStep4 },
+                        { step: 5, show: showStep5 },
+                        { step: 6, show: showStep6 },
+                        { step: 7, show: showStep7 },
+                    ].filter(s => s.show);
+                    
+                    const minStep = activeSteps.length > 0 ? Math.min(...activeSteps.map(s => s.step)) : 999;
+
                     return (
                         <Card id={`activity-${item.id}`} key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative transition-all duration-700", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
                             <CardContent className="p-8">
@@ -448,7 +470,7 @@ const DistrictSection = ({
                                             <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
                                                 {pendingSalida && (
                                                     <div className="relative">
-                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={showStep4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
+                                                        <GuideStep step={4} message="Completa el formulario de SALIDA" active={minStep === 4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
                                                         <Link 
                                                             href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
                                                             className={cn(
@@ -465,7 +487,7 @@ const DistrictSection = ({
                                                 )}
                                                 {pendingRetorno && (
                                                     <div className="relative">
-                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={showStep5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
+                                                        <GuideStep step={5} message="Completa la DEVOLUCIÓN DE EQUIPOS" active={minStep === 5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
                                                         <Link 
                                                             href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
                                                             className={cn(
@@ -524,7 +546,7 @@ const DistrictSection = ({
 
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <div className="flex-1 relative">
-                                                <GuideStep step={1} message="Asigna personal para la actividad" active={showStep1} onClick={() => setAssigningSolicitud(item)} position="left" />
+                                                <GuideStep step={1} message="Asigna personal para la actividad" active={minStep === 1} onClick={() => setAssigningSolicitud(item)} position="left" />
                                                 <Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)} title="Gestionar Personal Asignado">
                                                     <UserPlus className="h-4 w-4 mr-2" /> ASIGNAR
                                                 </Button>
@@ -542,7 +564,7 @@ const DistrictSection = ({
                                         
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <div className="relative">
-                                                <GuideStep step={2} message="Habilitar el acceso al QR" active={showStep2} onClick={() => handleToggleQr(item)} position="left" />
+                                                <GuideStep step={2} message="Habilitar el acceso al QR" active={minStep === 2} onClick={() => handleToggleQr(item)} position="left" />
                                                 <Button 
                                                     variant="outline" 
                                                     size="icon" 
@@ -555,7 +577,7 @@ const DistrictSection = ({
                                             </div>
                                             {!item.fecha_cumplido && isFulfilled ? (
                                                 <div className="flex-1 relative">
-                                                    <GuideStep step={7} message="CONCLUIR ACTIVIDAD" active={showStep7} onClick={() => setConcludingSolicitud(item)} position="top" />
+                                                    <GuideStep step={7} message="CONCLUIR ACTIVIDAD" active={minStep === 7} onClick={() => setConcludingSolicitud(item)} position="top" />
                                                     <Button 
                                                         className="w-full h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 hover:bg-green-700 text-white shadow-lg animate-pulse"
                                                         onClick={() => setConcludingSolicitud(item)}
@@ -570,7 +592,7 @@ const DistrictSection = ({
                                         
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <div className="flex-1 relative">
-                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={showStep3} onClick={() => { if(qrActive) { setQrSolicitud(item); markQRAsViewed(item.id); } }} position="left" />
+                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={minStep === 3} onClick={() => { if(qrActive) { setQrSolicitud(item); markQRAsViewed(item.id); } }} position="left" />
                                                 <Button 
                                                     variant="outline" 
                                                     size="sm" 
@@ -586,7 +608,7 @@ const DistrictSection = ({
                                                 </Button>
                                             </div>
                                             <div className="flex-1 relative">
-                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={showStep6} onClick={() => { if (!inf) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" />
+                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={minStep === 6} onClick={() => { if (!inf) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" />
                                                 <Button 
                                                     className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
                                                     onClick={() => {

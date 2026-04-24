@@ -65,6 +65,7 @@ const DistrictSection = ({
     deptName,
     distName, 
     allDeptItems, 
+    setAllDeptItems,
     setViewingAnexo,
     initialOpen = false
 }: any) => {
@@ -82,7 +83,11 @@ const DistrictSection = ({
         try {
             await deleteDoc(doc(firestore, 'anexo-i', id));
             toast({ title: 'Lote eliminado', description: 'El Anexo I ha sido borrado permanentemente.' });
-            setTimeout(() => window.location.reload(), 1000);
+            
+            // ACTUALIZACIÓN OPTIMISTA (SIN REFRESH)
+            if (setAllDeptItems) {
+                setAllDeptItems((prev: any[] | null) => prev ? prev.filter(item => item.id !== id) : null);
+            }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error al eliminar', description: 'No tienes permisos o ocurrió un error técnico.' });
         } finally {
@@ -215,7 +220,7 @@ const DepartmentSection = ({
         );
     }, [firestore, isOpen, deptName]);
 
-    const { data: allDeptItems, isLoading: isDeptLoading } = useCollectionOnce<AnexoI>(deptQuery);
+    const { data: allDeptItems, isLoading: isDeptLoading, setData: setAllDeptItems } = useCollectionOnce<AnexoI>(deptQuery);
 
     const districts = useMemo(() => {
         if (!datosData) return [];
@@ -277,6 +282,7 @@ const DepartmentSection = ({
                                 deptName={deptName}
                                 distName={dist}
                                 allDeptItems={allDeptItems}
+                                setAllDeptItems={setAllDeptItems}
                                 setViewingAnexo={setViewingAnexo}
                                 initialOpen={districts.length === 1}
                             />
