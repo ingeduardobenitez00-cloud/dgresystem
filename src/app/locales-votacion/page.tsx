@@ -26,10 +26,25 @@ const fotoKeys: (keyof LocalVotacion)[] = [
 ];
 
 const getImageUrl = (src: any) => {
-    if (!src || typeof src !== 'string') return '';
+    if (!src || typeof src !== 'string' || src.trim() === '' || src.trim() === '0') return '';
     if (src.startsWith('data:image') || src.startsWith('http')) return src;
     const cleaned = src.replace(/\\/g, '/').replace(/^\/+/, '');
     return !cleaned ? '' : `/${cleaned}`;
+};
+
+const FallbackImage = ({ src, alt, ...props }: any) => {
+  const [error, setError] = useState(false);
+
+  if (error || !src) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-muted/50 text-muted-foreground absolute inset-0">
+        <ImageOff className="h-6 w-6 mb-1 opacity-20" />
+        <span className="text-[8px] font-black uppercase tracking-widest opacity-40">No Disponible</span>
+      </div>
+    );
+  }
+
+  return <Image src={src} alt={alt} onError={() => setError(true)} {...props} />;
 };
 
 export default function LocalesVotacionPage() {
@@ -41,12 +56,10 @@ export default function LocalesVotacionPage() {
   
   const [departments, setDepartments] = useState<string[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
-  const [zonas, setZonas] = useState<string[]>([]);
   const [localesNames, setLocalesNames] = useState<string[]>([]);
 
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [selectedLocalFilter, setSelectedLocalFilter] = useState<string | null>(null);
   const [shouldFetch, setShouldFetch] = useState(false);
 
@@ -59,11 +72,10 @@ export default function LocalesVotacionPage() {
     const conditions = [];
     if (selectedDepartment) conditions.push(where('departamento', '==', selectedDepartment));
     if (selectedDistrict) conditions.push(where('distrito', '==', selectedDistrict));
-    if (selectedZone) conditions.push(where('zona', '==', selectedZone));
     if (selectedLocalFilter) conditions.push(where('local', '==', selectedLocalFilter));
     if (conditions.length > 0) return query(collection(firestore, 'locales-votacion'), ...conditions);
     return null;
-  }, [firestore, user, shouldFetch, selectedDepartment, selectedDistrict, selectedZone, selectedLocalFilter]);
+  }, [firestore, user, shouldFetch, selectedDepartment, selectedDistrict, selectedLocalFilter]);
 
   const { data: searchResults, isLoading: isSearching } = useCollectionOnce<LocalVotacion>(searchLocalesQuery);
   
@@ -84,9 +96,30 @@ export default function LocalesVotacionPage() {
     } else {
       setDistricts([]);
     }
-    setZonas([]);
     setLocalesNames([]);
   }, [selectedDepartment, datosData]);
+
+  useEffect(() => {
+    if (selectedDistrict && selectedDepartment && firestore) {
+      const fetchLocales = async () => {
+        try {
+          const q = query(
+            collection(firestore, 'locales-votacion'), 
+            where('departamento', '==', selectedDepartment), 
+            where('distrito', '==', selectedDistrict)
+          );
+          const snap = await getDocs(q);
+          const uniqueLocales = [...new Set(snap.docs.map(doc => doc.data().local))].filter(Boolean).sort();
+          setLocalesNames(uniqueLocales);
+        } catch (e) {
+          console.error("Error fetching locales:", e);
+        }
+      };
+      fetchLocales();
+    } else {
+      setLocalesNames([]);
+    }
+  }, [selectedDistrict, selectedDepartment, firestore]);
 
   const handleFetchDeptGallery = async (deptName: string) => {
     if (!firestore || !user || galleryData[deptName] || loadingDepts.has(deptName)) return;
@@ -159,7 +192,7 @@ export default function LocalesVotacionPage() {
                   <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground">Filtros de Búsqueda</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase text-muted-foreground">Departamento</label>
                       <Select onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); setShouldFetch(false); }} value={selectedDepartment || ''}>
@@ -176,16 +209,6 @@ export default function LocalesVotacionPage() {
                         <SelectContent>
                           <SelectItem value="all">Todos los distritos</SelectItem>
                           {districts.map(dist => <SelectItem key={dist} value={dist}>{dist}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-muted-foreground">Zona</label>
-                      <Select onValueChange={(v) => { setSelectedZone(v === 'all' ? null : v); setShouldFetch(false); }} value={selectedZone || 'all'} disabled={!selectedDistrict}>
-                        <SelectTrigger className="h-10"><SelectValue placeholder="Todas" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas las zonas</SelectItem>
-                          {zonas.map(zona => <SelectItem key={zona} value={zona}>{zona}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -282,8 +305,8 @@ export default function LocalesVotacionPage() {
                                               <Card key={local.id} className="group/card overflow-hidden border-none shadow-md cursor-pointer" onClick={() => handleViewFicha(local)}>
                                                 <div className="relative aspect-[4/3] bg-muted flex items-center justify-center">
                                                   {mainImage ? (
-                                                    <Image src={mainImage} alt={local.local} fill className="object-cover" sizes="200px" />
-                                                  ) : <ImageOff className="h-6 w-6 text-muted-foreground" />}
+                                                    <FallbackImage src={mainImage} alt={local.local} fill className="object-cover" sizes="200px" />
+                                                  ) : <ImageOff className="h-6 w-6 text-muted-foreground opacity-30" />}
                                                 </div>
                                                 <div className="p-2 bg-white border-t">
                                                   <p className="text-[9px] font-black uppercase truncate text-primary">{local.local}</p>
@@ -318,9 +341,9 @@ export default function LocalesVotacionPage() {
                     </DialogDescription>
                 </DialogHeader>
               </div>
-              <ScrollArea className="flex-1 p-6">
+              <div className="flex-1 overflow-y-auto p-6">
                   <div className="space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         <div className="bg-muted/30 p-4 rounded-xl border">
                             <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Código Local</p>
                             <p className="text-sm font-black">{selectedLocal.codigo_local || 'S/N'}</p>
@@ -329,16 +352,46 @@ export default function LocalesVotacionPage() {
                             <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Dirección</p>
                             <p className="text-sm font-bold uppercase">{selectedLocal.direccion || 'No disponible'}</p>
                         </div>
+                        <div className="bg-muted/30 p-4 rounded-xl border flex flex-col justify-center">
+                            <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Ubicación GPS</p>
+                            {selectedLocal.gps ? (
+                              <a href={`https://www.google.com/maps/search/?api=1&query=${selectedLocal.gps}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-black text-blue-600 hover:text-blue-800 transition-colors uppercase mt-1">
+                                <MapPin className="h-4 w-4" /> Google Maps
+                              </a>
+                            ) : (
+                              <p className="text-xs font-bold text-muted-foreground uppercase mt-1">No registrado</p>
+                            )}
+                        </div>
                     </div>
+                    
+                    {selectedLocal.gps && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 border-b pb-2">
+                          <MapPin className="h-5 w-5 text-primary" />
+                          <h3 className="text-sm font-black uppercase tracking-tight text-primary">Ubicación del Local de Votación</h3>
+                        </div>
+                        <div className="w-full h-64 rounded-xl overflow-hidden border shadow-inner">
+                          <iframe 
+                            width="100%" 
+                            height="100%" 
+                            frameBorder="0" 
+                            scrolling="no" 
+                            marginHeight={0} 
+                            marginWidth={0} 
+                            src={`https://maps.google.com/maps?q=${selectedLocal.gps}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                          />
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {fotoKeys.filter(k => !!selectedLocal[k]).map(key => (
+                        {fotoKeys.filter(k => !!selectedLocal[k] && String(selectedLocal[k]).trim() !== '0').map(key => (
                             <div key={key} className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
-                                <Image src={getImageUrl(selectedLocal[key])} alt={String(key)} fill className="object-cover" sizes="300px" />
+                                <FallbackImage src={getImageUrl(selectedLocal[key])} alt={String(key)} fill className="object-cover" sizes="300px" />
                             </div>
                         ))}
                     </div>
                   </div>
-              </ScrollArea>
+              </div>
             </>
           )}
         </DialogContent>

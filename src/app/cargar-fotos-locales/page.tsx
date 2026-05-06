@@ -19,7 +19,7 @@ type FilePreview = {
   id: string;
   file: File;
   previewUrl: string;
-  status: 'pending' | 'processing' | 'matched' | 'unmatched' | 'error';
+  status: 'ready' | 'processing' | 'uploaded' | 'unmatched' | 'already_uploaded' | 'error';
 };
 
 const BATCH_SIZE = 150; // Reduced to avoid exceeding the 10MB payload limit. The operation limit is 500.
@@ -40,17 +40,32 @@ export default function CargarFotosLocalesPage() {
   const filenameMap = useMemo(() => {
     if (!localesData) return new Map();
 
-    const map = new Map<string, { docId: string; field: string }>();
+    const map = new Map<string, { docId: string; field: string; isUploaded: boolean }>();
     const fotoKeys: (keyof LocalVotacion)[] = ['foto_frente', 'foto2', 'foto3', 'foto4', 'foto5', 'foto6', 'foto7', 'foto8', 'foto9', 'foto10'];
     
     localesData.forEach(local => {
       fotoKeys.forEach(key => {
         const path = local[key] as string;
-        if (path && typeof path === 'string' && !path.startsWith('data:image')) {
-          const normalizedPath = path.replace(/\\/g, '/');
-          const filename = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+        if (path && typeof path === 'string' && !path.startsWith('data:image') && path.trim() !== '0') {
+          let filename = '';
+          let isUploaded = false;
+
+          if (path.startsWith('http')) {
+            try {
+              const url = new URL(path);
+              const pathParts = url.pathname.split('%2F');
+              filename = decodeURIComponent(pathParts[pathParts.length - 1]).split('?')[0];
+              isUploaded = true;
+            } catch (e) {
+               // fallback
+            }
+          } else {
+            const normalizedPath = path.replace(/\\/g, '/');
+            filename = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+          }
+
           if (filename) {
-            map.set(filename.trim().toLowerCase(), { docId: local.id, field: key });
+            map.set(filename.trim().toLowerCase(), { docId: local.id, field: key, isUploaded });
           }
         }
       });
@@ -62,12 +77,19 @@ export default function CargarFotosLocalesPage() {
     const selectedFiles = e.target.files;
     if (!selectedFiles) return;
 
-    const newFilePreviews: FilePreview[] = Array.from(selectedFiles).map(file => ({
-        id: `${file.name}-${file.lastModified}-${Math.random()}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-        status: 'pending',
-    }));
+    const newFilePreviews: FilePreview[] = Array.from(selectedFiles).map(file => {
+        const match = filenameMap.get(file.name.trim().toLowerCase());
+        let status: FilePreview['status'] = 'unmatched';
+        if (match) {
+            status = match.isUploaded ? 'already_uploaded' : 'ready';
+        }
+        return {
+            id: `${file.name}-${file.lastModified}-${Math.random()}`,
+            file,
+            previewUrl: URL.createObjectURL(file),
+            status,
+        };
+    });
 
     setFilesToUpload(prev => [...prev, ...newFilePreviews]);
     e.target.value = '';
@@ -85,16 +107,25 @@ export default function CargarFotosLocalesPage() {
       return;
     }
 
+    const filesToProcess = filesToUpload.filter(f => f.status === 'ready');
+    if (filesToProcess.length === 0) {
+      toast({
+        title: 'Nada que subir',
+        description: 'Todos los archivos seleccionados ya fueron subidos anteriormente o no tienen coincidencias.',
+      });
+      return;
+    }
+
     setIsProcessing(true);
     setProgress(0);
     setResults(null);
     let matchedCount = 0;
     let errorCount = 0;
 
-    const totalFiles = filesToUpload.length;
+    const totalFiles = filesToProcess.length;
 
     for (let i = 0; i < totalFiles; i += BATCH_SIZE) {
-        const chunk = filesToUpload.slice(i, i + BATCH_SIZE);
+        const chunk = filesToProcess.slice(i, i + BATCH_SIZE);
         const batch = writeBatch(firestore);
         let writesInBatch = 0;
 
@@ -117,14 +148,12 @@ export default function CargarFotosLocalesPage() {
                     
                     writesInBatch++;
                     matchedCount++;
-                    setFilesToUpload(prev => prev.map(f => f.id === filePreview.id ? { ...f, status: 'matched' } : f));
+                    setFilesToUpload(prev => prev.map(f => f.id === filePreview.id ? { ...f, status: 'uploaded' } : f));
                 } catch (error) {
                     console.error(`Error processing file ${filePreview.file.name}:`, error);
                     errorCount++;
                     setFilesToUpload(prev => prev.map(f => f.id === filePreview.id ? { ...f, status: 'error' } : f));
                 }
-            } else {
-                setFilesToUpload(prev => prev.map(f => f.id === filePreview.id ? { ...f, status: 'unmatched' } : f));
             }
         }
 
@@ -215,10 +244,12 @@ export default function CargarFotosLocalesPage() {
                             <div key={f.id} className="relative group">
                                 <Image src={f.previewUrl} alt={f.file.name} width={200} height={150} className="object-cover rounded-md aspect-video" />
                                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
-                                    {f.status === 'matched' && <CheckCircle2 className="h-8 w-8 text-green-400" />}
+                                    {f.status === 'uploaded' && <CheckCircle2 className="h-8 w-8 text-green-400" />}
+                                    {f.status === 'already_uploaded' && <div className="bg-blue-600/80 px-2 py-1 rounded text-[10px] font-black uppercase text-white">Ya Subida</div>}
                                     {f.status === 'unmatched' && <AlertTriangle className="h-8 w-8 text-yellow-400" />}
                                     {f.status === 'error' && <AlertTriangle className="h-8 w-8 text-red-500" />}
                                     {f.status === 'processing' && <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />}
+                                    {f.status === 'ready' && <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />}
                                 </div>
                                 <p className="text-xs mt-1 truncate" title={f.file.name}>{f.file.name}</p>
                             </div>
