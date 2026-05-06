@@ -384,9 +384,9 @@ const DistrictSection = ({
                      const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
                     const showStep1 = assignedList.length === 0;
-                    const showStep2 = !!(assignedList.length > 0 && !item.qr_enabled && !isPastEvent);
-                    const showStep3 = !!(assignedList.length > 0 && !!item.qr_enabled && !mov && !isQRViewed && !isPastEvent);
-                    const showStep4 = !!(assignedList.length > 0 && !mov && (!item.qr_enabled || isQRViewed) && !isPastEvent);
+                    const showStep2 = !!(assignedList.length > 0 && !item.qr_enabled);
+                    const showStep3 = !!(assignedList.length > 0 && !!item.qr_enabled && !mov && !isQRViewed);
+                    const showStep4 = !!(assignedList.length > 0 && !mov && (!item.qr_enabled || isQRViewed));
                     const showStep5 = !!(mov && !mov.fecha_devolucion);
                     const showStep6 = pendingInforme;
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
