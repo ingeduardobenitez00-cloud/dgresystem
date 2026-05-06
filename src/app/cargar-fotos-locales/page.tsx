@@ -53,8 +53,9 @@ export default function CargarFotosLocalesPage() {
           if (path.startsWith('http')) {
             try {
               const url = new URL(path);
-              const pathParts = url.pathname.split('%2F');
-              filename = decodeURIComponent(pathParts[pathParts.length - 1]).split('?')[0];
+              const decodedPath = decodeURIComponent(url.pathname);
+              const pathParts = decodedPath.split('/');
+              filename = pathParts[pathParts.length - 1].split('?')[0];
               isUploaded = true;
             } catch (e) {
                // fallback
@@ -242,16 +243,21 @@ export default function CargarFotosLocalesPage() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {filesToUpload.slice(0, PREVIEW_LIMIT).map(f => (
                             <div key={f.id} className="relative group">
-                                <Image src={f.previewUrl} alt={f.file.name} width={200} height={150} className="object-cover rounded-md aspect-video" />
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
-                                    {f.status === 'uploaded' && <CheckCircle2 className="h-8 w-8 text-green-400" />}
-                                    {f.status === 'already_uploaded' && <div className="bg-blue-600/80 px-2 py-1 rounded text-[10px] font-black uppercase text-white">Ya Subida</div>}
+                                <Image src={f.previewUrl} alt={f.file.name} width={200} height={150} className={`object-cover rounded-md aspect-video transition-all ${['already_uploaded', 'uploaded'].includes(f.status) ? 'grayscale opacity-40' : ''}`} />
+                                <div className={`absolute inset-0 flex items-center justify-center transition-opacity rounded-md ${['already_uploaded', 'uploaded'].includes(f.status) ? 'opacity-100' : 'bg-black/50 opacity-0 group-hover:opacity-100'}`}>
+                                    {f.status === 'uploaded' && (
+                                        <div className="flex flex-col items-center">
+                                            <CheckCircle2 className="h-8 w-8 text-green-500 mb-1 drop-shadow-md" />
+                                            <span className="bg-black/80 px-2 py-1 rounded text-[9px] font-black uppercase text-green-400 shadow-sm border border-green-500/30 backdrop-blur-md">Subida</span>
+                                        </div>
+                                    )}
+                                    {f.status === 'already_uploaded' && <div className="bg-black/70 px-2 py-1 rounded text-[10px] font-black uppercase text-white shadow-sm border border-white/20 backdrop-blur-md">Omitida</div>}
                                     {f.status === 'unmatched' && <AlertTriangle className="h-8 w-8 text-yellow-400" />}
                                     {f.status === 'error' && <AlertTriangle className="h-8 w-8 text-red-500" />}
                                     {f.status === 'processing' && <Loader2 className="h-8 w-8 text-blue-400 animate-spin" />}
-                                    {f.status === 'ready' && <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />}
+                                    {f.status === 'ready' && <div className="h-3 w-3 rounded-full bg-primary animate-pulse shadow-lg" />}
                                 </div>
-                                <p className="text-xs mt-1 truncate" title={f.file.name}>{f.file.name}</p>
+                                <p className={`text-[10px] font-black mt-1 truncate ${['already_uploaded', 'uploaded'].includes(f.status) ? 'text-muted-foreground/50' : ''}`} title={f.file.name}>{f.file.name}</p>
                             </div>
                         ))}
                     </div>
@@ -273,10 +279,18 @@ export default function CargarFotosLocalesPage() {
                     </div>
                 </div>
               )}
-              <Button onClick={handleSaveData} className="w-full mt-6" size="lg" disabled={isProcessing || isLoadingLocales}>
-                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                {isProcessing ? 'Procesando...' : `Guardar ${filesToUpload.length} Foto${filesToUpload.length !== 1 ? 's' : ''}`}
-              </Button>
+              <div className="flex gap-4 mt-6">
+                <Button onClick={() => setFilesToUpload([])} variant="outline" className="w-1/4 border-dashed" size="lg" disabled={isProcessing}>
+                  Vaciar Todo
+                </Button>
+                <Button onClick={() => setFilesToUpload(prev => prev.filter(f => f.status === 'ready'))} variant="secondary" className="w-1/4" size="lg" disabled={isProcessing || filesToUpload.filter(f => f.status !== 'ready').length === 0}>
+                  Quitar Omitidas
+                </Button>
+                <Button onClick={handleSaveData} className="w-2/4" size="lg" disabled={isProcessing || isLoadingLocales || filesToUpload.filter(f => f.status === 'ready').length === 0}>
+                  {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  {isProcessing ? 'Procesando...' : `Guardar ${filesToUpload.filter(f => f.status === 'ready').length} Foto${filesToUpload.filter(f => f.status === 'ready').length !== 1 ? 's' : ''} Nuevas`}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
