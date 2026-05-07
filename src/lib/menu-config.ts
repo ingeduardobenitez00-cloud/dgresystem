@@ -190,9 +190,15 @@ export const dashboardMenuItems = [
   },
   {
     href: '/reportes-pdf',
-    label: 'Reportes PDF y Estadísticas',
+    label: 'Reportes PDF e Inteligencia',
     icon: PieChart,
     description: 'Análisis detallado de capacitados y encuestas con exportación PDF.',
+  },
+  {
+    href: '/compendio-general',
+    label: 'Compendio Jurisdiccional',
+    icon: FileArchive,
+    description: 'Genera una ficha técnica con Anexo V, Informe de Divulgador y Evidencias.',
   },
   {
     href: '/estadisticas-solicitudes',

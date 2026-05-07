@@ -353,11 +353,11 @@ export default function SolicitudCapacitacionPage() {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad || '';
 
-    if (!formData.lugar_local || !formData.nombre_completo || !photoDataUri || !formData.departamento || !formData.distrito) {
+    if (!formData.lugar_local || !formData.nombre_completo || !photoDataUri || !formData.departamento || !formData.distrito || !formData.telefono) {
       toast({ 
         variant: "destructive", 
         title: "Faltan datos obligatorios",
-        description: !photoDataUri ? "Debe capturar o subir una foto del respaldo documental." : "Complete todos los campos del formulario (Incluyendo Departamento y Distrito)."
+        description: !photoDataUri ? "Debe capturar o subir una foto del respaldo documental." : "Complete todos los campos del formulario (Incluyendo Teléfono y Datos de Solicitante)."
       }); 
       return;
     }
@@ -667,7 +667,7 @@ export default function SolicitudCapacitacionPage() {
   }, [firestore, toast]);
 
   const canSave = useMemo(() => {
-    return !!(formData.lugar_local && formData.nombre_completo && photoDataUri && formData.fecha);
+    return !!(formData.lugar_local && formData.nombre_completo && photoDataUri && formData.fecha && formData.telefono);
   }, [formData, photoDataUri]);
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
@@ -820,7 +820,7 @@ export default function SolicitudCapacitacionPage() {
                     <div className="space-y-4">
                         {[
                             { id: 'divulgacion', label: 'DIVULGACIÓN (MV)' },
-                            { id: 'capacitacion', label: 'CAPACITACIÓN (MM)' }
+                            { id: 'capacitacion', label: 'CAPACITACIÓN (MIEMBROS DE MESA)' }
                         ].map(t => (
                             <div key={t.id} className={cn("flex items-center space-x-4 p-5 rounded-2xl border-2 cursor-pointer transition-all", formData.tipo_solicitud === t.id ? "bg-white border-black shadow-lg scale-[1.02]" : "bg-muted/10 border-transparent")} onClick={() => setFormData(p => ({...p, tipo_solicitud: t.id as any}))}>
                                 <div className={cn("h-6 w-6 rounded-lg border-2 flex items-center justify-center", formData.tipo_solicitud === t.id ? "bg-black text-white" : "border-muted-foreground/30")}>
@@ -871,17 +871,70 @@ export default function SolicitudCapacitacionPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Nombre y Apellido</Label>
-                        <Input value={formData.nombre_completo} readOnly={padronFound} className={cn("h-12 font-black uppercase border-2 rounded-xl", padronFound && "bg-green-50/50 border-green-200")} />
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Nombre y Apellido (Autocompletado por Cédula)</Label>
+                        <Input 
+                            value={formData.nombre_completo} 
+                            readOnly 
+                            placeholder="SE CARGARÁ AL BUSCAR LA CÉDULA..." 
+                            className={cn("h-12 font-black uppercase border-2 rounded-xl bg-muted/20 cursor-not-allowed", padronFound && "bg-green-50/50 border-green-200 cursor-not-allowed")} 
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-[9px] font-black uppercase text-muted-foreground">C.I.C. N°</Label>
                         <div className="flex gap-2">
-                            <Input value={formData.cedula} onChange={e => setFormData(p => ({...p, cedula: e.target.value.toUpperCase(), nombre_completo: ''}))} className="h-12 font-black border-2 uppercase rounded-xl" />
+                            <Input 
+                                value={formData.cedula} 
+                                onChange={e => setFormData(p => ({...p, cedula: e.target.value.toUpperCase(), nombre_completo: ''}))} 
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        searchCedulaInPadron(formData.cedula);
+                                    }
+                                }}
+                                className="h-12 font-black border-2 uppercase rounded-xl" 
+                            />
                             <Button variant="secondary" size="icon" className="h-12 w-12 shrink-0 rounded-xl" onClick={() => searchCedulaInPadron(formData.cedula)} disabled={isSearchingCedula}>
                                 {isSearchingCedula ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
                             </Button>
                         </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Rol del Solicitante</Label>
+                        <div className="flex gap-4">
+                            {[
+                                { id: 'apoderado', label: 'APODERADO' },
+                                { id: 'otro', label: 'OTRO' }
+                            ].map(r => (
+                                <div 
+                                    key={r.id} 
+                                    className={cn(
+                                        "flex-1 flex items-center gap-3 p-3.5 border-2 rounded-xl cursor-pointer transition-all",
+                                        formData.rol_solicitante === r.id ? "border-black bg-black text-white shadow-md scale-[1.02]" : "border-muted bg-white text-black hover:border-black/20"
+                                    )}
+                                    onClick={() => setFormData(p => ({ ...p, rol_solicitante: r.id as any }))}
+                                >
+                                    <div className={cn(
+                                        "h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                                        formData.rol_solicitante === r.id ? "border-white bg-white" : "border-muted-foreground/30"
+                                    )}>
+                                        {formData.rol_solicitante === r.id && <div className="h-2 w-2 rounded-full bg-black" />}
+                                    </div>
+                                    <span className="text-xs font-black uppercase tracking-tight">{r.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Teléfono / Celular de Contacto *</Label>
+                        <Input 
+                            placeholder="Ej: 0981123456" 
+                            value={formData.telefono} 
+                            onChange={e => setFormData(p => ({ ...p, telefono: e.target.value }))} 
+                            className="h-12 font-black border-2 rounded-xl" 
+                        />
                     </div>
                 </div>
               </div>

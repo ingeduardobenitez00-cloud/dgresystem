@@ -1421,7 +1421,14 @@ export default function AgendaAnexoVPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-1 p-4 bg-muted/20 rounded-2xl border">
                                 <p className="text-[8px] font-black text-muted-foreground uppercase flex items-center gap-1"><User className="h-2.5 w-2.5" /> Responsable Partido</p>
-                                <p className="text-xs font-black uppercase">{viewingActivity.nombre_completo}</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-xs font-black uppercase">{viewingActivity.nombre_completo}</p>
+                                    {viewingActivity.rol_solicitante && (
+                                        <Badge className="bg-primary/10 text-primary hover:bg-primary/20 font-black uppercase text-[8px] px-1.5 py-0">
+                                            {viewingActivity.rol_solicitante}
+                                        </Badge>
+                                    )}
+                                </div>
                             </div>
                             <div className="space-y-1 p-4 bg-muted/20 rounded-2xl border">
                                 <p className="text-[8px] font-black text-muted-foreground uppercase">Cédula Solicitante</p>

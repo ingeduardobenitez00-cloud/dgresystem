@@ -200,17 +200,17 @@ export default function MaquinasPage() {
 
           if (!officialEntry && datosData) {
             // Buscar mejor coincidencia por fuzzy match en el departamento
-            const deptoEntries = (datosData as Dato[]).filter((d: Dato) => normalizeGeo(d.departamento) === normDep);
-            let bestMatch: Dato | null = null;
+            const deptoEntries = datosData.filter(d => normalizeGeo(d.departamento) === normDep);
+            let bestMatch: (typeof deptoEntries)[number] | null = null;
             let bestScore = 0;
 
-            deptoEntries.forEach((d) => {
-              const score = getFuzzyMatch(normDist, (d as Dato).distrito);
+            for (const d of deptoEntries) {
+              const score = getFuzzyMatch(normDist, d.distrito);
               if (score > bestScore) {
                 bestScore = score;
                 bestMatch = d;
               }
-            });
+            }
 
             if (bestMatch && bestScore > 0.7) {
               officialEntry = bestMatch;

@@ -29,7 +29,7 @@ const MODULE_GROUPS = [
   {
     label: "Análisis y Reportes",
     description: "Consolidados nacionales y resúmenes técnicos por ubicación geográfica.",
-    modules: ['resumen', 'informe-general', 'reportes-pdf']
+    modules: ['resumen', 'informe-general', 'reportes-pdf', 'compendio-general']
   },
   {
     label: "Locales de Votación",
