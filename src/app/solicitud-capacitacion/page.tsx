@@ -1,4 +1,5 @@
 
+// Build Trigger: 2026-05-07 - Actualización de flujo de Anexo V
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
