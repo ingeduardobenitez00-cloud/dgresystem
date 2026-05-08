@@ -195,6 +195,7 @@ export default function SolicitudCapacitacionPage() {
   });
 
   const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
+  const [isOmisionActive, setIsOmisionActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPartyPopoverOpen, setIsPartyPopoverOpen] = useState(false);
   const [isMovementPopoverOpen, setIsMovementPopoverOpen] = useState(false);
@@ -236,6 +237,32 @@ export default function SolicitudCapacitacionPage() {
 
   const profile = user?.profile;
   const isAdminView = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+  const canOmitApplicant = !!user?.isAdmin || ['superadmin', 'admin', 'coordinador'].includes(profile?.role || '');
+
+  const handleToggleOmision = () => {
+    const nextVal = !isOmisionActive;
+    setIsOmisionActive(nextVal);
+    
+    if (nextVal) {
+      setFormData(prev => ({
+        ...prev,
+        nombre_completo: (profile?.username || user?.email || 'FUNCIONARIO').toUpperCase(),
+        cedula: 'INTERNO',
+        rol_solicitante: 'otro',
+        telefono: profile?.phone || 'S/D'
+      }));
+      setPadronFound(true);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        nombre_completo: '',
+        cedula: '',
+        rol_solicitante: 'apoderado',
+        telefono: ''
+      }));
+      setPadronFound(false);
+    }
+  };
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
@@ -354,11 +381,22 @@ export default function SolicitudCapacitacionPage() {
     if (!firestore || !user) return;
     const entidadFinal = formData.solicitante_entidad || formData.otra_entidad || '';
 
-    if (!formData.lugar_local || !formData.nombre_completo || !photoDataUri || !formData.departamento || !formData.distrito || !formData.telefono) {
+    const isPhotoRequired = !isOmisionActive;
+    const isApplicantRequired = !isOmisionActive;
+
+    if (
+      !formData.lugar_local || 
+      !formData.departamento || 
+      !formData.distrito || 
+      (isApplicantRequired && (!formData.nombre_completo || !formData.telefono)) || 
+      (isPhotoRequired && !photoDataUri)
+    ) {
       toast({ 
         variant: "destructive", 
         title: "Faltan datos obligatorios",
-        description: !photoDataUri ? "Debe capturar o subir una foto del respaldo documental." : "Complete todos los campos del formulario (Incluyendo Teléfono y Datos de Solicitante)."
+        description: !photoDataUri && isPhotoRequired 
+          ? "Debe capturar o subir una foto del respaldo documental." 
+          : "Complete todos los campos del formulario (Incluyendo Teléfono y Datos de Solicitante)."
       }); 
       return;
     }
@@ -374,17 +412,20 @@ export default function SolicitudCapacitacionPage() {
       try {
         const idBatch = Date.now();
         
-        // 1. Subir foto de respaldo a Storage
-        const photoUrl = await uploadFile(
-          `solicitudes/${formData.distrito}/${idBatch}.jpg`, 
-          photoDataUri!
-        );
+        // 1. Subir foto de respaldo a Storage si existe
+        let photoUrl = '';
+        if (photoDataUri) {
+          photoUrl = await uploadFile(
+            `solicitudes/${formData.distrito}/${idBatch}.jpg`, 
+            photoDataUri
+          );
+        }
 
         const docData = { 
           ...formData, 
           departamento: formData.departamento, 
           distrito: formData.distrito, 
-          foto_firma: photoUrl, // Ahora es una URL de Storage
+          foto_firma: photoUrl, // URL de Storage o vacía si omitida
           usuario_id: user.uid, 
           creado_por: profile?.username || user.email,
           fecha_creacion: new Date().toISOString(), 
@@ -403,7 +444,7 @@ export default function SolicitudCapacitacionPage() {
           accion: 'CREAR',
           modulo: 'solicitud-capacitacion',
           documento_id: docRef.id,
-          detalles: `Nueva solicitud para ${formData.lugar_local} (Storage)`
+          detalles: `Nueva solicitud para ${formData.lugar_local} (Storage)${isOmisionActive ? ' [OMISIÓN DE SOLICITANTE]' : ''}`
         });
 
         toast({ variant: "warning", title: "¡Solicitud Registrada!" });
@@ -419,6 +460,7 @@ export default function SolicitudCapacitacionPage() {
             telefono: '' 
         }));
         setPhotoDataUri(null);
+        setIsOmisionActive(false);
       } catch (error: any) {
         console.error("Error submitting solicitud:", error);
         const errorMsg = error.message || String(error);
@@ -668,8 +710,11 @@ export default function SolicitudCapacitacionPage() {
   }, [firestore, toast]);
 
   const canSave = useMemo(() => {
+    if (isOmisionActive) {
+      return !!(formData.lugar_local && formData.fecha);
+    }
     return !!(formData.lugar_local && formData.nombre_completo && photoDataUri && formData.fecha && formData.telefono);
-  }, [formData, photoDataUri]);
+  }, [formData, photoDataUri, isOmisionActive]);
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
@@ -740,6 +785,32 @@ export default function SolicitudCapacitacionPage() {
                     )}
                 </div>
               </div>
+
+              {canOmitApplicant && (
+                <div className="flex items-center justify-between bg-amber-500/10 border-2 border-dashed border-amber-500/20 p-5 rounded-2xl mb-6">
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black uppercase text-amber-800 flex items-center gap-2">
+                      <ShieldAlert className="h-4 w-4 text-amber-600 animate-pulse" /> OMISIÓN DE SOLICITANTE
+                    </h4>
+                    <p className="text-[10px] text-amber-700/80 uppercase font-bold leading-tight">
+                      Permite agendar actividades de inicio propio omitiendo los datos del solicitante externo.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={isOmisionActive ? "default" : "outline"}
+                    className={cn(
+                      "h-11 px-6 rounded-xl font-black text-xs uppercase tracking-wider border-2 transition-all",
+                      isOmisionActive 
+                        ? "bg-amber-600 text-white hover:bg-amber-700 border-amber-600 shadow-md font-black" 
+                        : "border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-400 bg-white"
+                    )}
+                    onClick={() => handleToggleOmision()}
+                  >
+                    {isOmisionActive ? "OMISIÓN ACTIVA" : "OMITIR"}
+                  </Button>
+                </div>
+              )}
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -865,80 +936,82 @@ export default function SolicitudCapacitacionPage() {
                 </div>
               </div>
 
-              <div className="space-y-8 pt-4">
-                <div className="flex items-center gap-4">
-                    <h3 className="font-black uppercase text-xs text-primary shrink-0">Solicitante Autorizado *</h3>
-                    <Separator className="flex-1" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2 space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Nombre y Apellido (Autocompletado por Cédula)</Label>
-                        <Input 
-                            value={formData.nombre_completo} 
-                            readOnly 
-                            placeholder="SE CARGARÁ AL BUSCAR LA CÉDULA..." 
-                            className={cn("h-12 font-black uppercase border-2 rounded-xl bg-muted/20 cursor-not-allowed", padronFound && "bg-green-50/50 border-green-200 cursor-not-allowed")} 
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-muted-foreground">C.I.C. N°</Label>
-                        <div className="flex gap-2">
-                            <Input 
-                                value={formData.cedula} 
-                                onChange={e => setFormData(p => ({...p, cedula: e.target.value.toUpperCase(), nombre_completo: ''}))} 
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        searchCedulaInPadron(formData.cedula);
-                                    }
-                                }}
-                                className="h-12 font-black border-2 uppercase rounded-xl" 
-                            />
-                            <Button variant="secondary" size="icon" className="h-12 w-12 shrink-0 rounded-xl" onClick={() => searchCedulaInPadron(formData.cedula)} disabled={isSearchingCedula}>
-                                {isSearchingCedula ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+              {!isOmisionActive && (
+                <div className="space-y-8 pt-4">
+                  <div className="flex items-center gap-4">
+                      <h3 className="font-black uppercase text-xs text-primary shrink-0">Solicitante Autorizado *</h3>
+                      <Separator className="flex-1" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="md:col-span-2 space-y-2">
+                          <Label className="text-[9px] font-black uppercase text-muted-foreground">Nombre y Apellido (Autocompletado por Cédula)</Label>
+                          <Input 
+                              value={formData.nombre_completo} 
+                              readOnly 
+                              placeholder="SE CARGARÁ AL BUSCAR LA CÉDULA..." 
+                              className={cn("h-12 font-black uppercase border-2 rounded-xl bg-muted/20 cursor-not-allowed", padronFound && "bg-green-50/50 border-green-200 cursor-not-allowed")} 
+                          />
+                      </div>
+                      <div className="space-y-2">
+                          <Label className="text-[9px] font-black uppercase text-muted-foreground">C.I.C. N°</Label>
+                          <div className="flex gap-2">
+                              <Input 
+                                  value={formData.cedula} 
+                                  onChange={e => setFormData(p => ({...p, cedula: e.target.value.toUpperCase(), nombre_completo: ''}))} 
+                                  onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          searchCedulaInPadron(formData.cedula);
+                                      }
+                                  }}
+                                  className="h-12 font-black border-2 uppercase rounded-xl" 
+                              />
+                              <Button variant="secondary" size="icon" className="h-12 w-12 shrink-0 rounded-xl" onClick={() => searchCedulaInPadron(formData.cedula)} disabled={isSearchingCedula}>
+                                  {isSearchingCedula ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
+                              </Button>
+                          </div>
+                      </div>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Rol del Solicitante</Label>
-                        <div className="flex gap-4">
-                            {[
-                                { id: 'apoderado', label: 'APODERADO' },
-                                { id: 'otro', label: 'OTRO' }
-                            ].map(r => (
-                                <div 
-                                    key={r.id} 
-                                    className={cn(
-                                        "flex-1 flex items-center gap-3 p-3.5 border-2 rounded-xl cursor-pointer transition-all",
-                                        formData.rol_solicitante === r.id ? "border-black bg-black text-white shadow-md scale-[1.02]" : "border-muted bg-white text-black hover:border-black/20"
-                                    )}
-                                    onClick={() => setFormData(p => ({ ...p, rol_solicitante: r.id as any }))}
-                                >
-                                    <div className={cn(
-                                        "h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0",
-                                        formData.rol_solicitante === r.id ? "border-white bg-white" : "border-muted-foreground/30"
-                                    )}>
-                                        {formData.rol_solicitante === r.id && <div className="h-2 w-2 rounded-full bg-black" />}
-                                    </div>
-                                    <span className="text-xs font-black uppercase tracking-tight">{r.label}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Teléfono / Celular de Contacto *</Label>
-                        <Input 
-                            placeholder="Ej: 0981123456" 
-                            value={formData.telefono} 
-                            onChange={e => setFormData(p => ({ ...p, telefono: e.target.value }))} 
-                            className="h-12 font-black border-2 rounded-xl" 
-                        />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                          <Label className="text-[9px] font-black uppercase text-muted-foreground">Rol del Solicitante</Label>
+                          <div className="flex gap-4">
+                              {[
+                                  { id: 'apoderado', label: 'APODERADO' },
+                                  { id: 'otro', label: 'OTRO' }
+                              ].map(r => (
+                                  <div 
+                                      key={r.id} 
+                                      className={cn(
+                                          "flex-1 flex-row flex items-center gap-3 p-3.5 border-2 rounded-xl cursor-pointer transition-all",
+                                          formData.rol_solicitante === r.id ? "border-black bg-black text-white shadow-md scale-[1.02]" : "border-muted bg-white text-black hover:border-black/20"
+                                      )}
+                                      onClick={() => setFormData(p => ({ ...p, rol_solicitante: r.id as any }))}
+                                  >
+                                      <div className={cn(
+                                          "h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                                          formData.rol_solicitante === r.id ? "border-white bg-white" : "border-muted-foreground/30"
+                                      )}>
+                                          {formData.rol_solicitante === r.id && <div className="h-2 w-2 rounded-full bg-black" />}
+                                      </div>
+                                      <span className="text-xs font-black uppercase tracking-tight">{r.label}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                      <div className="space-y-2">
+                          <Label className="text-[9px] font-black uppercase text-muted-foreground">Teléfono / Celular de Contacto *</Label>
+                          <Input 
+                              placeholder="Ej: 0981123456" 
+                              value={formData.telefono} 
+                              onChange={e => setFormData(p => ({ ...p, telefono: e.target.value }))} 
+                              className="h-12 font-black border-2 rounded-xl" 
+                          />
+                      </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
