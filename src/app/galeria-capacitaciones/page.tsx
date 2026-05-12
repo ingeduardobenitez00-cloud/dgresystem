@@ -7,7 +7,9 @@ import {
   orderBy, 
   deleteDoc, 
   doc, 
-  where 
+  where,
+  updateDoc,
+  arrayRemove 
 } from 'firebase/firestore';
 import { useFirebase, useMemoFirebase } from '@/firebase/provider';
 import { useUser } from '@/firebase/auth/use-user';
@@ -83,6 +85,7 @@ function DistrictGallerySection({
     isAdmin, 
     isOwner, 
     handleDeleteInforme, 
+    handleDeletePhoto,
     setSelectedPhoto 
 }: { 
     distName: string, 
@@ -90,6 +93,7 @@ function DistrictGallerySection({
     isAdmin?: boolean, 
     isOwner?: boolean,
     handleDeleteInforme: (id: string) => void,
+    handleDeletePhoto: (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => void,
     setSelectedPhoto: (url: string) => void
 }) {
     const [visibleCount, setVisibleCount] = useState(10);
@@ -181,41 +185,79 @@ function DistrictGallerySection({
                             </div>
                             <CardContent className="p-6 md:p-8">
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                            {inf.foto_respaldo_documental && (
-                                                <div 
-                                                    className="relative aspect-video rounded-xl overflow-hidden border-4 border-primary/20 shadow-md group/photo cursor-pointer transition-transform hover:scale-[1.05]"
-                                                    onClick={() => setSelectedPhoto(inf.foto_respaldo_documental!)}
-                                                >
-                                            <Image 
-                                                src={inf.foto_respaldo_documental || ''} 
-                                                alt="Respaldo Documental" 
-                                                fill 
-                                                className="object-cover" 
-                                                sizes="200px"
-                                            />
-                                            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
-                                                <FileText className="text-white h-6 w-6 mb-1" />
-                                                <span className="text-[8px] font-black text-white uppercase tracking-widest">VER RESPALDO</span>
+                                    {inf.foto_respaldo_documental && (
+                                        <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-primary/20 shadow-md group/photo transition-transform hover:scale-[1.05]">
+                                            <div 
+                                                className="absolute inset-0 cursor-pointer"
+                                                onClick={() => setSelectedPhoto(inf.foto_respaldo_documental!)}
+                                            >
+                                                <Image 
+                                                    src={inf.foto_respaldo_documental || ''} 
+                                                    alt="Respaldo Documental" 
+                                                    fill 
+                                                    className="object-cover" 
+                                                    sizes="200px"
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                                                    <FileText className="text-white h-6 w-6 mb-1" />
+                                                    <span className="text-[8px] font-black text-white uppercase tracking-widest">VER RESPALDO</span>
+                                                </div>
+                                                <div className="absolute top-2 left-2 bg-primary text-white text-[6px] font-black px-1.5 py-0.5 rounded-sm shadow-lg">DOCUMENTO FIRMADO</div>
                                             </div>
-                                            <div className="absolute top-2 left-2 bg-primary text-white text-[6px] font-black px-1.5 py-0.5 rounded-sm shadow-lg">DOCUMENTO FIRMADO</div>
+
+                                            {(isAdmin || isOwner) && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm("¿Estás seguro de que deseas eliminar este respaldo documental de forma permanente?")) {
+                                                            handleDeletePhoto(inf.id, inf.foto_respaldo_documental!, 'respaldo');
+                                                        }
+                                                    }}
+                                                    className="absolute top-2 right-2 h-7 w-7 rounded-lg bg-destructive hover:bg-destructive/90 text-white flex items-center justify-center shadow-md z-20 opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                                                    title="Eliminar Respaldo"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                     {reportPhotos.map((photo: string, pIdx: number) => (
                                         <div 
                                             key={pIdx} 
-                                            className="relative aspect-video rounded-xl overflow-hidden border-2 border-white shadow-md group/photo cursor-pointer transition-transform hover:scale-[1.05]"
-                                            onClick={() => setSelectedPhoto(photo)}
+                                            className="relative aspect-video rounded-xl overflow-hidden border-2 border-white shadow-md group/photo transition-transform hover:scale-[1.05]"
                                         >
-                                            <Image 
-                                                src={photo} 
-                                                alt={`Evidencia ${pIdx}`} 
-                                                fill 
-                                                className="object-cover" 
-                                                sizes="200px"
-                                            />
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
-                                                <Maximize2 className="text-white h-6 w-6" />
+                                            <div 
+                                                className="absolute inset-0 cursor-pointer"
+                                                onClick={() => setSelectedPhoto(photo)}
+                                            >
+                                                <Image 
+                                                    src={photo} 
+                                                    alt={`Evidencia ${pIdx}`} 
+                                                    fill 
+                                                    className="object-cover" 
+                                                    sizes="200px"
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                                                    <Maximize2 className="text-white h-6 w-6" />
+                                                </div>
                                             </div>
+
+                                            {(isAdmin || isOwner) && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm("¿Estás seguro de que deseas eliminar esta foto de evidencia de forma permanente?")) {
+                                                            handleDeletePhoto(inf.id, photo, 'evidencia');
+                                                        }
+                                                    }}
+                                                    className="absolute top-2 right-2 h-7 w-7 rounded-lg bg-destructive hover:bg-destructive/90 text-white flex items-center justify-center shadow-md z-20 opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                                                    title="Eliminar Evidencia"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -246,6 +288,7 @@ function DepartmentGallerySection({
     isAdmin, 
     isOwner, 
     handleDeleteInforme, 
+    handleDeletePhoto,
     setSelectedPhoto,
     datosData,
     profile,
@@ -256,6 +299,7 @@ function DepartmentGallerySection({
     isAdmin?: boolean, 
     isOwner?: boolean,
     handleDeleteInforme: (id: string) => void,
+    handleDeletePhoto: (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => void,
     setSelectedPhoto: (url: string) => void,
     datosData: any[],
     profile: any,
@@ -350,6 +394,7 @@ function DepartmentGallerySection({
                                 isAdmin={isAdmin}
                                 isOwner={isOwner}
                                 handleDeleteInforme={handleDeleteInforme}
+                                handleDeletePhoto={handleDeletePhoto}
                                 setSelectedPhoto={setSelectedPhoto}
                             />
                         ))}
@@ -369,6 +414,7 @@ export default function GaleriaCapacitacionesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
 
   const handleDeleteInforme = async (id: string) => {
     if (!firestore) return;
@@ -376,6 +422,9 @@ export default function GaleriaCapacitacionesPage() {
     try {
         await deleteDoc(doc(firestore, 'informes-divulgador', id));
         toast({ title: "Informe eliminado correctamente" });
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
     } catch (error: any) {
         toast({ 
             variant: "destructive", 
@@ -384,6 +433,37 @@ export default function GaleriaCapacitacionesPage() {
         });
     } finally {
         setIsDeleting(false);
+    }
+  };
+
+  const handleDeletePhoto = async (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => {
+    if (!firestore) return;
+    setIsDeletingPhoto(true);
+    try {
+      const docRef = doc(firestore, 'informes-divulgador', informeId);
+      
+      if (type === 'respaldo') {
+        await updateDoc(docRef, {
+          foto_respaldo_documental: null
+        });
+      } else {
+        await updateDoc(docRef, {
+          fotos: arrayRemove(photoUrl)
+        });
+      }
+      
+      toast({ title: "Evidencia eliminada correctamente" });
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error al eliminar la foto", 
+        description: error.message 
+      });
+    } finally {
+      setIsDeletingPhoto(false);
     }
   };
 
@@ -461,6 +541,7 @@ export default function GaleriaCapacitacionesPage() {
                         isAdmin={isAdmin}
                         isOwner={isOwner}
                         handleDeleteInforme={handleDeleteInforme}
+                        handleDeletePhoto={handleDeletePhoto}
                         setSelectedPhoto={setSelectedPhoto}
                         datosData={datosData || []}
                         profile={profile}

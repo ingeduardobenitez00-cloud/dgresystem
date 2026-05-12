@@ -31,6 +31,7 @@ export * from './firestore/use-collection-once';
 export * from './firestore/use-collection-paginated';
 export * from './firestore/use-doc';
 export * from './firestore/use-doc-once';
+export * from './firestore/use-module-categories';
 export * from './auth/use-user';
 export * from './storage/use-storage';
 export * from './non-blocking-updates';

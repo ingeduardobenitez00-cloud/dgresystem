@@ -14,8 +14,7 @@ service cloud.firestore {
     function isOwner() {
       // Bypass absoluto para el administrador maestro basado en correo electrónico verificado
       return isSignedIn() && (
-        request.auth.token.email == 'edubtz11@gmail.com' || 
-        request.auth.token.email == 'ing.eduardobenitez00@gmail.com'
+        request.auth.token.email == 'edubtz11@gmail.com'
       );
     }
 
@@ -33,17 +32,17 @@ service cloud.firestore {
 
     function isAdmin() {
       let data = getUserData();
-      return isOwner() || (isSignedIn() && data != null && data.role == 'admin');
+      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'superadmin'));
     }
 
     function isDirector() {
       let data = getUserData();
-      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director'));
+      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'superadmin' || data.role == 'director'));
     }
 
     function isStaff() {
       let data = getUserData();
-      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'director' || data.role == 'coordinador' || data.role == 'jefe'));
+      return isOwner() || (isSignedIn() && data != null && (data.role == 'admin' || data.role == 'superadmin' || data.role == 'director' || data.role == 'coordinador' || data.role == 'jefe'));
     }
 
     /** Gestión de Usuarios - Blindaje de Lista **/
@@ -53,7 +52,9 @@ service cloud.firestore {
       allow create: if (isSignedIn() && request.auth.uid == userId) || isAdmin(); // Permitir auto-registro o creación por admin
       allow update: if (request.auth.uid == userId) || isAdmin();
       // El propietario no puede ser borrado bajo ninguna circunstancia
-      allow delete: if isAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.email != 'edubtz11@gmail.com';
+      allow delete: if isAdmin() && 
+        (!exists(/databases/$(database)/documents/users/$(userId)) || 
+         get(/databases/$(database)/documents/users/$(userId)).data.get('email', '') != 'edubtz11@gmail.com');
     }
 
     /** Notificaciones de Sistema **/
@@ -182,6 +183,11 @@ service cloud.firestore {
     }
 
     match /permisos_perfiles/{perfilId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /modulo_clasificaciones/{catId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

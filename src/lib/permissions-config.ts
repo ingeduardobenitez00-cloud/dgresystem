@@ -61,6 +61,10 @@ export const MODULE_STRUCTURE = [
     ]
   },
   {
+    category: "DEPURACIONES",
+    items: []
+  },
+  {
     category: "SISTEMA",
     items: [
       { id: 'users', label: 'GESTIÓN USUARIOS' },

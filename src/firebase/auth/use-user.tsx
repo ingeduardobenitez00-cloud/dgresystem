@@ -24,14 +24,28 @@ export const CIDEE_MODULES = [
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
   'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'puntos-fijos', 'compendio-general'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'puntos-fijos', 'compendio-general', 'informe-cidee'
 ];
 
 export const JEFE_MODULES = [
   'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-divulgador', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'compendio-general'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'compendio-general', 'informe-cidee'
+];
+
+export const ALL_SYSTEM_MODULES = [
+  'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+  'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
+  'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
+  'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
+  'archivo-capacitaciones', 'divulgadores', 
+  'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
+  'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+  'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
+  'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
+  'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes', 'compendio-general', 'informe-cidee',
+  'archivo-anexo-i', 'archivo-anexo-v', 'archivo-semanal-registro'
 ];
 
 export type AppUser = User & {
@@ -86,7 +100,7 @@ export const useUser = (): UserHookResult => {
         'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
         'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
-        'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes', 'compendio-general'
+        'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes', 'compendio-general', 'informe-cidee'
       ];
 
       const allPermissions = [
@@ -125,19 +139,17 @@ export const useUser = (): UserHookResult => {
     const isCideeStaff = role === 'coordinador';
     const isJefeStaff = role === 'jefe';
 
+    const isAdminRole = role === 'admin' || role === 'director';
+    const hasConfiguredModules = profileData?.modules !== undefined;
+
     let enrichedModules = [...(profileData?.modules || [])];
     let enrichedPermissions = [...(profileData?.permissions || [])];
 
     // ASIGNACIÓN AUTOMÁTICA DE MÓDULOS Y PERMISOS POR ROL
-    if (isCideeStaff && enrichedModules.length === 0) {
-      enrichedModules = [...CIDEE_MODULES];
+    if (isSuperAdmin) {
+      enrichedModules = [...ALL_SYSTEM_MODULES];
       const autoPerms: string[] = [];
-      CIDEE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
-      enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
-    } else if (isJefeStaff && enrichedModules.length === 0) {
-      enrichedModules = [...JEFE_MODULES];
-      const autoPerms: string[] = [];
-      JEFE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
+      ALL_SYSTEM_MODULES.forEach(m => ['view', 'add', 'edit', 'delete', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
       enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
     }
 
@@ -145,8 +157,8 @@ export const useUser = (): UserHookResult => {
       ...authUser,
       profile: {
         ...profileData,
-        modules: enrichedModules.length > 0 ? enrichedModules : profileData?.modules,
-        permissions: enrichedPermissions.length > 0 ? enrichedPermissions : profileData?.permissions,
+        modules: enrichedModules,
+        permissions: enrichedPermissions,
         username: profileData?.username || authUser.displayName || (isStaff ? role?.toUpperCase() : 'USUARIO'),
         photo_url: profileData?.photo_url || authUser.photoURL || null,
         role: profileData?.role || (isStaff ? role : 'funcionario'),

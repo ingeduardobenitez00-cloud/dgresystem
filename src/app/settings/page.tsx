@@ -13,15 +13,16 @@ import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type Dato } from '@/lib/data';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useFirebase, useMemoFirebase, useUser, useCollectionOnce, useDocOnce } from '@/firebase';
+import { useFirebase, useMemoFirebase, useUser, useCollectionOnce, useDocOnce, useModuleCategories } from '@/firebase';
 import { collection, doc, setDoc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit, where } from 'firebase/firestore';
+import { dashboardMenuItems } from '@/lib/menu-config';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
-import { ACTION_LABELS, MODULE_STRUCTURE, GLOBAL_PERMS } from '@/lib/permissions-config';
+import { ACTION_LABELS, GLOBAL_PERMS } from '@/lib/permissions-config';
 import {
   Shield,
   FileCheck,
@@ -70,6 +71,132 @@ export default function SettingsPage() {
 
   const [isResetting, setIsResetting] = useState(false);
   const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
+
+  // --- GESTIÓN DE CLASIFICACIONES DINÁMICAS ---
+  const { categories, isLoading: isLoadingCats } = useModuleCategories();
+  const [isSavingCat, setIsSavingCat] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [catLabel, setCatLabel] = useState('');
+  const [catDescription, setCatDescription] = useState('');
+  const [catOrden, setCatOrden] = useState('1');
+
+  const slugify = (text: string) => {
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+  };
+
+  const handleSaveCategory = async () => {
+    if (!firestore || !catLabel) return;
+    setIsSavingCat(true);
+    try {
+      const data = {
+        label: catLabel.trim(),
+        description: catDescription.trim(),
+        orden: parseInt(catOrden, 10) || 1,
+        modules: editingCatId ? (categories.find(c => c.id === editingCatId)?.modules || []) : []
+      };
+
+      if (editingCatId) {
+        await updateDoc(doc(firestore, 'modulo_clasificaciones', editingCatId), data);
+        toast({ title: 'Clasificación actualizada' });
+      } else {
+        const docId = slugify(catLabel);
+        await setDoc(doc(firestore, 'modulo_clasificaciones', docId), data);
+        toast({ title: 'Clasificación creada' });
+      }
+
+      setCatLabel('');
+      setCatDescription('');
+      setCatOrden('1');
+      setEditingCatId(null);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error al guardar clasificación', description: err.message || 'No se pudo completar la acción.' });
+    } finally {
+      setIsSavingCat(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!firestore) return;
+    try {
+      await deleteDoc(doc(firestore, 'modulo_clasificaciones', id));
+      toast({ title: 'Clasificación eliminada' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al eliminar clasificación' });
+    }
+  };
+
+  const handleEditCategory = (cat: any) => {
+    setEditingCatId(cat.id);
+    setCatLabel(cat.label);
+    setCatDescription(cat.description || '');
+    setCatOrden(String(cat.orden || '1'));
+  };
+
+  const handleAddModuleToCategory = async (catId: string, moduleId: string) => {
+    if (!firestore) return;
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    try {
+      const updatedModules = [...new Set([...(cat.modules || []), moduleId])];
+      await updateDoc(doc(firestore, 'modulo_clasificaciones', catId), { modules: updatedModules });
+      toast({ title: 'Módulo asignado' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al asignar módulo' });
+    }
+  };
+
+  const handleRemoveModuleFromCategory = async (catId: string, moduleId: string) => {
+    if (!firestore) return;
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    try {
+      const updatedModules = (cat.modules || []).filter(m => m !== moduleId);
+      await updateDoc(doc(firestore, 'modulo_clasificaciones', catId), { modules: updatedModules });
+      toast({ title: 'Módulo desasignado' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al desasignar módulo' });
+    }
+  };
+
+  const allModules = useMemo(() => {
+    return dashboardMenuItems.map(m => ({
+      id: m.href.replace('/', ''),
+      label: m.label,
+      description: m.description
+    }));
+  }, []);
+
+  const assignedModuleIds = useMemo(() => {
+    return new Set(categories.flatMap(c => c.modules || []));
+  }, [categories]);
+
+  const unassignedModules = useMemo(() => {
+    return allModules.filter(m => !assignedModuleIds.has(m.id));
+  }, [allModules, assignedModuleIds]);
+
+  const moduleStructure = useMemo(() => {
+    return categories.map(cat => {
+      const items: any[] = [];
+      (cat.modules || []).forEach(moduleId => {
+        const modObj = allModules.find(m => m.id === moduleId);
+        if (modObj) {
+          items.push({
+            id: moduleId,
+            label: modObj.label
+          });
+        }
+      });
+      return {
+        category: cat.label.toUpperCase(),
+        items
+      };
+    }).filter(cat => cat.items.length > 0);
+  }, [categories, allModules]);
 
   // --- PERFILES DE ACCESO ---
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -337,12 +464,15 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="geografia" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px] bg-white border shadow-sm h-auto p-1">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 lg:w-[650px] bg-white border shadow-sm h-auto p-1">
             <TabsTrigger value="geografia" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Database className="h-3.5 w-3.5" /> Geografía
             </TabsTrigger>
             <TabsTrigger value="perfiles" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Shield className="h-3.5 w-3.5" /> Perfiles Acceso
+            </TabsTrigger>
+            <TabsTrigger value="clasificaciones" className="gap-2 font-black uppercase text-[10px] py-2">
+                <Layout className="h-3.5 w-3.5" /> Clasificaciones
             </TabsTrigger>
             <TabsTrigger value="produccion" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Rocket className="h-3.5 w-3.5" /> Producción
@@ -496,7 +626,7 @@ export default function SettingsPage() {
                       </div>
                       
                       <div className="grid grid-cols-1 gap-6">
-                        {MODULE_STRUCTURE.map((cat) => (
+                        {moduleStructure.map((cat) => (
                           <div key={cat.category} className="space-y-4">
                             <div className="flex items-center gap-4">
                               <div className="h-px flex-1 bg-muted"></div>
@@ -631,7 +761,7 @@ export default function SettingsPage() {
                                 <div className="flex flex-wrap gap-2">
                                     {(p.modules || []).map((m: string) => (
                                         <Badge key={m} variant="secondary" className="text-[8px] font-black uppercase bg-muted text-muted-foreground">
-                                            {MODULE_STRUCTURE.flatMap(cat => cat.items).find(i => i.id === m)?.label || m}
+                                            {allModules.find(i => i.id === m)?.label || m}
                                         </Badge>
                                     ))}
                                 </div>
@@ -712,6 +842,208 @@ export default function SettingsPage() {
                 </AlertDialog>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="clasificaciones" className="space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Formulario de Clasificación */}
+              <div className="lg:col-span-4 space-y-6">
+                <Card className={cn("shadow-lg border-t-4", editingCatId ? "border-t-primary" : "border-t-black")}>
+                  <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between py-4">
+                    <div>
+                      <CardTitle className="text-xs font-black uppercase">
+                        {editingCatId ? "Editar Clasificación" : "Nueva Clasificación"}
+                      </CardTitle>
+                      <CardDescription className="text-[9px] font-bold uppercase">
+                        Crea o edita categorías para agrupar módulos
+                      </CardDescription>
+                    </div>
+                    {editingCatId && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => { 
+                          setEditingCatId(null); 
+                          setCatLabel(''); 
+                          setCatDescription(''); 
+                          setCatOrden('1'); 
+                        }} 
+                        className="h-8 w-8 text-muted-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-black uppercase">Nombre de la Clasificación</Label>
+                      <Input 
+                        value={catLabel} 
+                        onChange={e => setCatLabel(e.target.value)} 
+                        placeholder="Ej: DEPURACIONES" 
+                        className="h-10 font-bold border-2 text-xs uppercase" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-black uppercase">Descripción</Label>
+                      <Input 
+                        value={catDescription} 
+                        onChange={e => setCatDescription(e.target.value)} 
+                        placeholder="Descripción opcional" 
+                        className="h-10 font-bold border-2 text-xs" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-black uppercase">Orden de Visualización</Label>
+                      <Input 
+                        type="number" 
+                        value={catOrden} 
+                        onChange={e => setCatOrden(e.target.value)} 
+                        placeholder="1" 
+                        className="h-10 font-bold border-2 text-xs text-center" 
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="bg-muted/10 border-t p-4">
+                    <Button 
+                      className="w-full font-black uppercase text-[10px] h-11" 
+                      onClick={handleSaveCategory} 
+                      disabled={isSavingCat || !catLabel}
+                    >
+                      {isSavingCat ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : editingCatId ? "ACTUALIZAR" : "CREAR CLASIFICACIÓN"}
+                    </Button>
+                  </CardFooter>
+                </Card>
+
+                {/* Módulos Sin Clasificar */}
+                <Card className="shadow-lg border-dashed">
+                  <CardHeader className="bg-muted/10 border-b py-4">
+                    <CardTitle className="text-xs font-black uppercase flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" /> Módulos Sin Clasificar
+                    </CardTitle>
+                    <CardDescription className="text-[9px] font-bold uppercase">
+                      Estos módulos no se agruparán en la barra lateral hasta que se asignen a una categoría.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    {unassignedModules.length === 0 ? (
+                      <div className="text-center py-6 text-[10px] font-bold text-green-600 uppercase">
+                        ✓ Todos los módulos están clasificados
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {unassignedModules.map(m => (
+                          <Badge key={m.id} variant="outline" className="text-[8px] font-black uppercase py-1 px-2.5 border-dashed border-amber-500/50 text-amber-600 bg-amber-50/30">
+                            {m.label}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Listado y Organización */}
+              <div className="lg:col-span-8">
+                <Card className="shadow-lg border-none overflow-hidden h-full bg-white">
+                  <CardHeader className="bg-muted/30 border-b py-4 px-8">
+                    <CardTitle className="text-xs font-black uppercase">Clasificaciones Activas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-8">
+                    {isLoadingCats ? (
+                      <div className="flex justify-center py-20"><Loader2 className="animate-spin h-10 w-10 opacity-20" /></div>
+                    ) : categories.length === 0 ? (
+                      <div className="text-center py-20 text-muted-foreground uppercase font-black text-xs">
+                        No hay clasificaciones creadas
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {categories.map((cat) => (
+                          <div key={cat.id} className="p-6 border rounded-2xl bg-muted/5 hover:bg-muted/10 transition-colors space-y-4">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-sm font-black uppercase tracking-wide text-primary">{cat.label}</h4>
+                                  <Badge className="text-[8px] font-black uppercase bg-black text-white">Orden: {cat.orden}</Badge>
+                                </div>
+                                {cat.description && (
+                                  <p className="text-[10px] text-muted-foreground font-bold uppercase">{cat.description}</p>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-lg hover:bg-black hover:text-white" 
+                                  onClick={() => handleEditCategory(cat)}
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive hover:text-white" 
+                                  onClick={() => handleDeleteCategory(cat.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 border-t pt-4">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-black uppercase text-muted-foreground">Módulos en esta Clasificación:</span>
+                                
+                                {unassignedModules.length > 0 && (
+                                  <select 
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        handleAddModuleToCategory(cat.id, e.target.value);
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                    className="h-8 px-2.5 rounded-lg border-2 bg-white text-[9px] font-black uppercase cursor-pointer hover:border-primary/50 transition-colors focus:outline-none"
+                                  >
+                                    <option value="">+ ASIGNAR MÓDULO...</option>
+                                    {unassignedModules.map(m => (
+                                      <option key={m.id} value={m.id}>{m.label}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+
+                              {(!cat.modules || cat.modules.length === 0) ? (
+                                <div className="text-[10px] font-bold text-muted-foreground uppercase py-2 bg-white rounded-lg border border-dashed text-center">
+                                  No hay módulos asignados a esta clasificación.
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-2">
+                                  {cat.modules.map(moduleId => {
+                                    const modObj = allModules.find(m => m.id === moduleId);
+                                    return (
+                                      <Badge 
+                                        key={moduleId} 
+                                        variant="secondary" 
+                                        className="text-[8px] font-black uppercase bg-white text-muted-foreground border py-1.5 pl-3 pr-2.5 gap-1.5 flex items-center hover:border-destructive hover:text-destructive group cursor-pointer transition-colors"
+                                        onClick={() => handleRemoveModuleFromCategory(cat.id, moduleId)}
+                                        title="Haga clic para desasignar"
+                                      >
+                                        {modObj?.label || moduleId}
+                                        <X className="h-3 w-3 text-muted-foreground group-hover:text-destructive transition-colors" />
+                                      </Badge>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </main>

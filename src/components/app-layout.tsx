@@ -144,6 +144,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return publicRoutes.some(route => pathname.startsWith(route));
   }, [pathname]);
 
+  const isPageAccessible = useMemo(() => {
+    if (!user || !pathname) return true;
+    if (pathname === '/' || pathname === '/perfil' || isPublicRoute) return true;
+
+    // Propietarios y súper administradores tienen acceso total
+    if (user.isOwner || user.profile?.role === 'superadmin') return true;
+
+    const firstSegment = pathname.split('/')[1];
+
+    const allKnownModules = [
+      'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+      'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
+      'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
+      'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
+      'archivo-capacitaciones', 'divulgadores', 
+      'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
+      'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+      'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
+      'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
+      'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes', 'compendio-general', 'informe-cidee',
+      'archivo-anexo-i', 'archivo-anexo-v', 'archivo-semanal-registro'
+    ];
+
+    if (allKnownModules.includes(firstSegment)) {
+      return user.profile?.modules?.includes(firstSegment) ?? false;
+    }
+
+    return true;
+  }, [user, pathname, isPublicRoute]);
+
   useEffect(() => {
     if (!mounted || isUserLoading) return;
 
@@ -321,7 +351,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </Button>
                   </div>
                 )}
-                {children}
+                {!isPageAccessible ? (
+                  <RestrictedPage pathname={pathname} onGoHome={() => router.push('/')} />
+                ) : (
+                  children
+                )}
               </div>
               <footer className="py-6 px-4 text-center border-t bg-muted/5">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-60">
@@ -374,5 +408,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </DialogContent>
       </Dialog>
     </SidebarProvider>
+  );
+}
+
+function RestrictedPage({ pathname, onGoHome }: { pathname: string; onGoHome: () => void }) {
+  const moduleSegment = pathname.split('/')[1] || '';
+  const formattedModuleName = moduleSegment.replace(/-/g, ' ').toUpperCase();
+
+  return (
+    <div className="flex h-[calc(100vh-200px)] w-full flex-col items-center justify-center p-6 bg-[#F8F9FA]">
+      <div className="max-w-md w-full text-center space-y-8 animate-in fade-in zoom-in duration-500">
+        <div className="h-24 w-24 rounded-full flex items-center justify-center mx-auto border-4 bg-red-50 border-red-200">
+          <Lock className="h-12 w-12 text-red-600" />
+        </div>
+        
+        <div className="space-y-4">
+          <h1 className="text-3xl font-black uppercase text-primary tracking-tighter leading-none">
+              Acceso Restringido
+          </h1>
+          <div className="p-8 bg-white border-2 rounded-[2rem] shadow-2xl space-y-6">
+            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest leading-relaxed">
+              No tiene permisos asignados en su perfil de Firestore para acceder al módulo:
+            </p>
+            <p className="text-sm font-black uppercase text-primary bg-primary/5 border border-primary/10 rounded-xl py-3 px-6">
+              "{formattedModuleName}"
+            </p>
+            
+            <Button 
+              className="w-full h-14 bg-black hover:bg-black/90 text-white font-black uppercase text-xs rounded-xl shadow-lg gap-2"
+              onClick={onGoHome}
+            >
+              Volver al Inicio
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

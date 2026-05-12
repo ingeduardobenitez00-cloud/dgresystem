@@ -201,6 +201,12 @@ export const dashboardMenuItems = [
     description: 'Genera una ficha técnica con Anexo V, Informe de Divulgador y Evidencias.',
   },
   {
+    href: '/informe-cidee',
+    label: 'Informe Técnico CIDEE',
+    icon: FileText,
+    description: 'Generación y descarga del informe técnico oficial del CIDEE en formato Word.',
+  },
+  {
     href: '/estadisticas-solicitudes',
     label: 'Estadísticas de Solicitudes',
     icon: BarChart3,

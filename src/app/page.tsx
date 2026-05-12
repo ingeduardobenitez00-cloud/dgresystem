@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/ca
 import { Loader2, ChevronRight, LayoutGrid } from 'lucide-react';
 import Header from '@/components/header';
 import { useUser, CIDEE_MODULES, JEFE_MODULES } from '@/firebase/auth/use-user';
+import { useModuleCategories } from '@/firebase';
 import { dashboardMenuItems } from '@/lib/menu-config';
 import { 
   Accordion, 
@@ -15,85 +16,44 @@ import {
   AccordionTrigger 
 } from '@/components/ui/accordion';
 
-const MODULE_GROUPS = [
-  {
-    label: "CIDEE - CAPACITACIONES",
-    description: "Gestión de solicitudes, agendas separadas, inventario de equipos, movimientos, denuncias de lacres e informes nacionales.",
-    modules: ['calendario-capacitaciones', 'anexo-i', 'puntos-fijos', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 'agenda-anexo-v', 'maquinas', 'divulgadores', 'control-movimiento-maquinas', 'denuncia-lacres', 'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'archivo-anexo-i', 'archivo-anexo-v', 'archivo-capacitaciones']
-  },
-  {
-    label: "Registros Electorales",
-    description: "Administración edilicia, visualización de fichas técnicas, galerías fotográficas e informes operativos semanales.",
-    modules: ['ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro', 'reporte-semanal-registro', 'archivo-semanal-registro']
-  },
-  {
-    label: "Análisis y Reportes",
-    description: "Consolidados nacionales y resúmenes técnicos por ubicación geográfica.",
-    modules: ['resumen', 'informe-general', 'reportes-pdf', 'compendio-general']
-  },
-  {
-    label: "Locales de Votación",
-    description: "Buscador georreferenciado de locales y carga masiva de fotografías de campo.",
-    modules: ['locales-votacion', 'cargar-fotos-locales']
-  },
-  {
-    label: "Gestión de Datos",
-    description: "Herramientas de importación masiva de reportes, locales y partidos políticos.",
-    modules: ['importar-reportes', 'importar-locales', 'importar-partidos']
-  },
-  {
-    label: "SISTEMA",
-    description: "Administración de usuarios, monitoreo de conexiones en tiempo real, auditoría técnica y configuración.",
-    modules: ['users', 'conexiones', 'settings', 'documentacion', 'auditoria']
-  },
-];
-
 export default function Home() {
   const { user, isUserLoading } = useUser();
+  const { categories } = useModuleCategories();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const isAdmin = useMemo(() => {
+  const isMasterAdmin = useMemo(() => {
     if (!user) return false;
-    return !!(user.isAdmin || user.isOwner);
+    return !!(user.isOwner || user.profile?.role === 'superadmin');
   }, [user]);
 
   const groupedModules = useMemo(() => {
     if (!user || !mounted) return [];
 
-    return MODULE_GROUPS.map(group => {
+    return categories.map(group => {
       const accessibleInGroup = dashboardMenuItems.filter(item => {
         const moduleName = item.href.substring(1);
         
-        // Acceso Total: Admin o Propietario
-        if (user.isAdmin || user.isOwner) {
-          return group.modules.includes(moduleName);
+        // Acceso Total Incondicional: Propietario o Súper Administrador
+        if (user.isOwner || user.profile?.role === 'superadmin') {
+          return (group.modules || []).includes(moduleName);
         }
         
-        // Acceso Coordinador CIDEE
-        if (user.isCideeStaff && CIDEE_MODULES.includes(moduleName)) {
-            return group.modules.includes(moduleName);
-        }
-
-        // Acceso Jefe: Set limitado de CIDEE
-        if (user.isJefeStaff && JEFE_MODULES.includes(moduleName)) {
-            return group.modules.includes(moduleName);
-        }
-
-        // Otros roles: Solo lo asignado manualmente en Firestore
+        // Para cualquier otro rol (incluyendo admin y director), se valida estrictamente según su perfil de Firestore
         const hasAccess = user.profile?.modules?.includes(moduleName);
-        return group.modules.includes(moduleName) && hasAccess;
+        return (group.modules || []).includes(moduleName) && hasAccess;
       });
 
       return {
-        ...group,
+        label: group.label,
+        description: group.description,
         items: accessibleInGroup
       };
     }).filter(group => group.items.length > 0);
-  }, [user, mounted, isAdmin]);
+  }, [user, mounted, categories]);
 
   if (isUserLoading || !mounted) {
     return (
@@ -116,7 +76,7 @@ export default function Home() {
             </h1>
             <p className="mt-1 text-xs text-muted-foreground font-medium flex items-center gap-2">
                 <LayoutGrid className="h-3.5 w-3.5" />
-                {isAdmin ? 'Acceso Administrativo Maestro Habilitado' : 'Seleccione una categoría para desplegar los módulos autorizados'}
+                {isMasterAdmin ? 'Acceso Administrativo Maestro Habilitado' : 'Seleccione una categoría para desplegar los módulos autorizados'}
             </p>
         </div>
 

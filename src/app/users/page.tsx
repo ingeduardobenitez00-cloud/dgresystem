@@ -37,9 +37,10 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useCollectionPaginated } from '@/firebase';
+import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useCollectionPaginated, useModuleCategories } from '@/firebase';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, writeBatch, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { dashboardMenuItems } from '@/lib/menu-config';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -100,6 +101,27 @@ const PermissionMatrix = ({
   onToggleColumn: (actionId: string, items: {id: string}[], editing: boolean) => void
 }) => {
   const currentPerms = new Set(isEditing ? (userObj?.permissions || []) : Array.from(selectedPerms));
+  const { categories } = useModuleCategories();
+
+  const moduleStructure = useMemo(() => {
+    const labelsMap = dashboardMenuItems.reduce((acc, item) => {
+      const id = item.href.replace('/', '');
+      acc[id] = item.label.toUpperCase();
+      return acc;
+    }, {} as Record<string, string>);
+
+    return categories.map(cat => {
+      const items: any[] = [];
+      (cat.modules || []).forEach(moduleId => {
+        const label = labelsMap[moduleId] || moduleId.toUpperCase();
+        items.push({ id: moduleId, label });
+      });
+      return {
+        category: cat.label.toUpperCase(),
+        items
+      };
+    });
+  }, [categories]);
 
   return (
     <div className="space-y-6">
@@ -120,19 +142,21 @@ const PermissionMatrix = ({
       </div>
 
       <Accordion type="multiple" className="border rounded-lg overflow-hidden bg-white shadow-sm">
-        {MODULE_STRUCTURE.map((cat) => (
-          <AccordionItem key={cat.category} value={cat.category} className="border-b last:border-0">
-            <AccordionTrigger className="px-6 py-3 hover:no-underline bg-muted/5">
-              <span className="text-[10px] font-black uppercase tracking-wider">{cat.category}</span>
-            </AccordionTrigger>
-            <AccordionContent className="p-0">
-              <Table>
-                <TableHeader className="bg-white">
-                  <TableRow className="border-b hover:bg-transparent">
-                    <TableHead className="w-1/3"></TableHead>
-                    {ACTION_LABELS.map(a => {
-                      const allInColSelected = cat.items.every(item => currentPerms.has(`${item.id}:${a.id}`));
-                      return (
+        {moduleStructure.map((cat) => {
+          if (cat.items.length === 0) return null;
+          return (
+            <AccordionItem key={cat.category} value={cat.category} className="border-b last:border-0">
+              <AccordionTrigger className="px-6 py-3 hover:no-underline bg-muted/5">
+                <span className="text-[10px] font-black uppercase tracking-wider">{cat.category}</span>
+              </AccordionTrigger>
+              <AccordionContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-white">
+                    <TableRow className="border-b hover:bg-transparent">
+                      <TableHead className="w-1/3"></TableHead>
+                      {ACTION_LABELS.map(a => {
+                        const allInColSelected = cat.items.length > 0 && cat.items.every(item => currentPerms.has(`${item.id}:${a.id}`));
+                        return (
                         <TableHead key={a.id} className="text-center py-4">
                           <div className="flex flex-col items-center gap-1.5">
                             <span className="text-[9px] font-black uppercase">{a.label}</span>
@@ -171,7 +195,8 @@ const PermissionMatrix = ({
               </Table>
             </AccordionContent>
           </AccordionItem>
-        ))}
+          );
+        })}
       </Accordion>
     </div>
   );
@@ -245,12 +270,7 @@ function UsersContent() {
     
     // Inyectar usuarios sintéticos (Dueños) para que aparezcan en el directorio
     const owners: UserProfile[] = [
-      { id: 'owner-1', email: 'edubtz11@gmail.com', username: 'EDUARD OBRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
-      { id: 'owner-2', email: 'eduardobritz1@gmail.com', username: 'EDUARDO BRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
-      { id: 'owner-3', email: 'eduardobritz11@gmail.com', username: 'EDUARDO BRITZ (MAESTRO)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
-      { id: 'owner-4', email: 'edubtz100@gmail.com', username: 'EDUBTZ 100 (ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
-      { id: 'owner-5', email: 'ing.eduardobenitez00@gmail.com', username: 'ING. EDUARDO BENÍTEZ (OWNER)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] },
-      { id: 'virtual-cidee-1', email: 'cidee.coord@gmail.com', username: 'COORDINACIÓN CIDEE (SISTEMA)', role: 'coordinador', departamento: 'CIDEE', distrito: 'TODOS LOS DISTRITOS', active: true, modules: [], permissions: [] }
+      { id: 'owner-1', email: 'edubtz11@gmail.com', username: 'EDUARD OBRITZ (SÚPER ADMIN)', role: 'admin', departamento: 'SEDE CENTRAL', distrito: 'ASUNCIÓN', active: true, modules: [], permissions: [] }
     ];
 
     // Evitar duplicados si ya existen en Firestore
@@ -392,14 +412,37 @@ function UsersContent() {
     if (isEditing && editingUser) {
       const nextPerms = new Set(editingUser.permissions || []);
       const nextModules = new Set(editingUser.modules || []);
-      if (nextPerms.has(permKey)) nextPerms.delete(permKey);
-      else { nextPerms.add(permKey); nextModules.add(moduleId); }
+      
+      if (nextPerms.has(permKey)) {
+        nextPerms.delete(permKey);
+        // Verificar si queda alguna otra acción/permiso asignada a este módulo
+        const hasOtherPerms = Array.from(nextPerms).some(p => p.startsWith(`${moduleId}:`));
+        if (!hasOtherPerms) {
+          nextModules.delete(moduleId);
+        }
+      } else {
+        nextPerms.add(permKey);
+        nextModules.add(moduleId);
+      }
       setEditingUser({ ...editingUser, permissions: Array.from(nextPerms), modules: Array.from(nextModules) });
     } else {
       setSelectedPerms(prev => {
         const next = new Set(prev);
-        if (next.has(permKey)) next.delete(permKey);
-        else { next.add(permKey); setSelectedModules(m => new Set(m).add(moduleId)); }
+        if (next.has(permKey)) {
+          next.delete(permKey);
+          // Verificar si queda alguna otra acción/permiso asignada a este módulo
+          const hasOtherPerms = Array.from(next).some(p => p.startsWith(`${moduleId}:`));
+          if (!hasOtherPerms) {
+            setSelectedModules(m => {
+              const nextM = new Set(m);
+              nextM.delete(moduleId);
+              return nextM;
+            });
+          }
+        } else {
+          next.add(permKey);
+          setSelectedModules(m => new Set(m).add(moduleId));
+        }
         return next;
       });
     }
@@ -410,20 +453,42 @@ function UsersContent() {
         const nextPerms = new Set(editingUser.permissions || []);
         const nextModules = new Set(editingUser.modules || []);
         const allSelected = items.every(item => nextPerms.has(`${item.id}:${actionId}`));
+        
         items.forEach(item => {
             const key = `${item.id}:${actionId}`;
-            if (allSelected) nextPerms.delete(key);
-            else { nextPerms.add(key); nextModules.add(item.id); }
+            if (allSelected) {
+                nextPerms.delete(key);
+                // Verificar si queda alguna otra acción asignada a este módulo
+                const hasOther = Array.from(nextPerms).some(p => p.startsWith(`${item.id}:`));
+                if (!hasOther) nextModules.delete(item.id);
+            } else {
+                nextPerms.add(key);
+                nextModules.add(item.id);
+            }
         });
         setEditingUser({ ...editingUser, permissions: Array.from(nextPerms), modules: Array.from(nextModules) });
     } else {
         setSelectedPerms(prev => {
             const next = new Set(prev);
             const allSelected = items.every(item => item.id && next.has(`${item.id}:${actionId}`));
+            
             items.forEach(item => {
                 const key = `${item.id}:${actionId}`;
-                if (allSelected) next.delete(key);
-                else { next.add(key); setSelectedModules(m => new Set(m).add(item.id)); }
+                if (allSelected) {
+                    next.delete(key);
+                    // Verificar si queda alguna otra acción asignada a este módulo
+                    const hasOther = Array.from(next).some(p => p.startsWith(`${item.id}:`));
+                    if (!hasOther) {
+                        setSelectedModules(m => {
+                            const nextM = new Set(m);
+                            nextM.delete(item.id);
+                            return nextM;
+                        });
+                    }
+                } else {
+                    next.add(key);
+                    setSelectedModules(m => new Set(m).add(item.id));
+                }
             });
             return next;
         });
@@ -487,29 +552,56 @@ function UsersContent() {
       });
   };
 
-  const handleDeleteUser = (user: UserProfile) => {
-    if (!firestore || user.email === currentUser?.email) return;
+  const handleDeleteUser = async (user: UserProfile) => {
+    if (!firestore || !currentUser || user.email === currentUser?.email) return;
     setIsSubmitting(true);
-    const userRef = doc(firestore, 'users', user.id);
-    const presRef = doc(firestore, 'presencia', user.id);
 
-    // Eliminación no bloqueante sincronizada
-    const batch = writeBatch(firestore);
-    batch.delete(userRef);
-    batch.delete(presRef);
-    
-    batch.commit()
-        .then(() => {
-            toast({ title: 'Usuario eliminado del directorio' });
-            if (setFirestoreUsers) {
-              setFirestoreUsers(prev => prev ? prev.filter(u => u.id !== user.id) : null);
-            }
-            setIsSubmitting(false);
-        })
-        .catch(async (error) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: 'users/batch-delete', operation: 'delete' }));
-            setIsSubmitting(false);
-        });
+    try {
+      // 1. Llamar al API Route del servidor para eliminar de Firebase Authentication
+      const response = await fetch('/api/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          requesterId: currentUser.uid,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al eliminar credenciales en Authentication');
+      }
+
+      // 2. Si se eliminó con éxito de Auth (o se confirmó su ausencia), eliminamos de Firestore
+      const userRef = doc(firestore, 'users', user.id);
+      const presRef = doc(firestore, 'presencia', user.id);
+
+      const batch = writeBatch(firestore);
+      batch.delete(userRef);
+      batch.delete(presRef);
+      
+      await batch.commit();
+
+      toast({ 
+        title: 'Usuario eliminado por completo', 
+        description: 'Se revocaron las credenciales de acceso y se eliminó de la base de datos.' 
+      });
+
+      if (setFirestoreUsers) {
+        setFirestoreUsers(prev => prev ? prev.filter(u => u.id !== user.id) : null);
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error de Eliminación',
+        description: error.message || 'No se pudo completar la baja administrativa.'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
