@@ -151,7 +151,9 @@ export const useUser = (): UserHookResult => {
       const autoPerms: string[] = [];
       ALL_SYSTEM_MODULES.forEach(m => ['view', 'add', 'edit', 'delete', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
       enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
-    } else if (!profileData?.modules || profileData.modules.length === 0) {
+    } else if (!hasConfiguredModules) {
+      // Solo aplicar defaults si el usuario NO tiene un array de módulos guardado en la base de datos.
+      // Si ya tiene módulos guardados, respetamos la configuración explícita del administrador.
       if (isAdminRole) {
         enrichedModules = [...ALL_SYSTEM_MODULES];
         const autoPerms: string[] = [];
@@ -164,19 +166,6 @@ export const useUser = (): UserHookResult => {
         enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
       } else if (isJefeStaff) {
         enrichedModules = [...JEFE_MODULES];
-        const autoPerms: string[] = ['assign_staff', 'district_filter'];
-        JEFE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
-        enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
-      }
-    } else {
-      // Garantizar que usuarios CIDEE y Jefes ya existentes mantengan acceso a sus módulos base
-      if (isCideeStaff) {
-        enrichedModules = [...new Set([...enrichedModules, ...CIDEE_MODULES])];
-        const autoPerms: string[] = [];
-        CIDEE_MODULES.forEach(m => ['view', 'add', 'edit', 'delete', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
-        enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
-      } else if (isJefeStaff) {
-        enrichedModules = [...new Set([...enrichedModules, ...JEFE_MODULES])];
         const autoPerms: string[] = ['assign_staff', 'district_filter'];
         JEFE_MODULES.forEach(m => ['view', 'add', 'pdf'].forEach(a => autoPerms.push(`${m}:${a}`)));
         enrichedPermissions = [...new Set([...enrichedPermissions, ...autoPerms])];
