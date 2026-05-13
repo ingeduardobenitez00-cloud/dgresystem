@@ -624,7 +624,7 @@ function UsersContent() {
       permissions: Array.from(selectedPerms),
       departamento: regDepartamento || 'ALCANCE NACIONAL',
       distrito: regDistrito || 'TODOS LOS DISTRITOS',
-      active: regRole === 'jefe',
+      active: true,
       profileId: selectedProfileId || null,
       registration_method: 'creado_por_admin'
     };
@@ -738,19 +738,35 @@ function UsersContent() {
         'reportes-pdf'
       ];
 
+      const cideeModules = [
+        'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+        'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
+        'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
+        'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 
+        'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'puntos-fijos', 'compendio-general', 'informe-cidee'
+      ];
+
       const jefePermissions = ['assign_staff', 'district_filter'];
       jefeModules.forEach(mod => {
         jefePermissions.push(`${mod}:view`, `${mod}:add`, `${mod}:pdf`);
       });
 
-      const q = query(usersRef, where('role', '==', 'jefe'));
+      const cideePermissions: string[] = [];
+      cideeModules.forEach(mod => {
+        cideePermissions.push(`${mod}:view`, `${mod}:add`, `${mod}:edit`, `${mod}:delete`, `${mod}:pdf`);
+      });
+
+      const q = query(usersRef, where('role', 'in', ['jefe', 'coordinador']));
       const querySnapshot = await getDocs(q);
       
       querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const isCidee = data.role === 'coordinador';
+
         batch.update(docSnap.ref, {
           active: true,
-          modules: jefeModules,
-          permissions: jefePermissions,
+          modules: isCidee ? cideeModules : jefeModules,
+          permissions: isCidee ? cideePermissions : jefePermissions,
           fecha_reparacion: new Date().toISOString(),
           registration_status: 'migrado_reparado'
         });
@@ -758,10 +774,14 @@ function UsersContent() {
       });
       
       await batch.commit();
-      toast({ title: "Sincronización Exitosa", description: `Se han normalizado ${count} perfiles de Jefes.` });
-      // Refrecamos localmente todos los que coincidan con el rol de jefe
+      toast({ title: "Sincronización Exitosa", description: `Se han normalizado ${count} perfiles de Jefes y Coordinadores (CIDEE).` });
+      
       if (setFirestoreUsers) {
-        setFirestoreUsers(prev => prev ? prev.map(u => u.role === 'jefe' ? { ...u, modules: jefeModules, permissions: jefePermissions, active: true } : u) : null);
+        setFirestoreUsers(prev => prev ? prev.map(u => {
+          if (u.role === 'jefe') return { ...u, modules: jefeModules, permissions: jefePermissions, active: true };
+          if (u.role === 'coordinador') return { ...u, modules: cideeModules, permissions: cideePermissions, active: true };
+          return u;
+        }) : null);
       }
 
     } catch (error) {
@@ -817,7 +837,7 @@ function UsersContent() {
                         className="bg-amber-600 hover:bg-amber-700 text-white h-14 px-8 rounded-2xl font-black uppercase text-[10px] gap-3 shadow-xl tracking-widest border-b-4 border-amber-800"
                     >
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        Sincronizar Todos los Jefes
+                        Sincronizar Jefes y CIDEE
                     </Button>
                     
                     <div className="bg-green-600 text-white px-6 py-3 rounded-2xl flex items-center gap-3 shadow-xl animate-in zoom-in duration-500">
