@@ -80,10 +80,9 @@ service cloud.firestore {
     /** CIDEE - Colecciones Transaccionales **/
     
     match /solicitudes-capacitacion/{solicitudId} {
-      // Se permite el 'get' público para que el portal ciudadano pueda cargar los metadatos de la encuesta (Lugar, Fecha, Hora)
       allow get: if true;
       allow list: if isActive();
-      allow create, update: if isActive();
+      allow create, update: if isActive() || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -151,6 +150,17 @@ service cloud.firestore {
     match /maquinas/{maquinaId} {
       allow read: if isActive() || isAdmin();
       allow write: if isAdmin();
+    }
+
+    match /maquinas-votacion/{maquinaId} {
+      allow read: if isActive() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /evaluaciones-mm/{evalId} {
+      allow read: if isActive();
+      allow create: if true; // Permitir que los alumnos envíen el examen vía QR
+      allow update, delete: if isAdmin();
     }
 
     match /locales-votacion/{localId} {

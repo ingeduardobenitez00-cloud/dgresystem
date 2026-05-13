@@ -260,4 +260,10 @@ export const dashboardMenuItems = [
     icon: BookOpen,
     description: 'Manual de usuario, roles, permisos y guía técnica.',
   },
+  {
+    href: '/acta-defuncion',
+    label: 'Acta de Defunción',
+    icon: ScrollText,
+    description: 'Registro de Constancias del Acta de Defunción del Estado Civil.',
+  },
 ];

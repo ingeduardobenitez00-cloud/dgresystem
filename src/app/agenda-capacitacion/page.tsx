@@ -64,6 +64,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import html2canvas from 'html2canvas';
+import { generatePlanillaCIDEE } from '@/lib/pdf-cidee';
+import { MaquinaVotacion } from '@/lib/data';
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
@@ -112,6 +114,20 @@ const DistrictSection = ({
     const [isUpdating, setIsUpdating] = useState(false);
     const [divulSearch, setDivulSearch] = useState('');
     const [copied, setCopied] = useState(false);
+    
+    // Estados para Capacitación MM
+    const [logisticsSolicitud, setLogisticsSolicitud] = useState<SolicitudCapacitacion | null>(null);
+    const [mmReportSolicitud, setMMReportSolicitud] = useState<SolicitudCapacitacion | null>(null);
+    const [maquinaSearch, setMaquinaSearch] = useState('');
+    const [fotosReporte, setFotosReporte] = useState<string[]>([]);
+    const [hombres, setHombres] = useState(0);
+    const [mujeres, setMujeres] = useState(0);
+
+    const maquinasQuery = useMemoFirebase(() => {
+        if (!firestore || !logisticsSolicitud) return null;
+        return query(collection(firestore, 'maquinas-votacion'), limit(20));
+    }, [firestore, logisticsSolicitud]);
+    const { data: maquinasData } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
 
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
@@ -270,7 +286,9 @@ const DistrictSection = ({
 
     const qrImageUrl = useMemo(() => {
         if (!qrSolicitud) return '';
-        const url = `${window.location.origin}/encuesta-satisfaccion?solicitudId=${qrSolicitud.id}`;
+        const isMM = qrSolicitud.tipo_solicitud === 'capacitacion' || qrSolicitud.es_capacitacion_mm;
+        const page = isMM ? 'evaluacion-mm' : 'encuesta-satisfaccion';
+        const url = `${window.location.origin}/${page}?solicitudId=${qrSolicitud.id}`;
         return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
     }, [qrSolicitud]);
 
@@ -343,17 +361,33 @@ const DistrictSection = ({
                     const isManuallyActive = item.qr_expires_at && currentTime < new Date(item.qr_expires_at);
                     const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
+                    const isMM = item.es_capacitacion_mm || item.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
                     const hasAlert = isPast && (pendingSalida || pendingRetorno || pendingInforme);
                     const isFulfilled = mov?.fecha_devolucion && inf;
+                    
                     return (
-                        <Card key={item.id} className={cn("border-2 shadow-sm rounded-2xl overflow-hidden", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-200 bg-green-50/10" : "border-muted/20 bg-white")}>
+                        <Card key={item.id} className={cn(
+                            "border-2 shadow-sm rounded-2xl overflow-hidden transition-all hover:shadow-md", 
+                            hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : 
+                            isFulfilled ? "border-green-200 bg-green-50/10" : 
+                            isMM ? "border-indigo-400 bg-indigo-50/5 shadow-indigo-100/50" :
+                            "border-muted/20 bg-white"
+                        )}>
                             <CardContent className="p-8">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                     <div className="lg:col-span-4 space-y-3">
                                         <div className="flex items-center gap-2"><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">SOLICITANTE</p>{isFulfilled && <Badge className="bg-green-600 text-white font-black uppercase text-[7px] px-2 py-0 h-4">CICLO COMPLETADO</Badge>}</div>
                                         <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.nombre_completo}</p>
                                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">{item.solicitante_entidad || item.otra_entidad}</p>
-                                        <Badge className="bg-primary/5 text-primary text-[8px] px-3 font-black uppercase">{item.tipo_solicitud}</Badge>
+                                        <div className="flex gap-2 items-center">
+                                            <Badge className={cn(
+                                                "text-[8px] px-3 font-black uppercase",
+                                                isMM ? "bg-indigo-600 text-white" : "bg-primary/5 text-primary"
+                                            )}>
+                                                {isMM ? "CAPACITACIÓN MIEMBROS DE MESA" : item.tipo_solicitud}
+                                            </Badge>
+                                            {isMM && <Badge variant="outline" className="text-[7px] font-black border-indigo-200 text-indigo-600 uppercase">PROGRAMA CIDEE</Badge>}
+                                        </div>
                                     </div>
                                     <div className="lg:col-span-3 space-y-4">
                                         <div className="flex items-center gap-3"><MapPin className="h-4 w-4 text-muted-foreground" /><p className="font-black text-[12px] uppercase">{item.lugar_local}</p></div>
@@ -461,6 +495,37 @@ const DistrictSection = ({
                                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 hover:bg-orange-50" onClick={() => setSuspendingSolicitud(item)}><Ban className="h-4 w-4" /></Button>
                                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-white" onClick={() => setDeletingSolicitud(item)}><Trash2 className="h-4 w-4" /></Button>
                                         </div>
+
+                                        {isMM && (
+                                            <div className="w-full max-w-[220px] pt-3 border-t border-indigo-100 flex flex-col gap-2">
+                                                <Button 
+                                                    className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[9px] rounded-xl gap-2 shadow-lg shadow-indigo-200"
+                                                    onClick={() => generatePlanillaCIDEE(item)}
+                                                >
+                                                    <Printer className="h-3.5 w-3.5" /> PLANILLA CIDEE (PDF)
+                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button 
+                                                        variant="outline"
+                                                        className="flex-1 h-9 border-2 border-indigo-200 text-indigo-700 font-black uppercase text-[8px] rounded-xl gap-1.5"
+                                                        onClick={() => setLogisticsSolicitud(item)}
+                                                    >
+                                                        <Truck className="h-3 w-3" /> LOGÍSTICA
+                                                    </Button>
+                                                    <Button 
+                                                        variant="outline"
+                                                        className="flex-1 h-9 border-2 border-indigo-200 text-indigo-700 font-black uppercase text-[8px] rounded-xl gap-1.5"
+                                                        onClick={() => {
+                                                            setMMReportSolicitud(item);
+                                                            setHombres(item.cant_hombres || 0);
+                                                            setMujeres(item.cant_mujeres || 0);
+                                                        }}
+                                                    >
+                                                        <FileText className="h-3 w-3" /> INFORME MM
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
@@ -587,6 +652,156 @@ const DistrictSection = ({
                     <AlertDialogFooter className="pt-4"><AlertDialogCancel className="rounded-xl font-black uppercase text-[10px]">CANCELAR</AlertDialogCancel><AlertDialogAction onClick={handleConfirmDeleteDistrict} className="bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8">VACIAR</AlertDialogAction></AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* MODAL LOGÍSTICA MM */}
+            <Dialog open={!!logisticsSolicitud} onOpenChange={o => !o && setLogisticsSolicitud(null)}>
+                <DialogContent className="max-w-md rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
+                    <div className="bg-indigo-600 text-white p-6"><h3 className="font-black uppercase text-sm flex items-center gap-2"><Truck className="h-4 w-4" /> Logística de Máquinas</h3></div>
+                    <div className="p-8 space-y-6 bg-white">
+                        <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Asignar Máquina de Votación</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="BUSCAR CÓDIGO..." 
+                                    value={maquinaSearch} 
+                                    onChange={e => setMaquinaSearch(e.target.value)} 
+                                    className="h-11 pl-10 border-2 font-black uppercase text-xs rounded-xl"
+                                />
+                            </div>
+                            <div className="max-h-[150px] overflow-y-auto space-y-1">
+                                {maquinasData?.filter(m => m.codigo.includes(maquinaSearch.toUpperCase())).map(m => (
+                                    <Button 
+                                        key={m.id} 
+                                        variant="ghost" 
+                                        className={cn(
+                                            "w-full justify-start font-black uppercase text-[10px] h-9 rounded-lg",
+                                            logisticsSolicitud?.maquina_asignada_codigo === m.codigo ? "bg-indigo-100 text-indigo-700" : ""
+                                        )}
+                                        onClick={() => {
+                                            updateDoc(doc(firestore!, 'solicitudes-capacitacion', logisticsSolicitud!.id), { maquina_asignada_codigo: m.codigo });
+                                            updateItem(logisticsSolicitud!.id, { maquina_asignada_codigo: m.codigo });
+                                            toast({ title: "Máquina Asignada", description: `Código: ${m.codigo}` });
+                                        }}
+                                    >
+                                        <Activity className="h-3 w-3 mr-2" /> {m.codigo}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <Separator className="border-dashed" />
+
+                        <div className="space-y-4">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Kit de Capacitación</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { id: 'pendrive', label: 'PENDRIVE' },
+                                    { id: 'acrilico', label: 'ACRÍLICO' },
+                                    { id: 'boletines', label: 'BOLETINES' },
+                                    { id: 'auricular', label: 'AURICULAR' }
+                                ].map(item => {
+                                    const active = (logisticsSolicitud?.kit_entregado as any)?.[item.id];
+                                    return (
+                                        <Button
+                                            key={item.id}
+                                            variant="outline"
+                                            className={cn(
+                                                "h-12 border-2 font-black uppercase text-[9px] rounded-xl transition-all",
+                                                active ? "bg-indigo-600 text-white border-indigo-600" : "opacity-50"
+                                            )}
+                                            onClick={() => {
+                                                const newKit = { ...(logisticsSolicitud?.kit_entregado || { pendrive: false, acrilico: false, boletines: false, auricular: false }), [item.id]: !active };
+                                                updateDoc(doc(firestore!, 'solicitudes-capacitacion', logisticsSolicitud!.id), { kit_entregado: newKit });
+                                                updateItem(logisticsSolicitud!.id, { kit_entregado: newKit });
+                                            }}
+                                        >
+                                            {active ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                                            {item.label}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL INFORME MM */}
+            <Dialog open={!!mmReportSolicitud} onOpenChange={o => !o && setMMReportSolicitud(null)}>
+                <DialogContent className="max-w-lg rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+                    <div className="bg-indigo-600 text-white p-8">
+                        <h3 className="text-xl font-black uppercase flex items-center gap-3"><FileText className="h-6 w-6" /> Informe de Capacitación MM</h3>
+                        <p className="text-[10px] font-bold uppercase opacity-70 mt-1 tracking-widest">Carga rápida de resultados demográficos</p>
+                    </div>
+                    <div className="p-8 space-y-8 bg-white">
+                        <div className="grid grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground text-center block">HOMBRES</Label>
+                                <Input 
+                                    type="number" 
+                                    className="h-14 text-center text-xl font-black border-2 rounded-2xl" 
+                                    value={hombres} 
+                                    onChange={e => setHombres(parseInt(e.target.value) || 0)} 
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground text-center block">MUJERES</Label>
+                                <Input 
+                                    type="number" 
+                                    className="h-14 text-center text-xl font-black border-2 rounded-2xl" 
+                                    value={mujeres} 
+                                    onChange={e => setMujeres(parseInt(e.target.value) || 0)} 
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-indigo-600 text-center block">TOTAL</Label>
+                                <div className="h-14 flex items-center justify-center text-3xl font-black text-indigo-600 bg-indigo-50 rounded-2xl border-2 border-indigo-100">
+                                    {hombres + mujeres}
+                                </div>
+                            </div>
+                        </div>
+
+                        <Separator className="border-dashed" />
+
+                        <div className="space-y-4">
+                            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Registro Fotográfico</Label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Button variant="outline" className="h-32 border-2 border-dashed rounded-3xl flex flex-col gap-2 hover:bg-muted/50" onClick={() => toast({ title: "Carga de fotos", description: "Habilitado para subir evidencia..." })}>
+                                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                    <span className="text-[9px] font-black uppercase opacity-40 text-center">Subir Fotos de la<br/>Capacitación</span>
+                                </Button>
+                                <div className="bg-muted/10 rounded-3xl border-2 border-dashed flex items-center justify-center">
+                                    <p className="text-[8px] font-black uppercase text-muted-foreground opacity-30">Vista Previa</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Button 
+                            className="w-full h-16 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-sm shadow-xl shadow-indigo-100 hover:scale-[1.02] transition-all"
+                            onClick={async () => {
+                                setIsUpdating(true);
+                                try {
+                                    await updateDoc(doc(firestore!, 'solicitudes-capacitacion', mmReportSolicitud!.id), {
+                                        cant_hombres: hombres,
+                                        cant_mujeres: mujeres,
+                                        fecha_cumplido: new Date().toISOString()
+                                    });
+                                    updateItem(mmReportSolicitud!.id, { cant_hombres: hombres, cant_mujeres: mujeres, fecha_cumplido: new Date().toISOString() });
+                                    toast({ title: "Informe Guardado", description: "La actividad ha sido concluida exitosamente." });
+                                    setMMReportSolicitud(null);
+                                } catch (e) {
+                                    toast({ variant: 'destructive', title: "Error al guardar" });
+                                } finally {
+                                    setIsUpdating(false);
+                                }
+                            }}
+                        >
+                            <CheckCircle2 className="h-5 w-5 mr-3" /> GUARDAR Y CONCLUIR ACTIVIDAD
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AccordionItem>
     );
 };

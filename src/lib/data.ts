@@ -173,6 +173,18 @@ export type SolicitudCapacitacion = {
   qr_expires_at?: string;
   anexo_id?: string;
   fecha_cumplido?: string;
+  // Campos para Capacitación MM
+  es_capacitacion_mm?: boolean;
+  maquina_asignada_codigo?: string;
+  kit_entregado?: {
+    pendrive: boolean;
+    acrilico: boolean;
+    boletines: boolean;
+    auricular: boolean;
+  };
+  evaluacion_qr_completada?: boolean;
+  cant_hombres?: number;
+  cant_mujeres?: number;
 }
 
 export type EncuestaSatisfaccion = {
@@ -214,6 +226,10 @@ export type InformeDivulgador = {
   solicitud_id: string;
   divulgador_id: string;
   observaciones?: string;
+  // Nuevos campos demográficos
+  cant_hombres?: number;
+  cant_mujeres?: number;
+  es_capacitacion_mm?: boolean;
 }
 
 export type MaquinaMovimiento = {
@@ -280,3 +296,67 @@ export type InformeSemanalRegistro = {
 }
 
 export const initialDepartments: Department[] = [];
+
+export type ActaDefuncion = {
+  id: string;
+  // Datos de la Oficina Registral
+  oficina_numero: string;
+  oficina_descripcion: string;
+  departamento_registral: string;
+  distrito_registral: string;
+  // Datos del Acta
+  fecha_dia: string;
+  fecha_mes: string;
+  fecha_anio: string;
+  inscripcion_tomo: string;
+  inscripcion_folio: string;
+  inscripcion_acta: string;
+  // Datos del Difunto
+  nombres: string;
+  apellidos: string;
+  cedula_identidad: string;
+  sexo: 'M' | 'F' | '';
+  nacionalidad: 'P' | 'E' | '';
+  estado_civil: 'soltero' | 'casado' | 'viudo' | 'otro' | '';
+  domicilio: string;
+  fecha_nacimiento: string;
+  lugar_nacimiento: string;
+  fecha_fallecimiento: string;
+  lugar_fallecimiento: string;
+  nombre_padre: string;
+  nombre_madre: string;
+  // Datos del Declarante
+  declarante_nombre: string;
+  declarante_cedula: string;
+  declarante_vinculo: 'conyuge' | 'padre' | 'madre' | 'hijo_a' | 'otro' | '';
+  observaciones: string;
+  // Datos de Expedición
+  oficial_nombre: string;
+  oficial_cedula: string;
+  lugar_expedicion: string;
+  fecha_expedicion: string;
+  // Metadata
+  usuario_id: string;
+  username: string;
+  fecha_creacion: string;
+};
+
+export interface EvaluacionMM {
+  id: string;
+  solicitud_id: string;
+  organizacion_politica: string;
+  fecha: string;
+  respuestas: {
+    p1: string;
+    p2: string;
+    p3: string;
+    p4: string;
+    p5: string;
+  };
+  puntaje: number;
+  usuario_id?: string; // Si lo hace un logueado
+  nombre_asistente?: string;
+  cedula_asistente?: string;
+  fecha_creacion: string;
+}
+

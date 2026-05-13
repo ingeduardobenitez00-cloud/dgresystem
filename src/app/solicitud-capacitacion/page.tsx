@@ -75,6 +75,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -192,6 +193,7 @@ export default function SolicitudCapacitacionPage() {
     gps: '',
     departamento: '',
     distrito: '',
+    es_capacitacion_mm: false,
   });
 
   const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
@@ -428,6 +430,7 @@ export default function SolicitudCapacitacionPage() {
           foto_firma: photoUrl, // URL de Storage o vacía si omitida
           usuario_id: user.uid, 
           creado_por: profile?.username || user.email,
+          es_capacitacion_mm: formData.es_capacitacion_mm,
           fecha_creacion: new Date().toISOString(), 
           server_timestamp: serverTimestamp() 
         };
@@ -457,7 +460,8 @@ export default function SolicitudCapacitacionPage() {
             nombre_completo: '', 
             cedula: '', 
             gps: '', 
-            telefono: '' 
+            telefono: '',
+            es_capacitacion_mm: false
         }));
         setPhotoDataUri(null);
         setIsOmisionActive(false);
@@ -894,7 +898,13 @@ export default function SolicitudCapacitacionPage() {
                             { id: 'divulgacion', label: 'DIVULGACIÓN (MV)' },
                             { id: 'capacitacion', label: 'CAPACITACIÓN (MIEMBROS DE MESA)' }
                         ].map(t => (
-                            <div key={t.id} className={cn("flex items-center space-x-4 p-5 rounded-2xl border-2 cursor-pointer transition-all", formData.tipo_solicitud === t.id ? "bg-white border-black shadow-lg scale-[1.02]" : "bg-muted/10 border-transparent")} onClick={() => setFormData(p => ({...p, tipo_solicitud: t.id as any}))}>
+                            <div key={t.id} className={cn("flex items-center space-x-4 p-5 rounded-2xl border-2 cursor-pointer transition-all", formData.tipo_solicitud === t.id ? "bg-white border-black shadow-lg scale-[1.02]" : "bg-muted/10 border-transparent")} 
+                                onClick={() => setFormData(p => ({
+                                    ...p, 
+                                    tipo_solicitud: t.id as any,
+                                    es_capacitacion_mm: t.id === 'capacitacion'
+                                }))}
+                            >
                                 <div className={cn("h-6 w-6 rounded-lg border-2 flex items-center justify-center", formData.tipo_solicitud === t.id ? "bg-black text-white" : "border-muted-foreground/30")}>
                                   {formData.tipo_solicitud === t.id && <Check className="h-4 w-4 stroke-[4]" />}
                                 </div>

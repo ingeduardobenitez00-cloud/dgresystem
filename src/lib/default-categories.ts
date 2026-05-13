@@ -38,7 +38,7 @@ export const DEFAULT_CATEGORIES: ModuleCategory[] = [
   {
     id: "registros-electorales",
     label: "REGISTROS ELECTORALES",
-    description: "Carga de fichas distritales, galerías fotográficas del proceso de inscripción e informes semanales del Registro Electoral.",
+    description: "Carga de fichas distritales, galerías fotográficas del proceso de inscripción, informes semanales del Registro Electoral y actas de defunción.",
     modules: [
       'ficha',
       'fotos',
@@ -46,7 +46,8 @@ export const DEFAULT_CATEGORIES: ModuleCategory[] = [
       'configuracion-semanal',
       'informe-semanal-registro',
       'reporte-semanal-registro',
-      'archivo-semanal-registro'
+      'archivo-semanal-registro',
+      'acta-defuncion'
     ],
     orden: 2
   },

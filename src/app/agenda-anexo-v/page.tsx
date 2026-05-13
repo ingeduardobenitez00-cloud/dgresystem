@@ -44,7 +44,8 @@ import {
   Maximize2,
   Clock,
   Truck,
-  PackageCheck
+  PackageCheck,
+  Plus
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -178,9 +179,38 @@ const DistrictSection = ({
     allDeptItems = [],
     isDeptLoading = false
 }: any) => {
+    const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(initialOpen || hasAdminFilter === false);
     const [solicitudesState, setSolicitudesState] = useState<SolicitudCapacitacion[]>([]);
     const [visibleCount, setVisibleCount] = useState(5);
+
+    // Estados para Capacitación MM
+    const [logisticsSolicitud, setLogisticsSolicitud] = useState<SolicitudCapacitacion | null>(null);
+    const [mmReportSolicitud, setMMReportSolicitud] = useState<SolicitudCapacitacion | null>(null);
+    const [maquinaSearch, setMaquinaSearch] = useState('');
+    const [hombres, setHombres] = useState(0);
+    const [mujeres, setMujeres] = useState(0);
+
+    const maquinasQuery = useMemoFirebase(() => {
+        if (!firestore || !logisticsSolicitud) return null;
+        // Probamos con la colección principal
+        return query(collection(firestore, 'maquinas-votacion'), limit(50));
+    }, [firestore, logisticsSolicitud]);
+    
+    const { data: maquinasData, error: maquinasError } = useCollectionOnce<any>(maquinasQuery);
+
+    // Fallback: Si no hay datos en maquinas-votacion, intentamos con 'maquinas'
+    const maquinasAltQuery = useMemoFirebase(() => {
+        if (!firestore || !logisticsSolicitud || (maquinasData && maquinasData.length > 0)) return null;
+        return query(collection(firestore, 'maquinas'), limit(50));
+    }, [firestore, logisticsSolicitud, maquinasData]);
+    const { data: maquinasAltData } = useCollectionOnce<any>(maquinasAltQuery);
+
+    const allMaquinas = useMemo(() => {
+        const list = [...(maquinasData || []), ...(maquinasAltData || [])];
+        // Eliminar duplicados por ID si los hay
+        return Array.from(new Map(list.map(m => [m.id, m])).values());
+    }, [maquinasData, maquinasAltData]);
 
     useEffect(() => {
         const target = normalizeGeo(dist.label);
@@ -397,13 +427,15 @@ const DistrictSection = ({
                      const isManuallyActive = item.qr_expires_at && currentTime < new Date(item.qr_expires_at);
                      const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
-                    const showStep1 = !hasPersonnel;
-                    const showStep2 = !!(hasPersonnel && !item.qr_enabled);
-                    const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed);
-                    const showStep4 = !!(hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed));
-                    const showStep5 = !!(hasSalida && !hasRetorno);
-                    const showStep6 = !!(pendingAnexoIII);
-                    const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
+                     const isMM = item.es_capacitacion_mm || item.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
+
+                     const showStep1 = !hasPersonnel;
+                     const showStep2 = !!(hasPersonnel && !item.qr_enabled);
+                     const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed);
+                     const showStep4 = !!(hasPersonnel && !hasSalida && (!item.qr_enabled || isQRViewed));
+                     const showStep5 = !!(hasSalida && !hasRetorno);
+                     const showStep6 = !!(pendingAnexoIII);
+                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
 
                     // Lógica correlativa: Solo mostrar el paso más bajo que esté activo
                     const activeSteps = [
@@ -419,7 +451,7 @@ const DistrictSection = ({
                     const minStep = activeSteps.length > 0 ? Math.min(...activeSteps.map(s => s.step)) : 999;
 
                     return (
-                        <Card id={`activity-${item.id}`} key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative transition-all duration-700", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : "border-muted/20 bg-white")}>
+                        <Card id={`activity-${item.id}`} key={item.id} className={cn("border-2 shadow-sm rounded-2xl relative transition-all duration-700", hasAlert ? "border-destructive/40 bg-destructive/[0.02]" : isFulfilled ? "border-green-500 bg-green-50/50" : isMM ? "border-indigo-400 bg-indigo-50/10 shadow-indigo-100/50" : "border-muted/20 bg-white")}>
                             <CardContent className="p-8">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                                     <div className="lg:col-span-4 space-y-3">
@@ -431,7 +463,9 @@ const DistrictSection = ({
                                             {item.fecha_cumplido && <ArchiveCountdown completionTime={item.fecha_cumplido} />}
                                         </div>
                                         <p className="font-black text-base uppercase leading-tight text-[#1A1A1A]">{item.solicitante_entidad}</p>
-                                        <Badge className="bg-black/5 text-black border-black/10 font-black uppercase text-[8px] px-3">{item.tipo_solicitud === 'divulgacion' ? 'ANEXO V - DIVULGACIÓN' : 'ANEXO V - CAPACITACIÓN'}</Badge>
+                                        <Badge className={cn("text-[8px] px-3 font-black uppercase", isMM ? "bg-indigo-600 text-white" : "bg-black/5 text-black border-black/10")}>
+                                            {isMM ? 'CAPACITACIÓN MIEMBROS DE MESA (CIDEE)' : item.tipo_solicitud === 'divulgacion' ? 'ANEXO V - DIVULGACIÓN' : 'ANEXO V - CAPACITACIÓN'}
+                                        </Badge>
                                     </div>
 
                                     <div className="lg:col-span-3 space-y-4">
@@ -502,7 +536,7 @@ const DistrictSection = ({
                                                         </Link>
                                                     </div>
                                                 )}
-                                                {pendingAnexoIII && (
+                                                {pendingAnexoIII && !isMM && (
                                                     <div className="flex flex-col gap-1 w-full max-w-[220px]">
                                                         {missingInformesFrom.length > 0 ? (
                                                             missingInformesFrom.map((d) => (
@@ -592,7 +626,11 @@ const DistrictSection = ({
                                         
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <div className="flex-1 relative">
-                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={minStep === 3} onClick={() => { if(qrActive) { setQrSolicitud(item); markQRAsViewed(item.id); } }} position="left" />
+                                                <GuideStep step={3} message="Descarga el QR para la actividad" active={minStep === 3} onClick={() => { if(qrActive) { 
+                                                        const url = window.location.origin + `/evaluacion-mm?solicitudId=${item.id}`;
+                                                        setQrSolicitud({ ...item, qr_url: url }); 
+                                                        markQRAsViewed(item.id); 
+                                                    } }} position="left" />
                                                 <Button 
                                                     variant="outline" 
                                                     size="sm" 
@@ -600,7 +638,11 @@ const DistrictSection = ({
                                                         "w-full h-11 rounded-xl font-black uppercase text-[10px] border-2 transition-all",
                                                         item.qr_enabled && !qrActive ? "opacity-20 grayscale" : ""
                                                     )} 
-                                                    onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} 
+                                                    onClick={() => { 
+                                                        const url = window.location.origin + `/evaluacion-mm?solicitudId=${item.id}`;
+                                                        setQrSolicitud({ ...item, qr_url: url }); 
+                                                        markQRAsViewed(item.id); 
+                                                    }} 
                                                     disabled={!qrActive} 
                                                     title={qrActive ? "Ver y Descargar Código QR" : "QR No disponible o expirado"}
                                                 >
@@ -608,8 +650,9 @@ const DistrictSection = ({
                                                 </Button>
                                             </div>
                                             <div className="flex-1 relative">
-                                                <GuideStep step={6} message="Completa el Informe del Divulgador" active={minStep === 6} onClick={() => { if (!inf) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" />
-                                                <Button 
+                                                <GuideStep step={6} message="Completa el Informe de Marcación" active={minStep === 6 && !isMM} onClick={() => { if (!inf && !isMM) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" />
+                                                {!isMM && (
+                                                    <Button 
                                                     className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px] shadow-lg", inf ? "bg-[#16A34A] hover:bg-[#15803D]" : "bg-black hover:bg-black/90")}
                                                     onClick={() => {
                                                         if (!inf) {
@@ -619,15 +662,183 @@ const DistrictSection = ({
                                                     title={inf ? "Informe enviado" : "Cargar Informe de Marcación"}
                                                 >
                                                     {inf ? 'CUMPLIDO' : 'INFORME'}
-                                                </Button>
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
+
+                                        {isMM && (
+                                            <div className="w-full max-w-[220px] pt-3 border-t border-indigo-100 flex flex-col gap-2">
+                                                <Button 
+                                                    className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[9px] rounded-xl gap-2 shadow-lg shadow-indigo-200"
+                                                    onClick={() => {
+                                                        import('@/lib/pdf-cidee').then(m => m.generatePlanillaCIDEE(item));
+                                                    }}
+                                                >
+                                                    <Printer className="h-3.5 w-3.5" /> PLANILLA CIDEE (PDF)
+                                                </Button>
+                                                <Button 
+                                                    variant="outline"
+                                                    className="w-full h-9 border-2 border-indigo-200 text-indigo-700 font-black uppercase text-[8px] rounded-xl gap-1.5"
+                                                    onClick={() => {
+                                                        setMMReportSolicitud(item);
+                                                        setHombres(item.cant_hombres || 0);
+                                                        setMujeres(item.cant_mujeres || 0);
+                                                    }}
+                                                >
+                                                    <FileText className="h-3 w-3" /> INFORME MM
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
                     );
                 })}
+
+                {/* MODALES MM */}
+                <Dialog open={!!logisticsSolicitud} onOpenChange={o => !o && setLogisticsSolicitud(null)}>
+                    <DialogContent className="max-w-md rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
+                        <div className="bg-indigo-600 text-white p-6"><h3 className="font-black uppercase text-sm flex items-center gap-2"><Truck className="h-4 w-4" /> Logística de Máquinas</h3></div>
+                        <div className="p-8 space-y-6 bg-white">
+                            <div className="space-y-3">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Asignar Máquina de Votación</Label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input 
+                                        placeholder="BUSCAR CÓDIGO..." 
+                                        value={maquinaSearch} 
+                                        onChange={e => setMaquinaSearch(e.target.value)} 
+                                        className="h-11 pl-10 border-2 font-black uppercase text-xs rounded-xl"
+                                    />
+                                </div>
+                                <div className="max-h-[150px] overflow-y-auto space-y-1">
+                                    {allMaquinas?.filter((m: any) => m.codigo?.toUpperCase().includes(maquinaSearch.toUpperCase())).map((m: any) => (
+                                        <Button 
+                                            key={m.id} 
+                                            variant="ghost" 
+                                            className={cn(
+                                                "w-full justify-start font-black uppercase text-[10px] h-9 rounded-lg",
+                                                logisticsSolicitud?.maquina_asignada_codigo === m.codigo ? "bg-indigo-100 text-indigo-700" : ""
+                                            )}
+                                            onClick={async () => {
+                                                try {
+                                                    await updateDoc(doc(firestore!, 'solicitudes-capacitacion', logisticsSolicitud!.id), { maquina_asignada_codigo: m.codigo });
+                                                    updateItem(logisticsSolicitud!.id, { maquina_asignada_codigo: m.codigo });
+                                                    toast({ title: "Máquina Asignada", description: `Código: ${m.codigo}` });
+                                                } catch (e: any) {
+                                                    console.error("Error asignando máquina:", e);
+                                                    toast({ 
+                                                        variant: 'destructive', 
+                                                        title: "Error de Permisos", 
+                                                        description: "No tienes permiso para actualizar esta solicitud. Contacta al administrador." 
+                                                    });
+                                                }
+                                            }}
+                                        >
+                                            <Activity className="h-3 w-3 mr-2" /> {m.codigo}
+                                        </Button>
+                                    ))}
+                                    {allMaquinas.length === 0 && !maquinasError && <p className="text-[9px] text-center py-4 text-muted-foreground font-black uppercase">No se encontraron máquinas...</p>}
+                                    {maquinasError && <p className="text-[9px] text-center py-4 text-destructive font-black uppercase">Error de acceso a la base de datos</p>}
+                                </div>
+                            </div>
+
+                            <Separator className="border-dashed" />
+
+                            <div className="space-y-4">
+                                <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Kit de Capacitación</Label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { id: 'pendrive', label: 'PENDRIVE' },
+                                        { id: 'acrilico', label: 'ACRÍLICO' },
+                                        { id: 'boletines', label: 'BOLETINES' },
+                                        { id: 'auricular', label: 'AURICULAR' }
+                                    ].map(item => {
+                                        const active = (logisticsSolicitud?.kit_entregado as any)?.[item.id];
+                                        return (
+                                            <Button
+                                                key={item.id}
+                                                variant="outline"
+                                                className={cn(
+                                                    "h-12 border-2 font-black uppercase text-[9px] rounded-xl transition-all",
+                                                    active ? "bg-indigo-600 text-white border-indigo-600" : "opacity-50"
+                                                )}
+                                                onClick={() => {
+                                                    const newKit = { ...(logisticsSolicitud?.kit_entregado || { pendrive: false, acrilico: false, boletines: false, auricular: false }), [item.id]: !active };
+                                                    updateDoc(doc(firestore!, 'solicitudes-capacitacion', logisticsSolicitud!.id), { kit_entregado: newKit });
+                                                    updateItem(logisticsSolicitud!.id, { kit_entregado: newKit });
+                                                }}
+                                            >
+                                                {active ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                                                {item.label}
+                                            </Button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={!!mmReportSolicitud} onOpenChange={o => !o && setMMReportSolicitud(null)}>
+                    <DialogContent className="max-w-lg rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+                        <div className="bg-indigo-600 text-white p-8">
+                            <h3 className="text-xl font-black uppercase flex items-center gap-3"><FileText className="h-6 w-6" /> Informe de Capacitación MM</h3>
+                        </div>
+                        <div className="p-8 space-y-8 bg-white">
+                            <div className="grid grid-cols-3 gap-6">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-muted-foreground text-center block">HOMBRES</Label>
+                                    <Input 
+                                        type="number" 
+                                        className="h-14 text-center text-xl font-black border-2 rounded-2xl" 
+                                        value={hombres} 
+                                        onChange={e => setHombres(parseInt(e.target.value) || 0)} 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-muted-foreground text-center block">MUJERES</Label>
+                                    <Input 
+                                        type="number" 
+                                        className="h-14 text-center text-xl font-black border-2 rounded-2xl" 
+                                        value={mujeres} 
+                                        onChange={e => setMujeres(parseInt(e.target.value) || 0)} 
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-indigo-600 text-center block">TOTAL</Label>
+                                    <div className="h-14 flex items-center justify-center text-3xl font-black text-indigo-600 bg-indigo-50 rounded-2xl border-2 border-indigo-100">
+                                        {hombres + mujeres}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <Separator className="border-dashed" />
+
+                            <Button 
+                                className="w-full h-16 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-sm shadow-xl shadow-indigo-100 hover:scale-[1.02] transition-all"
+                                onClick={async () => {
+                                    try {
+                                        await updateDoc(doc(firestore!, 'solicitudes-capacitacion', mmReportSolicitud!.id), {
+                                            cant_hombres: hombres,
+                                            cant_mujeres: mujeres,
+                                            fecha_cumplido: new Date().toISOString()
+                                        });
+                                        updateItem(mmReportSolicitud!.id, { cant_hombres: hombres, cant_mujeres: mujeres, fecha_cumplido: new Date().toISOString() });
+                                        toast({ title: "Informe Guardado", description: "La actividad ha sido concluida exitosamente." });
+                                        setMMReportSolicitud(null);
+                                    } catch (e) {
+                                        toast({ variant: 'destructive', title: "Error al guardar" });
+                                    }
+                                }}
+                            >
+                                <CheckCircle2 className="h-5 w-5 mr-3" /> GUARDAR Y CONCLUIR
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 {hasMoreItems && (
                     <div className="flex justify-center mt-6">
