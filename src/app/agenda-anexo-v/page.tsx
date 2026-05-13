@@ -1491,7 +1491,9 @@ export default function AgendaAnexoVPage() {
 
   const surveyUrl = useMemo(() => {
     if (typeof window === 'undefined' || !qrSolicitud) return '';
-    return `${window.location.origin}/encuesta-satisfaccion?solicitudId=${qrSolicitud.id}`;
+    const isMM = qrSolicitud.es_capacitacion_mm || qrSolicitud.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
+    const baseUrl = isMM ? '/evaluacion-mm' : '/encuesta-satisfaccion';
+    return `${window.location.origin}${baseUrl}?solicitudId=${qrSolicitud.id}`;
   }, [qrSolicitud]);
 
   const qrImageUrl = useMemo(() => {
@@ -1539,9 +1541,11 @@ export default function AgendaAnexoVPage() {
         doc.setFont('helvetica', 'bold');
         doc.text("JUSTICIA ELECTORAL", pageWidth/2, 55, { align: 'center' });
         
+        const isMM = qrSolicitud.es_capacitacion_mm || qrSolicitud.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
+        
         doc.setFontSize(12);
         doc.setFont('helvetica', 'normal');
-        doc.text("ENCUESTA DE SATISFACCIÓN CIUDADANA", pageWidth/2, 62, { align: 'center' });
+        doc.text(isMM ? "EVALUACIÓN DE MIEMBROS DE MESA" : "ENCUESTA DE SATISFACCIÓN CIUDADANA", pageWidth/2, 62, { align: 'center' });
 
         const response = await fetch(qrImageUrl);
         const blob = await response.blob();
@@ -1563,9 +1567,10 @@ export default function AgendaAnexoVPage() {
         doc.setFont('helvetica', 'normal');
         doc.text(`${formatDateToDDMMYYYY(qrSolicitud.fecha)} HS.`, pageWidth/2, 200, { align: 'center' });
 
+        const isMM = qrSolicitud.es_capacitacion_mm || qrSolicitud.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
         doc.setFontSize(8);
         doc.setTextColor(150);
-        doc.text("Escanée el código para participar de la encuesta oficial.", pageWidth/2, 215, { align: 'center' });
+        doc.text(isMM ? "Escanée el código para participar de la evaluación oficial." : "Escanée el código para participar de la encuesta oficial.", pageWidth/2, 215, { align: 'center' });
 
         doc.save(`QR-${entity.replace(/\s+/g, '-')}.pdf`);
         toast({ title: "PDF Generado", description: "El QR está listo para imprimir." });
