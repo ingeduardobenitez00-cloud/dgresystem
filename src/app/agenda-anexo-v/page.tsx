@@ -28,24 +28,29 @@ import {
   X,
   Copy,
   CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  ChevronDown,
-  ClipboardCheck,
+  Printer, 
+  Truck, 
+  Camera,
+  Plus,
   Power,
   PowerOff,
-  ShieldAlert,
-  Printer,
   Ban,
+  AlertCircle,
+  ShieldAlert,
+  ChevronRight,
+  ChevronLeft,
+  ChevronDown,
+  Info,
+  AlertTriangle,
+  ClipboardCheck,
   ImageIcon,
   Navigation,
   User,
   Phone,
   Maximize2,
   Clock,
-  Truck,
   PackageCheck,
-  Plus
+  Upload
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -190,6 +195,8 @@ const DistrictSection = ({
     const [maquinaSearch, setMaquinaSearch] = useState('');
     const [hombres, setHombres] = useState(0);
     const [mujeres, setMujeres] = useState(0);
+    const [uploadingPlanilla, setUploadingPlanilla] = useState<SolicitudCapacitacion | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     const maquinasQuery = useMemoFirebase(() => {
         if (!firestore || !logisticsSolicitud) return null;
@@ -627,7 +634,8 @@ const DistrictSection = ({
                                         <div className="flex gap-2 w-full max-w-[220px]">
                                             <div className="flex-1 relative">
                                                 <GuideStep step={3} message="Descarga el QR para la actividad" active={minStep === 3} onClick={() => { if(qrActive) { 
-                                                        const url = window.location.origin + `/evaluacion-mm?solicitudId=${item.id}`;
+                                                        const baseUrl = isMM ? '/evaluacion-mm' : '/encuesta-satisfaccion';
+                                                        const url = window.location.origin + `${baseUrl}?solicitudId=${item.id}`;
                                                         setQrSolicitud({ ...item, qr_url: url }); 
                                                         markQRAsViewed(item.id); 
                                                     } }} position="left" />
@@ -639,7 +647,8 @@ const DistrictSection = ({
                                                         item.qr_enabled && !qrActive ? "opacity-20 grayscale" : ""
                                                     )} 
                                                     onClick={() => { 
-                                                        const url = window.location.origin + `/evaluacion-mm?solicitudId=${item.id}`;
+                                                        const baseUrl = isMM ? '/evaluacion-mm' : '/encuesta-satisfaccion';
+                                                        const url = window.location.origin + `${baseUrl}?solicitudId=${item.id}`;
                                                         setQrSolicitud({ ...item, qr_url: url }); 
                                                         markQRAsViewed(item.id); 
                                                     }} 
@@ -677,17 +686,30 @@ const DistrictSection = ({
                                                 >
                                                     <Printer className="h-3.5 w-3.5" /> PLANILLA CIDEE (PDF)
                                                 </Button>
-                                                <Button 
-                                                    variant="outline"
-                                                    className="w-full h-9 border-2 border-indigo-200 text-indigo-700 font-black uppercase text-[8px] rounded-xl gap-1.5"
-                                                    onClick={() => {
-                                                        setMMReportSolicitud(item);
-                                                        setHombres(item.cant_hombres || 0);
-                                                        setMujeres(item.cant_mujeres || 0);
-                                                    }}
-                                                >
-                                                    <FileText className="h-3 w-3" /> INFORME MM
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button 
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "flex-1 h-9 border-2 font-black uppercase text-[8px] rounded-xl gap-1.5",
+                                                            item.planilla_foto_url ? "bg-green-600 border-green-600 text-white" : "border-indigo-200 text-indigo-700"
+                                                        )}
+                                                        onClick={() => setUploadingPlanilla(item)}
+                                                        title={item.planilla_foto_url ? "Ver/Cambiar Foto de Planilla" : "Subir Foto de Planilla Firmada"}
+                                                    >
+                                                        <Camera className="h-3 w-3" /> {item.planilla_foto_url ? "PLANILLA OK" : "FOTO PLANILLA"}
+                                                    </Button>
+                                                    <Button 
+                                                        variant="outline"
+                                                        className="flex-1 h-9 border-2 border-indigo-200 text-indigo-700 font-black uppercase text-[8px] rounded-xl gap-1.5"
+                                                        onClick={() => {
+                                                            setMMReportSolicitud(item);
+                                                            setHombres(item.cant_hombres || 0);
+                                                            setMujeres(item.cant_mujeres || 0);
+                                                        }}
+                                                    >
+                                                        <FileText className="h-3 w-3" /> INFORME MM
+                                                    </Button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -836,6 +858,82 @@ const DistrictSection = ({
                             >
                                 <CheckCircle2 className="h-5 w-5 mr-3" /> GUARDAR Y CONCLUIR
                             </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* MODAL SUBIR PLANILLA */}
+                <Dialog open={!!uploadingPlanilla} onOpenChange={o => !o && setUploadingPlanilla(null)}>
+                    <DialogContent className="max-w-md rounded-[2rem] p-0 overflow-hidden border-none shadow-2xl">
+                        <div className="bg-indigo-600 text-white p-6">
+                            <h3 className="font-black uppercase text-sm flex items-center gap-2"><Camera className="h-4 w-4" /> Respaldo de Planilla Firmada</h3>
+                        </div>
+                        <div className="p-8 space-y-6 bg-white text-center">
+                            {uploadingPlanilla?.planilla_foto_url ? (
+                                <div className="space-y-4">
+                                    <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border-4 border-indigo-50 shadow-inner bg-muted">
+                                        <Image 
+                                            src={uploadingPlanilla.planilla_foto_url} 
+                                            alt="Planilla Firmada" 
+                                            fill 
+                                            style={{ objectFit: 'contain' }}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] font-black text-green-600 uppercase">✓ PLANILLA CARGADA CORRECTAMENTE</p>
+                                </div>
+                            ) : (
+                                <div className="py-12 border-2 border-dashed border-indigo-100 rounded-3xl bg-indigo-50/30 flex flex-col items-center gap-4">
+                                    <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                        <Upload className="h-8 w-8" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="font-black uppercase text-xs text-indigo-900">Sin archivo seleccionado</p>
+                                        <p className="text-[10px] font-bold text-indigo-400 uppercase">Sube una foto clara de la planilla</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <label className="cursor-pointer">
+                                    <div className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-indigo-200">
+                                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                        <span className="font-black uppercase text-xs">{uploadingPlanilla?.planilla_foto_url ? 'CAMBIAR FOTO' : 'TOMAR FOTO / SUBIR'}</span>
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        capture="environment" 
+                                        className="hidden" 
+                                        disabled={isUploading}
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file || !firestore) return;
+                                            
+                                            setIsUploading(true);
+                                            try {
+                                                const { compressImage } = await import('@/lib/image-utils');
+                                                const dataUri = await compressImage(file);
+                                                
+                                                await updateDoc(doc(firestore, 'solicitudes-capacitacion', uploadingPlanilla!.id), {
+                                                    planilla_foto_url: dataUri
+                                                });
+                                                
+                                                updateItem(uploadingPlanilla!.id, { planilla_foto_url: dataUri });
+                                                toast({ title: "Planilla Guardada", description: "El respaldo documental se ha subido con éxito." });
+                                                setUploadingPlanilla(null);
+                                            } catch (error) {
+                                                console.error(error);
+                                                toast({ variant: 'destructive', title: "Error", description: "No se pudo subir la imagen." });
+                                            } finally {
+                                                setIsUploading(false);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                                <Button variant="ghost" className="h-12 font-black uppercase text-[10px]" onClick={() => setUploadingPlanilla(null)}>
+                                    CERRAR
+                                </Button>
+                            </div>
                         </div>
                     </DialogContent>
                 </Dialog>
