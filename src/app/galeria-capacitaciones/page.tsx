@@ -9,9 +9,11 @@ import {
   doc, 
   where,
   updateDoc,
-  arrayRemove 
+  arrayRemove,
+  arrayUnion
 } from 'firebase/firestore';
 import { useFirebase, useMemoFirebase } from '@/firebase/provider';
+import { useStorage } from '@/firebase/storage/use-storage';
 import { useUser } from '@/firebase/auth/use-user';
 import { useCollectionOnce } from '@/firebase/firestore/use-collection-once';
 import Header from '@/components/header';
@@ -31,7 +33,10 @@ import {
   FileText,
   Maximize2,
   ChevronDown,
-  X
+  X,
+  Plus,
+  Upload,
+  Camera
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,6 +67,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { normalizeGeo } from '@/lib/utils';
+import { compressImage } from '@/lib/image-utils';
 
 interface InformeDivulgador {
   id: string;
@@ -84,16 +90,22 @@ function DistrictGallerySection({
     items, 
     isAdmin, 
     isOwner, 
+    isJefe,
     handleDeleteInforme, 
     handleDeletePhoto,
+    handleUploadPhoto,
+    isUploading,
     setSelectedPhoto 
 }: { 
     distName: string, 
     items: InformeDivulgador[], 
     isAdmin?: boolean, 
     isOwner?: boolean,
+    isJefe?: boolean,
     handleDeleteInforme: (id: string) => void,
     handleDeletePhoto: (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => void,
+    handleUploadPhoto: (informeId: string, files: FileList | null, type: 'evidencia' | 'respaldo') => Promise<void>,
+    isUploading?: boolean,
     setSelectedPhoto: (url: string) => void
 }) {
     const [visibleCount, setVisibleCount] = useState(10);
@@ -260,6 +272,41 @@ function DistrictGallerySection({
                                             )}
                                         </div>
                                     ))}
+                                    
+                                    {/* Upload buttons for Evidencias (Only for Admins/Owners/Jefes) */}
+                                    {(isAdmin || isOwner || isJefe) && (
+                                        <label className="relative aspect-video rounded-xl overflow-hidden border-2 border-dashed border-primary/40 shadow-sm hover:bg-primary/5 transition-colors cursor-pointer flex flex-col items-center justify-center text-primary group/upload">
+                                            <div className="bg-primary/10 p-3 rounded-full mb-2 group-hover/upload:scale-110 transition-transform">
+                                                {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-center px-2">Añadir<br/>Evidencia</span>
+                                            <input 
+                                                type="file" 
+                                                className="hidden" 
+                                                multiple 
+                                                accept="image/*"
+                                                disabled={isUploading}
+                                                onChange={(e) => handleUploadPhoto(inf.id, e.target.files, 'evidencia')}
+                                            />
+                                        </label>
+                                    )}
+
+                                    {/* Upload button for Respaldo (Only if none exists and user is Admin/Owner/Jefe) */}
+                                    {(isAdmin || isOwner || isJefe) && !inf.foto_respaldo_documental && (
+                                        <label className="relative aspect-video rounded-xl overflow-hidden border-2 border-dashed border-primary/40 shadow-sm hover:bg-primary/5 transition-colors cursor-pointer flex flex-col items-center justify-center text-primary group/upload">
+                                            <div className="bg-primary/10 p-3 rounded-full mb-2 group-hover/upload:scale-110 transition-transform">
+                                                {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Plus className="h-6 w-6" />}
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-center px-2">Añadir<br/>Respaldo</span>
+                                            <input 
+                                                type="file" 
+                                                className="hidden" 
+                                                accept="image/*"
+                                                disabled={isUploading}
+                                                onChange={(e) => handleUploadPhoto(inf.id, e.target.files, 'respaldo')}
+                                            />
+                                        </label>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -287,8 +334,11 @@ function DepartmentGallerySection({
     firestore, 
     isAdmin, 
     isOwner, 
+    isJefe,
     handleDeleteInforme, 
     handleDeletePhoto,
+    handleUploadPhoto,
+    isUploading,
     setSelectedPhoto,
     datosData,
     profile,
@@ -298,8 +348,11 @@ function DepartmentGallerySection({
     firestore: any, 
     isAdmin?: boolean, 
     isOwner?: boolean,
+    isJefe?: boolean,
     handleDeleteInforme: (id: string) => void,
     handleDeletePhoto: (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => void,
+    handleUploadPhoto: (informeId: string, files: FileList | null, type: 'evidencia' | 'respaldo') => Promise<void>,
+    isUploading?: boolean,
     setSelectedPhoto: (url: string) => void,
     datosData: any[],
     profile: any,
@@ -393,8 +446,11 @@ function DepartmentGallerySection({
                                 items={dist.items}
                                 isAdmin={isAdmin}
                                 isOwner={isOwner}
+                                isJefe={isJefe}
                                 handleDeleteInforme={handleDeleteInforme}
                                 handleDeletePhoto={handleDeletePhoto}
+                                handleUploadPhoto={handleUploadPhoto}
+                                isUploading={isUploading}
                                 setSelectedPhoto={setSelectedPhoto}
                             />
                         ))}
@@ -415,6 +471,44 @@ export default function GaleriaCapacitacionesPage() {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
+  const { uploadFile, isUploading } = useStorage();
+
+  const handleUploadPhoto = async (informeId: string, files: FileList | null, type: 'evidencia' | 'respaldo') => {
+    if (!firestore || !files || files.length === 0) return;
+    try {
+      toast({ title: "Subiendo imagen...", description: "Por favor espere." });
+      const docRef = doc(firestore, 'informes-divulgador', informeId);
+      
+      if (type === 'respaldo') {
+         const compressed = await compressImage(files[0]);
+         const url = await uploadFile(`informes-divulgador/${informeId}/respaldo_${Date.now()}.jpg`, compressed);
+         await updateDoc(docRef, {
+           foto_respaldo_documental: url
+         });
+      } else {
+         const urls = [];
+         for (let i = 0; i < files.length; i++) {
+             const compressed = await compressImage(files[i]);
+             const url = await uploadFile(`informes-divulgador/${informeId}/evidencia_${Date.now()}_${i}.jpg`, compressed);
+             urls.push(url);
+         }
+         await updateDoc(docRef, {
+             fotos: arrayUnion(...urls)
+         });
+      }
+      
+      toast({ title: "¡Subida exitosa!", description: "La imagen se ha subido correctamente." });
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error al subir la foto", 
+        description: error.message 
+      });
+    }
+  };
 
   const handleDeleteInforme = async (id: string) => {
     if (!firestore) return;
@@ -468,6 +562,7 @@ export default function GaleriaCapacitacionesPage() {
   };
 
   const profile = user?.profile;
+  const isJefe = profile?.role?.toLowerCase() === 'jefe';
 
   const datosQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading) return null;
@@ -540,8 +635,11 @@ export default function GaleriaCapacitacionesPage() {
                         firestore={firestore}
                         isAdmin={isAdmin}
                         isOwner={isOwner}
+                        isJefe={isJefe}
                         handleDeleteInforme={handleDeleteInforme}
                         handleDeletePhoto={handleDeletePhoto}
+                        handleUploadPhoto={handleUploadPhoto}
+                        isUploading={isUploading}
                         setSelectedPhoto={setSelectedPhoto}
                         datosData={datosData || []}
                         profile={profile}
