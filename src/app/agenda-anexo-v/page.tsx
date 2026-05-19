@@ -1567,7 +1567,6 @@ export default function AgendaAnexoVPage() {
         doc.setFont('helvetica', 'normal');
         doc.text(`${formatDateToDDMMYYYY(qrSolicitud.fecha)} HS.`, pageWidth/2, 200, { align: 'center' });
 
-        const isMM = qrSolicitud.es_capacitacion_mm || qrSolicitud.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
         doc.setFontSize(8);
         doc.setTextColor(150);
         doc.text(isMM ? "Escanée el código para participar de la evaluación oficial." : "Escanée el código para participar de la encuesta oficial.", pageWidth/2, 215, { align: 'center' });

@@ -19,8 +19,13 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { compressImage } from '@/lib/image-utils';
+import { Camera, ImageIcon } from 'lucide-react';
 
 type FormState = Omit<ActaDefuncion, 'id' | 'usuario_id' | 'username' | 'fecha_creacion'>;
 
@@ -38,6 +43,7 @@ const emptyForm = (): FormState => ({
   observaciones: '',
   oficial_nombre: '', oficial_cedula: '',
   lugar_expedicion: '', fecha_expedicion: '',
+  foto_url: '',
 });
 
 function SectionHeader({ title }: { title: string }) {
@@ -91,6 +97,7 @@ function ActaDefuncionContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const actasQuery = useMemoFirebase(() => {
     if (!firestore || activeTab !== 'historial') return null;
@@ -193,12 +200,32 @@ function ActaDefuncionContent() {
     />
   );
 
-  const handleSubmit = async () => {
-    if (!firestore || !user) return;
+  const handlePreview = () => {
     if (!form.nombres || !form.apellidos || !form.fecha_fallecimiento) {
       toast({ variant: 'destructive', title: 'Campos requeridos', description: 'Nombres, Apellidos y Fecha de Fallecimiento son obligatorios.' });
       return;
     }
+    if (!form.foto_url) {
+      toast({ variant: 'destructive', title: 'Foto requerida', description: 'Por favor, suba una foto del acta física.' });
+      return;
+    }
+    setShowPreview(true);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUri = await compressImage(file);
+      set('foto_url', dataUri);
+      toast({ title: 'Foto cargada correctamente' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al procesar la foto' });
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!firestore || !user) return;
     setIsSubmitting(true);
     try {
       const data = {
@@ -220,6 +247,7 @@ function ActaDefuncionContent() {
       });
       toast({ title: '✅ Acta registrada exitosamente' });
       setForm(emptyForm());
+      setShowPreview(false);
     } catch (e) {
       toast({ variant: 'destructive', title: 'Error al guardar', description: 'Intente de nuevo.' });
     } finally {
@@ -571,17 +599,36 @@ function ActaDefuncionContent() {
                       className="h-9 border-2 font-bold text-sm bg-white" />
                   </div>
                 </FieldRow>
-                <div className="border-t pt-4 text-center space-y-1">
-                  <div className="w-48 border-t-2 border-black mx-auto mt-6" />
-                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Firma y Sello</p>
+                <div className="border-t pt-6 mt-4">
+                  <div className="max-w-md mx-auto space-y-4 text-center">
+                    <Label className="text-[10px] font-black uppercase text-primary tracking-widest">Foto del Acta Física *</Label>
+                    {form.foto_url ? (
+                      <div className="relative aspect-[3/4] w-full max-w-[200px] mx-auto rounded-xl overflow-hidden border-2 border-primary">
+                        <img src={form.foto_url} alt="Acta" className="w-full h-full object-cover" />
+                        <label className="absolute bottom-2 right-2 bg-black/70 hover:bg-black text-white p-2 rounded-full cursor-pointer transition-colors">
+                          <Camera className="h-4 w-4" />
+                          <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                        </label>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full max-w-[200px] mx-auto aspect-[3/4] border-2 border-dashed border-primary/50 rounded-xl cursor-pointer hover:bg-primary/5 hover:border-primary transition-all group">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                          <Camera className="h-6 w-6 text-primary" />
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-primary">Subir Foto</span>
+                        <span className="text-[8px] font-medium text-muted-foreground mt-1">Obligatorio</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                      </label>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Notas legales */}
               <div className="mt-6 space-y-1 border-t pt-4">
                 {[
-                  '*El presente documento deberá ser refrendado con la firma y sello del oficial del Registro Civil para su validez',
-                  '*El presente documento deberá ser expedido en forma gratuita y entregado al funcionario electoral',
+                  '*El acta digitalizada debe coincidir exactamente con el documento físico.',
+                  '*Asegúrese de que la foto sea legible y abarque todo el documento.',
                   '*El presente documento deberá ser remitido a la Dirección de Actualización y Depuración del RCP de la Justicia Electoral',
                 ].map((n, i) => (
                   <p key={i} className="text-[9px] text-muted-foreground italic font-medium">{n}</p>
@@ -591,12 +638,12 @@ function ActaDefuncionContent() {
 
             <CardFooter className="p-0 overflow-hidden">
               <Button
-                onClick={handleSubmit}
+                onClick={handlePreview}
                 disabled={isSubmitting}
                 className="w-full h-20 text-xl font-black uppercase rounded-none tracking-widest bg-primary hover:bg-primary/90 gap-4"
               >
                 {isSubmitting ? <Loader2 className="animate-spin h-6 w-6" /> : <Save className="h-6 w-6" />}
-                REGISTRAR ACTA DE DEFUNCIÓN
+                PREVISUALIZAR Y REGISTRAR
               </Button>
             </CardFooter>
           </Card>
@@ -683,6 +730,119 @@ function ActaDefuncionContent() {
           </Card>
         )}
       </main>
+
+      {/* DIALOG DE PREVISUALIZACION */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-5xl w-full h-[90vh] p-0 overflow-hidden flex flex-col rounded-[2rem]">
+          <div className="bg-primary p-6 text-white text-center shrink-0">
+            <DialogTitle className="text-xl font-black uppercase tracking-widest flex items-center justify-center gap-2">
+              <ScrollText className="h-6 w-6" /> Constatación de Carga
+            </DialogTitle>
+            <DialogDescription className="text-white/70 text-[10px] font-medium uppercase mt-2">
+              Verifique que los datos ingresados coincidan exactamente con la fotografía del acta física.
+            </DialogDescription>
+          </div>
+          
+          <div className="flex-1 overflow-hidden flex flex-col md:flex-row min-h-0 bg-muted/10">
+            {/* Lado izquierdo: Foto */}
+            <div className="flex-1 border-r border-dashed bg-black/5 p-6 flex flex-col min-h-0 overflow-y-auto">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground mb-4 shrink-0 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" /> Formulario Físico (Acta Escaneada/Foto)
+              </Label>
+              <div className="flex-1 relative rounded-xl overflow-hidden border shadow-inner bg-white flex items-center justify-center">
+                {form.foto_url && (
+                  <img src={form.foto_url} alt="Previsualización" className="max-w-full max-h-full object-contain" />
+                )}
+              </div>
+            </div>
+
+            {/* Lado derecho: Datos */}
+            <div className="flex-1 p-6 flex flex-col min-h-0">
+              <Label className="text-[10px] font-black uppercase text-primary mb-4 shrink-0 flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Formulario Digital (Datos Cargados)
+              </Label>
+              <ScrollArea className="flex-1 border rounded-xl bg-white shadow-inner p-6">
+                <div className="space-y-6">
+                  {/* Difunto */}
+                  <div>
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-muted-foreground border-b pb-2 mb-3">Datos del Difunto</h4>
+                    <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Nombres y Apellidos</p>
+                        <p className="font-black text-xs uppercase">{form.nombres} {form.apellidos}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Cédula de Identidad</p>
+                        <p className="font-black text-xs">{form.cedula_identidad || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Fecha Fallecimiento</p>
+                        <p className="font-black text-xs">{form.fecha_fallecimiento}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Lugar Fallecimiento</p>
+                        <p className="font-black text-xs uppercase">{form.lugar_fallecimiento || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Fecha Nacimiento</p>
+                        <p className="font-black text-xs">{form.fecha_nacimiento || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Sexo / Nacionalidad</p>
+                        <p className="font-black text-xs uppercase">{form.sexo || '-'} / {form.nacionalidad || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acta */}
+                  <div>
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-muted-foreground border-b pb-2 mb-3">Datos del Acta</h4>
+                    <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Tomo / Folio / Acta N°</p>
+                        <p className="font-black text-xs">{form.inscripcion_tomo || '-'} / {form.inscripcion_folio || '-'} / {form.inscripcion_acta || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Fecha del Acta</p>
+                        <p className="font-black text-xs">{form.fecha_dia}/{form.fecha_mes}/{form.fecha_anio}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Oficina Registral</p>
+                        <p className="font-black text-xs uppercase">N° {form.oficina_numero} - {form.oficina_descripcion}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Declarante y Oficial */}
+                  <div>
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-muted-foreground border-b pb-2 mb-3">Intervinientes</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Declarante</p>
+                        <p className="font-black text-xs uppercase">{form.declarante_nombre || 'N/A'} (CI: {form.declarante_cedula || 'N/A'}) - {form.declarante_vinculo}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Oficial del Registro</p>
+                        <p className="font-black text-xs uppercase">{form.oficial_nombre || 'N/A'} (CI: {form.oficial_cedula || 'N/A'})</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter className="shrink-0 p-6 bg-white border-t sm:justify-between items-center flex-row">
+            <Button variant="ghost" className="font-black uppercase text-[10px]" onClick={() => setShowPreview(false)}>
+              Revisar Datos
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting} className="font-black uppercase text-[10px] tracking-widest h-12 px-8 bg-green-600 hover:bg-green-700">
+              {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Confirmar y Registrar Acta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

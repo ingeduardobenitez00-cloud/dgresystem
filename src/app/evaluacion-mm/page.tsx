@@ -37,7 +37,8 @@ function EvaluacionContent() {
       p3: '',
       p4: '',
       p5: '',
-    }
+    },
+    fecha: ''
   });
 
   useEffect(() => {
@@ -53,7 +54,8 @@ function EvaluacionContent() {
           setSolicitud(data);
           setForm(prev => ({ 
             ...prev, 
-            organizacion_politica: data.solicitante_entidad || data.otra_entidad || '' 
+            organizacion_politica: data.solicitante_entidad || data.otra_entidad || '',
+            fecha: data.fecha || new Date().toISOString().split('T')[0]
           }));
         }
       } catch (e) {
@@ -225,10 +227,18 @@ function EvaluacionContent() {
                   className="h-10 border-2 font-bold text-xs"
                 />
               </div>
-              <div className="md:col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase">Organización Política</Label>
                 <Input 
                   value={form.organizacion_politica} 
+                  readOnly
+                  className="h-10 border-2 font-bold bg-muted/20 uppercase text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Fecha</Label>
+                <Input 
+                  value={form.fecha} 
                   readOnly
                   className="h-10 border-2 font-bold bg-muted/20 uppercase text-xs"
                 />
@@ -255,9 +265,9 @@ function EvaluacionContent() {
               <div className="space-y-4">
                 <p className="text-xs font-black uppercase leading-relaxed">2. El presidente de mesa en los casos de contingencia de no impresión del boletín de voto deberá:</p>
                 <RadioGroup value={form.respuestas.p2} onValueChange={v => setForm({...form, respuestas: {...form.respuestas, p2: v}})} className="space-y-3">
-                  <OptionItem value="A" label="Comunicar al delegado designado por el TEOP y al Soporte Técnico de la Justicia Electoral." />
-                  <OptionItem value="B" label="Escribirá 'BOLETÍN DAÑADO PREVIO AL VOTO' lo pondrá en el sobre de boletines no utilizados y asentará el hecho en el acta de incidentes." />
-                  <OptionItem value="C" label="Si el boletín dice 'BOLETÍN DE VOTO INVÁLIDO', el presidente lo pondrá en el sobre de no utilizados y asentará en el acta de incidentes." />
+                  <OptionItem value="A" label="Comunicar al delegado designado por el TEOP y al Soporte Técnico de la Justicia Electoral, quien, de ser necesario, procederá a reemplazar la MV por una de contingencia de acuerdo al protocolo aprobado por el TSJE." />
+                  <OptionItem value="B" label="Si no activa el módulo de votación y es expulsado por la MV, el presidente de mesa escribirá &quot;BOLETÍN DAÑADO PREVIO AL VOTO&quot; lo pondrá en el sobre de boletines de voto no utilizados y asentará el hecho en el acta de incidentes." />
+                  <OptionItem value="C" label="Si el boletín de voto impreso por la MV dice &quot;BOLETÍN DE VOTO INVÁLIDO&quot;, el presidente de mesa lo pondrá en el sobre de boletines de voto no utilizados y asentará el hecho en el acta de incidentes." />
                   <OptionItem value="D" label="B y C son correctas." />
                 </RadioGroup>
               </div>
@@ -287,8 +297,8 @@ function EvaluacionContent() {
               <div className="space-y-4">
                 <p className="text-xs font-black uppercase leading-relaxed">5. ¿Cuál es voto nulo?</p>
                 <RadioGroup value={form.respuestas.p5} onValueChange={v => setForm({...form, respuestas: {...form.respuestas, p5: v}})} className="space-y-3">
-                  <OptionItem value="A" label="El boletín de voto que no tenga la firma de los miembros de mesa." />
-                  <OptionItem value="B" label="El elector, sin utilizar la MV, introduzca en la urna plástica el boletín sin el contenido del voto." />
+                  <OptionItem value="A" label="El boletín de voto que no tenga la firma de los miembros de mesa;" />
+                  <OptionItem value="B" label="El elector, sin utilizar la MV, introduzca en la urna plástica el boletín sin el contenido del voto;" />
                   <OptionItem value="C" label="El boletín de voto sea ilegible." />
                   <OptionItem value="D" label="Todas son correctas." />
                 </RadioGroup>

@@ -339,6 +339,7 @@ export type ActaDefuncion = {
   usuario_id: string;
   username: string;
   fecha_creacion: string;
+  foto_url?: string;
 };
 
 export interface EvaluacionMM {
