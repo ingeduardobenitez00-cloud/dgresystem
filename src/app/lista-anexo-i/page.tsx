@@ -432,11 +432,21 @@ export default function ListaAnexoIPage() {
                                             <TableCell className="text-[10px] font-bold uppercase text-muted-foreground">{f.direccion}</TableCell>
                                             <TableCell className="text-center">
                                                 <Badge variant="secondary" className="bg-muted/50 text-[9px] font-bold">
-                                                    {formatDateToDDMMYYYY(f.fecha_desde)} al {formatDateToDDMMYYYY(f.fecha_hasta)}
+                                                    {(!f.fecha_hasta || f.fecha_hasta === f.fecha_desde) 
+                                                        ? formatDateToDDMMYYYY(f.fecha_desde)
+                                                        : `${formatDateToDDMMYYYY(f.fecha_desde)} al ${formatDateToDDMMYYYY(f.fecha_hasta)}`
+                                                    }
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right px-6 font-black text-[10px] text-primary">
-                                                {f.hora_desde} a {f.hora_hasta} HS
+                                                {f.hora_desde && f.hora_hasta 
+                                                    ? `${f.hora_desde} a ${f.hora_hasta} HS`
+                                                    : f.hora_desde 
+                                                        ? `Desde ${f.hora_desde} HS`
+                                                        : f.hora_hasta 
+                                                            ? `Hasta ${f.hora_hasta} HS`
+                                                            : 'Sin Horario'
+                                                }
                                             </TableCell>
                                         </TableRow>
                                     ))}

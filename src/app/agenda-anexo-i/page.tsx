@@ -419,7 +419,7 @@ const DistrictSection = ({
                                     </div>
                                     <div className="lg:col-span-3 space-y-4">
                                         <div className="flex items-center gap-3"><MapPin className="h-4 w-4 text-muted-foreground" /><p className="font-black text-[12px] uppercase text-[#1A1A1A]">{item.lugar_local}</p></div>
-                                        <div className="flex items-center gap-3"><Calendar className={cn("h-4 w-4", hasAlert ? "text-destructive" : "text-muted-foreground")} /><p className={cn("font-black text-[12px] uppercase", hasAlert ? "text-destructive font-black" : "text-[#1A1A1A]")}>{formatDateToDDMMYYYY(item.fecha)} | {item.hora_desde} A {item.hora_hasta} HS</p></div>
+                                        <div className="flex items-center gap-3"><Calendar className={cn("h-4 w-4", hasAlert ? "text-destructive" : "text-muted-foreground")} /><p className={cn("font-black text-[12px] uppercase", hasAlert ? "text-destructive font-black" : "text-[#1A1A1A]")}>{formatDateToDDMMYYYY(item.fecha)}{item.hora_desde && item.hora_hasta ? ` | ${item.hora_desde} A ${item.hora_hasta} HS` : item.hora_desde ? ` | DESDE ${item.hora_desde} HS` : item.hora_hasta ? ` | HASTA ${item.hora_hasta} HS` : ''}</p></div>
                                     </div>
                                     <div className="lg:col-span-2 space-y-4">
                                         <div className="space-y-1"><p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">PERSONAL</p>{assignedList.length > 0 ? <div className="flex items-center gap-2 text-[#16A34A]"><Users className="h-4 w-4" /><p className="font-black text-[11px] uppercase">{assignedList.length} ASIGNADOS</p></div> : <p className="text-[10px] font-black text-destructive italic uppercase">SIN ASIGNAR</p>}</div>
@@ -1379,22 +1379,25 @@ export default function AgendaAnexoIPage() {
                             ) : anexoPadreData?.foto_respaldo ? (
                                 <div 
                                     className="relative aspect-video w-full rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-muted group cursor-pointer"
-                                    onClick={() => anexoPadreData.foto_respaldo && !anexoPadreData.foto_respaldo.startsWith('data:application/pdf') && setFullViewerImage(anexoPadreData.foto_respaldo)}
+                                    onClick={() => anexoPadreData.foto_respaldo && !(anexoPadreData.foto_respaldo.startsWith('data:application/pdf') || anexoPadreData.foto_respaldo.includes('.pdf')) && setFullViewerImage(anexoPadreData.foto_respaldo)}
                                 >
-                                    {anexoPadreData.foto_respaldo.startsWith('data:application/pdf') ? (
+                                    {anexoPadreData.foto_respaldo.startsWith('data:application/pdf') || anexoPadreData.foto_respaldo.includes('.pdf') ? (
                                         <div className="w-full h-full flex flex-col items-center justify-center bg-white">
-                                            <FileText className="h-16 w-16 text-primary opacity-20" />
-                                            <p className="text-[10px] font-black uppercase mt-2">Documento PDF Guardado</p>
+                                            <FileText className="h-16 w-16 text-primary opacity-25 mb-2" />
+                                            <p className="text-[10px] font-black uppercase text-primary mb-4">Documento PDF Guardado</p>
+                                            <Button variant="outline" className="font-black uppercase text-[9px] border-2 h-9 px-6" asChild>
+                                                <a href={anexoPadreData.foto_respaldo} target="_blank" rel="noopener noreferrer">VER DOCUMENTO PDF</a>
+                                            </Button>
                                         </div>
                                     ) : (
-                                        <Image src={anexoPadreData.foto_respaldo} alt="Firma Anexo I" fill className="object-cover" />
-                                    )}
-                                    {!anexoPadreData.foto_respaldo.startsWith('data:application/pdf') && (
-                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <div className="bg-white/20 backdrop-blur-md p-4 rounded-full">
-                                                <Maximize2 className="h-8 w-8 text-white" />
+                                        <>
+                                            <Image src={anexoPadreData.foto_respaldo} alt="Firma Anexo I" fill className="object-cover" />
+                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <div className="bg-white/20 backdrop-blur-md p-4 rounded-full">
+                                                    <Maximize2 className="h-8 w-8 text-white" />
+                                                </div>
                                             </div>
-                                        </div>
+                                        </>
                                     )}
                                 </div>
                             ) : (

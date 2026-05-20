@@ -31,7 +31,7 @@ import Image from 'next/image';
 import { compressImage, captureVideoFrame } from '@/lib/image-utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format, addDays, parseISO } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -55,6 +55,16 @@ type AnexoIFila = {
   hora_desde: string;
   hora_hasta: string;
 }
+
+const parseLocalDate = (dateStr: string): Date => {
+  if (!dateStr) return new Date();
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts.map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+};
 
 export default function AnexoIPage() {
   const { user, isUserLoading } = useUser();
@@ -153,10 +163,10 @@ export default function AnexoIPage() {
   const handleSave = () => {
     if (!firestore || !user) return;
     
-    const filledFilas = filas.filter(f => f.lugar.trim() !== '' && f.fecha_desde && f.fecha_hasta && f.hora_desde && f.hora_hasta);
+    const filledFilas = filas.filter(f => f.lugar.trim() !== '' && f.fecha_desde);
     
     if (filledFilas.length === 0) {
-      toast({ variant: "destructive", title: "Datos incompletos", description: "Complete al menos una fila con Lugar, Fechas y Horarios para agendar." });
+      toast({ variant: "destructive", title: "Datos incompletos", description: "Complete al menos una fila con Lugar y Fecha para agendar." });
       return;
     }
 
@@ -184,7 +194,13 @@ export default function AnexoIPage() {
           tipo_oficina: tipoOficina,
           departamento: profile?.departamento || '',
           distrito: profile?.distrito || '',
-          filas: filledFilas,
+          filas: filledFilas.map(f => ({
+            ...f,
+            fecha_hasta: f.fecha_hasta || f.fecha_desde,
+            hora_desde: f.hora_desde || '',
+            hora_hasta: f.hora_hasta || '',
+            direccion: f.direccion || ''
+          })),
           foto_respaldo: storageUrl, // Ahora es URL de Storage
           usuario_id: user.uid,
           fecha_creacion: new Date().toISOString(),
@@ -194,8 +210,8 @@ export default function AnexoIPage() {
         batch.set(anexoRef, anexoData);
 
         filledFilas.forEach(f => {
-          const start = parseISO(f.fecha_desde);
-          const end = parseISO(f.fecha_hasta);
+          const start = parseLocalDate(f.fecha_desde);
+          const end = f.fecha_hasta ? parseLocalDate(f.fecha_hasta) : start;
           
           if (isNaN(start.getTime()) || isNaN(end.getTime())) return;
 
@@ -210,10 +226,10 @@ export default function AnexoIPage() {
               solicitante_entidad: tipoOficina === 'REGISTRO' ? 'OFICINA REGISTRO ELECTORAL' : tipoOficina === 'CENTRO_CIVICO' ? 'CENTRO CÍVICO' : 'OFICINA CENTRAL',
               tipo_solicitud: 'Lugar Fijo',
               fecha: dayStr,
-              hora_desde: f.hora_desde,
-              hora_hasta: f.hora_hasta,
+              hora_desde: f.hora_desde || '',
+              hora_hasta: f.hora_hasta || '',
               lugar_local: f.lugar.toUpperCase(),
-              direccion_calle: f.direccion.toUpperCase(),
+              direccion_calle: (f.direccion || '').toUpperCase(),
               barrio_compania: '',
               departamento: profile?.departamento || '',
               distrito: profile?.distrito || '',
@@ -291,12 +307,12 @@ export default function AnexoIPage() {
     doc.text((profile?.departamento || '').toUpperCase(), margin + 155, y - 0.5);
 
     const tableBody = filas.map((f, i) => {
-      const fechaStr = (f.fecha_desde && f.fecha_hasta) 
-        ? `DEL: ${format(parseISO(f.fecha_desde), "dd/MM")} AL: ${format(parseISO(f.fecha_hasta), "dd/MM")} / 2026`
+      const fechaStr = f.fecha_desde
+        ? `DEL: ${format(parseLocalDate(f.fecha_desde), "dd/MM")} AL: ${format(parseLocalDate(f.fecha_hasta || f.fecha_desde), "dd/MM")} / 2026`
         : 'DEL:   /   AL:   /   / 2026';
       
-      const horaStr = (f.hora_desde && f.hora_hasta)
-        ? `${f.hora_desde} A ${f.hora_hasta} HS`
+      const horaStr = (f.hora_desde || f.hora_hasta)
+        ? `${f.hora_desde || '____'} A ${f.hora_hasta || '____'} HS`
         : '____ A ____ HS';
 
       return [
@@ -455,10 +471,10 @@ export default function AnexoIPage() {
                                                     {fila.fecha_desde ? (
                                                         fila.fecha_hasta ? (
                                                             <span className="tracking-tight">
-                                                                {format(parseISO(fila.fecha_desde), "dd/MM/yy")} - {format(parseISO(fila.fecha_hasta), "dd/MM/yy")}
+                                                                {format(parseLocalDate(fila.fecha_desde), "dd/MM/yy")} - {format(parseLocalDate(fila.fecha_hasta), "dd/MM/yy")}
                                                             </span>
                                                         ) : (
-                                                            format(parseISO(fila.fecha_desde), "dd/MM/yy")
+                                                            format(parseLocalDate(fila.fecha_desde), "dd/MM/yy")
                                                         )
                                                     ) : (
                                                         <span className="uppercase font-bold text-[9px]">Seleccionar Rango</span>
@@ -469,10 +485,10 @@ export default function AnexoIPage() {
                                                 <Calendar
                                                     initialFocus
                                                     mode="range"
-                                                    defaultMonth={fila.fecha_desde ? parseISO(fila.fecha_desde) : undefined}
+                                                    defaultMonth={fila.fecha_desde ? parseLocalDate(fila.fecha_desde) : undefined}
                                                     selected={{
-                                                        from: fila.fecha_desde ? parseISO(fila.fecha_desde) : undefined,
-                                                        to: fila.fecha_hasta ? parseISO(fila.fecha_hasta) : undefined,
+                                                        from: fila.fecha_desde ? parseLocalDate(fila.fecha_desde) : undefined,
+                                                        to: fila.fecha_hasta ? parseLocalDate(fila.fecha_hasta) : undefined,
                                                     }}
                                                     onSelect={(range) => {
                                                         handleFilaChange(idx, 'fecha_desde', range?.from ? format(range.from, "yyyy-MM-dd") : '');
@@ -567,7 +583,7 @@ export default function AnexoIPage() {
 
             <div className="p-6 bg-muted/20 rounded-3xl text-center">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-relaxed max-w-3xl mx-auto italic">
-                    * Al guardar este formulario, el sistema procesará únicamente las filas que tengan datos completos. Se generarán entradas automáticas en la Agenda para cada día comprendido en los rangos de fecha seleccionados.
+                    * Al guardar este formulario, el sistema procesará únicamente las filas que tengan al menos Lugar y Fecha de inicio. Se generarán entradas automáticas en la Agenda para cada día comprendido en los rangos de fecha seleccionados.
                 </p>
             </div>
 
