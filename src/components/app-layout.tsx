@@ -140,7 +140,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [mounted, user, resetTimer, auth]);
 
   const isPublicRoute = useMemo(() => {
-    const publicRoutes = ['/login', '/encuesta-satisfaccion'];
+    const publicRoutes = ['/login', '/encuesta-satisfaccion', '/evaluacion-mm'];
     return publicRoutes.some(route => pathname.startsWith(route));
   }, [pathname]);
 
@@ -305,7 +305,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const isLoginPage = pathname === '/login';
-  const isEncuestaPage = pathname.startsWith('/encuesta-satisfaccion');
+  const isEncuestaPage = pathname.startsWith('/encuesta-satisfaccion') || pathname.startsWith('/evaluacion-mm');
   const isPublicView = isEncuestaPage && !user;
   const showSimpleLayout = isLoginPage || isPublicView;
 
