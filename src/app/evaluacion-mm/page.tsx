@@ -232,7 +232,7 @@ function QuestionItem({ number, question, value, onChange }: { number: number, q
       
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-6 pl-0 md:pl-10">
         {options.map((opt) => (
-          <label key={opt} className={cn(
+          <div key={opt} onClick={() => onChange(opt)} className={cn(
             "flex flex-col items-center justify-center p-3 md:p-4 rounded-xl border-2 cursor-pointer transition-all hover:bg-muted/30 gap-3 group",
             value === opt ? "border-primary bg-primary/5 shadow-md" : "border-muted",
             "active:scale-[0.98]"
@@ -247,7 +247,7 @@ function QuestionItem({ number, question, value, onChange }: { number: number, q
                 "text-[10px] md:text-xs font-black uppercase text-center tracking-wider",
                 value === opt ? "text-primary" : "text-muted-foreground group-hover:text-[#1A1A1A]"
             )}>{opt}</span>
-          </label>
+          </div>
         ))}
       </div>
     </div>
