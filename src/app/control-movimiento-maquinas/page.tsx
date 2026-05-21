@@ -659,7 +659,7 @@ function ControlMovimientoContent() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
     const boxWidth = pageWidth - (margin * 2);
-    const responsibles = selectedSolicitud.divulgadores || selectedSolicitud.asignados || [];
+    const responsibles = currentMovimiento ? (currentMovimiento.responsables || []) : (selectedSolicitud.divulgadores || selectedSolicitud.asignados || []);
     const isOnlySalida = !currentMovimiento;
 
     doc.addImage(logoBase64, 'PNG', margin, 8, 15, 15);
@@ -958,7 +958,7 @@ function ControlMovimientoContent() {
                 <div className="space-y-4">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Funcionarios Asignados</Label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-muted/20 rounded-3xl border-2 border-dashed">
-                        {(selectedSolicitud?.divulgadores || selectedSolicitud?.asignados || []).slice(0, 3).map(a => (
+                        {(currentMovimiento ? (currentMovimiento.responsables || []) : (selectedSolicitud?.divulgadores || selectedSolicitud?.asignados || [])).slice(0, 3).map(a => (
                             <div key={a.id} className="bg-white border-2 rounded-2xl p-4 flex flex-col gap-1 shadow-sm">
                                 <div className="flex items-center gap-2 border-b pb-2 mb-1">
                                     <User className="h-3 w-3 text-primary" />
@@ -970,7 +970,7 @@ function ControlMovimientoContent() {
                                 </div>
                             </div>
                         ))}
-                        {(selectedSolicitud?.divulgadores || selectedSolicitud?.asignados || []).length === 0 && (
+                        {(currentMovimiento ? (currentMovimiento.responsables || []) : (selectedSolicitud?.divulgadores || selectedSolicitud?.asignados || [])).length === 0 && (
                             <div className="col-span-full py-4 text-center text-[9px] font-black uppercase text-destructive italic">Sin personal asignado en agenda</div>
                         )}
                     </div>

@@ -499,7 +499,10 @@ const DistrictSection = ({
                                                 <span className="text-[9px] font-black uppercase mt-1 leading-tight">Asignar Personal</span>
                                             </div>
                                             {assignedList.length > 0 ? (
-                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                <Button size="sm" variant="outline" className="h-6 px-2 border-green-600 text-green-700 hover:bg-green-100 rounded-md text-[7px] font-black uppercase shrink-0 flex gap-1 shadow-sm" onClick={() => setAssigningSolicitud(item)}>
+                                                    <CheckCircle2 className="h-3 w-3" />
+                                                    EDITAR ({assignedList.length})
+                                                </Button>
                                             ) : (
                                                 <Button size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setAssigningSolicitud(item)}>ASIGNAR</Button>
                                             )}
@@ -576,7 +579,9 @@ const DistrictSection = ({
                                                 <span className="text-[9px] font-black uppercase mt-1 leading-tight">Form. Salida</span>
                                             </div>
                                             {!pendingSalida ? (
-                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                <Button size="sm" variant="outline" className="h-6 px-2 border-green-600 text-green-700 hover:bg-green-100 rounded-md text-[7px] font-black uppercase shrink-0 flex gap-1 shadow-sm" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>
+                                                    <Eye className="h-3 w-3" /> VER
+                                                </Button>
                                             ) : (
                                                 <Button disabled={!isQRViewed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>SALIDA</Button>
                                             )}
@@ -649,7 +654,9 @@ const DistrictSection = ({
                                                 <span className="text-[9px] font-black uppercase mt-1 leading-tight">Retorno MV</span>
                                             </div>
                                             {!pendingRetorno && mov ? (
-                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                <Button size="sm" variant="outline" className="h-6 px-2 border-green-600 text-green-700 hover:bg-green-100 rounded-md text-[7px] font-black uppercase shrink-0 flex gap-1 shadow-sm" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>
+                                                    <Eye className="h-3 w-3" /> VER
+                                                </Button>
                                             ) : (
                                                 <Button disabled={pendingInforme || assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
                                             )}
