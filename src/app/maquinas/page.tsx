@@ -101,29 +101,42 @@ export default function MaquinasPage() {
     let q;
 
     if (isAdminView) {
-        if (execDept) {
-            const deptoNorm = normalizeGeo(execDept);
-            const variations = Array.from(new Set([
-                execDept,
-                deptoNorm,
-                execDept.replace(/^[\d\s-]*/, '').trim()
-            ])).filter(Boolean);
-
-            q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+        if (execDept || execDist) {
+            const targetDept = execDept || (datosData?.find(d => d.distrito === execDist)?.departamento) || '';
+            if (targetDept) {
+                const deptoNorm = normalizeGeo(targetDept);
+                const deptVariations = new Set<string>();
+                deptVariations.add(targetDept);
+                deptVariations.add(deptoNorm);
+                deptVariations.add(targetDept.replace(/^[\d\s-]*/, '').trim());
+                
+                if (datosData) {
+                    datosData.forEach(d => {
+                        if (normalizeGeo(d.departamento) === deptoNorm) {
+                            deptVariations.add(d.departamento);
+                            deptVariations.add(d.departamento.replace(/^[\d\s-]*/, '').trim());
+                        }
+                    });
+                }
+                const deptVariationsArray = Array.from(deptVariations).filter(Boolean);
+                q = query(colRef, where('departamento', 'in', deptVariationsArray));
+            } else {
+                q = query(colRef);
+            }
         } else if (maqSearch && maqSearch.length >= 3) {
             const term = maqSearch.toUpperCase().trim();
-            q = query(colRef, where('codigo', '>=', term), where('codigo', '<=', term + '\uf8ff'), orderBy('codigo', 'asc'));
+            q = query(colRef, where('codigo', '>=', term), where('codigo', '<=', term + '\uf8ff'));
         } else {
-            q = query(colRef, orderBy('codigo', 'asc'));
+            q = query(colRef);
         }
     } else if (profile.departamento) {
         const depto = profile.departamento;
         const variations = Array.from(new Set([depto, normalizeGeo(depto)])).filter(Boolean);
-        q = query(colRef, where('departamento', 'in', variations), orderBy('codigo', 'asc'));
+        q = query(colRef, where('departamento', 'in', variations));
     } else return null;
 
     return q;
-  }, [firestore, profile, isAdminView, execDept, execDist, maqSearch]);
+  }, [firestore, profile, isAdminView, execDept, execDist, maqSearch, datosData]);
 
   const { 
     data: maquinasData, 
@@ -135,7 +148,7 @@ export default function MaquinasPage() {
     refetch: refetchMaquinas,
     mutate,
     updateItem
-  } = useCollectionPaginated<MaquinaVotacion>(maquinasQuery, 100);
+  } = useCollectionPaginated<MaquinaVotacion>(maquinasQuery, 5000);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -145,6 +158,15 @@ export default function MaquinasPage() {
   const filteredMaquinas = useMemo(() => {
     let list = maquinasData || [];
     
+    // Filtro local de Departamento para robustez
+    if (execDept) {
+        const deptoNorm = normalizeGeo(execDept);
+        list = list.filter(m => 
+            m.departamento === execDept || 
+            normalizeGeo(m.departamento) === deptoNorm
+        );
+    }
+
     // Filtro local de Distrito - para evitar limitación de Firestore (múltiples 'in')
     if (execDist) {
         const distNorm = normalizeGeo(execDist);
@@ -154,9 +176,23 @@ export default function MaquinasPage() {
         );
     }
 
-    // Ordenar por código (cliente) para no requerir índices compuestos en Firestore
-    return [...list].sort((a, b) => a.codigo.localeCompare(b.codigo));
-  }, [maquinasData, execDist]);
+    // Ordenar jerárquicamente por departamento, distrito y luego código
+    return [...list].sort((a, b) => {
+        const depA = a.departamento || '';
+        const depB = b.departamento || '';
+        const depComp = depA.localeCompare(depB, undefined, { numeric: true, sensitivity: 'base' });
+        if (depComp !== 0) return depComp;
+
+        const distA = a.distrito || '';
+        const distB = b.distrito || '';
+        const distComp = distA.localeCompare(distB, undefined, { numeric: true, sensitivity: 'base' });
+        if (distComp !== 0) return distComp;
+
+        const codA = a.codigo || '';
+        const codB = b.codigo || '';
+        return codA.localeCompare(codB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [maquinasData, execDept, execDist]);
 
   const handleMaqFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -397,6 +433,60 @@ export default function MaquinasPage() {
     finally { setIsNormalizing(false); }
   };
 
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  const handleExportExcel = () => {
+    if (!filteredMaquinas || filteredMaquinas.length === 0) {
+      toast({ variant: 'destructive', title: "Sin datos", description: "No hay equipos en la lista actual para exportar." });
+      return;
+    }
+
+    const dataToExport = filteredMaquinas.map(m => ({
+      'SERIE': m.codigo,
+      'DEPARTAMENTO': m.departamento,
+      'DISTRITO': m.distrito,
+      'FECHA REGISTRO': m.fecha_registro ? new Date(m.fecha_registro).toLocaleDateString('es-PY') : ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventario');
+    XLSX.writeFile(workbook, `Inventario_Maquinas_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({ variant: 'warning', title: "Exportación Completada", description: "El archivo Excel se ha descargado." });
+  };
+
+  const handleClearAllInventory = async () => {
+    if (!firestore || !maquinasData || maquinasData.length === 0) {
+      toast({ variant: 'destructive', title: "Sin datos", description: "El inventario ya está vacío." });
+      return;
+    }
+    setIsDeletingAll(true);
+    try {
+      const dataCopy = [...maquinasData];
+      const chunks = [];
+      while (dataCopy.length > 0) {
+        chunks.push(dataCopy.splice(0, 500));
+      }
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(firestore);
+        chunk.forEach(m => {
+          batch.delete(doc(firestore, 'maquinas', m.id));
+        });
+        await batch.commit();
+      }
+
+      toast({ variant: 'warning', title: "Inventario Vaciado", description: "Todos los equipos han sido eliminados de la base de datos." });
+      refetchMaquinas();
+    } catch (err: any) {
+      console.error(err);
+      toast({ variant: 'destructive', title: "Error al vaciar", description: err.message || "No se pudo eliminar el inventario." });
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
   return (
@@ -412,13 +502,63 @@ export default function MaquinasPage() {
                 </p>
             </div>
             {isAdminView && (
-                <div className="flex gap-3">
-                    <Button variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-orange-500 text-orange-600 hover:bg-orange-50" onClick={handleNormalizeAll} disabled={isNormalizing}>
+                <div className="flex flex-wrap gap-3">
+                    <Button 
+                        variant="outline" 
+                        className="h-11 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 shadow-md" 
+                        onClick={handleExportExcel}
+                    >
+                        <Download className="h-4 w-4" /> EXPORTAR EXCEL
+                    </Button>
+
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button 
+                                variant="outline" 
+                                className="h-11 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-red-500 text-red-600 hover:bg-red-50 shadow-md"
+                                disabled={isDeletingAll || !maquinasData || maquinasData.length === 0}
+                            >
+                                {isDeletingAll ? <Loader2 className="animate-spin h-4 w-4" /> : <Trash2 className="h-4 w-4" />} VACIAR INVENTARIO
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl p-8 bg-white">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="font-black uppercase text-base text-red-600 flex items-center gap-2">
+                                    <ShieldAlert className="h-5 w-5 animate-pulse" /> ¿ELIMINAR TODO EL INVENTARIO?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="text-xs font-bold uppercase text-muted-foreground leading-relaxed pt-2">
+                                    Esta acción eliminará de forma permanente los <span className="text-black font-black">{maquinasData?.length || 0}</span> equipos registrados en el sistema. No se puede deshacer.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="gap-2 mt-6">
+                                <AlertDialogCancel className="rounded-xl font-black uppercase text-[10px] h-12 border-2">CANCELAR</AlertDialogCancel>
+                                <AlertDialogAction 
+                                    className="rounded-xl font-black uppercase text-[10px] h-12 bg-red-600 hover:bg-red-700 text-white shadow-lg"
+                                    onClick={handleClearAllInventory}
+                                >
+                                    SÍ, ELIMINAR TODO
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
+                    <Button variant="outline" className="h-11 rounded-xl font-black uppercase text-[10px] gap-2 border-2 border-orange-500 text-orange-600 hover:bg-orange-50 shadow-md" onClick={handleNormalizeAll} disabled={isNormalizing}>
                         {isNormalizing ? <Loader2 className="animate-spin h-4 w-4" /> : <Database className="h-4 w-4" />} {isNormalizing ? "NORMALIZANDO..." : "NORMALIZAR GEOGRAFÍA"}
                     </Button>
-                    <label className="flex items-center gap-2 px-6 h-11 bg-black text-white rounded-xl font-black uppercase text-[10px] cursor-pointer hover:bg-black/90 shadow-xl">
-                        <FileUp className="h-4 w-4" /> Importar Excel
-                        <input type="file" className="hidden" accept=".xlsx,.csv" onChange={handleMaqFile} disabled={isParsingMaq || isUploadingMaq} />
+                    
+                    <label className={cn(
+                        "flex items-center gap-2 px-6 h-11 bg-black text-white rounded-xl font-black uppercase text-[10px] cursor-pointer hover:bg-black/90 shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]",
+                        (isParsingMaq || isUploadingMaq) && "opacity-50 pointer-events-none"
+                    )}>
+                        <FileUp className="h-4 w-4" /> {isParsingMaq ? "ANALIZANDO..." : "Importar Excel"}
+                        <input 
+                            type="file" 
+                            className="hidden" 
+                            accept=".xlsx,.csv" 
+                            onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
+                            onChange={handleMaqFile} 
+                            disabled={isParsingMaq || isUploadingMaq} 
+                        />
                     </label>
                 </div>
             )}
@@ -459,8 +599,12 @@ export default function MaquinasPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all" className="font-black text-xs uppercase text-primary">TODOS LOS DISTRITOS</SelectItem>
-                                {datosData?.filter(d => d.departamento === (selDept || profile?.departamento)).map(d => (
-                                    <SelectItem key={d.distrito} value={d.distrito} className="font-bold text-xs uppercase">{d.distrito}</SelectItem>
+                                {Array.from(new Set(
+                                    datosData
+                                        ?.filter(d => d.departamento === (selDept || profile?.departamento))
+                                        .map(d => d.distrito)
+                                )).sort().map(distName => (
+                                    <SelectItem key={distName} value={distName} className="font-bold text-xs uppercase">{distName}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -528,7 +672,15 @@ export default function MaquinasPage() {
                             <Label className="text-[9px] font-black uppercase text-muted-foreground">Distrito</Label>
                             <Select value={manualMaq.distrito} onValueChange={(v) => setManualMaq({...manualMaq, distrito: v})} disabled={!manualMaq.departamento}>
                                 <SelectTrigger className="h-11 font-black uppercase border-2 text-[10px]"><SelectValue placeholder="Elegir..." /></SelectTrigger>
-                                <SelectContent>{datosData?.filter(d => d.departamento === manualMaq.departamento).map(d => <SelectItem key={d.distrito} value={d.distrito} className="text-xs font-bold">{d.distrito}</SelectItem>)}</SelectContent>
+                                <SelectContent>
+                                    {Array.from(new Set(
+                                        datosData
+                                            ?.filter(d => d.departamento === manualMaq.departamento)
+                                            .map(d => d.distrito)
+                                    )).sort().map(distName => (
+                                        <SelectItem key={distName} value={distName} className="text-xs font-bold">{distName}</SelectItem>
+                                    ))}
+                                </SelectContent>
                             </Select>
                         </div>
                     </CardContent>

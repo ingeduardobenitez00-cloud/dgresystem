@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce } from '@/firebase';
+import { useUser, useFirebase, useCollection, useCollectionOnce, useCollectionPaginated, useMemoFirebase, useDocOnce } from '@/firebase';
 import { 
   Toast, 
   ToastAction, 
@@ -17,7 +17,7 @@ import {
   ToastTitle, 
   ToastViewport 
 } from "@/components/ui/toast";
-import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, getDocs, getCountFromServer, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, writeBatch, getDocs, getCountFromServer, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type Dato, type Divulgador, type MovimientoMaquina, type InformeDivulgador, type EncuestaSatisfaccion, type AnexoI } from '@/lib/data';
 import { 
   Loader2, 
@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY, cn } from '@/lib/utils';
@@ -252,43 +253,77 @@ const DistrictSection = ({
         const chunks = [];
         for (let i = 0; i < uniqueIds.length; i += 30) chunks.push(uniqueIds.slice(i, i + 30));
 
-        Promise.all(chunks.map(chunk => getDocs(query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', 'in', chunk)))))
-            .then(snapshots => {
+        const unsubscribes: (() => void)[] = [];
+
+        chunks.forEach(chunk => {
+            const qMov = query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', 'in', chunk));
+            const unsubMov = onSnapshot(qMov, (snap) => {
                 const newMap = new Map();
-                snapshots.forEach(snap => snap.docs.forEach(doc => {
+                snap.docs.forEach(doc => {
                     const data = doc.data();
                     const solId = data.solicitud_id;
                     const existing = newMap.get(solId);
                     
-                    // Prioridad: Si no existe, o si el nuevo tiene fecha_devolucion y el viejo no, 
-                    // o si ambos son iguales en estado pero el nuevo es más reciente
                     if (!existing || (!existing.fecha_devolucion && data.fecha_devolucion) || 
                        (data.fecha_devolucion && existing.fecha_devolucion && data.fecha_creacion > existing.fecha_creacion)) {
                         newMap.set(solId, { id: doc.id, ...data });
                     }
-                }));
+                });
                 setMovimientosMap(prev => {
                     const combined = new Map(prev);
                     newMap.forEach((val, key) => combined.set(key, val));
                     return combined;
                 });
-            });
+            }, (e) => console.error("Error listening to movements in Anexo I:", e));
+            unsubscribes.push(unsubMov);
 
-        Promise.all(chunks.map(chunk => getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk)))))
-            .then(snapshots => {
+            const qInf = query(collection(firestore, 'informes-divulgador'), where('solicitud_id', 'in', chunk));
+            const unsubInf = onSnapshot(qInf, (snap) => {
                 const newMap = new Map();
-                snapshots.forEach(snap => snap.docs.forEach(doc => {
+                chunk.forEach(id => newMap.set(id, []));
+                snap.docs.forEach(doc => {
                     const id = doc.data().solicitud_id;
                     if (!newMap.has(id)) newMap.set(id, []);
                     newMap.get(id).push({ id: doc.id, ...doc.data() });
-                }));
+                });
                 setInformesMap(prev => {
                     const combined = new Map(prev);
                     newMap.forEach((val, key) => combined.set(key, val));
                     return combined;
                 });
-            });
+            }, (e) => console.error("Error listening to reports in Anexo I:", e));
+            unsubscribes.push(unsubInf);
+        });
+
+        return () => {
+            unsubscribes.forEach(unsub => unsub());
+        };
     }, [firestore, rawItems]);
+
+    // Auto-concluir Lugar Fijo al retornar la máquina y registrar el informe
+    useEffect(() => {
+        if (!firestore) return;
+        rawItems.forEach(item => {
+            if (!item.fecha_cumplido) {
+                const mov = movimientosMap.get(item.id);
+                const itemInformes = informesMap.get(item.id) || [];
+                const assignedList = item.divulgadores || item.asignados || [];
+                const missingInformesFrom = assignedList.filter((asignado: any) => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
+                const pendingInforme = assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length;
+                const isFulfilled = !!(mov?.fecha_devolucion && !pendingInforme);
+
+                if (isFulfilled) {
+                    const docRef = doc(firestore, 'solicitudes-capacitacion', item.id);
+                    const nowIso = new Date().toISOString();
+                    updateDoc(docRef, { fecha_cumplido: nowIso })
+                        .then(() => {
+                            updateItem(item.id, { fecha_cumplido: nowIso });
+                        })
+                        .catch(e => console.error("Error auto-concluding Anexo I:", e));
+                }
+            }
+        });
+    }, [firestore, rawItems, movimientosMap, informesMap, updateItem]);
 
     const items = useMemo(() => {
         const searchTerm = agendaSearch.toLowerCase().trim();
@@ -366,7 +401,7 @@ const DistrictSection = ({
                     const isPast = item.fecha < todayStr;
                     const isToday = item.fecha === todayStr;
                     
-                    const missingInformesFrom = assignedList.filter(asignado => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
+                    const missingInformesFrom = assignedList.filter((asignado: any) => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
                     
                     const pendingSalida = !mov;
                     const pendingRetorno = mov && !mov.fecha_devolucion;
@@ -387,8 +422,8 @@ const DistrictSection = ({
                     const showStep2 = !!(assignedList.length > 0 && !item.qr_enabled);
                     const showStep3 = !!(assignedList.length > 0 && !!item.qr_enabled && !mov && !isQRViewed);
                     const showStep4 = !!(assignedList.length > 0 && !mov && (!item.qr_enabled || isQRViewed));
-                    const showStep5 = !!(mov && !mov.fecha_devolucion);
-                    const showStep6 = pendingInforme;
+                    const showStep5 = pendingInforme;
+                    const showStep6 = !!(mov && !mov.fecha_devolucion);
                     const showStep7 = !!(!item.fecha_cumplido && isFulfilled);
 
                     // Lógica correlativa: Solo mostrar el paso más bajo que esté activo
@@ -426,110 +461,198 @@ const DistrictSection = ({
                                         <div className="flex items-center gap-2 text-primary pt-2 border-t border-dashed"><MessageSquareHeart className="h-3.5 w-3.5" /><SurveyCounter solicitudId={item.id} firestore={firestore} /></div>
                                     </div>
                                     <div className="lg:col-span-3 flex flex-col items-end gap-3">
-                                        {(pendingSalida || pendingRetorno || pendingInforme) && (
-                                            <div className="w-full max-w-[220px] mb-2 flex flex-col gap-1">
-                                                {pendingSalida && (
-                                                    <div className="relative">
-                                                        <GuideStep step={4} message="SOLICITAR SALIDA" active={minStep === 4} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
-                                                        <Link 
-                                                            href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
-                                                            className={cn(
-                                                                "flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-lg transition-all",
-                                                                isPast ? "bg-destructive text-white border-destructive animate-pulse" : "bg-blue-600 text-white border-blue-700"
-                                                            )}
-                                                        >
-                                                            <Truck className="h-3.5 w-3.5" />
-                                                            <span className="text-[7.5px] font-black uppercase">
-                                                                {isPast ? "SALIDA EQUIPOS (ATRASADO)" : "SALIDA EQUIPOS"}
-                                                            </span>
-                                                        </Link>
-                                                    </div>
-                                                )}
-                                                {pendingRetorno && (
-                                                    <div className="relative">
-                                                        <GuideStep step={5} message="REGISTRAR RETORNO" active={minStep === 5} onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)} position="top" />
-                                                        <Link 
-                                                            href={`/control-movimiento-maquinas?solicitudId=${item.id}`} 
-                                                            className={cn(
-                                                                "flex items-center gap-2 px-3 py-1 rounded-lg border transition-all",
-                                                                isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
-                                                            )}
-                                                        >
-                                                            <ShieldAlert className="h-3 w-3" />
-                                                            <span className="text-[8px] font-black uppercase">
-                                                                {isPast ? "FALTA RETORNO" : "PENDIENTE RETORNO"}
-                                                            </span>
-                                                        </Link>
-                                                    </div>
-                                                )}
-                                                {pendingInforme && (
-                                                    <div className="flex flex-col gap-1 w-full max-w-[220px]">
-                                                        {missingInformesFrom.length > 0 ? (
-                                                            missingInformesFrom.map((d) => (
-                                                                <Link 
-                                                                    key={d.id}
-                                                                    href={`/informe-divulgador?solicitudId=${item.id}&reporterUid=${d.id}`} 
-                                                                    className={cn(
-                                                                        "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all hover:scale-[1.02] active:scale-95 group",
-                                                                        isPast ? "bg-destructive text-white border-destructive shadow-lg animate-pulse" : "bg-blue-600 text-white border-blue-700 shadow-lg"
-                                                                    )}
-                                                                >
-                                                                    <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                                                                        <FileText className="h-3 w-3" />
-                                                                    </div>
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[6px] font-black uppercase opacity-60 leading-none">FALTA INFORME</span>
-                                                                        <span className="text-[9px] font-black uppercase leading-tight">
-                                                                            {d.nombre}
-                                                                        </span>
-                                                                    </div>
-                                                                </Link>
-                                                            ))
-                                                        ) : (
-                                                            <Link 
-                                                                href={`/informe-divulgador?solicitudId=${item.id}`} 
-                                                                className={cn(
-                                                                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
-                                                                    isPast ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse" : "bg-blue-50 text-blue-600 border-blue-200"
-                                                                )}
-                                                            >
-                                                                <AlertCircle className="h-3 w-3" />
-                                                                <span className="text-[9px] font-black uppercase">
-                                                                    {isPast ? "FALTA INFORME" : "INFORME PENDIENTE"}
-                                                                </span>
-                                                            </Link>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
+                                        {/* old pendingSalida removed */}
+                                                {/* old pendingRetorno removed */}
+                                                {/* old pendingInforme removed */}
+                                        <div className="flex gap-2 w-full max-w-[220px] justify-end">
+                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 shrink-0" onClick={() => setViewingActivity(item)} title="Ver Ficha"><Eye className="h-4 w-4" /></Button>
+                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600 shrink-0" onClick={() => setSuspendingSolicitud(item)} title="Suspender Actividad"><Ban className="h-4 w-4" /></Button>
+                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive shrink-0" onClick={() => setDeletingSolicitud(item)} title="Eliminar Actividad"><Trash2 className="h-4 w-4" /></Button>
+                                        </div>
+                                        {/* old step 2/3/6/7 vertical block removed */}
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 pt-6 border-t border-dashed border-indigo-200">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                                            <ClipboardCheck className="h-4 w-4 text-indigo-600 animate-pulse" />
+                                            PROCESO LUGAR FIJO
+                                        </p>
+                                        {!item.fecha_cumplido && isFulfilled && (
+                                            <Button className="h-8 px-6 rounded-lg font-black uppercase text-[10px] bg-green-600 hover:bg-green-700 text-white shadow-lg animate-pulse" onClick={() => setConcludingSolicitud(item)}>CONCLUIR ACTIVIDAD</Button>
                                         )}
-                                        <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="flex-1 relative"><GuideStep step={1} message="Asigna personal" active={minStep === 1} onClick={() => setAssigningSolicitud(item)} position="left" /><Button variant="outline" size="sm" className="w-full h-11 rounded-xl font-black uppercase text-[11px] border-2" onClick={() => setAssigningSolicitud(item)}><UserPlus className="h-4 w-4 mr-2" /> ASIGNAR</Button></div>
-                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2" onClick={() => setViewingActivity(item)}><Eye className="h-4 w-4" /></Button>
-                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-orange-200 text-orange-600" onClick={() => setSuspendingSolicitud(item)}><Ban className="h-4 w-4" /></Button>
-                                            <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border-2 border-destructive/40 text-destructive" onClick={() => setDeletingSolicitud(item)}><Trash2 className="h-4 w-4" /></Button>
-                                        </div>
-                                        <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="relative"><GuideStep step={2} message="Habilita QR" active={minStep === 2} onClick={() => handleToggleQr(item)} position="left" /><Button variant="outline" size="icon" className={cn("h-11 w-11 rounded-xl border-2 transition-all", item.qr_enabled ? "bg-green-600 text-white" : "border-muted-foreground/30 text-muted-foreground")} onClick={() => handleToggleQr(item)}>{item.qr_enabled ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}</Button></div>
-                                            {!item.fecha_cumplido && isFulfilled ? <div className="flex-1 relative"><GuideStep step={7} message="CONCLUIR ACTIVIDAD" active={minStep === 7} onClick={() => setConcludingSolicitud(item)} position="top" /><Button className="w-full h-11 rounded-xl font-black uppercase text-[10px] bg-green-600 text-white animate-pulse" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button></div> : <div className="flex-1" />}
-                                        </div>
-                                        <div className="flex gap-2 w-full max-w-[220px]">
-                                            <div className="flex-1 relative">
-                                                <GuideStep step={3} message="Descarga QR" active={minStep === 3} onClick={() => { if(qrActive) { setQrSolicitud(item); markQRAsViewed(item.id); } }} position="left" />
-                                                <Button 
-                                                    variant="outline" 
-                                                    size="sm" 
-                                                    className={cn(
-                                                        "w-full h-11 rounded-xl font-black uppercase text-[10px] border-2 transition-all",
-                                                        item.qr_enabled && !qrActive ? "opacity-20 grayscale" : ""
-                                                    )} 
-                                                    onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }} 
-                                                    disabled={!qrActive}
-                                                >
-                                                    <QrCode className="h-4 w-4 mr-2" /> {!qrActive && item.qr_enabled ? 'EXPIRADO' : 'QR'}
-                                                </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-fade-in">
+                                        {/* Paso 1: Asignar Personal */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            assignedList.length > 0 ? "bg-green-50/50 border-green-200 text-green-700" : "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse"
+                                        )}>
+                                            {minStep === 1 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 1</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Asignar Personal</span>
                                             </div>
-                                            <div className="flex-1 relative"><GuideStep step={6} message="Informe Marcación" active={minStep === 6} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }} position="top" /><Button className={cn("h-11 w-full rounded-xl font-black uppercase text-[11px]", !showStep6 ? "bg-[#16A34A]" : "bg-black")} onClick={() => { if(showStep6) router.push(`/informe-divulgador?solicitudId=${item.id}`); }}>{!showStep6 ? 'CUMPLIDO' : 'INFORME'}</Button></div>
+                                            {assignedList.length > 0 ? (
+                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                            ) : (
+                                                <Button size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setAssigningSolicitud(item)}>ASIGNAR</Button>
+                                            )}
+                                        </div>
+
+                                        {/* Paso 2: Encender QR */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            item.qr_enabled ? "bg-green-50/50 border-green-200 text-green-700" : (assignedList.length > 0 ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600" : "bg-muted/10 border-transparent opacity-40")
+                                        )}>
+                                            {minStep === 2 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 2</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Encender QR</span>
+                                            </div>
+                                            {item.qr_enabled ? (
+                                                <div className="flex flex-col items-center gap-1.5 w-full">
+                                                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                    <Button 
+                                                        size="sm" 
+                                                        className="h-5 px-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-md text-[7px] font-black uppercase shrink-0 transition-transform active:scale-95 shadow-sm border border-red-200" 
+                                                        onClick={() => handleToggleQr(item)}
+                                                    >
+                                                        APAGAR
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <Button disabled={assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
+                                            )}
+                                        </div>
+
+                                        {/* Paso 3: Imprimir QR */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            isQRViewed ? "bg-green-50/50 border-green-200 text-green-700" : (item.qr_enabled ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                        )}>
+                                            {minStep === 3 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 3</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Imprimir QR</span>
+                                            </div>
+                                            {isQRViewed ? (
+                                                <div className="flex flex-col items-center gap-1.5 w-full">
+                                                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                    <Button size="sm" className="h-5 px-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-[7px] font-black uppercase shrink-0 shadow-sm" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }}>
+                                                        REIMPRIMIR
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <Button disabled={!qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }}>IMPRIMIR</Button>
+                                            )}
+                                        </div>
+
+                                        {/* Paso 4: Form. Salida */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            !pendingSalida ? "bg-green-50/50 border-green-200 text-green-700" : (isQRViewed ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                        )}>
+                                            {minStep === 4 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 4</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Form. Salida</span>
+                                            </div>
+                                            {!pendingSalida ? (
+                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                            ) : (
+                                                <Button disabled={!isQRViewed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>SALIDA</Button>
+                                            )}
+                                        </div>
+
+                                        {/* Paso 5: Informe */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            !pendingInforme && assignedList.length > 0 ? "bg-green-50/50 border-green-200 text-green-700" : (!pendingSalida ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                        )}>
+                                            {minStep === 5 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 5</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Informe</span>
+                                            </div>
+                                            {!pendingInforme && assignedList.length > 0 ? (
+                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                            ) : (
+                                                missingInformesFrom.length > 1 ? (
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button disabled={pendingSalida} size="sm" className="h-7 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[7px] font-black uppercase shrink-0 shadow-sm border border-indigo-700">INFORME ({missingInformesFrom.length})</Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-[300px] sm:w-[350px] p-3 rounded-2xl shadow-2xl border border-indigo-100 bg-white/95 backdrop-blur-sm">
+                                                            <p className="text-[10px] font-black uppercase text-indigo-900/60 mb-3 px-2 flex items-center gap-2">
+                                                                <Users className="h-3 w-3" />
+                                                                Seleccione a quién reportar:
+                                                            </p>
+                                                            <div className="flex flex-col gap-1.5 max-h-[250px] overflow-y-auto pr-1">
+                                                                {missingInformesFrom.map((d: any) => (
+                                                                    <Button 
+                                                                        key={d.id} 
+                                                                        variant="ghost" 
+                                                                        size="sm" 
+                                                                        className="justify-start text-[10px] font-black uppercase h-auto py-2.5 px-3 bg-indigo-50/30 hover:bg-indigo-100 hover:text-indigo-900 transition-all rounded-xl" 
+                                                                        onClick={() => router.push(`/informe-divulgador?solicitudId=${item.id}&reporterUid=${d.id}`)}
+                                                                    >
+                                                                        <User className="h-4 w-4 mr-3 text-indigo-600 shrink-0" /> 
+                                                                        <span className="leading-tight text-left break-words whitespace-normal">{d.nombre}</span>
+                                                                    </Button>
+                                                                ))}
+                                                            </div>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                ) : (
+                                                    <Button disabled={pendingSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
+                                                        const targetId = missingInformesFrom.length === 1 ? `&reporterUid=${missingInformesFrom[0].id}` : '';
+                                                        router.push(`/informe-divulgador?solicitudId=${item.id}${targetId}`);
+                                                    }}>INFORME</Button>
+                                                )
+                                            )}
+                                        </div>
+
+                                        {/* Paso 6: Retorno MV */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            !pendingRetorno && mov ? "bg-green-50/50 border-green-200 text-green-700" : (!pendingInforme && assignedList.length > 0 ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                        )}>
+                                            {minStep === 6 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 6</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Retorno MV</span>
+                                            </div>
+                                            {!pendingRetorno && mov ? (
+                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                            ) : (
+                                                <Button disabled={pendingInforme || assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -603,7 +726,7 @@ const DepartmentSection = ({
         );
     }, [firestore, isOpen, dept.label]);
 
-    const { data: allDeptItems, isLoading: isDeptLoading, error: deptError } = useCollectionOnce<SolicitudCapacitacion>(deptQuery);
+    const { data: allDeptItems, isLoading: isDeptLoading, error: deptError } = useCollection<SolicitudCapacitacion>(deptQuery);
 
     const distNames = useMemo(() => {
         if (!datosData) return [];
@@ -710,7 +833,7 @@ export default function AgendaAnexoIPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 30000); // Update every 30 seconds
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000); // Update every 1 second
     return () => clearInterval(interval);
   }, []);
 
