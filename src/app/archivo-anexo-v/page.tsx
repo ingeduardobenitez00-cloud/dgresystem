@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent } from '@/components/ui/card';
 import { useUser, useFirebase, useCollectionOnce, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import { type SolicitudCapacitacion, type MovimientoMaquina, type InformeDivulgador, type Dato } from '@/lib/data';
 import { 
     Loader2, 
@@ -26,8 +26,10 @@ import {
     ChevronDown,
     Building,
     FileText,
-    Eye
+    Eye,
+    Trash2
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { formatDateToDDMMYYYY, cn, normalizeGeo } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -39,6 +41,24 @@ import { orderBy, limit } from 'firebase/firestore';
 
 function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
     const { firestore } = useFirebase();
+    const { user } = useUser();
+    const { toast } = useToast();
+    const profile = user?.profile;
+    const isAdmin = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+
+    const handleDelete = async () => {
+        if (!isAdmin || !firestore) return;
+        if (!window.confirm(`¿Estás seguro de que deseas ELIMINAR permanentemente esta actividad en ${item.lugar_local}? Esta acción no se puede deshacer.`)) return;
+        
+        try {
+            await deleteDoc(doc(firestore, 'solicitudes-capacitacion', item.id));
+            toast({ title: "Actividad Eliminada", description: "El registro ha sido borrado exitosamente." });
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: "Error", description: "No se pudo eliminar el registro." });
+        }
+    };
     
     // Carga perezosa de datos vinculados
     const movQuery = useMemoFirebase(() => 
@@ -156,6 +176,17 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
                     <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
                         {isCancelled ? 'SIN EJECUCION' : 'PERSONAS'}
                     </span>
+                    {isAdmin && (
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 w-6 p-0 mt-3 text-destructive hover:bg-destructive/10"
+                            onClick={handleDelete}
+                            title="Eliminar registro permanentemente"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
                 </div>
             </td>
         </tr>
