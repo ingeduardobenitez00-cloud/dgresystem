@@ -943,7 +943,7 @@ const DistrictSection = ({
                                                 )}
                                                 <div className="flex flex-col items-center">
                                                     <span className="text-[8px] font-black opacity-60 uppercase">Paso 6</span>
-                                                    <span className="text-[9px] font-black uppercase mt-1 leading-tight">Subir Foto</span>
+                                                    <span className="text-[9px] font-black uppercase mt-1 leading-tight text-center">Foto Planilla<br/>Física MM</span>
                                                 </div>
                                                 {item.planilla_foto_url ? (
                                                     <div className="flex flex-col items-center">

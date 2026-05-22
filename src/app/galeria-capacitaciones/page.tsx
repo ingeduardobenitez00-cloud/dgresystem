@@ -33,6 +33,8 @@ import {
   FileText,
   Maximize2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   X,
   Plus,
   Upload,
@@ -95,7 +97,7 @@ function DistrictGallerySection({
     handleDeletePhoto,
     handleUploadPhoto,
     isUploading,
-    setSelectedPhoto 
+    setSelectedPhotoData 
 }: { 
     distName: string, 
     items: InformeDivulgador[], 
@@ -106,7 +108,7 @@ function DistrictGallerySection({
     handleDeletePhoto: (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => void,
     handleUploadPhoto: (informeId: string, files: FileList | null, type: 'evidencia' | 'respaldo') => Promise<void>,
     isUploading?: boolean,
-    setSelectedPhoto: (url: string) => void
+    setSelectedPhotoData: (data: {urls: string[], currentIndex: number}) => void
 }) {
     const [visibleCount, setVisibleCount] = useState(10);
     const visibleItems = items.slice(0, visibleCount);
@@ -127,7 +129,9 @@ function DistrictGallerySection({
             <AccordionContent className="pt-6 space-y-8 px-2">
                 {visibleItems.map((inf) => {
                     const reportPhotos = inf.fotos || (inf as any).foto_evidencia || [];
-                    const hasRespaldo = !!inf.foto_respaldo_documental;
+                    const allPhotos: string[] = [];
+                    if (inf.foto_respaldo_documental) allPhotos.push(inf.foto_respaldo_documental);
+                    allPhotos.push(...reportPhotos);
                     
                     return (
                         <Card key={inf.id} className="border-none shadow-lg rounded-[2rem] overflow-hidden bg-white group/card relative">
@@ -201,7 +205,7 @@ function DistrictGallerySection({
                                         <div className="relative aspect-video rounded-xl overflow-hidden border-4 border-primary/20 shadow-md group/photo transition-transform hover:scale-[1.05]">
                                             <div 
                                                 className="absolute inset-0 cursor-pointer"
-                                                onClick={() => setSelectedPhoto(inf.foto_respaldo_documental!)}
+                                                onClick={() => setSelectedPhotoData({ urls: allPhotos, currentIndex: 0 })}
                                             >
                                                 <Image 
                                                     src={inf.foto_respaldo_documental || ''} 
@@ -241,7 +245,7 @@ function DistrictGallerySection({
                                         >
                                             <div 
                                                 className="absolute inset-0 cursor-pointer"
-                                                onClick={() => setSelectedPhoto(photo)}
+                                                onClick={() => setSelectedPhotoData({ urls: allPhotos, currentIndex: inf.foto_respaldo_documental ? pIdx + 1 : pIdx })}
                                             >
                                                 <Image 
                                                     src={photo} 
@@ -339,7 +343,7 @@ function DepartmentGallerySection({
     handleDeletePhoto,
     handleUploadPhoto,
     isUploading,
-    setSelectedPhoto,
+    setSelectedPhotoData,
     datosData,
     profile,
     initialOpen = false
@@ -353,7 +357,7 @@ function DepartmentGallerySection({
     handleDeletePhoto: (informeId: string, photoUrl: string, type: 'evidencia' | 'respaldo') => void,
     handleUploadPhoto: (informeId: string, files: FileList | null, type: 'evidencia' | 'respaldo') => Promise<void>,
     isUploading?: boolean,
-    setSelectedPhoto: (url: string) => void,
+    setSelectedPhotoData: (data: {urls: string[], currentIndex: number}) => void,
     datosData: any[],
     profile: any,
     initialOpen?: boolean
@@ -451,7 +455,7 @@ function DepartmentGallerySection({
                                 handleDeletePhoto={handleDeletePhoto}
                                 handleUploadPhoto={handleUploadPhoto}
                                 isUploading={isUploading}
-                                setSelectedPhoto={setSelectedPhoto}
+                                setSelectedPhotoData={setSelectedPhotoData}
                             />
                         ))}
                     </Accordion>
@@ -468,7 +472,7 @@ export default function GaleriaCapacitacionesPage() {
   const isOwner = user?.isOwner;
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [selectedPhotoData, setSelectedPhotoData] = useState<{urls: string[], currentIndex: number} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const { uploadFile, isUploading } = useStorage();
@@ -640,7 +644,7 @@ export default function GaleriaCapacitacionesPage() {
                         handleDeletePhoto={handleDeletePhoto}
                         handleUploadPhoto={handleUploadPhoto}
                         isUploading={isUploading}
-                        setSelectedPhoto={setSelectedPhoto}
+                        setSelectedPhotoData={setSelectedPhotoData}
                         datosData={datosData || []}
                         profile={profile}
                         initialOpen={filteredDepts.length === 1}
@@ -656,12 +660,12 @@ export default function GaleriaCapacitacionesPage() {
         </div>
       </main>
 
-      <Dialog open={!!selectedPhoto} onOpenChange={(o) => !o && setSelectedPhoto(null)}>
-        <DialogContent className="max-w-5xl p-0 overflow-hidden border-none bg-black/95 rounded-[2rem]">
-            {selectedPhoto && (
-                <div className="relative aspect-video w-full flex items-center justify-center">
+      <Dialog open={!!selectedPhotoData} onOpenChange={(o) => !o && setSelectedPhotoData(null)}>
+        <DialogContent className="max-w-7xl h-[90vh] p-0 overflow-hidden border-none bg-black/95 rounded-[2rem]">
+            {selectedPhotoData && (
+                <div className="relative w-full h-full flex items-center justify-center">
                     <Image 
-                        src={selectedPhoto} 
+                        src={selectedPhotoData.urls[selectedPhotoData.currentIndex]} 
                         alt="Vista ampliada" 
                         fill 
                         className="object-contain" 
@@ -671,10 +675,46 @@ export default function GaleriaCapacitacionesPage() {
                         variant="ghost" 
                         size="icon" 
                         className="absolute top-6 right-6 h-12 w-12 rounded-full bg-white/10 text-white hover:bg-white/20 border border-white/20 z-50"
-                        onClick={() => setSelectedPhoto(null)}
+                        onClick={() => setSelectedPhotoData(null)}
                     >
                         <X className="h-6 w-6" />
                     </Button>
+
+                    {selectedPhotoData.urls.length > 1 && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute left-6 top-1/2 -translate-y-1/2 h-14 w-14 rounded-full bg-black/50 text-white hover:bg-black/70 border border-white/20 z-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPhotoData(prev => prev ? {
+                                        ...prev,
+                                        currentIndex: prev.currentIndex === 0 ? prev.urls.length - 1 : prev.currentIndex - 1
+                                    } : null);
+                                }}
+                            >
+                                <ChevronLeft className="h-8 w-8" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-6 top-1/2 -translate-y-1/2 h-14 w-14 rounded-full bg-black/50 text-white hover:bg-black/70 border border-white/20 z-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPhotoData(prev => prev ? {
+                                        ...prev,
+                                        currentIndex: prev.currentIndex === prev.urls.length - 1 ? 0 : prev.currentIndex + 1
+                                    } : null);
+                                }}
+                            >
+                                <ChevronRight className="h-8 w-8" />
+                            </Button>
+                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-full text-sm font-bold tracking-widest border border-white/20 z-50">
+                                {selectedPhotoData.currentIndex + 1} / {selectedPhotoData.urls.length}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
         </DialogContent>
