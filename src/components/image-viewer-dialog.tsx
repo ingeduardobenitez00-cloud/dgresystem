@@ -14,7 +14,9 @@ import { Button } from '@/components/ui/button';
 import type { ImageData } from '@/lib/data';
 import { cleanFileName } from '@/lib/utils';
 import { useState, useRef, type MouseEvent, useEffect } from 'react';
-import { ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight, RefreshCw, Download } from 'lucide-react';
+import { useUser } from '@/firebase/auth/use-user';
+import { useToast } from '@/hooks/use-toast';
 
 type ImageViewerDialogProps = {
   isOpen: boolean;
@@ -35,10 +37,15 @@ export function ImageViewerDialog({
   canNavigateNext = false,
   canNavigatePrevious = false,
 }: ImageViewerDialogProps) {
+  const { user } = useUser();
+  const isAdmin = user?.isAdmin || user?.isOwner;
+  const { toast } = useToast();
+
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const imageRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
 
@@ -103,14 +110,51 @@ export function ImageViewerDialog({
     }
   };
 
+  const handleDownload = async () => {
+    if (!imgSrc) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch(imgSrc);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `evidencia_${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+      toast({ title: "Descarga iniciada" });
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      toast({ variant: "destructive", title: "Error al descargar", description: "No se pudo descargar la imagen." });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 border-none shadow-2xl overflow-hidden bg-black/95">
-        <DialogHeader className="p-6 bg-black text-white shrink-0">
-          <DialogTitle className="font-black uppercase tracking-widest text-sm">{cleanedTitle}</DialogTitle>
-          <DialogDescription className="text-white/40 font-bold uppercase text-[9px]">
-            {imgAlt}
-          </DialogDescription>
+        <DialogHeader className="p-6 bg-black text-white shrink-0 flex-row justify-between items-center">
+          <div>
+            <DialogTitle className="font-black uppercase tracking-widest text-sm">{cleanedTitle}</DialogTitle>
+            <DialogDescription className="text-white/40 font-bold uppercase text-[9px]">
+              {imgAlt}
+            </DialogDescription>
+          </div>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="bg-white/10 hover:bg-white/20 text-white border-white/20 font-black uppercase text-[10px]"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {isDownloading ? 'Descargando...' : 'Descargar'}
+            </Button>
+          )}
         </DialogHeader>
         
         <div 
@@ -185,3 +229,4 @@ export function ImageViewerDialog({
     </Dialog>
   );
 }
+

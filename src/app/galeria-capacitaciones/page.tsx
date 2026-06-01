@@ -38,7 +38,8 @@ import {
   X,
   Plus,
   Upload,
-  Camera
+  Camera,
+  Download
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -475,7 +476,31 @@ export default function GaleriaCapacitacionesPage() {
   const [selectedPhotoData, setSelectedPhotoData] = useState<{urls: string[], currentIndex: number} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const { uploadFile, isUploading } = useStorage();
+
+  const handleDownload = async () => {
+    if (!selectedPhotoData) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch(selectedPhotoData.urls[selectedPhotoData.currentIndex]);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `evidencia_${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+      toast({ title: "Descarga iniciada" });
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      toast({ variant: "destructive", title: "Error al descargar", description: "No se pudo descargar la imagen." });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleUploadPhoto = async (informeId: string, files: FileList | null, type: 'evidencia' | 'respaldo') => {
     if (!firestore || !files || files.length === 0) return;
@@ -679,6 +704,17 @@ export default function GaleriaCapacitacionesPage() {
                     >
                         <X className="h-6 w-6" />
                     </Button>
+                    {(isAdmin || isOwner) && (
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            disabled={isDownloading}
+                            className="absolute top-6 right-20 h-12 w-12 rounded-full bg-white/10 text-white hover:bg-white/20 border border-white/20 z-50"
+                            onClick={handleDownload}
+                        >
+                            <Download className="h-6 w-6" />
+                        </Button>
+                    )}
 
                     {selectedPhotoData.urls.length > 1 && (
                         <>
