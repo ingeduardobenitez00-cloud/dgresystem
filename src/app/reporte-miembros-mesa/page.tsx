@@ -13,6 +13,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import { cn, formatDateToDDMMYYYY } from "@/lib/utils";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const COLORS = ['#2563EB', '#EC4899']; // Blue for Hombres, Pink for Mujeres
 
@@ -42,7 +43,7 @@ export default function ReporteMiembrosMesaPage() {
             let totalCapacitados = 0;
             let totalSesiones = 0;
 
-            const deptosMap: Record<string, { hombres: number, mujeres: number, total: number }> = {};
+            const deptosMap: Record<string, { hombres: number, mujeres: number, total: number, distritos: Record<string, { hombres: number, mujeres: number, total: number }> }> = {};
             
             allSolicitudes.forEach((sol: any) => {
                 if (sol.cancelada) return;
@@ -61,18 +62,32 @@ export default function ReporteMiembrosMesaPage() {
                     totalSesiones++;
 
                     const dept = sol.departamento || 'SIN ESPECIFICAR';
+                    const dist = sol.distrito || 'SIN ESPECIFICAR';
+                    
                     if (!deptosMap[dept]) {
-                        deptosMap[dept] = { hombres: 0, mujeres: 0, total: 0 };
+                        deptosMap[dept] = { hombres: 0, mujeres: 0, total: 0, distritos: {} };
                     }
+                    if (!deptosMap[dept].distritos[dist]) {
+                        deptosMap[dept].distritos[dist] = { hombres: 0, mujeres: 0, total: 0 };
+                    }
+
                     deptosMap[dept].hombres += h;
                     deptosMap[dept].mujeres += m;
                     deptosMap[dept].total += (h + m);
+
+                    deptosMap[dept].distritos[dist].hombres += h;
+                    deptosMap[dept].distritos[dist].mujeres += m;
+                    deptosMap[dept].distritos[dist].total += (h + m);
                 }
             });
 
             const deptoData = Object.entries(deptosMap)
-                .map(([name, data]) => ({ name, ...data }))
-                .sort((a, b) => b.total - a.total);
+                .map(([name, data]) => ({ 
+                    name, 
+                    codigo: name.split(' - ')[0] || '99',
+                    ...data 
+                }))
+                .sort((a, b) => a.codigo.localeCompare(b.codigo));
 
             const genderData = [
                 { name: 'HOMBRES', value: totalHombres },
@@ -159,12 +174,27 @@ export default function ReporteMiembrosMesaPage() {
         doc.text("2. DESGLOSE TERRITORIAL POR DEPARTAMENTO", margin, currentY);
         currentY += 8;
 
-        const tableBody = stats.deptoData.map((d: any) => [
-            d.name,
-            d.hombres.toLocaleString(),
-            d.mujeres.toLocaleString(),
-            d.total.toLocaleString()
-        ]);
+        const tableBody: any[] = [];
+        stats.deptoData.forEach((d: any) => {
+            // Fila principal del departamento
+            tableBody.push([
+                { content: d.name, styles: { fontStyle: 'bold', fillColor: [240, 240, 245] } },
+                { content: d.hombres.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 245] } },
+                { content: d.mujeres.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 245] } },
+                { content: d.total.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 245] } }
+            ]);
+            
+            // Filas de los distritos (indentadas)
+            const distritosOrdenados = Object.entries(d.distritos || {}).sort(([a], [b]) => a.localeCompare(b));
+            distritosOrdenados.forEach(([distName, distData]: [string, any]) => {
+                tableBody.push([
+                    `    • ${distName}`,
+                    distData.hombres.toLocaleString(),
+                    distData.mujeres.toLocaleString(),
+                    distData.total.toLocaleString()
+                ]);
+            });
+        });
 
         autoTable(doc, {
             startY: currentY,
@@ -401,42 +431,67 @@ if (isLoadingStats) return <div className="flex h-screen items-center justify-ce
 
                         </div>
 
-                        <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden mt-8">
-                            <CardHeader className="p-8 pb-4 border-b border-neutral-50 flex flex-row items-center justify-between">
-                                <div>
-                                    <CardTitle className="text-sm font-black uppercase tracking-tight">Desglose Territorial Detallado</CardTitle>
-                                    <CardDescription className="text-[9px] font-bold uppercase tracking-widest">Datos tabulados por departamento</CardDescription>
-                                </div>
+                        <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden mt-8">
+                            <CardHeader className="p-8 border-b">
+                                <CardTitle className="text-sm font-black uppercase tracking-tighter">Desglose Territorial Detallado</CardTitle>
+                                <CardDescription className="text-[10px] font-bold uppercase">Datos tabulados por departamento y distrito</CardDescription>
                             </CardHeader>
                             <CardContent className="p-0">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-neutral-50 border-b border-neutral-100">
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest">Departamento</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">Hombres</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">Mujeres</th>
-                                                <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">Total Capacitados</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {stats.deptoData.map((row, i) => (
-                                                <tr key={i} className="border-b border-neutral-50 hover:bg-neutral-50/50 transition-colors">
-                                                    <td className="px-6 py-4 text-xs font-black uppercase text-neutral-800">{row.name}</td>
-                                                    <td className="px-6 py-4 text-xs font-bold text-blue-600 text-right">{row.hombres.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-xs font-bold text-pink-600 text-right">{row.mujeres.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-sm font-black text-primary text-right bg-primary/5">{row.total.toLocaleString()}</td>
-                                                </tr>
-                                            ))}
-                                            <tr className="bg-primary text-white">
-                                                <td className="px-6 py-4 text-xs font-black uppercase">TOTAL NACIONAL</td>
-                                                <td className="px-6 py-4 text-xs font-black text-right">{stats.totalHombres.toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-xs font-black text-right">{stats.totalMujeres.toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-sm font-black text-right">{stats.totalCapacitados.toLocaleString()}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <Accordion type="single" collapsible className="w-full">
+                                    {stats.deptoData.map((depto: any) => (
+                                        <AccordionItem key={depto.name} value={depto.name} className="border-b last:border-0 border-neutral-100">
+                                            <AccordionTrigger className="px-8 py-6 hover:bg-neutral-50/50 hover:no-underline group">
+                                                <div className="flex items-center gap-6 w-full text-left">
+                                                    <div className="h-10 w-10 rounded-xl bg-neutral-100 flex items-center justify-center font-black text-xs text-neutral-400 group-data-[state=open]:bg-primary group-data-[state=open]:text-white transition-colors">
+                                                        {depto.codigo}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h4 className="font-black text-[13px] uppercase tracking-tight">{depto.name}</h4>
+                                                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{Object.keys(depto.distritos || {}).length} Distritos Reportando</p>
+                                                    </div>
+                                                    <div className="flex gap-12 pr-6">
+                                                        <div className="text-center">
+                                                            <p className="text-[11px] font-black text-blue-600">{depto.hombres.toLocaleString()}</p>
+                                                            <p className="text-[7px] font-bold uppercase text-muted-foreground">Hombres</p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-[11px] font-black text-pink-600">{depto.mujeres.toLocaleString()}</p>
+                                                            <p className="text-[7px] font-bold uppercase text-muted-foreground">Mujeres</p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-[11px] font-black text-primary">{depto.total.toLocaleString()}</p>
+                                                            <p className="text-[7px] font-bold uppercase text-muted-foreground">Total</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="bg-neutral-50/30 p-0">
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="bg-neutral-100/50">
+                                                            <tr>
+                                                                <th className="px-8 py-4 text-[9px] font-black uppercase text-slate-500">Distrito</th>
+                                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-blue-600 text-right">Hombres</th>
+                                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-pink-600 text-right">Mujeres</th>
+                                                                <th className="px-6 py-4 text-[9px] font-black uppercase text-primary text-right">Total Capacitados</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {Object.entries(depto.distritos || {}).sort(([a], [b]) => a.localeCompare(b)).map(([distName, distData]: [string, any]) => (
+                                                                <tr key={distName} className="border-b last:border-0 border-neutral-100 hover:bg-white transition-colors">
+                                                                    <td className="px-8 py-3.5 text-[11px] font-black uppercase text-slate-700">{distName}</td>
+                                                                    <td className="px-6 py-3.5 text-[11px] font-black text-right text-blue-600">{distData.hombres.toLocaleString()}</td>
+                                                                    <td className="px-6 py-3.5 text-[11px] font-black text-right text-pink-600">{distData.mujeres.toLocaleString()}</td>
+                                                                    <td className="px-6 py-3.5 text-[11px] font-black text-right text-primary">{distData.total.toLocaleString()}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))}
+                                </Accordion>
                             </CardContent>
                         </Card>
 
