@@ -61,7 +61,8 @@ export const DEFAULT_CATEGORIES: ModuleCategory[] = [
       'reportes-pdf',
       'compendio-general',
       'informe-cidee',
-      'estadisticas-solicitudes'
+      'estadisticas-solicitudes',
+      'reporte-miembros-mesa'
     ],
     orden: 3
   },

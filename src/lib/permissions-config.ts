@@ -50,6 +50,7 @@ export const MODULE_STRUCTURE = [
       { id: 'reportes-pdf', label: 'REPORTES PDF Y ESTADÍSTICAS' },
       { id: 'estadisticas-solicitudes', label: 'ESTADÍSTICAS SOLICITUDES' },
       { id: 'informe-territorial', label: 'INFORME TERRITORIAL' },
+      { id: 'reporte-miembros-mesa', label: 'REPORTE MIEMBROS DE MESA' },
       { id: 'conexiones', label: 'MONITOREO CONEXIONES' },
     ]
   },

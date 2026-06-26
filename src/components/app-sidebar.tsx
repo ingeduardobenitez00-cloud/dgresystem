@@ -89,6 +89,7 @@ const MODULE_REGISTRY: Record<string, { label: string; icon: any }> = {
   'informe-general': { label: "Informe General PDF", icon: FileArchive },
   'reportes-pdf': { label: "Reportes PDF y Estadísticas", icon: PieChart },
   'estadisticas-solicitudes': { label: "Estadísticas Solicitudes", icon: BarChart3 },
+  'reporte-miembros-mesa': { label: "Reporte Miembros de Mesa", icon: Users },
   'informe-cidee': { label: "Informe Técnico Word", icon: FileText },
   'compendio-general': { label: "Compendio General", icon: FileText },
 

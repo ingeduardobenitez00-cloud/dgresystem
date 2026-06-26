@@ -213,6 +213,12 @@ export const dashboardMenuItems = [
     description: 'Análisis de participación de partidos políticos y distribución territorial.',
   },
   {
+    href: '/reporte-miembros-mesa',
+    label: 'Reporte Miembros de Mesa',
+    icon: Users,
+    description: 'Estadísticas de capacitación de miembros de mesa receptora de votos.',
+  },
+  {
     href: '/importar-reportes',
     label: 'Importar Reportes',
     icon: FileUp,

@@ -60,8 +60,14 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
 
     const isCancelled = item.cancelada;
     const hasReport = (reports || []).length > 0;
-    const isFinished = mov?.fecha_devolucion && hasReport;
-    const totalCapacitados = reports?.reduce((acc, r) => acc + (r.total_personas || 0), 0) || 0;
+    
+    const isMM = item.es_capacitacion_mm || (item.tipo_solicitud || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
+    const totalMM = (item.cant_hombres || 0) + (item.cant_mujeres || 0);
+    
+    const isFinished = mov?.fecha_devolucion && (isMM ? totalMM > 0 : hasReport);
+    const totalCapacitados = isMM && totalMM > 0 
+        ? totalMM 
+        : (reports?.reduce((acc, r) => acc + (r.total_personas || 0), 0) || 0);
 
     const itemDate = new Date(item.fecha + 'T23:59:59');
     const isPast = itemDate < new Date();
@@ -156,6 +162,12 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
                     <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
                         {isCancelled ? 'SIN EJECUCION' : 'PERSONAS'}
                     </span>
+                    {!isCancelled && isMM && totalMM > 0 && (
+                        <div className="flex gap-2 mt-2">
+                            <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 border-blue-200 text-blue-700 bg-blue-50/50">H: {item.cant_hombres || 0}</Badge>
+                            <Badge variant="outline" className="text-[8px] font-black px-1.5 py-0 border-pink-200 text-pink-700 bg-pink-50/50">M: {item.cant_mujeres || 0}</Badge>
+                        </div>
+                    )}
                 </div>
             </td>
         </tr>
