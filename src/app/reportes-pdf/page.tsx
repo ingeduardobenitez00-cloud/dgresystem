@@ -404,44 +404,92 @@ export default function ReportesPDFPage() {
         doc.setFont("helvetica", "bold");
         doc.text("3. VISUALIZACIÓN ESTADÍSTICA", margin, 20);
 
-        const chartElements = ['depto-cards-container', 'top-distritos-chart', 'satisfaccion-pie-chart', 'demografia-chart'];
+        // TARJETAS VISUALES (Captura individual para evitar cortes)
+        const container = document.getElementById('depto-cards-container');
+        if (container) {
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.text("PRODUCTIVIDAD TERRITORIAL (VISUAL)", margin, 30);
+            
+            let cardY = 40;
+            let cardX = margin;
+            const cardWidth = 85; // 2 columnas
+            let maxHeightInRow = 0;
+            let colIndex = 0;
+
+            const cards = Array.from(container.children) as HTMLElement[];
+            for (let i = 0; i < cards.length; i++) {
+                const card = cards[i];
+                const originalShadow = card.style.boxShadow;
+                card.style.boxShadow = 'none'; // Mejora renderizado
+                const canvas = await html2canvas(card, { scale: 2, backgroundColor: '#ffffff' });
+                card.style.boxShadow = originalShadow;
+                
+                const imgData = canvas.toDataURL('image/png');
+                const imgHeight = (canvas.height * cardWidth) / canvas.width;
+                
+                if (cardY + imgHeight > 280) {
+                    if (colIndex > 0) {
+                        cardY += maxHeightInRow + 10;
+                        cardX = margin;
+                        colIndex = 0;
+                        maxHeightInRow = 0;
+                    }
+                    
+                    if (cardY + imgHeight > 280) {
+                        doc.addPage();
+                        cardY = 20;
+                        cardX = margin;
+                        colIndex = 0;
+                        maxHeightInRow = 0;
+                    }
+                }
+                
+                doc.addImage(imgData, 'PNG', cardX, cardY, cardWidth, imgHeight);
+                maxHeightInRow = Math.max(maxHeightInRow, imgHeight);
+                
+                colIndex++;
+                if (colIndex > 1) { 
+                    colIndex = 0;
+                    cardX = margin;
+                    cardY += maxHeightInRow + 10;
+                    maxHeightInRow = 0;
+                } else {
+                    cardX += cardWidth + 10;
+                }
+            }
+        }
+
+        // GRÁFICOS RESTANTES (Sin cortes)
+        const chartElements = ['top-distritos-chart', 'satisfaccion-pie-chart', 'demografia-chart'];
         let chartY = 30;
+        doc.addPage();
 
         for (const id of chartElements) {
             const element = document.getElementById(id);
             if (element) {
-                // Título del gráfico en el PDF
                 const titles: Record<string, string> = {
-                    'depto-cards-container': 'PRODUCTIVIDAD TERRITORIAL (VISUAL)',
                     'top-distritos-chart': 'ALCANCE POR DEPARTAMENTO',
                     'satisfaccion-pie-chart': 'PERCEPCIÓN DE UTILIDAD',
                     'demografia-chart': 'RANGOS DE EDAD DE PARTICIPANTES'
                 };
                 
-                if (chartY > 20) {
-                    doc.setFontSize(9);
-                    doc.setFont("helvetica", "bold");
-                    doc.text(titles[id] || '', margin, chartY);
-                }
-
-                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#f8fafc' });
+                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
                 const imgData = canvas.toDataURL('image/png');
                 const imgWidth = 180;
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 
-                let finalImgWidth = imgWidth;
-                let finalImgHeight = imgHeight;
-                
-                if (finalImgHeight > 250) {
-                    const ratio = 250 / finalImgHeight;
-                    finalImgHeight = 250;
-                    finalImgWidth = finalImgWidth * ratio;
+                if (chartY + imgHeight > 280) { 
+                    doc.addPage(); 
+                    chartY = 20; 
                 }
                 
-                if (chartY + finalImgHeight > 280) { doc.addPage(); chartY = 20; }
-                const xOffset = margin + (imgWidth - finalImgWidth) / 2;
-                doc.addImage(imgData, 'PNG', xOffset, chartY + 5, finalImgWidth, finalImgHeight);
-                chartY += finalImgHeight + 25;
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "bold");
+                doc.text(titles[id] || '', margin, chartY);
+                
+                doc.addImage(imgData, 'PNG', margin, chartY + 5, imgWidth, imgHeight);
+                chartY += imgHeight + 25;
             }
         }
 
@@ -482,7 +530,7 @@ export default function ReportesPDFPage() {
         doc.text("Director General", 45, footerY + 9, { align: "center" });
 
         doc.text("Ing. Eduardo Benítez", pageWidth - 45, footerY + 5, { align: "center" });
-        doc.text("Dirección de Informática", pageWidth - 45, footerY + 9, { align: "center" });
+        doc.text("Encargado de Informática de la DGRE", pageWidth - 45, footerY + 9, { align: "center" });
 
         doc.save(`REPORTE-ESTADISTICO-${new Date().getTime()}.pdf`);
     };
@@ -712,9 +760,9 @@ export default function ReportesPDFPage() {
                                             return (
                                                 <Card key={depto} className="border-none shadow-lg rounded-[2rem] bg-white overflow-hidden flex flex-col">
                                                     <CardHeader className={cn("p-5 border-b flex-shrink-0", isComplete ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100")}>
-                                                        <CardTitle className={cn("text-[10px] font-black uppercase tracking-widest flex justify-between", isComplete ? "text-emerald-700" : "text-red-700")}>
-                                                            <span className="truncate pr-2">{depto}</span>
-                                                            <span className="flex-shrink-0">{percentUsados}% USO</span>
+                                                        <CardTitle className={cn("text-[11px] font-black uppercase tracking-widest flex flex-col gap-1", isComplete ? "text-emerald-700" : "text-red-700")}>
+                                                            <span className="leading-tight">{depto}</span>
+                                                            <span className="text-[14px]">{percentUsados}% USO</span>
                                                         </CardTitle>
                                                         <CardDescription className="text-[9px] font-bold mt-1 text-slate-500">
                                                             {stats.usados} de {stats.total} distritos productivos
@@ -725,13 +773,13 @@ export default function ReportesPDFPage() {
                                                         </div>
                                                     </CardHeader>
                                                     
-                                                    <CardContent className="p-5 bg-white flex-1 flex flex-col gap-4">
+                                                    <CardContent className="p-5 bg-white flex-1 flex flex-col gap-5">
                                                         {stats.usadosNombres && stats.usadosNombres.length > 0 && (
                                                             <div>
-                                                                <p className="text-[9px] font-black uppercase text-emerald-600 mb-2">Completados ({stats.usados}):</p>
-                                                                <div className="flex flex-wrap gap-1.5">
+                                                                <p className="text-[11px] font-black uppercase text-emerald-600 mb-2.5">Completados ({stats.usados}):</p>
+                                                                <div className="flex flex-wrap gap-2">
                                                                     {stats.usadosNombres.sort().map((dist: string) => (
-                                                                        <span key={dist} className="text-[8px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                                                                        <span key={dist} className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-md border border-emerald-200 shadow-sm">
                                                                             {dist}
                                                                         </span>
                                                                     ))}
@@ -741,10 +789,10 @@ export default function ReportesPDFPage() {
                                                         
                                                         {!isComplete && stats.faltantesNombres && stats.faltantesNombres.length > 0 && (
                                                             <div>
-                                                                <p className="text-[9px] font-black uppercase text-red-600 mb-2">Faltan ({stats.faltantes}):</p>
-                                                                <div className="flex flex-wrap gap-1.5">
+                                                                <p className="text-[11px] font-black uppercase text-red-600 mb-2.5">Faltan ({stats.faltantes}):</p>
+                                                                <div className="flex flex-wrap gap-2">
                                                                     {stats.faltantesNombres.sort().map((dist: string) => (
-                                                                        <span key={dist} className="text-[8px] font-bold uppercase text-red-700 bg-red-50 px-2 py-1 rounded border border-red-200">
+                                                                        <span key={dist} className="text-[10px] font-black uppercase text-red-700 bg-red-50 px-2.5 py-1.5 rounded-md border border-red-200 shadow-sm">
                                                                             {dist}
                                                                         </span>
                                                                     ))}
