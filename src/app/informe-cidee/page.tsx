@@ -226,8 +226,8 @@ export default function InformeCideePage() {
             <td>Asistente Antigravity AI (Pair Programming con Superadmin)</td>
         </tr>
         <tr>
-            <td class="meta-label">Servidor Local:</td>
-            <td>http://localhost:3000/</td>
+            <td class="meta-label">Enlace del Sistema:</td>
+            <td>https://dgre-tsje.web.app/</td>
             <td class="meta-label">Estado:</td>
             <td>Entorno Homologado y Verificado</td>
         </tr>

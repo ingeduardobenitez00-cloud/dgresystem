@@ -6,7 +6,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
-    "site": "dgresystem",
+    "site": "dgre-tsje",
     "source": ".",
     "ignore": [
       "firebase.json",

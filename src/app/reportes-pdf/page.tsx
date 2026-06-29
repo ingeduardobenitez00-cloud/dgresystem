@@ -241,9 +241,47 @@ export default function ReportesPDFPage() {
 
             const formatEncuestaData = (obj: any, labels: any) => Object.entries(obj).map(([key, value]) => ({ name: labels[key] || key, value }));
 
-            // 4. Guardar Resúmenes
+            // 7. Calcular Distritos Faltantes y Productividad por Departamento
+            const faltantes: Record<string, string[]> = {};
+            const deptoStats: Record<string, { total: number; usados: number; faltantes: number; faltantesNombres: string[]; usadosNombres: string[] }> = {};
+            let distritosSinUso = 0;
+            let distritosConUso = 0;
+
+            Object.values(deptoMap).forEach((depto: any) => {
+                if (!deptoStats[depto.nombre]) {
+                    deptoStats[depto.nombre] = { total: 0, usados: 0, faltantes: 0, faltantesNombres: [], usadosNombres: [] };
+                }
+
+                Object.values(depto.distritos).forEach((dist: any) => {
+                    deptoStats[depto.nombre].total++;
+                    // Consideramos "con actividad" si hay capacitados registrados, encuestas, o al menos un usuario
+                    const tieneActividad = dist.capacitados > 0 || dist.encuestas > 0 || dist.tieneUsuario;
+                    if (tieneActividad) {
+                        distritosConUso++;
+                        deptoStats[depto.nombre].usados++;
+                        deptoStats[depto.nombre].usadosNombres.push(dist.nombre);
+                    } else {
+                        if (!faltantes[depto.nombre]) faltantes[depto.nombre] = [];
+                        faltantes[depto.nombre].push(dist.nombre);
+                        distritosSinUso++;
+                        deptoStats[depto.nombre].faltantes++;
+                        deptoStats[depto.nombre].faltantesNombres.push(dist.nombre);
+                    }
+                });
+            });
+
+            const missingStats = { 
+                count: distritosSinUso, 
+                faltantes,
+                usados: distritosConUso,
+                total: distritosSinUso + distritosConUso,
+                deptoStats
+            };
+
+            // 8. Guardar Resúmenes
             await Promise.all([
                 setDoc(doc(firestore, 'stats-summary', 'capacitaciones'), {
+                    missingStats,
                     lastUpdate: new Date().toISOString(),
                     totalCapacitados: globalCapacitados,
                     totalEncuestas: encuestas.length,
@@ -366,7 +404,7 @@ export default function ReportesPDFPage() {
         doc.setFont("helvetica", "bold");
         doc.text("3. VISUALIZACIÓN ESTADÍSTICA", margin, 20);
 
-        const chartElements = ['top-distritos-chart', 'satisfaccion-pie-chart', 'demografia-chart'];
+        const chartElements = ['depto-cards-container', 'top-distritos-chart', 'satisfaccion-pie-chart', 'demografia-chart'];
         let chartY = 30;
 
         for (const id of chartElements) {
@@ -374,6 +412,7 @@ export default function ReportesPDFPage() {
             if (element) {
                 // Título del gráfico en el PDF
                 const titles: Record<string, string> = {
+                    'depto-cards-container': 'PRODUCTIVIDAD TERRITORIAL (VISUAL)',
                     'top-distritos-chart': 'ALCANCE POR DEPARTAMENTO',
                     'satisfaccion-pie-chart': 'PERCEPCIÓN DE UTILIDAD',
                     'demografia-chart': 'RANGOS DE EDAD DE PARTICIPANTES'
@@ -385,14 +424,24 @@ export default function ReportesPDFPage() {
                     doc.text(titles[id] || '', margin, chartY);
                 }
 
-                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#f8fafc' });
                 const imgData = canvas.toDataURL('image/png');
                 const imgWidth = 180;
                 const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 
-                if (chartY + imgHeight > 280) { doc.addPage(); chartY = 20; }
-                doc.addImage(imgData, 'PNG', 15, chartY + 5, imgWidth, imgHeight);
-                chartY += imgHeight + 25;
+                let finalImgWidth = imgWidth;
+                let finalImgHeight = imgHeight;
+                
+                if (finalImgHeight > 250) {
+                    const ratio = 250 / finalImgHeight;
+                    finalImgHeight = 250;
+                    finalImgWidth = finalImgWidth * ratio;
+                }
+                
+                if (chartY + finalImgHeight > 280) { doc.addPage(); chartY = 20; }
+                const xOffset = margin + (imgWidth - finalImgWidth) / 2;
+                doc.addImage(imgData, 'PNG', xOffset, chartY + 5, finalImgWidth, finalImgHeight);
+                chartY += finalImgHeight + 25;
             }
         }
 
@@ -486,7 +535,34 @@ export default function ReportesPDFPage() {
                     </Card>
                 ) : (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
+                                <CardContent className="p-8">
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Productividad País</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <h2 className="text-4xl font-black text-emerald-600">
+                                            {(() => {
+                                                const total = summary.missingStats?.total || ((summary.missingStats?.usados || 0) + (summary.missingStats?.count || 0)) || 1;
+                                                const usados = summary.missingStats?.usados || 0;
+                                                return Math.round((usados / total) * 100);
+                                            })()}%
+                                        </h2>
+                                    </div>
+                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">
+                                        <span className="text-emerald-500">{summary.missingStats?.usados || 0} usaron</span> / <span className="text-red-500">{summary.missingStats?.count || 0} faltan</span>
+                                    </p>
+                                    <div className="h-1.5 w-full bg-neutral-100 mt-4 rounded-full overflow-hidden flex">
+                                        <div className="h-full bg-emerald-500" style={{ width: `${(() => {
+                                            const total = summary.missingStats?.total || ((summary.missingStats?.usados || 0) + (summary.missingStats?.count || 0)) || 1;
+                                            return ((summary.missingStats?.usados || 0) / total) * 100;
+                                        })()}%` }} />
+                                        <div className="h-full bg-red-400" style={{ width: `${(() => {
+                                            const total = summary.missingStats?.total || ((summary.missingStats?.usados || 0) + (summary.missingStats?.count || 0)) || 1;
+                                            return ((summary.missingStats?.count || 0) / total) * 100;
+                                        })()}%` }} />
+                                    </div>
+                                </CardContent>
+                            </Card>
                             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
                                 <CardContent className="p-8">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Total Capacitados</p>
@@ -619,6 +695,69 @@ export default function ReportesPDFPage() {
                                 </CardContent>
                             </Card>
                         </div>
+
+                        {summary.missingStats?.deptoStats && (
+                            <div className="mt-12">
+                                <div className="flex items-center gap-3 mb-6 px-4">
+                                    <AlertTriangle className="h-6 w-6 text-red-500" />
+                                    <h2 className="text-xl font-black uppercase tracking-tight text-red-600">Productividad Territorial por Departamento</h2>
+                                </div>
+                                <div id="depto-cards-container" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8 p-4 bg-slate-50/50 rounded-3xl">
+                                    {Object.entries(summary.missingStats.deptoStats)
+                                        .sort((a, b) => a[0].localeCompare(b[0]))
+                                        .map(([depto, stats]: [string, any]) => {
+                                            const percentUsados = stats.total > 0 ? Math.round((stats.usados / stats.total) * 100) : 0;
+                                            const isComplete = stats.faltantes === 0;
+                                            
+                                            return (
+                                                <Card key={depto} className="border-none shadow-lg rounded-[2rem] bg-white overflow-hidden flex flex-col">
+                                                    <CardHeader className={cn("p-5 border-b flex-shrink-0", isComplete ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100")}>
+                                                        <CardTitle className={cn("text-[10px] font-black uppercase tracking-widest flex justify-between", isComplete ? "text-emerald-700" : "text-red-700")}>
+                                                            <span className="truncate pr-2">{depto}</span>
+                                                            <span className="flex-shrink-0">{percentUsados}% USO</span>
+                                                        </CardTitle>
+                                                        <CardDescription className="text-[9px] font-bold mt-1 text-slate-500">
+                                                            {stats.usados} de {stats.total} distritos productivos
+                                                        </CardDescription>
+                                                        <div className="h-1.5 w-full bg-neutral-200 mt-3 rounded-full overflow-hidden flex">
+                                                            <div className="h-full bg-emerald-500" style={{ width: `${percentUsados}%` }} />
+                                                            <div className="h-full bg-red-400" style={{ width: `${100 - percentUsados}%` }} />
+                                                        </div>
+                                                    </CardHeader>
+                                                    
+                                                    <CardContent className="p-5 bg-white flex-1 flex flex-col gap-4">
+                                                        {stats.usadosNombres && stats.usadosNombres.length > 0 && (
+                                                            <div>
+                                                                <p className="text-[9px] font-black uppercase text-emerald-600 mb-2">Completados ({stats.usados}):</p>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {stats.usadosNombres.sort().map((dist: string) => (
+                                                                        <span key={dist} className="text-[8px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                                                                            {dist}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {!isComplete && stats.faltantesNombres && stats.faltantesNombres.length > 0 && (
+                                                            <div>
+                                                                <p className="text-[9px] font-black uppercase text-red-600 mb-2">Faltan ({stats.faltantes}):</p>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {stats.faltantesNombres.sort().map((dist: string) => (
+                                                                        <span key={dist} className="text-[8px] font-bold uppercase text-red-700 bg-red-50 px-2 py-1 rounded border border-red-200">
+                                                                            {dist}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </CardContent>
+                                                </Card>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        )}
 
                         <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white overflow-hidden">
                             <CardHeader className="p-8 border-b">

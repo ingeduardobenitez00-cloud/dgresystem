@@ -7,9 +7,12 @@ import { Button } from "@/components/ui/button";
 import { useUser, useFirebase, useDocOnce } from "@/firebase";
 import { collection, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Loader2, RefreshCw, BarChart3, Users, ClipboardCheck, Building2, Flag, MapPin } from "lucide-react";
+import { Loader2, RefreshCw, BarChart3, Users, ClipboardCheck, Building2, Flag, MapPin, AlertTriangle, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { cn, normalizeGeo } from "@/lib/utils";
+import html2canvas from "html2canvas";
 
 const COLORS = ['#0F172A', '#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -39,15 +42,20 @@ export default function EstadisticasSolicitudesPage() {
             const solicitudes = solicitudesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const allDatos = datosSnap.docs.map(d => d.data());
 
-            // 1. Departamentos base
+            // 1. Departamentos y Distritos base
             const deptoList = [...new Set(allDatos.map((d: any) => d.departamento))].sort();
-            const deptoMap: any = {};
-            deptoList.forEach(name => {
-                const cod = name.split(' - ')[0] || "99";
-                deptoMap[name] = { name, cod, count: 0 };
+            const masterDistritos = new Set<string>();
+            
+            allDatos.forEach((d: any) => {
+                if (d.departamento && d.distrito) {
+                    const depto = d.departamento.toUpperCase().trim();
+                    const dist = d.distrito.toUpperCase().trim();
+                    masterDistritos.add(`${depto}||${dist}`);
+                }
             });
 
             // 2. Agregación de Datos Jerárquica
+            const distritosConUso = new Set<string>();
             const parties: Record<string, number> = {};
             const partyMovements: Record<string, Record<string, number>> = {};
             const types = { divulgacion: 0, capacitacion: 0 };
@@ -56,6 +64,13 @@ export default function EstadisticasSolicitudesPage() {
 
             solicitudes.forEach((s: any) => {
                 if (s.cancelada) return;
+
+                // Registro de uso global (sin importar si es político o no)
+                if (s.departamento && s.distrito) {
+                    const depto = s.departamento.toUpperCase().trim();
+                    const dist = s.distrito.toUpperCase().trim();
+                    distritosConUso.add(`${depto}||${dist}`);
+                }
 
                 // FILTRO GLOBAL ESTRICTO: SOLO AGRUPACIONES Y MOVIMIENTOS POLÍTICOS
                 const entity = (s.solicitante_entidad || '').toUpperCase();
@@ -100,10 +115,42 @@ export default function EstadisticasSolicitudesPage() {
                 else types.divulgacion++;
             });
 
+            // 3. Procesar Estadísticas de Uso Global y por Departamento
+            const faltantes: Record<string, string[]> = {};
+            const deptoStats: Record<string, { total: number; usados: number; faltantes: number; faltantesNombres: string[]; usadosNombres: string[] }> = {};
+            let distritosUsados = 0;
+
+            masterDistritos.forEach(key => {
+                const [depto, dist] = key.split("||");
+                if (!deptoStats[depto]) {
+                    deptoStats[depto] = { total: 0, usados: 0, faltantes: 0, faltantesNombres: [], usadosNombres: [] };
+                }
+                deptoStats[depto].total++;
+
+                if (distritosConUso.has(key)) {
+                    distritosUsados++;
+                    deptoStats[depto].usados++;
+                    deptoStats[depto].usadosNombres.push(dist);
+                } else {
+                    if (!faltantes[depto]) faltantes[depto] = [];
+                    faltantes[depto].push(dist);
+                    deptoStats[depto].faltantes++;
+                    deptoStats[depto].faltantesNombres.push(dist);
+                }
+            });
+
+            const usageStats = {
+                totalDistritos: masterDistritos.size,
+                usados: distritosUsados,
+                faltantes,
+                deptoStats
+            };
+
             // 4. Guardar Resumen Jerárquico
             await setDoc(doc(firestore, 'stats-summary', 'solicitudes'), {
                 lastUpdate: new Date().toISOString(),
                 totalSolicitudes: total,
+                usageStats,
                 deptos,
                 parties,
                 partyMovements,
@@ -145,6 +192,191 @@ export default function EstadisticasSolicitudesPage() {
         ];
     }, [summary?.types]);
 
+    const generatePDF = async () => {
+        if (!summary || !summary.usageStats) return;
+
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 15;
+
+        // Header institucional
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, pageWidth, 40, 'F');
+        try {
+            doc.addImage('/logo.png', 'PNG', margin, 10, 15, 15);
+            doc.addImage('/logo1.png', 'PNG', pageWidth - margin - 35, 10, 35, 15);
+        } catch (e) {}
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text("REPORTE DE PRODUCTIVIDAD TERRITORIAL", pageWidth / 2, 25, { align: "center" });
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Fecha de Corte: ${new Date(summary.lastUpdate).toLocaleDateString('es-PY')}`, pageWidth / 2, 30, { align: "center" });
+        
+        doc.setDrawColor(230, 230, 230);
+        doc.line(margin, 38, pageWidth - margin, 38);
+
+        let currentY = 50;
+
+        // 1. Resumen Ejecutivo
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("1. RESUMEN GLOBAL", margin, currentY);
+        currentY += 8;
+
+        const totalUsados = summary.usageStats.usados;
+        const totalDistritos = summary.usageStats.totalDistritos;
+        const percentGlobal = Math.round((totalUsados / totalDistritos) * 100);
+
+        autoTable(doc, {
+            startY: currentY,
+            head: [['Indicador Clave', 'Valor Total']],
+            body: [
+                ['Total Distritos a Nivel País', totalDistritos.toString()],
+                ['Distritos Productivos (Con Actividad)', `${totalUsados} (${percentGlobal}%)`],
+                ['Distritos Sin Actividad (Faltantes)', `${totalDistritos - totalUsados} (${100 - percentGlobal}%)`],
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [26, 26, 26], fontSize: 9, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+
+        // 2. Desglose Territorial
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("2. PRODUCTIVIDAD POR DEPARTAMENTO", margin, currentY);
+        currentY += 8;
+
+        const deptoEntries = Object.entries(summary.usageStats.deptoStats || {}).sort((a, b) => a[0].localeCompare(b[0]));
+        
+        const tableBody = deptoEntries.map(([depto, stats]: [string, any]) => {
+            const percent = stats.total > 0 ? Math.round((stats.usados / stats.total) * 100) : 0;
+            return [
+                depto.toUpperCase(),
+                stats.total.toString(),
+                stats.usados.toString(),
+                stats.faltantes.toString(),
+                `${percent}%`
+            ];
+        });
+
+        autoTable(doc, {
+            startY: currentY,
+            head: [['Departamento', 'Total Distritos', 'Productivos', 'Faltantes', 'Avance (%)']],
+            body: tableBody,
+            theme: 'striped',
+            headStyles: { fillColor: [26, 26, 26], fontSize: 8 },
+            bodyStyles: { fontSize: 8, halign: 'center' },
+            columnStyles: { 0: { halign: 'left' } }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+
+        // 3. Detalle de Faltantes
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("3. DETALLE DE DISTRITOS FALTANTES", margin, currentY);
+        currentY += 8;
+
+        const faltantesBody: any[] = [];
+        deptoEntries.forEach(([depto, stats]: [string, any]) => {
+            if (stats.faltantesNombres && stats.faltantesNombres.length > 0) {
+                faltantesBody.push([
+                    depto.toUpperCase(),
+                    stats.faltantesNombres.sort().join(", ")
+                ]);
+            }
+        });
+
+        if (faltantesBody.length > 0) {
+            autoTable(doc, {
+                startY: currentY,
+                head: [['Departamento', 'Distritos Sin Actividad']],
+                body: faltantesBody,
+                theme: 'grid',
+                headStyles: { fillColor: [153, 27, 27], fontSize: 8 },
+                bodyStyles: { fontSize: 7 }
+            });
+            currentY = (doc as any).lastAutoTable.finalY + 15;
+        } else {
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "italic");
+            doc.text("¡Todos los distritos a nivel país están productivos (100% COMPLETADO)!", margin, currentY);
+            currentY += 15;
+        }
+
+        // Gráficos (Nueva Página)
+        doc.addPage();
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("4. VISUALIZACIÓN ESTADÍSTICA Y GRÁFICOS", margin, 20);
+
+        const chartElements = ['depto-cards-container', 'alcance-chart', 'partidos-chart', 'tipo-chart'];
+        let chartY = 30;
+
+        for (const id of chartElements) {
+            const element = document.getElementById(id);
+            if (element) {
+                const titles: Record<string, string> = {
+                    'depto-cards-container': 'PRODUCTIVIDAD TERRITORIAL (VISUAL)',
+                    'alcance-chart': 'ALCANCE POR DEPARTAMENTO',
+                    'partidos-chart': 'TOP PARTIDOS POLÍTICOS',
+                    'tipo-chart': 'DISTRIBUCIÓN POR TIPO'
+                };
+                
+                if (chartY > 20) {
+                    doc.setFontSize(9);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(titles[id] || '', margin, chartY);
+                }
+
+                const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#f8fafc' });
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = 180;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                let finalImgWidth = imgWidth;
+                let finalImgHeight = imgHeight;
+                
+                if (finalImgHeight > 250) {
+                    const ratio = 250 / finalImgHeight;
+                    finalImgHeight = 250;
+                    finalImgWidth = finalImgWidth * ratio;
+                }
+                
+                if (chartY + finalImgHeight > 280) { doc.addPage(); chartY = 20; }
+                const xOffset = margin + (imgWidth - finalImgWidth) / 2;
+                doc.addImage(imgData, 'PNG', xOffset, chartY + 5, finalImgWidth, finalImgHeight);
+                chartY += finalImgHeight + 25;
+            }
+        }
+        
+        currentY = chartY;
+
+        // Firmas
+        if (currentY > 230) { doc.addPage(); currentY = 30; }
+        
+        const footerY = doc.internal.pageSize.getHeight() - 40;
+        doc.setDrawColor(200);
+        doc.line(margin, footerY, 80, footerY);
+        doc.line(pageWidth - margin, footerY, pageWidth - 80, footerY);
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text("Lic. Benjamín Díaz Valinotti", 45, footerY + 5, { align: "center" });
+        doc.text("Director General", 45, footerY + 9, { align: "center" });
+
+        doc.text("Ing. Eduardo Benítez", pageWidth - 45, footerY + 5, { align: "center" });
+        doc.text("Dirección de Informática", pageWidth - 45, footerY + 9, { align: "center" });
+
+        doc.save(`PRODUCTIVIDAD-TERRITORIAL-${new Date().getTime()}.pdf`);
+    };
+
     if (isLoadingSummary) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
 
     return (
@@ -162,16 +394,25 @@ export default function EstadisticasSolicitudesPage() {
                              Análisis de participación por Departamento y Agrupación Política
                         </p>
                     </div>
-                    {isAdmin && (
+                    <div className="flex gap-4">
+                        {isAdmin && (
+                            <Button 
+                                onClick={handleSync} 
+                                disabled={isSyncing}
+                                className="bg-white text-black border-2 border-black hover:bg-neutral-100 font-black uppercase text-[10px] h-12 px-6 gap-2 shadow-lg"
+                            >
+                                {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                {isSyncing ? "PROCESANDO..." : "Sincronizar Datos"}
+                            </Button>
+                        )}
                         <Button 
-                            onClick={handleSync} 
-                            disabled={isSyncing}
-                            className="bg-white text-black border-2 border-black hover:bg-neutral-100 font-black uppercase text-[10px] h-12 px-6 gap-2 shadow-lg"
+                            onClick={generatePDF} 
+                            disabled={!summary?.usageStats}
+                            className="bg-primary text-white hover:bg-primary/90 font-black uppercase text-[10px] h-12 px-6 gap-2 shadow-lg"
                         >
-                            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            {isSyncing ? "PROCESANDO..." : "Sincronizar Datos"}
+                            <Printer className="h-4 w-4" /> Exportar Productividad PDF
                         </Button>
-                    )}
+                    </div>
                 </div>
 
                 {!summary ? (
@@ -213,12 +454,16 @@ export default function EstadisticasSolicitudesPage() {
                                 <CardContent className="p-8">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Presencia Territorial</p>
-                                            <h2 className="text-4xl font-black text-green-600">{deptoData?.filter((d: any) => d.count > 0).length || 0}</h2>
+                                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Uso Global País</p>
+                                            <h2 className="text-4xl font-black text-green-600">
+                                                {summary.usageStats ? Math.round((summary.usageStats.usados / summary.usageStats.totalDistritos) * 100) : 0}%
+                                            </h2>
                                         </div>
                                         <MapPin className="h-10 w-10 text-green-600 opacity-20 group-hover:opacity-40 transition-opacity" />
                                     </div>
-                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Departamentos con pedidos realizados</p>
+                                    <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">
+                                        {summary.usageStats?.usados || 0} de {summary.usageStats?.totalDistritos || 0} distritos utilizaron el sistema
+                                    </p>
                                 </CardContent>
                             </Card>
                         </div>
@@ -233,7 +478,7 @@ export default function EstadisticasSolicitudesPage() {
                                         <CardDescription className="text-[9px] font-bold uppercase tracking-widest">Distribución de Solicitudes Recibidas</CardDescription>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="p-10 bg-white">
+                                <CardContent id="alcance-chart" className="p-10 bg-white">
                                     <div className="h-[450px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={deptoData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
@@ -259,7 +504,7 @@ export default function EstadisticasSolicitudesPage() {
                                     </CardTitle>
                                     <CardDescription className="text-[9px] font-bold uppercase tracking-widest">Participación total por agrupación política</CardDescription>
                                 </CardHeader>
-                                <CardContent className="p-10 bg-white">
+                                <CardContent id="partidos-chart" className="p-10 bg-white">
                                     <div className="h-[400px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={partyData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
@@ -326,7 +571,7 @@ export default function EstadisticasSolicitudesPage() {
                                     </CardTitle>
                                     <CardDescription className="text-[9px] font-bold uppercase tracking-widest">Capacitación vs Divulgación</CardDescription>
                                 </CardHeader>
-                                <CardContent className="p-10 pb-16 bg-white">
+                                <CardContent id="tipo-chart" className="p-10 pb-16 bg-white">
                                     <div className="h-[350px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
@@ -351,7 +596,70 @@ export default function EstadisticasSolicitudesPage() {
                             </Card>
                         </div>
 
-                        <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden">
+                        {summary.usageStats?.deptoStats && (
+                            <div className="mt-12">
+                                <div className="flex items-center gap-3 mb-6 px-4">
+                                    <AlertTriangle className="h-6 w-6 text-red-500" />
+                                    <h2 className="text-xl font-black uppercase tracking-tight text-red-600">Productividad Territorial por Departamento</h2>
+                                </div>
+                                <div id="depto-cards-container" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8 p-4 bg-slate-50/50 rounded-3xl">
+                                    {Object.entries(summary.usageStats.deptoStats)
+                                        .sort((a, b) => a[0].localeCompare(b[0]))
+                                        .map(([depto, stats]: [string, any]) => {
+                                            const percentUsados = stats.total > 0 ? Math.round((stats.usados / stats.total) * 100) : 0;
+                                            const isComplete = stats.faltantes === 0;
+                                            
+                                            return (
+                                                <Card key={depto} className="border-none shadow-lg rounded-[2rem] bg-white overflow-hidden flex flex-col">
+                                                    <CardHeader className={cn("p-5 border-b flex-shrink-0", isComplete ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100")}>
+                                                        <CardTitle className={cn("text-[10px] font-black uppercase tracking-widest flex justify-between", isComplete ? "text-emerald-700" : "text-red-700")}>
+                                                            <span className="truncate pr-2">{depto}</span>
+                                                            <span className="flex-shrink-0">{percentUsados}% USO</span>
+                                                        </CardTitle>
+                                                        <CardDescription className="text-[9px] font-bold mt-1 text-slate-500">
+                                                            {stats.usados} de {stats.total} distritos productivos
+                                                        </CardDescription>
+                                                        <div className="h-1.5 w-full bg-neutral-200 mt-3 rounded-full overflow-hidden flex">
+                                                            <div className="h-full bg-emerald-500" style={{ width: `${percentUsados}%` }} />
+                                                            <div className="h-full bg-red-400" style={{ width: `${100 - percentUsados}%` }} />
+                                                        </div>
+                                                    </CardHeader>
+                                                    
+                                                    <CardContent className="p-5 bg-white flex-1 flex flex-col gap-4">
+                                                        {stats.usadosNombres && stats.usadosNombres.length > 0 && (
+                                                            <div>
+                                                                <p className="text-[9px] font-black uppercase text-emerald-600 mb-2">Completados ({stats.usados}):</p>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {stats.usadosNombres.sort().map((dist: string) => (
+                                                                        <span key={dist} className="text-[8px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                                                                            {dist}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {!isComplete && stats.faltantesNombres && stats.faltantesNombres.length > 0 && (
+                                                            <div>
+                                                                <p className="text-[9px] font-black uppercase text-red-600 mb-2">Faltan ({stats.faltantes}):</p>
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {stats.faltantesNombres.sort().map((dist: string) => (
+                                                                        <span key={dist} className="text-[8px] font-bold uppercase text-red-700 bg-red-50 px-2 py-1 rounded border border-red-200">
+                                                                            {dist}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </CardContent>
+                                                </Card>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        )}
+
+                        <Card className="border-none shadow-xl bg-white rounded-[2rem] overflow-hidden mt-8">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <p className="text-[9px] font-bold text-muted-foreground uppercase">
