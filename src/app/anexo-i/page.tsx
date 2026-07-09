@@ -23,7 +23,9 @@ import {
   Calendar as CalendarIcon,
   Clock
 } from 'lucide-react';
-import { useUser, useFirebase, useStorage } from '@/firebase';
+import { useUser, useFirebase, useStorage, useCollectionOnce, useMemoFirebase } from '@/firebase';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { type Dato } from '@/lib/data';
 import { collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
@@ -76,6 +78,9 @@ export default function AnexoIPage() {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [tipoOficina, setTipoOficina] = useState<'REGISTRO' | 'CENTRO_CIVICO' | 'OFICINA_CENTRAL'>('REGISTRO');
   
+  const [departamento, setDepartamento] = useState('');
+  const [distrito, setDistrito] = useState('');
+  
   const [fotoRespaldo, setFotoRespaldo] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -108,6 +113,27 @@ export default function AnexoIPage() {
   }, []);
 
   const profile = user?.profile;
+  const isAdminView = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
+
+  const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
+  const { data: datosData } = useCollectionOnce<Dato>(datosQuery);
+
+  const departments = useMemo(() => {
+    if (!datosData) return [];
+    return [...new Set(datosData.map(d => d.departamento))].sort();
+  }, [datosData]);
+
+  const districts = useMemo(() => {
+    if (!datosData || !departamento) return [];
+    return [...new Set(datosData.filter(d => d.departamento === departamento).map(d => d.distrito))].sort();
+  }, [datosData, departamento]);
+
+  useEffect(() => {
+    if (profile && !departamento && !distrito) {
+      setDepartamento(profile.departamento || '');
+      setDistrito(profile.distrito || '');
+    }
+  }, [profile, departamento, distrito]);
 
 
   const startCamera = async () => {
@@ -180,7 +206,7 @@ export default function AnexoIPage() {
     const performSave = async () => {
       try {
         const idBatch = Date.now();
-        const distPath = (profile?.distrito || 'desconocido').replace(/\s+/g, '_');
+        const distPath = (distrito || 'desconocido').replace(/\s+/g, '_');
 
         // 1. Subir respaldo a Storage
         const fileExt = fotoRespaldo.startsWith('data:application/pdf') ? 'pdf' : 'jpg';
@@ -192,8 +218,8 @@ export default function AnexoIPage() {
         
         const anexoData = {
           tipo_oficina: tipoOficina,
-          departamento: profile?.departamento || '',
-          distrito: profile?.distrito || '',
+          departamento: departamento || '',
+          distrito: distrito || '',
           filas: filledFilas.map(f => ({
             ...f,
             fecha_hasta: f.fecha_hasta || f.fecha_desde,
@@ -231,8 +257,8 @@ export default function AnexoIPage() {
               lugar_local: f.lugar.toUpperCase(),
               direccion_calle: (f.direccion || '').toUpperCase(),
               barrio_compania: '',
-              departamento: profile?.departamento || '',
-              distrito: profile?.distrito || '',
+              departamento: departamento || '',
+              distrito: distrito || '',
               rol_solicitante: 'otro',
               nombre_completo: 'PLANIFICACIÓN ANEXO I',
               cedula: '',
@@ -301,10 +327,10 @@ export default function AnexoIPage() {
 
     y += 10;
     doc.text(`DISTRITO DE: _________________________________`, margin, y);
-    doc.text((profile?.distrito || '').toUpperCase(), margin + 25, y - 0.5);
+    doc.text((distrito || '').toUpperCase(), margin + 25, y - 0.5);
     
     doc.text(`DEPARTAMENTO: _________________________________`, margin + 120, y);
-    doc.text((profile?.departamento || '').toUpperCase(), margin + 155, y - 0.5);
+    doc.text((departamento || '').toUpperCase(), margin + 155, y - 0.5);
 
     const tableBody = filas.map((f, i) => {
       const fechaStr = f.fecha_desde
@@ -348,7 +374,7 @@ export default function AnexoIPage() {
     doc.text("Completar todos los datos de lugares fijos y remitir hasta el jueves antes de la semana de inicio de la divulgación a la Coordinación Departamental correspondiente.", margin, footerY);
     doc.text("Coordinación departamental remite a la Dirección del CIDEE.", margin, footerY + 4);
 
-    doc.save(`AnexoI-${(profile?.distrito || 'Planificacion').replace(/\s+/g, '-')}.pdf`);
+    doc.save(`AnexoI-${(distrito || 'Planificacion').replace(/\s+/g, '-')}.pdf`);
   };
 
   if (isUserLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary"/></div>;
@@ -415,13 +441,42 @@ export default function AnexoIPage() {
                     <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                         <Landmark className="h-3.5 w-3.5" /> Departamento
                     </Label>
-                    <Input value={profile?.departamento || ''} readOnly className="h-12 font-black uppercase bg-muted/20 border-2" />
+                    {isAdminView ? (
+                      <Select 
+                        onValueChange={(v) => { setDepartamento(v); setDistrito(''); }} 
+                        value={departamento}
+                      >
+                        <SelectTrigger className="font-black uppercase border-2 h-12 rounded-xl bg-white shadow-sm">
+                          <SelectValue placeholder="Seleccionar Departamento" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl border-none shadow-2xl">
+                          {departments.map(d => <SelectItem key={d} value={d} className="uppercase font-bold py-3">{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={departamento} readOnly className="h-12 font-black uppercase bg-muted/20 border-2" />
+                    )}
                 </div>
                 <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                         <Building2 className="h-3.5 w-3.5" /> Distrito
                     </Label>
-                    <Input value={profile?.distrito || ''} readOnly className="h-12 font-black uppercase bg-muted/20 border-2" />
+                    {isAdminView ? (
+                      <Select 
+                        onValueChange={(v) => setDistrito(v)} 
+                        value={distrito}
+                        disabled={!departamento}
+                      >
+                        <SelectTrigger className="font-black uppercase border-2 h-12 rounded-xl bg-white shadow-sm disabled:opacity-50">
+                          <SelectValue placeholder="Seleccionar Distrito" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl border-none shadow-2xl">
+                          {districts.map(d => <SelectItem key={d} value={d} className="uppercase font-bold py-3">{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={distrito} readOnly className="h-12 font-black uppercase bg-muted/20 border-2" />
+                    )}
                 </div>
             </div>
 
