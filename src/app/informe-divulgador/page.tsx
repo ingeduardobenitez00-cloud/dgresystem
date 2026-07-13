@@ -170,7 +170,7 @@ function InformeContent() {
     if (baseList.length === 0 || !userProfile || !user) return [];
     
     const submittedReportKeys = new Set(submittedInformes?.map(inf => `${inf.solicitud_id}_${inf.divulgador_id}`) || []);
-    const isManager = !!user?.isAdmin || ['director', 'jefe'].includes(userProfile.role || '') || userProfile.permissions?.includes('admin_filter');
+    const isManager = !!user?.isAdmin || ['director', 'coordinador', 'jefe'].includes(userProfile.role || '') || userProfile.permissions?.includes('admin_filter');
 
     return baseList.flatMap(act => {
       if (act.cancelada) return [];
