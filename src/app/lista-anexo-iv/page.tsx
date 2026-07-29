@@ -198,18 +198,20 @@ function DepartmentAnexoIVSection({
     isAdmin,
     onView, 
     datosData, 
-    profile 
-}: DepartmentAnexoIVSectionProps) {
+    profile,
+    isHistorical
+}: DepartmentAnexoIVSectionProps & { isHistorical?: boolean }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
     // Consulta por departamento SOLO cuando se expande (SMART LOADING)
     const anexosQuery = useMemoFirebase(() => {
         if (!firestore || !isExpanded) return null;
+        const colName = isHistorical ? 'informes-semanales-anexo-iv_internas_2026' : 'informes-semanales-anexo-iv';
         return query(
-            collection(firestore, 'informes-semanales-anexo-iv'),
+            collection(firestore, colName),
             where('departamento', '==', deptName)
         );
-    }, [firestore, deptName, isExpanded]);
+    }, [firestore, deptName, isExpanded, isHistorical]);
 
     const { data: rawAnexos, isLoading, setData: setRawAnexos } = useCollectionOnce<AnexoIV>(anexosQuery);
 
@@ -292,10 +294,13 @@ function DepartmentAnexoIVSection({
 
 // --- PÁGINA PRINCIPAL ---
 
+import { HistoricalToggle } from "@/components/historical-toggle";
+
 export default function ListaAnexoIVPage() {
     const { user, isUserLoading } = useUser();
     const { firestore } = useFirebase();
     const [searchTerm, setSearchTerm] = useState('');
+    const [isHistorical, setIsHistorical] = useState(false);
     const [viewingAnexo, setViewingAnexo] = useState<AnexoIV | null>(null);
     const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
@@ -358,6 +363,12 @@ export default function ListaAnexoIVPage() {
                             <TableProperties className="h-4 w-4" /> Historial de consolidados semanales enviados
                         </p>
                     </div>
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-end mb-8 w-full">
+                    <HistoricalToggle 
+                        isHistorical={isHistorical} 
+                        setIsHistorical={setIsHistorical} 
+                        isAdmin={isAdmin} 
+                    />
                     <div className="relative w-full md:w-96">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary opacity-40" />
                         <Input 
@@ -367,6 +378,7 @@ export default function ListaAnexoIVPage() {
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
+                </div>
                 </div>
 
                 {filteredDepts.length === 0 ? (
@@ -388,6 +400,7 @@ export default function ListaAnexoIVPage() {
                                 onView={setViewingAnexo}
                                 datosData={datosData || []}
                                 profile={profile}
+                                isHistorical={isHistorical}
                             />
                         ))}
                     </Accordion>

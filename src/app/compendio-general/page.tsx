@@ -30,9 +30,13 @@ import autoTable from 'jspdf-autotable';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 
+import { HistoricalToggle } from "@/components/historical-toggle";
+import { useUser } from "@/firebase";
+
 export default function CompendioGeneralPage() {
     const { firestore, storage } = useFirebase();
     const { toast } = useToast();
+    const { user } = useUser();
 
     const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
     const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
@@ -47,6 +51,7 @@ export default function CompendioGeneralPage() {
     const [logo2, setLogo2] = useState<string | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isHistorical, setIsHistorical] = useState(false);
 
     const { data: datosData } = useCollectionOnce<Dato>(firestore ? collection(firestore, 'datos') : null);
 
@@ -120,14 +125,15 @@ export default function CompendioGeneralPage() {
         if (!firestore || !selectedDepartment || !selectedDistrict) return;
         setIsLoadingData(true);
         try {
-            const q = query(collection(firestore, 'solicitudes-capacitacion'), where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
+            const suffix = isHistorical ? '_internas_2026' : '';
+            const q = query(collection(firestore, `solicitudes-capacitacion${suffix}`), where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
             const snap = await getDocs(q);
             const enriched = await Promise.all(snap.docs.map(async (d) => {
                 const act = { id: d.id, ...d.data() } as any;
                 const [mov, inf, enc, anx] = await Promise.all([
-                    getDocs(query(collection(firestore, 'movimientos-maquinas'), where('solicitud_id', '==', d.id))),
-                    getDocs(query(collection(firestore, 'informes-divulgador'), where('solicitud_id', '==', d.id))),
-                    getDocs(query(collection(firestore, 'encuestas-satisfaccion'), where('solicitud_id', '==', d.id))),
+                    getDocs(query(collection(firestore, `movimientos-maquinas${suffix}`), where('solicitud_id', '==', d.id))),
+                    getDocs(query(collection(firestore, `informes-divulgador${suffix}`), where('solicitud_id', '==', d.id))),
+                    getDocs(query(collection(firestore, `encuestas-satisfaccion${suffix}`), where('solicitud_id', '==', d.id))),
                     act.anexo_id ? getDoc(doc(firestore, 'anexo-i', act.anexo_id)) : null
                 ]);
                 return {
@@ -403,10 +409,17 @@ export default function CompendioGeneralPage() {
                             <p className="text-[10px] font-bold text-muted-foreground uppercase">{version} - BUILD ESTABLE</p>
                         </div>
                     </div>
-                    <Button onClick={() => generatePDF()} disabled={isGenerating || activities.length === 0} className="h-12 px-8 rounded-xl font-black uppercase text-[10px] gap-2">
-                        {isGenerating ? <Loader2 className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
-                        {isGenerating ? `PROCESANDO ${generationProgress}%` : "DESCARGAR COMPENDIO"}
-                    </Button>
+                    <div className="flex gap-4">
+                        <HistoricalToggle 
+                            isHistorical={isHistorical} 
+                            setIsHistorical={setIsHistorical} 
+                            isAdmin={['admin', 'director'].includes(user?.profile?.role || '')} 
+                        />
+                        <Button onClick={() => generatePDF()} disabled={isGenerating || activities.length === 0} className="h-12 px-8 rounded-xl font-black uppercase text-[10px] gap-2">
+                            {isGenerating ? <Loader2 className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
+                            {isGenerating ? `PROCESANDO ${generationProgress}%` : "DESCARGAR COMPENDIO"}
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

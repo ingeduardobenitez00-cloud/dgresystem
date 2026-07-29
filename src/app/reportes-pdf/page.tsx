@@ -14,6 +14,7 @@ import autoTable from "jspdf-autotable";
 import { cn, formatDateToDDMMYYYY, normalizeGeo } from "@/lib/utils";
 import html2canvas from "html2canvas";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { HistoricalToggle } from "@/components/historical-toggle";
 
 const COLORS = ['#0F172A', '#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -23,8 +24,14 @@ export default function ReportesPDFPage() {
     const { toast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
 
+    const [isHistorical, setIsHistorical] = useState(false);
+
     // Leer resumen pre-calculado (Bajo Costo: 1 sola lectura)
-    const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'capacitaciones') : null, [firestore]);
+    const statsDocRef = useMemo(() => {
+        if (!firestore) return null;
+        const docName = isHistorical ? 'capacitaciones_internas_2026' : 'capacitaciones';
+        return doc(firestore, 'stats-summary', docName);
+    }, [firestore, isHistorical]);
     const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
     const isAdmin = user?.isAdmin || user?.isOwner;
@@ -35,13 +42,15 @@ export default function ReportesPDFPage() {
         try {
             toast({ title: "Iniciando sincronización...", description: "Esto puede tardar unos segundos dependiendo del volumen de datos." });
 
+            const infCol = isHistorical ? 'informes-divulgador_internas_2026' : 'informes-divulgador';
+            const solCol = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
             const [informesSnap, encuestasSnap, datosSnap, reportsSnap, usersSnap, solicitudesSnap] = await Promise.all([
-                getDocs(collection(firestore, 'informes-divulgador')),
+                getDocs(collection(firestore, infCol)),
                 getDocs(collection(firestore, 'encuestas-satisfaccion')),
                 getDocs(collection(firestore, 'datos')),
                 getDocs(collection(firestore, 'reports')),
                 getDocs(collection(firestore, 'users')),
-                getDocs(collection(firestore, 'solicitudes-capacitacion'))
+                getDocs(collection(firestore, solCol))
             ]);
 
             const informes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -279,8 +288,9 @@ export default function ReportesPDFPage() {
             };
 
             // 8. Guardar Resúmenes
+            const docName = isHistorical ? 'capacitaciones_internas_2026' : 'capacitaciones';
             await Promise.all([
-                setDoc(doc(firestore, 'stats-summary', 'capacitaciones'), {
+                setDoc(doc(firestore, 'stats-summary', docName), {
                     missingStats,
                     lastUpdate: new Date().toISOString(),
                     totalCapacitados: globalCapacitados,
@@ -552,7 +562,12 @@ export default function ReportesPDFPage() {
                              Análisis Jurisdiccional de Capacitaciones y Alcance Territorial
                         </p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <HistoricalToggle 
+                            isHistorical={isHistorical} 
+                            setIsHistorical={setIsHistorical} 
+                            isAdmin={isAdmin} 
+                        />
                         {isAdmin && (
                             <Button 
                                 onClick={handleSync} 

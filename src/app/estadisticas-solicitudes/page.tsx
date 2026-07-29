@@ -13,6 +13,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { cn, normalizeGeo } from "@/lib/utils";
 import html2canvas from "html2canvas";
+import { HistoricalToggle } from "@/components/historical-toggle";
 
 const COLORS = ['#0F172A', '#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -22,8 +23,14 @@ export default function EstadisticasSolicitudesPage() {
     const { toast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
 
+    const [isHistorical, setIsHistorical] = useState(false);
+
     // Leer resumen de solicitudes
-    const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'solicitudes') : null, [firestore]);
+    const statsDocRef = useMemo(() => {
+        if (!firestore) return null;
+        const docName = isHistorical ? 'solicitudes_internas_2026' : 'solicitudes';
+        return doc(firestore, 'stats-summary', docName);
+    }, [firestore, isHistorical]);
     const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
     const isAdmin = ['admin', 'director', 'coordinador'].includes(user?.profile?.role || '') || user?.isOwner;
@@ -34,8 +41,9 @@ export default function EstadisticasSolicitudesPage() {
         try {
             toast({ title: "Sincronizando...", description: "Consolidando partidos y movimientos políiticos..." });
 
+            const colName = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
             const [solicitudesSnap, datosSnap] = await Promise.all([
-                getDocs(collection(firestore, 'solicitudes-capacitacion')),
+                getDocs(collection(firestore, colName)),
                 getDocs(collection(firestore, 'datos'))
             ]);
 
@@ -147,7 +155,8 @@ export default function EstadisticasSolicitudesPage() {
             };
 
             // 4. Guardar Resumen Jerárquico
-            await setDoc(doc(firestore, 'stats-summary', 'solicitudes'), {
+            const docName = isHistorical ? 'solicitudes_internas_2026' : 'solicitudes';
+            await setDoc(doc(firestore, 'stats-summary', docName), {
                 lastUpdate: new Date().toISOString(),
                 totalSolicitudes: total,
                 usageStats,
@@ -443,7 +452,12 @@ export default function EstadisticasSolicitudesPage() {
                              Análisis de participación por Departamento y Agrupación Política
                         </p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <HistoricalToggle 
+                            isHistorical={isHistorical} 
+                            setIsHistorical={setIsHistorical} 
+                            isAdmin={isAdmin} 
+                        />
                         {isAdmin && (
                             <Button 
                                 onClick={handleSync} 

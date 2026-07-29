@@ -257,18 +257,19 @@ function DistrictArchiveSection({
     );
 }
 
-function DepartmentSection({ dept, firestore, profile, searchTerm }: any) {
+function DepartmentSection({ dept, firestore, profile, searchTerm, isHistorical }: any) {
     const [isOpen, setIsOpen] = useState(false);
 
-    // Fetch ALL department items for Anexo I (Lugar Fijo)
+    // Fetch ALL department items for history
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
+        const colName = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
         return query(
-            collection(firestore, 'solicitudes-capacitacion'),
+            collection(firestore, colName),
             where('tipo_solicitud', '==', 'Lugar Fijo'),
             where('departamento', '==', dept.name)
         );
-    }, [firestore, dept.name, isOpen]);
+    }, [firestore, dept.name, isOpen, isHistorical]);
 
     const { data: allDeptItems, isLoading: isDeptLoading } = useCollectionOnce<SolicitudCapacitacion>(q);
 
@@ -361,10 +362,13 @@ function DistrictTable({ items }: { items: SolicitudCapacitacion[] }) {
     );
 }
 
+import { HistoricalToggle } from "@/components/historical-toggle";
+
 export default function ArchivoAnexoIPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isHistorical, setIsHistorical] = useState(false);
 
   const profile = user?.profile;
 
@@ -419,17 +423,22 @@ export default function ArchivoAnexoIPage() {
                     <History className="h-3.5 w-3.5" /> Lugares Fijos con ciclo logístico cerrado
                 </p>
             </div>
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-8">
-            <div className="relative w-full md:max-w-md group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                <Input 
-                    placeholder="Buscar por local o entidad..." 
-                    className="pl-12 h-14 bg-white border-none shadow-sm rounded-2xl font-bold text-xs uppercase focus-visible:ring-primary/20 transition-all"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-end mb-8 w-full">
+                <HistoricalToggle 
+                    isHistorical={isHistorical} 
+                    setIsHistorical={setIsHistorical} 
+                    isAdmin={['admin', 'director'].includes(profile?.role || '')} 
                 />
+                <div className="relative w-full md:max-w-md group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Input 
+                        placeholder="Buscar por local o entidad..." 
+                        className="pl-12 h-14 bg-white border-none shadow-sm rounded-2xl font-bold text-xs uppercase focus-visible:ring-primary/20 transition-all"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
-        </div>
         </div>
 
         <Accordion type="multiple" className="space-y-6">
@@ -440,6 +449,7 @@ export default function ArchivoAnexoIPage() {
                     firestore={firestore} 
                     profile={profile}
                     searchTerm={searchTerm}
+                    isHistorical={isHistorical}
                 />
             ))}
         </Accordion>
