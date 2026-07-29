@@ -12,8 +12,11 @@ interface HistoricalToggleProps {
   className?: string;
 }
 
+// Cambiar a 'true' cuando se haya realizado el reseteo para mostrar el botón de historial
+const FEATURE_FLAG_HISTORIAL_ENABLED = false;
+
 export function HistoricalToggle({ isHistorical, setIsHistorical, isAdmin, className }: HistoricalToggleProps) {
-  if (!isAdmin) return null;
+  if (!isAdmin || !FEATURE_FLAG_HISTORIAL_ENABLED) return null;
 
   return (
     <div className={cn("flex items-center gap-3 bg-white p-3 rounded-2xl border-2 border-dashed shadow-sm transition-colors", isHistorical ? "border-primary/50 bg-primary/5" : "border-muted", className)}>
