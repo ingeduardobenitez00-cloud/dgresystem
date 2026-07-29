@@ -192,10 +192,10 @@ export default function SettingsPage() {
         }
       });
       return {
-        category: cat.label.toUpperCase(),
+        category: (cat.label || '').toUpperCase(),
         items
       };
-    }).filter(cat => cat.items.length > 0);
+    }).filter(cat => cat?.items?.length > 0);
   }, [categories, allModules]);
 
   // --- PERFILES DE ACCESO ---
@@ -301,7 +301,10 @@ export default function SettingsPage() {
 
   const datosData = useMemo(() => {
     if (!rawDatosData) return [];
-    return [...rawDatosData].sort((a, b) => a.departamento.localeCompare(b.departamento) || a.distrito.localeCompare(b.distrito));
+    return [...rawDatosData].sort((a, b) => 
+      (a.departamento || '').localeCompare(b.departamento || '') || 
+      (a.distrito || '').localeCompare(b.distrito || '')
+    );
   }, [rawDatosData]);
 
   const departmentsWithDistricts = useMemo(() => {
@@ -314,9 +317,9 @@ export default function SettingsPage() {
       const dept = deptsMap.get(dato.departamento);
       if (dept && !dept.districts.some(d => d.name === dato.distrito)) {
         dept.districts.push({ 
-            id: dato.id!, 
-            name: dato.distrito,
-            distrito_codigo: dato.distrito_codigo 
+            id: dato.id || Math.random().toString(), 
+            name: dato.distrito || '',
+            distrito_codigo: dato.distrito_codigo || ''
         });
       }
     });
