@@ -5,9 +5,11 @@ import { useMemo, useState, useEffect } from 'react';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useUser, useFirebase, useCollectionOnce, useCollectionPaginated, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { type MovimientoMaquina, type Dato } from '@/lib/data';
-import { Loader2, ArrowLeftRight, ShieldAlert, Building2, Landmark, Search, Calendar, MapPin, Truck, Undo2, FileWarning, ChevronDown, Check, ChevronsUpDown, Activity } from 'lucide-react';
+import { Loader2, ArrowLeftRight, ShieldAlert, Building2, Landmark, Search, Calendar, MapPin, Truck, Undo2, FileWarning, ChevronDown, Check, ChevronsUpDown, Activity, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -18,6 +20,12 @@ import { formatDateToDDMMYYYY, cn, normalizeGeo } from '@/lib/utils';
 
 function MovementRow({ mov, denuncias }: { mov: MovimientoMaquina, denuncias?: any[] }) {
     const hasDenuncia = denuncias?.some(d => d.solicitud_id === mov.solicitud_id);
+    const hasIrregularidadKits = mov.maquinas?.some(maq => 
+        (maq.credencial && !maq.retorno_credencial) || 
+        (maq.auricular && !maq.retorno_auricular) || 
+        (maq.acrilico && !maq.retorno_acrilico) || 
+        (maq.boletas && !maq.retorno_boletas)
+    );
     
     return (
         <Card key={mov.id} className={cn(
@@ -32,20 +40,89 @@ function MovementRow({ mov, denuncias }: { mov: MovimientoMaquina, denuncias?: a
                 )} />
                 
                 <div className="flex-1 p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
                         <div className="md:col-span-4 space-y-2">
-                            <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-black uppercase text-[11px] truncate">{mov.departamento} - {mov.distrito}</span>
+                            <div className="flex items-start gap-2">
+                                <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                                <span className="font-black uppercase text-[11px] leading-snug">{mov.departamento} - {mov.distrito}</span>
                             </div>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-col gap-2 mt-2">
                                 {mov.maquinas?.map((maq, i) => (
-                                    <Badge key={i} variant="outline" className={cn(
-                                        "font-black text-[9px] uppercase whitespace-nowrap",
-                                        hasDenuncia && (maq.lacre_estado === 'violentado') ? "border-destructive text-destructive bg-destructive/5" : "border-primary/20"
-                                    )}>
-                                        {maq.codigo}
-                                    </Badge>
+                                    <div key={i} className="flex flex-col gap-1.5 border border-primary/10 rounded-xl p-2.5 bg-slate-50/50">
+                                        <Badge variant="outline" className={cn(
+                                            "font-black text-[9px] uppercase whitespace-nowrap self-start",
+                                            hasDenuncia && (maq.lacre_estado === 'violentado') ? "border-destructive text-destructive bg-destructive/5" : "border-primary/20 bg-white"
+                                        )}>
+                                            <span className="text-muted-foreground mr-1">CÓDIGO DE MÁQUINA:</span> {maq.codigo}
+                                        </Badge>
+                                        <div className="flex flex-col gap-3 mt-2">
+                                            <div className="bg-primary/5 p-2 rounded-xl border border-primary/10">
+                                                <div className="text-[9px] font-black uppercase text-primary mb-1.5 flex items-center gap-1">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-primary" /> DETALLE DE SALIDA
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-1.5 text-[8px] font-bold text-muted-foreground uppercase">
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Pendrive</span>
+                                                        <span className="text-black font-black">{maq.pendrive_serie || 'NO LLEVÓ'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Credencial</span>
+                                                        <span className={maq.credencial ? "text-black font-black" : "text-muted-foreground"}>{maq.credencial ? 'SI' : 'NO LLEVÓ'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Auricular</span>
+                                                        <span className={maq.auricular ? "text-black font-black" : "text-muted-foreground"}>{maq.auricular ? 'SI' : 'NO LLEVÓ'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Acrílico</span>
+                                                        <span className={maq.acrilico ? "text-black font-black" : "text-muted-foreground"}>{maq.acrilico ? 'SI' : 'NO LLEVÓ'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm col-span-2">
+                                                        <span>Boletas</span>
+                                                        <span className={maq.boletas ? "text-black font-black" : "text-muted-foreground"}>{maq.boletas ? 'SI' : 'NO LLEVÓ'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-green-50 p-2 rounded-xl border border-green-100">
+                                                <div className="text-[9px] font-black uppercase text-green-700 mb-1.5 flex items-center gap-1">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" /> DETALLE DE RETORNO
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-1.5 text-[8px] font-bold text-muted-foreground uppercase">
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Pendrive</span>
+                                                        <span className={maq.pendrive_serie ? "text-green-600 font-black" : "text-muted-foreground"}>
+                                                            {maq.pendrive_serie ? 'SI' : 'NO LLEVÓ'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Credencial</span>
+                                                        <span className={maq.retorno_credencial ? "text-green-600 font-black" : (maq.credencial ? "text-red-500 font-black" : "text-muted-foreground")}>
+                                                            {maq.retorno_credencial ? 'SI' : (maq.credencial ? 'NO RETORNÓ' : 'NO LLEVÓ')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Auricular</span>
+                                                        <span className={maq.retorno_auricular ? "text-green-600 font-black" : (maq.auricular ? "text-red-500 font-black" : "text-muted-foreground")}>
+                                                            {maq.retorno_auricular ? 'SI' : (maq.auricular ? 'NO RETORNÓ' : 'NO LLEVÓ')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                        <span>Acrílico</span>
+                                                        <span className={maq.retorno_acrilico ? "text-green-600 font-black" : (maq.acrilico ? "text-red-500 font-black" : "text-muted-foreground")}>
+                                                            {maq.retorno_acrilico ? 'SI' : (maq.acrilico ? 'NO RETORNÓ' : 'NO LLEVÓ')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm col-span-2">
+                                                        <span>Boletas</span>
+                                                        <span className={maq.retorno_boletas ? "text-green-600 font-black" : (maq.boletas ? "text-red-500 font-black" : "text-muted-foreground")}>
+                                                            {maq.retorno_boletas ? 'SI' : (maq.boletas ? 'NO RETORNÓ' : 'NO LLEVÓ')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -54,7 +131,7 @@ function MovementRow({ mov, denuncias }: { mov: MovimientoMaquina, denuncias?: a
                             <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">RESPONSABLES</p>
                             {mov.responsables?.map((resp, i) => (
                                 <div key={i} className="leading-tight">
-                                    <p className="font-black text-[10px] uppercase truncate">{resp.nombre}</p>
+                                    <p className="font-black text-[10px] uppercase break-words">{resp.nombre}</p>
                                     <p className="text-[8px] font-bold text-muted-foreground">C.I. {resp.cedula}</p>
                                 </div>
                             ))}
@@ -77,7 +154,7 @@ function MovementRow({ mov, denuncias }: { mov: MovimientoMaquina, denuncias?: a
                             </div>
                         </div>
 
-                        <div className="md:col-span-2 flex justify-end">
+                        <div className="md:col-span-2 flex flex-col items-end gap-2">
                             {hasDenuncia ? (
                                 <div className="bg-destructive text-white px-4 py-2 rounded-xl flex items-center gap-2 animate-pulse">
                                     <FileWarning className="h-4 w-4" />
@@ -86,7 +163,13 @@ function MovementRow({ mov, denuncias }: { mov: MovimientoMaquina, denuncias?: a
                             ) : (
                                 <div className="bg-green-100 text-green-700 px-4 py-2 rounded-xl flex items-center gap-2">
                                     <ShieldAlert className="h-4 w-4 opacity-40" />
-                                    <span className="text-[9px] font-black uppercase">SIN IRREGULARIDAD</span>
+                                    <span className="text-[9px] font-black uppercase">SIN IRREGULARIDAD MÁQUINA</span>
+                                </div>
+                            )}
+                            {hasIrregularidadKits && (
+                                <div className="bg-orange-100 text-orange-700 px-4 py-2 rounded-xl flex items-center gap-2">
+                                    <FileWarning className="h-4 w-4" />
+                                    <span className="text-[9px] font-black uppercase">IRREGULARIDAD KITS</span>
                                 </div>
                             )}
                         </div>
@@ -102,7 +185,9 @@ function DistrictArchiveSection({
     searchTerm,
     allDeptItems = [],
     isDeptLoading = false,
-    denuncias = []
+    denuncias = [],
+    dateFrom,
+    dateTo
 }: any) {
     const [visibleCount, setVisibleCount] = useState(5);
     const [isOpen, setIsOpen] = useState(false);
@@ -117,9 +202,17 @@ function DistrictArchiveSection({
                                  (mov.distrito || '').toLowerCase().includes(term) || 
                                  (mov.maquinas_codigos || []).some((c: string) => c.toLowerCase().includes(term)) ||
                                  (mov.responsables || []).some((r: any) => r.nombre.toLowerCase().includes(term));
-            return matchesDistrict && matchesSearch;
+            
+            let matchesDate = true;
+            if (dateFrom || dateTo) {
+                const movDate = mov.fecha_creacion ? mov.fecha_creacion.split('T')[0] : '';
+                if (dateFrom && movDate < dateFrom) matchesDate = false;
+                if (dateTo && movDate > dateTo) matchesDate = false;
+            }
+
+            return matchesDistrict && matchesSearch && matchesDate;
         }).sort((a: any, b: any) => (b.fecha_creacion || '').localeCompare(a.fecha_creacion || ''));
-    }, [allDeptItems, distName, searchTerm]);
+    }, [allDeptItems, distName, searchTerm, dateFrom, dateTo]);
 
     if (items.length === 0 && !isDeptLoading) return null;
 
@@ -164,7 +257,7 @@ function DistrictArchiveSection({
     );
 }
 
-function DepartmentSection({ dept, firestore, searchTerm, denuncias }: any) {
+function DepartmentSection({ dept, firestore, searchTerm, denuncias, dateFrom, dateTo }: any) {
     const [isOpen, setIsOpen] = useState(false);
 
     // Fetch ALL department items for this module
@@ -213,6 +306,8 @@ function DepartmentSection({ dept, firestore, searchTerm, denuncias }: any) {
                                 allDeptItems={allDeptItems}
                                 isDeptLoading={isDeptLoading}
                                 denuncias={denuncias}
+                                dateFrom={dateFrom}
+                                dateTo={dateTo}
                             />
                         ))}
                     </Accordion>
@@ -228,6 +323,128 @@ export default function InformeMovimientosDenunciasPage() {
   const [search, setSearch] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [itemsToExport, setItemsToExport] = useState<MovimientoMaquina[] | null>(null);
+
+  const handleGeneratePdf = async () => {
+      if (!firestore) return;
+      setIsGeneratingPdf(true);
+      try {
+          let constraints: any[] = [];
+          if (selectedDepartment && selectedDepartment !== 'ALL') {
+               constraints.push(where('departamento', '==', selectedDepartment));
+          }
+          constraints.push(orderBy('fecha_creacion', 'desc'));
+          
+          const snapshot = await getDocs(query(collection(firestore, 'movimientos-maquinas'), ...constraints));
+          let items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MovimientoMaquina));
+
+          if (selectedDistrict && selectedDistrict !== 'ALL') {
+              items = items.filter(m => normalizeGeo(m.distrito) === normalizeGeo(selectedDistrict));
+          }
+          if (dateFrom) {
+              items = items.filter(m => (m.fecha_creacion || '') >= dateFrom);
+          }
+          if (dateTo) {
+              items = items.filter(m => (m.fecha_creacion || '').split('T')[0] <= dateTo);
+          }
+          if (search) {
+              const term = search.toLowerCase().trim();
+              items = items.filter(m => 
+                  (m.distrito || '').toLowerCase().includes(term) ||
+                  (m.maquinas_codigos || []).some(c => c.toLowerCase().includes(term)) ||
+                  (m.responsables || []).some(r => r.nombre.toLowerCase().includes(term))
+              );
+          }
+          
+          if (items.length === 0) {
+              alert('No hay movimientos que coincidan con los filtros seleccionados.');
+              setIsGeneratingPdf(false);
+              return;
+          }
+          
+          setItemsToExport(items);
+      } catch (e) {
+          console.error(e);
+          alert('Error al obtener datos para PDF. Verifique su conexión y permisos.');
+          setIsGeneratingPdf(false);
+      }
+  };
+
+  useEffect(() => {
+      if (itemsToExport && itemsToExport.length > 0) {
+          const generate = async () => {
+              try {
+                  const pdf = new jsPDF('p', 'mm', 'a4');
+                  const pageWidth = pdf.internal.pageSize.getWidth();
+                  const pageHeight = pdf.internal.pageSize.getHeight();
+                  let cursorY = 20;
+
+                  const pages = document.querySelectorAll('.pdf-export-page');
+                  
+                  for (let i = 0; i < pages.length; i++) {
+                      const pageNode = pages[i] as HTMLElement;
+                      const canvas = await html2canvas(pageNode, { 
+                          scale: 1.5, 
+                          useCORS: true, 
+                          backgroundColor: '#ffffff',
+                          windowWidth: 1000
+                      });
+                      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                      const imgProps = pdf.getImageProperties(imgData);
+                      const pdfWidth = pageWidth;
+                      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                      if (i > 0) {
+                          pdf.addPage();
+                      }
+
+                      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
+                      // Numeración de páginas
+                      pdf.setFontSize(8);
+                      pdf.setTextColor(150);
+                      pdf.text(`Página ${i + 1} de ${pages.length}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+                  }
+
+                  pdf.save(`Reporte_Movimientos_${new Date().toISOString().split('T')[0]}.pdf`);
+              } catch (err) {
+                  console.error("Error generating PDF:", err);
+                  alert("Ocurrió un error al generar el PDF.");
+              } finally {
+                  setItemsToExport(null);
+                  setIsGeneratingPdf(false);
+              }
+          };
+          
+          setTimeout(generate, 1500);
+      }
+  }, [itemsToExport]);
+
+  const exportPages = useMemo(() => {
+      if (!itemsToExport) return [];
+      const pages: MovimientoMaquina[][] = [];
+      let currentPage: MovimientoMaquina[] = [];
+      let currentWeight = 0;
+      
+      itemsToExport.forEach(mov => {
+          const weight = mov.maquinas?.length || 1;
+          if (currentWeight + weight > 4 && currentPage.length > 0) {
+              pages.push(currentPage);
+              currentPage = [mov];
+              currentWeight = weight;
+          } else {
+              currentPage.push(mov);
+              currentWeight += weight;
+          }
+      });
+      if (currentPage.length > 0) {
+          pages.push(currentPage);
+      }
+      return pages;
+  }, [itemsToExport]);
 
   const profile = user?.profile;
   const role = profile?.role;
@@ -341,8 +558,8 @@ export default function InformeMovimientosDenunciasPage() {
         {/* FILTROS JURISDICCIONALES (CARGA INTELIGENTE) */}
         <Card className="border-primary/20 shadow-sm bg-white rounded-3xl overflow-hidden">
             <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
-                    <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+                    <div className="space-y-2 lg:col-span-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">DEPARTAMENTO</Label>
                         <Select 
                             onValueChange={(v) => { setSelectedDepartment(v); setSelectedDistrict(null); }} 
@@ -359,7 +576,7 @@ export default function InformeMovimientosDenunciasPage() {
                         </Select>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 lg:col-span-2">
                         <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">DISTRITO</Label>
                         <Select 
                             onValueChange={setSelectedDistrict} 
@@ -376,16 +593,35 @@ export default function InformeMovimientosDenunciasPage() {
                         </Select>
                     </div>
 
-                    <div className="hidden lg:block lg:col-span-2">
-                        <div className="bg-primary/5 border border-primary/10 rounded-2xl p-3 flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 shadow-lg">
-                                <Activity className="h-4 w-4" />
-                            </div>
-                            <p className="text-[9px] font-bold text-primary uppercase leading-tight tracking-tight">
-                                CARGA INTELIGENTE ACTIVA: Elija una jurisdicción para auditar movimientos sin saturar el sistema.
-                            </p>
-                        </div>
+                    <div className="space-y-2 lg:col-span-1">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">DESDE</Label>
+                        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-12 border-2 rounded-2xl bg-[#F8F9FA] font-bold" />
                     </div>
+                    
+                    <div className="space-y-2 lg:col-span-1">
+                        <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-widest">HASTA</Label>
+                        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-12 border-2 rounded-2xl bg-[#F8F9FA] font-bold" />
+                    </div>
+                </div>
+
+                <div className="mt-6 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-primary/10 pt-6">
+                    <div className="bg-primary/5 border border-primary/10 rounded-2xl p-3 flex items-center gap-3 w-full md:w-auto">
+                        <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 shadow-lg">
+                            <Activity className="h-4 w-4" />
+                        </div>
+                        <p className="text-[9px] font-bold text-primary uppercase leading-tight tracking-tight">
+                            CARGA INTELIGENTE ACTIVA: Elija una jurisdicción para auditar movimientos sin saturar el sistema.
+                        </p>
+                    </div>
+                    
+                    <Button 
+                        onClick={handleGeneratePdf} 
+                        disabled={isGeneratingPdf}
+                        className="h-12 rounded-2xl px-8 font-black uppercase tracking-widest flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                    >
+                        {isGeneratingPdf ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                        {isGeneratingPdf ? 'GENERANDO PDF...' : 'GENERAR PDF'}
+                    </Button>
                 </div>
             </CardContent>
         </Card>
@@ -398,6 +634,8 @@ export default function InformeMovimientosDenunciasPage() {
                     firestore={firestore} 
                     searchTerm={search}
                     denuncias={denuncias}
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
                 />
             ))}
         </Accordion>
@@ -408,6 +646,35 @@ export default function InformeMovimientosDenunciasPage() {
             </p>
         </div>
       </main>
+
+      {/* CONTENEDOR OCULTO PARA PDF */}
+      {itemsToExport && (
+          <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+              <div className="bg-white" id="pdf-export-container" style={{ width: '1000px' }}>
+                  {exportPages.map((pageItems, pageIdx) => {
+                      return (
+                          <div key={pageIdx} className="pdf-export-page bg-white p-8 flex flex-col gap-6" style={{ width: '1000px' }}>
+                              <div className="mb-2 flex items-center justify-between border-b pb-4 border-slate-100">
+                                  <img src="/logo.png" alt="TSJE" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+                                  <div className="text-center">
+                                      <h2 className="text-2xl font-black">Reporte de Movimientos - Trazabilidad Logística</h2>
+                                      {dateFrom || dateTo ? (
+                                          <p className="text-gray-500 font-bold mt-1">Filtro: {dateFrom ? `Desde ${dateFrom}` : ''} {dateTo ? `Hasta ${dateTo}` : ''}</p>
+                                      ) : null}
+                                  </div>
+                                  <img src="/logo1.png" alt="DGRE" className="h-14 w-auto object-contain" crossOrigin="anonymous" />
+                              </div>
+                          {pageItems.map(mov => (
+                              <div key={mov.id} className="border border-slate-100 shadow-sm rounded-3xl p-2 bg-[#F8F9FA]">
+                                  <MovementRow mov={mov} denuncias={denuncias} />
+                              </div>
+                          ))}
+                      </div>
+                  );
+              })}
+              </div>
+          </div>
+      )}
     </div>
   );
 }

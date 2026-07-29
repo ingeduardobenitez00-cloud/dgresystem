@@ -590,7 +590,7 @@ export default function SolicitudCapacitacionPage() {
 
     y += 10;
     doc.setFont('helvetica', 'normal');
-    const intro = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones Internas simultáneas de las Organizaciones Políticas del 07 de junio del 2026, a los efectos de solicitar:";
+    const intro = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones de Intendentes y Juntas Municipales del 04 de octubre del 2026, a los efectos de solicitar:";
     const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2) - 10);
     doc.text(introLines, margin + 5, y);
 

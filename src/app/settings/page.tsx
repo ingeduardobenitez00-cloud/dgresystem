@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle2, Database, Search, AlertTriangle, FileUp, Plus, Trash2, X, Edit, Rocket, ShieldAlert } from 'lucide-react';
+import { Loader2, CheckCircle2, Database, Search, AlertTriangle, FileUp, Plus, Trash2, X, Edit, Rocket, ShieldAlert, History, Archive, Download } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -414,25 +414,87 @@ export default function SettingsPage() {
     setIsResetting(true);
     const collectionsToClear = ['solicitudes-capacitacion', 'informes-divulgador', 'informes-semanales-anexo-iv', 'movimientos-maquinas', 'denuncias-lacres', 'encuestas-satisfaccion'];
     try {
+      const thresholdDateStr = '2026-07-27';
+
       for (const colName of collectionsToClear) {
-        let hasMore = true;
-        while (hasMore) {
-          const q = query(collection(firestore, colName), limit(500));
-          const snapshot = await getDocs(q);
-          if (snapshot.empty) { hasMore = false; continue; }
+        const q = query(collection(firestore, colName));
+        const snapshot = await getDocs(q);
+        
+        const docsArray = snapshot.docs;
+        const BATCH_SIZE = 200; // max 500 ops per batch (we do 2 ops per doc)
+        
+        for (let i = 0; i < docsArray.length; i += BATCH_SIZE) {
+          const chunk = docsArray.slice(i, i + BATCH_SIZE);
           const batch = writeBatch(firestore);
-          snapshot.docs.forEach(d => batch.delete(d.ref));
-          await batch.commit(); await delay(200);
+          let opsCount = 0;
+          
+          chunk.forEach(d => {
+            const data = d.data();
+            let isNewPeriod = false;
+
+            let docDate = data.fecha || data.createdAt || data.timestamp || data.fecha_creacion || data.fecha_entrega || data.fecha_denuncia;
+            
+            if (docDate) {
+              if (docDate.toDate) docDate = docDate.toDate().toISOString();
+              else if (typeof docDate === 'number') docDate = new Date(docDate).toISOString();
+              
+              const dateOnly = String(docDate).substring(0, 10);
+              if (dateOnly >= thresholdDateStr) {
+                isNewPeriod = true;
+              }
+            }
+            
+            // Si no es del nuevo periodo, lo archivamos y borramos
+            if (!isNewPeriod) {
+               const archiveRef = doc(firestore, `${colName}_internas_2026`, d.id);
+               batch.set(archiveRef, data);
+               batch.delete(d.ref);
+               opsCount++;
+            }
+          });
+          
+          if (opsCount > 0) {
+             await batch.commit();
+             await delay(200);
+          }
         }
       }
-      toast({ title: 'Reseteo Completado' });
-    } catch (err) { toast({ variant: 'destructive', title: 'Error' }); }
+      toast({ title: 'Reseteo y Archivo Completado' });
+    } catch (err) { toast({ variant: 'destructive', title: 'Error al resetear' }); }
     finally { setIsResetting(false); }
   };
 
   const sysConfigRef = useMemoFirebase(() => firestore ? doc(firestore, 'sysconfig', 'status') : null, [firestore]);
   const { data: sysConfig, refetch: refetchSysConfig } = useDocOnce<{maintenance: boolean}>(sysConfigRef);
   const isMaintenanceActive = sysConfig?.maintenance === true;
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportHistory = async (collectionName: string) => {
+    if (!firestore) return;
+    setIsExporting(true);
+    try {
+      const q = query(collection(firestore, `${collectionName}_internas_2026`));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      if (data.length === 0) {
+        toast({ title: 'Sin datos', description: `No hay registros archivados en ${collectionName}.` });
+        setIsExporting(false);
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial');
+      XLSX.writeFile(workbook, `Historial_${collectionName}_Internas_2026.xlsx`);
+      toast({ title: 'Exportación completada' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al exportar' });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleToggleMaintenance = async () => {
     if (!firestore || !isAdminView) return;
@@ -464,7 +526,7 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="geografia" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 lg:w-[650px] bg-white border shadow-sm h-auto p-1">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 lg:w-[850px] bg-white border shadow-sm h-auto p-1">
             <TabsTrigger value="geografia" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Database className="h-3.5 w-3.5" /> Geografía
             </TabsTrigger>
@@ -476,6 +538,9 @@ export default function SettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="produccion" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Rocket className="h-3.5 w-3.5" /> Producción
+            </TabsTrigger>
+            <TabsTrigger value="historial" className="gap-2 font-black uppercase text-[10px] py-2">
+                <History className="h-3.5 w-3.5" /> Historial
             </TabsTrigger>
           </TabsList>
 
@@ -817,26 +882,36 @@ export default function SettingsPage() {
             </Card>
 
             <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
-              <CardHeader className="bg-destructive text-white p-8">
-                <CardTitle className="text-xl font-black uppercase flex items-center gap-3"><ShieldAlert className="h-8 w-8" /> RESETEO CIDEE</CardTitle>
-                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">ESTA OPERACIÓN ES IRREVERSIBLE - PREPARACIÓN PARA ENTORNO DE PRODUCCIÓN</CardDescription>
+              <CardHeader className="bg-primary text-white p-8">
+                <CardTitle className="text-xl font-black uppercase flex items-center gap-3"><Archive className="h-8 w-8" /> ARCHIVO Y RESETEO CIDEE</CardTitle>
+                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">PREPARACIÓN PARA ELECCIONES GENERALES (RESPETA DATOS DESDE 27/07/2026)</CardDescription>
               </CardHeader>
               <CardContent className="p-10 space-y-8 flex flex-col items-center text-center">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">ESTO BORRARÁ TODA LA ACTIVIDAD TRANSACCIONAL (SOLICITUDES, AGENDAS, INFORMES, MOVIMIENTOS Y ENCUESTAS).</p>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">ESTO MIGRARÁ AL HISTORIAL LA ACTIVIDAD TRANSACCIONAL ANTIGUA Y DEJARÁ LIMPIO EL ENTORNO OPERATIVO. LOS DATOS NUEVOS NO SE VERÁN AFECTADOS.</p>
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" className="h-20 px-12 text-xl font-black uppercase rounded-[1.5rem] shadow-2xl gap-4" disabled={isResetting}>
-                            {isResetting ? <Loader2 className="h-8 w-8 animate-spin" /> : <Rocket className="h-8 w-8" />} RESETEO CIDEE
+                        <Button variant="default" className="h-20 px-12 text-xl font-black uppercase rounded-[1.5rem] shadow-2xl gap-4" disabled={isResetting}>
+                            {isResetting ? (
+                                <>
+                                    <Loader2 className="h-8 w-8 animate-spin" />
+                                    GUARDANDO Y LIMPIANDO...
+                                </>
+                            ) : (
+                                <>
+                                    <Archive className="h-8 w-8" />
+                                    GUARDAR EN HISTORIAL Y LIMPIAR
+                                </>
+                            )}
                         </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
                         <AlertDialogHeader>
-                            <AlertDialogTitle className="font-black uppercase text-destructive">¿CONFIRMAR RESETEO TOTAL?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-xs font-bold uppercase">Esta acción borrará permanentemente todas las transacciones CIDEE de la base de datos.</AlertDialogDescription>
+                            <AlertDialogTitle className="font-black uppercase text-primary">¿CONFIRMAR ARCHIVO Y RESETEO?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-xs font-bold uppercase">Esta acción copiará las transacciones antiguas al historial y las removerá de la vista principal. Los registros creados desde el 27 de julio se mantendrán intactos.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter className="mt-8 gap-4">
                             <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleResetCIDEE} className="h-14 flex-1 bg-destructive font-black uppercase text-[10px]">BORRAR TRANSACCIONES</AlertDialogAction>
+                            <AlertDialogAction onClick={handleResetCIDEE} className="h-14 flex-1 bg-primary text-white hover:bg-primary/90 font-black uppercase text-[10px]">GUARDAR Y LIMPIAR DATOS</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
@@ -1044,6 +1119,37 @@ export default function SettingsPage() {
                 </Card>
               </div>
             </div>
+          </TabsContent>
+          <TabsContent value="historial" className="space-y-6 animate-in fade-in duration-500">
+            <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
+              <CardHeader className="bg-slate-800 text-white p-8">
+                <CardTitle className="text-xl font-black uppercase flex items-center gap-3">
+                  <History className="h-8 w-8" /> HISTORIAL DE ELECCIONES INTERNAS
+                </CardTitle>
+                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">
+                  EXPLORA Y EXPORTA LOS DATOS ARCHIVADOS DE LAS ELECCIONES INTERNAS 2026.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-10 space-y-8 flex flex-col items-center text-center">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">
+                  DESCARGA LAS BASES DE DATOS HISTÓRICAS EN FORMATO EXCEL PARA AUDITORÍA Y ANÁLISIS.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                  {['solicitudes-capacitacion', 'informes-divulgador', 'informes-semanales-anexo-iv', 'movimientos-maquinas', 'denuncias-lacres', 'encuestas-satisfaccion'].map(col => (
+                    <Button 
+                      key={col} 
+                      variant="outline" 
+                      className="h-20 flex-col gap-2 font-black text-[10px] uppercase border-2 shadow-sm rounded-2xl hover:bg-primary/5 hover:border-primary/50"
+                      onClick={() => handleExportHistory(col)}
+                      disabled={isExporting}
+                    >
+                      <Download className="h-6 w-6 text-primary" />
+                      EXPORTAR {col.replace(/-/g, ' ')}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

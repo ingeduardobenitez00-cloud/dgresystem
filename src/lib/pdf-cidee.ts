@@ -55,7 +55,7 @@ export async function generatePlanillaCIDEE(solicitud: SolicitudCapacitacion) {
   doc.setDrawColor(0);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("CAPACITACIÓN A ORGANIZACIONES POLÍTICAS - INTERNA SIMULTÁNEAS DE LAS ORGANIZACIONES POLÍTICAS", 148, 38, { align: "center" });
+  doc.text("CAPACITACIÓN A ORGANIZACIONES POLÍTICAS - ELECCIONES DE INTENDENTES Y JUNTAS MUNICIPALES DEL 04 DE OCTUBRE DEL 2026", 148, 38, { align: "center" });
   doc.text('PROGRAMA: "FORTALECIMIENTO INSTITUCIONAL"', 148, 43, { align: "center" });
 
   // --- CAMPOS DE DATOS (Con líneas) ---
