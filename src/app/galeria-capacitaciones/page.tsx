@@ -71,6 +71,7 @@ import { formatDateToDDMMYYYY } from '@/lib/utils';
 import Image from 'next/image';
 import { normalizeGeo } from '@/lib/utils';
 import { compressImage } from '@/lib/image-utils';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 interface InformeDivulgador {
   id: string;
@@ -347,7 +348,8 @@ function DepartmentGallerySection({
     setSelectedPhotoData,
     datosData,
     profile,
-    initialOpen = false
+    initialOpen = false,
+    isHistorical = false
 }: { 
     deptName: string, 
     firestore: any, 
@@ -361,18 +363,19 @@ function DepartmentGallerySection({
     setSelectedPhotoData: (data: {urls: string[], currentIndex: number}) => void,
     datosData: any[],
     profile: any,
-    initialOpen?: boolean
+    initialOpen?: boolean,
+    isHistorical?: boolean
 }) {
     const [isExpanded, setIsExpanded] = useState(initialOpen);
 
-    // Consulta de evidencias solo si el departamento está expandido
     const informesQuery = useMemoFirebase(() => {
         if (!firestore || !isExpanded) return null;
+        const colName = isHistorical ? 'informes-divulgador_internas_2026' : 'informes-divulgador';
         return query(
-            collection(firestore, 'informes-divulgador'),
+            collection(firestore, colName),
             where('departamento', '==', deptName)
         );
-    }, [firestore, deptName, isExpanded]);
+    }, [firestore, deptName, isExpanded, isHistorical]);
 
     const { data: rawInformes, isLoading } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
@@ -473,6 +476,7 @@ export default function GaleriaCapacitacionesPage() {
   const isOwner = user?.isOwner;
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isHistorical, setIsHistorical] = useState(false);
   const [selectedPhotoData, setSelectedPhotoData] = useState<{urls: string[], currentIndex: number} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
@@ -637,14 +641,21 @@ export default function GaleriaCapacitacionesPage() {
                     <Images className="h-3.5 w-3.5" /> Evidencias fotográficas y respaldos documentales (Anexo III)
                 </p>
             </div>
-            <div className="relative w-full md:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
-                <Input 
-                    placeholder="Buscar departamento..." 
-                    className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-end w-full">
+                <HistoricalToggle 
+                    isHistorical={isHistorical} 
+                    setIsHistorical={setIsHistorical} 
+                    isAdmin={['admin', 'director'].includes(profile?.role?.toLowerCase() || '') || !!isAdmin} 
                 />
+                <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
+                    <Input 
+                        placeholder="Buscar departamento..." 
+                        className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
         </div>
 
@@ -673,6 +684,7 @@ export default function GaleriaCapacitacionesPage() {
                         datosData={datosData || []}
                         profile={profile}
                         initialOpen={filteredDepts.length === 1}
+                        isHistorical={isHistorical}
                     />
                 ))}
             </Accordion>

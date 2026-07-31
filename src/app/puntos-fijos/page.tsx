@@ -32,6 +32,7 @@ import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 export default function PuntosFijosPage() {
   const { user, isUserLoading } = useUser();
@@ -44,6 +45,7 @@ export default function PuntosFijosPage() {
   });
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+  const [isHistorical, setIsHistorical] = useState(false);
 
   const profile = user?.profile;
   const isAdminView = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
@@ -78,10 +80,10 @@ export default function PuntosFijosPage() {
   // Consulta de Puntos Fijos (Solicitudes tipo 'Lugar Fijo')
   const puntosFijosQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const colRef = collection(firestore, 'solicitudes-capacitacion');
+    const colRef = collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion');
     // Quitamos 'orderBy' para evitar la necesidad de índices compuestos manuales. El ordenamiento se hace en memoria.
     return query(colRef, where('tipo_solicitud', '==', 'Lugar Fijo'));
-  }, [firestore]);
+  }, [firestore, isHistorical]);
 
   const { data: rawPuntosFijos, isLoading } = useCollectionOnce<SolicitudCapacitacion>(puntosFijosQuery);
 
@@ -148,13 +150,20 @@ export default function PuntosFijosPage() {
               <MapPin className="h-3.5 w-3.5" /> Directorio nacional de lugares permanentes de divulgación.
             </p>
           </div>
-          <Button 
-            onClick={exportToExcel} 
-            disabled={filteredData.length === 0}
-            className="font-black uppercase h-12 px-8 bg-green-600 hover:bg-green-700 text-white shadow-xl rounded-xl gap-2 transition-all"
-          >
-            <Download className="h-5 w-5" /> EXPORTAR {dateRange?.from ? `SEMANA ${format(dateRange.from, 'dd/MM')}` : 'EXCEL'}
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+              <HistoricalToggle 
+                  isHistorical={isHistorical} 
+                  setIsHistorical={setIsHistorical} 
+                  isAdmin={!!isAdminView} 
+              />
+              <Button 
+                onClick={exportToExcel} 
+                disabled={filteredData.length === 0}
+                className="font-black uppercase h-12 px-8 bg-green-600 hover:bg-green-700 text-white shadow-xl rounded-xl gap-2 transition-all w-full sm:w-auto"
+              >
+                <Download className="h-5 w-5" /> EXPORTAR {dateRange?.from ? `SEMANA ${format(dateRange.from, 'dd/MM')}` : 'EXCEL'}
+              </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

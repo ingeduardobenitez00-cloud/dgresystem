@@ -13,7 +13,7 @@ interface HistoricalToggleProps {
 }
 
 // Cambiar a 'true' cuando se haya realizado el reseteo para mostrar el botón de historial
-const FEATURE_FLAG_HISTORIAL_ENABLED = false;
+const FEATURE_FLAG_HISTORIAL_ENABLED = true;
 
 export function HistoricalToggle({ isHistorical, setIsHistorical, isAdmin, className }: HistoricalToggleProps) {
   if (!isAdmin || !FEATURE_FLAG_HISTORIAL_ENABLED) return null;

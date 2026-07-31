@@ -66,6 +66,7 @@ import {
 import html2canvas from 'html2canvas';
 import { generatePlanillaCIDEE } from '@/lib/pdf-cidee';
 import { MaquinaVotacion } from '@/lib/data';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
@@ -97,7 +98,8 @@ const DistrictSection = ({
     router,
     hasAdminFilter,
     agendaSearch,
-    initialOpen = false
+    initialOpen = false,
+    isHistorical = false
 }: any) => {
     const { toast } = useToast();
     const qrContainerRef = useRef<HTMLDivElement>(null);
@@ -132,12 +134,12 @@ const DistrictSection = ({
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
         return query(
-            collection(firestore, 'solicitudes-capacitacion'),
+            collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion'),
             where('departamento', '==', deptName),
             where('distrito', '==', distName),
             orderBy('fecha', 'asc')
         );
-    }, [firestore, isOpen, deptName, distName]);
+    }, [firestore, isOpen, deptName, distName, isHistorical]);
 
     const { 
         data: rawItems, 
@@ -816,7 +818,8 @@ const DepartmentSection = ({
     router,
     hasAdminFilter,
     hasDistFilter,
-    agendaSearch
+    agendaSearch,
+    isHistorical
 }: any) => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -871,6 +874,7 @@ const DepartmentSection = ({
                             hasAdminFilter={hasAdminFilter}
                             agendaSearch={agendaSearch}
                             initialOpen={distNames.length === 1}
+                            isHistorical={isHistorical}
                         />
                     ))}
                 </Accordion>
@@ -885,6 +889,7 @@ export default function AgendaCapacitacionPage() {
     const router = useRouter();
     const [currentTime, setCurrentTime] = useState(new Date());
     const [agendaSearch, setAgendaSearch] = useState('');
+    const [isHistorical, setIsHistorical] = useState(false);
 
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(new Date()), 30000);
@@ -937,14 +942,21 @@ export default function AgendaCapacitacionPage() {
                             <Activity className="h-4 w-4" /> SEGUIMIENTO OPERATIVO POR DISTRITO
                         </p>
                     </div>
-                    <div className="relative w-full md:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            placeholder="BUSCAR ACTIVIDAD O ENTIDAD..." 
-                            value={agendaSearch} 
-                            onChange={(e) => setAgendaSearch(e.target.value)}
-                            className="h-12 pl-12 rounded-2xl border-2 font-black uppercase text-[10px]"
+                    <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                        <HistoricalToggle 
+                            isHistorical={isHistorical} 
+                            setIsHistorical={setIsHistorical} 
+                            isAdmin={hasAdminFilter} 
                         />
+                        <div className="relative w-full md:w-80">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="BUSCAR ACTIVIDAD O ENTIDAD..." 
+                                value={agendaSearch} 
+                                onChange={(e) => setAgendaSearch(e.target.value)}
+                                className="h-12 pl-12 rounded-2xl border-2 font-black uppercase text-[10px]"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -961,6 +973,7 @@ export default function AgendaCapacitacionPage() {
                             router={router}
                             hasAdminFilter={hasAdminFilter}
                             agendaSearch={agendaSearch}
+                            isHistorical={isHistorical}
                         />
                     ))}
                 </Accordion>

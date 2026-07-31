@@ -79,6 +79,7 @@ import {
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
@@ -1277,7 +1278,8 @@ const DepartmentSection = ({
     targetId,
     targetDept,
     targetDist,
-    initialOpen = false
+    initialOpen = false,
+    isHistorical = false
 }: any) => {
     // Forzamos el estado abierto si el usuario solo tiene acceso a un departamento/distrito (Jefe)
     const [isOpen, setIsOpen] = useState(initialOpen || hasAdminFilter === false);
@@ -1297,11 +1299,11 @@ const DepartmentSection = ({
         ])).filter(Boolean);
 
         return query(
-            collection(firestore, 'solicitudes-capacitacion'),
+            collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion'),
             where('tipo_solicitud', 'in', ['divulgacion', 'capacitacion']),
             where('departamento', 'in', variations)
         );
-    }, [firestore, isOpen, dept.label]);
+    }, [firestore, isOpen, dept.label, isHistorical]);
 
     const { data: allDeptItems, isLoading: isDeptLoading, error: deptError } = useCollection<SolicitudCapacitacion>(deptQuery);
 
@@ -1458,6 +1460,7 @@ export default function AgendaAnexoVPage() {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [viewedQRs, setViewedQRs] = useState<string[]>([]);
   const [agendaSearch, setAgendaSearch] = useState('');
+  const [isHistorical, setIsHistorical] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('viewed_qrs_agenda');
@@ -1912,15 +1915,22 @@ export default function AgendaAnexoVPage() {
                     <Activity className="h-4 w-4" /> Seguimiento nacional de actividades registradas.
                 </p>
             </div>
-             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex flex-col items-end gap-1">
-                <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[8px] font-black uppercase">
-                    DEBUG: DEP:{profile?.departamento} | DIST:{profile?.distrito}
-                  </Badge>
+             <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                <HistoricalToggle 
+                    isHistorical={isHistorical} 
+                    setIsHistorical={setIsHistorical} 
+                    isAdmin={['admin', 'director'].includes(profile?.role?.toLowerCase() || '') || !!user?.isAdmin} 
+                />
+                <div className="bg-white px-4 py-2 rounded-full border border-dashed flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[8px] font-black uppercase">
+                        DEBUG: DEP:{profile?.departamento} | DIST:{profile?.distrito}
+                      </Badge>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1950,9 +1960,11 @@ export default function AgendaAnexoVPage() {
                     firestore={firestore}
                     profile={profile}
                     isUserLoading={isUserLoading}
+                    registerUpdateItem={registerUpdateItem}
                     currentTime={currentTime}
                     agendaSearch={agendaSearch}
                     datosData={datosData}
+                    isHistorical={isHistorical}
                     setViewingActivity={setViewingActivity}
                     setAssigningSolicitud={setAssigningSolicitud}
                     setQrSolicitud={setQrSolicitud}
@@ -1964,7 +1976,6 @@ export default function AgendaAnexoVPage() {
                     viewedQRs={viewedQRs}
                     markQRAsViewed={markQRAsViewed}
                     router={router}
-                    registerUpdateItem={registerUpdateItem}
                     hasAdminFilter={hasAdminFilter}
                     targetId={targetId}
                     targetDept={targetDept}

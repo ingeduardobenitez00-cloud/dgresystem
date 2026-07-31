@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cleanFileName } from '@/lib/utils';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -95,8 +96,13 @@ export default function ResumenPage() {
     setIsClient(true);
   }, []);
 
+  const [isHistorical, setIsHistorical] = useState(false);
+  
   // Leer resumen pre-calculado (Bajo Costo)
-  const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'ubicaciones') : null, [firestore]);
+  const statsDocRef = useMemo(() => {
+    if (!firestore) return null;
+    return doc(firestore, 'stats-summary', isHistorical ? 'ubicaciones_internas_2026' : 'ubicaciones');
+  }, [firestore, isHistorical]);
   const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -237,17 +243,24 @@ const handleGeneratePdf = async () => {
       <main className="flex flex-1 flex-col p-4 gap-8">
         <Card className="w-full max-w-6xl mx-auto">
             <CardHeader>
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                       <CardTitle>Resumen General</CardTitle>
                       <CardDescription>Visión global de los informes registrados en el sistema.</CardDescription>
                   </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <HistoricalToggle 
+                        isHistorical={isHistorical} 
+                        setIsHistorical={setIsHistorical} 
+                        isAdmin={['admin', 'director'].includes(currentUser?.profile?.role?.toLowerCase() || '') || !!currentUser?.isAdmin} 
+                    />
                     {canGeneratePdf && (
                         <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf} size="sm">
                             {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                             Generar Resumen PDF
                         </Button>
                     )}
+                  </div>
                 </div>
             </CardHeader>
             <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

@@ -13,6 +13,7 @@ import { cleanFileName } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -23,6 +24,7 @@ export default function InformeGeneralPage() {
   const { user: currentUser } = useUser();
   const { toast } = useToast();
   
+  const [isHistorical, setIsHistorical] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [logo1, setLogo1] = useState<string | null>(null);
   const [logo2, setLogo2] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export default function InformeGeneralPage() {
         // Fetch ALL data on demand only to save memory on start
         const [datosSnap, reportsSnap, imagesSnap] = await Promise.all([
             getDocs(collection(firestore, 'datos')),
-            getDocs(collection(firestore, 'reports')),
+            getDocs(collection(firestore, isHistorical ? 'reports_internas_2026' : 'reports')),
             getDocs(collection(firestore, 'imagenes'))
         ]);
 
@@ -104,11 +106,18 @@ export default function InformeGeneralPage() {
       <Header title="Generador de Informe General" />
       <main className="flex-1 p-8 flex items-center justify-center">
         <Card className="w-full max-w-lg shadow-xl">
-           <CardHeader className="text-center">
+           <CardHeader className="text-center relative">
+            <div className="absolute top-4 right-4">
+                <HistoricalToggle 
+                    isHistorical={isHistorical} 
+                    setIsHistorical={setIsHistorical} 
+                    isAdmin={!!canGenerate} 
+                />
+            </div>
             <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FileArchive className="h-8 w-8 text-primary" />
             </div>
-            <CardTitle className="uppercase font-black">Motor de Reportes PDF</CardTitle>
+            <CardTitle className="uppercase font-black mt-6">Motor de Reportes PDF</CardTitle>
             <CardDescription>Genera un documento con el estado de carga de todo el país.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

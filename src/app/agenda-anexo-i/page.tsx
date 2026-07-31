@@ -80,6 +80,7 @@ import {
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
@@ -709,7 +710,8 @@ const DepartmentSection = ({
     targetId,
     targetDept,
     targetDist,
-    initialOpen = false
+    initialOpen = false,
+    isHistorical = false
 }: any) => {
     // Forzamos el estado abierto si el usuario solo tiene acceso a un departamento/distrito (Jefe)
     const [isOpen, setIsOpen] = useState(initialOpen || hasAdminFilter === false);
@@ -727,11 +729,11 @@ const DepartmentSection = ({
         ])).filter(Boolean);
 
         return query(
-            collection(firestore, 'solicitudes-capacitacion'),
+            collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion'),
             where('tipo_solicitud', '==', 'Lugar Fijo'),
             where('departamento', 'in', variations)
         );
-    }, [firestore, isOpen, dept.label]);
+    }, [firestore, isOpen, dept.label, isHistorical]);
 
     const { data: allDeptItems, isLoading: isDeptLoading, error: deptError } = useCollection<SolicitudCapacitacion>(deptQuery);
 
@@ -877,6 +879,7 @@ export default function AgendaAnexoIPage() {
   const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
   const [viewedQRs, setViewedQRs] = useState<string[]>([]);
   const [agendaSearch, setAgendaSearch] = useState('');
+  const [isHistorical, setIsHistorical] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('viewed_qrs_agenda');
@@ -1348,10 +1351,17 @@ export default function AgendaAnexoIPage() {
                     )}
                 </p>
             </div>
-             <div className="bg-white px-4 py-2 rounded-full border border-dashed flex flex-col items-end gap-1">
-                <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+            <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                <HistoricalToggle 
+                    isHistorical={isHistorical} 
+                    setIsHistorical={setIsHistorical} 
+                    isAdmin={['admin', 'director'].includes(profile?.role?.toLowerCase() || '') || !!user?.isAdmin} 
+                />
+                <div className="bg-white px-4 py-2 rounded-full border border-dashed flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-[9px] font-black uppercase text-muted-foreground">VISTA OPERATIVA</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1399,6 +1409,7 @@ export default function AgendaAnexoIPage() {
                     currentTime={currentTime}
                     agendaSearch={agendaSearch}
                     datosData={datosData}
+                    isHistorical={isHistorical}
                     setViewingActivity={setViewingActivity}
                     setAssigningSolicitud={setAssigningSolicitud}
                     setQrSolicitud={setQrSolicitud}

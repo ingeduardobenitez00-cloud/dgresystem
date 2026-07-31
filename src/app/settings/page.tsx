@@ -70,6 +70,8 @@ export default function SettingsPage() {
   });
 
   const [isResetting, setIsResetting] = useState(false);
+  const [resetProgress, setResetProgress] = useState(0);
+  const [resetTotal, setResetTotal] = useState(0);
   const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false);
 
   // --- GESTIÓN DE CLASIFICACIONES DINÁMICAS ---
@@ -415,16 +417,28 @@ export default function SettingsPage() {
   const handleResetCIDEE = async () => {
     if (!firestore || !isAdminView) return;
     setIsResetting(true);
+    setResetProgress(0);
+    setResetTotal(0);
     const collectionsToClear = ['solicitudes-capacitacion', 'informes-divulgador', 'informes-semanales-anexo-iv', 'movimientos-maquinas', 'denuncias-lacres', 'encuestas-satisfaccion'];
     try {
       const thresholdDateStr = '2026-07-27';
 
+      let totalDocs = 0;
+      const snapshotsToProcess: { colName: string, docs: any[] }[] = [];
+      
       for (const colName of collectionsToClear) {
         const q = query(collection(firestore, colName));
         const snapshot = await getDocs(q);
-        
-        const docsArray = snapshot.docs;
-        const BATCH_SIZE = 200; // max 500 ops per batch (we do 2 ops per doc)
+        totalDocs += snapshot.docs.length;
+        snapshotsToProcess.push({ colName, docs: snapshot.docs });
+      }
+      
+      setResetTotal(totalDocs);
+      let processed = 0;
+
+      for (const colData of snapshotsToProcess) {
+        const docsArray = colData.docs;
+        const BATCH_SIZE = 200; // max 500 ops per batch
         
         for (let i = 0; i < docsArray.length; i += BATCH_SIZE) {
           const chunk = docsArray.slice(i, i + BATCH_SIZE);
@@ -447,9 +461,8 @@ export default function SettingsPage() {
               }
             }
             
-            // Si no es del nuevo periodo, lo archivamos y borramos
             if (!isNewPeriod) {
-               const archiveRef = doc(firestore, `${colName}_internas_2026`, d.id);
+               const archiveRef = doc(firestore, `${colData.colName}_internas_2026`, d.id);
                batch.set(archiveRef, data);
                batch.delete(d.ref);
                opsCount++;
@@ -460,11 +473,18 @@ export default function SettingsPage() {
              await batch.commit();
              await delay(200);
           }
+          
+          processed += chunk.length;
+          setResetProgress(processed);
         }
       }
       toast({ title: 'Reseteo y Archivo Completado' });
     } catch (err) { toast({ variant: 'destructive', title: 'Error al resetear' }); }
-    finally { setIsResetting(false); }
+    finally { 
+        setIsResetting(false);
+        setResetProgress(0);
+        setResetTotal(0);
+    }
   };
 
   const sysConfigRef = useMemoFirebase(() => firestore ? doc(firestore, 'sysconfig', 'status') : null, [firestore]);
@@ -891,6 +911,20 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="p-10 space-y-8 flex flex-col items-center text-center">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">ESTO MIGRARÁ AL HISTORIAL LA ACTIVIDAD TRANSACCIONAL ANTIGUA Y DEJARÁ LIMPIO EL ENTORNO OPERATIVO. LOS DATOS NUEVOS NO SE VERÁN AFECTADOS.</p>
+                {isResetting && resetTotal > 0 && (
+                  <div className="w-full max-w-md space-y-2">
+                    <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground">
+                      <span>PROCESANDO...</span>
+                      <span>{resetProgress} / {resetTotal}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                      <div 
+                        className="bg-primary h-full transition-all duration-300" 
+                        style={{ width: `${Math.min(100, Math.round((resetProgress / resetTotal) * 100))}%` }} 
+                      />
+                    </div>
+                  </div>
+                )}
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
                         <Button variant="default" className="h-20 px-12 text-xl font-black uppercase rounded-[1.5rem] shadow-2xl gap-4" disabled={isResetting}>

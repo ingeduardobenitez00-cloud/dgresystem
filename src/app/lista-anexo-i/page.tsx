@@ -60,6 +60,7 @@ type Dato = {
 };
 
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+import { HistoricalToggle } from '@/components/historical-toggle';
 
 const DistrictSection = ({ 
     deptName,
@@ -73,7 +74,8 @@ const DistrictSection = ({
     const [visibleCount, setVisibleCount] = useState(5);
     const [isDeleting, setIsDeleting] = useState(false);
     const { toast } = useToast();
-    const { firestore, user } = useFirebase();
+    const { firestore } = useFirebase();
+    const { user } = useUser();
 
     const isAdmin = !!user?.isAdmin || user?.profile?.role === 'superadmin' || user?.profile?.role === 'admin' || user?.isOwner;
 
@@ -206,7 +208,8 @@ const DepartmentSection = ({
     profile, 
     datosData,
     setViewingAnexo,
-    initialOpen = false 
+    initialOpen = false,
+    isHistorical = false
 }: any) => {
     const [isOpen, setIsOpen] = useState(initialOpen || !['admin', 'director'].includes(profile?.role || ''));
 
@@ -214,11 +217,12 @@ const DepartmentSection = ({
         if (!firestore || !isOpen) return null;
         const norm = normalizeGeo(deptName);
         const variations = Array.from(new Set([deptName, norm, norm.charAt(0) + norm.slice(1).toLowerCase()])).filter(Boolean);
+        const colName = isHistorical ? 'anexo-i_internas_2026' : 'anexo-i';
         return query(
-            collection(firestore, 'anexo-i'),
+            collection(firestore, colName),
             where('departamento', 'in', variations)
         );
-    }, [firestore, isOpen, deptName]);
+    }, [firestore, isOpen, deptName, isHistorical]);
 
     const { data: allDeptItems, isLoading: isDeptLoading, setData: setAllDeptItems } = useCollectionOnce<AnexoI>(deptQuery);
 
@@ -298,6 +302,7 @@ export default function ListaAnexoIPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isHistorical, setIsHistorical] = useState(false);
   const [viewingAnexo, setViewingAnexo] = useState<AnexoI | null>(null);
   const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
 
@@ -349,14 +354,21 @@ export default function ListaAnexoIPage() {
                     <ClipboardList className="h-3.5 w-3.5" /> Control por lotes de planificaciones enviadas
                 </p>
             </div>
-            <div className="relative w-full md:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
-                <Input 
-                    placeholder="Buscar departamento..." 
-                    className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-end w-full">
+                <HistoricalToggle 
+                    isHistorical={isHistorical} 
+                    setIsHistorical={setIsHistorical} 
+                    isAdmin={['admin', 'director'].includes(profile?.role?.toLowerCase() || '') || !!user?.isAdmin} 
                 />
+                <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
+                    <Input 
+                        placeholder="Buscar departamento..." 
+                        className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
         </div>
 
@@ -378,6 +390,7 @@ export default function ListaAnexoIPage() {
                         datosData={datosData}
                         setViewingAnexo={setViewingAnexo}
                         initialOpen={filteredDepts.length === 1}
+                        isHistorical={isHistorical}
                     />
                 ))}
             </Accordion>
