@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminFirestore, isInitialized } from '@/lib/firebase-admin';
+import { getAdminAuth, getAdminFirestore } from '@/lib/firebase-admin';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,15 +9,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos' }, { status: 400 });
     }
 
-    // Bypass de Desarrollo Local: si no hay credenciales de servidor Admin SDK cargadas,
-    // retornamos éxito de inmediato indicándole al cliente que realice el borrado en Firestore.
-    if (!isInitialized) {
-      return NextResponse.json({ 
-        success: true, 
-        localDevBypass: true, 
-        message: 'Desarrollo local: omitiendo borrado de Auth y delegando borrado de Firestore al cliente.' 
-      });
-    }
+    const adminFirestore = getAdminFirestore();
+    const adminAuth = getAdminAuth();
 
     // 1. Validar que el solicitante (requesterId) sea Súper Administrador en Firestore
     const requesterDoc = await adminFirestore.collection('users').doc(requesterId).get();
@@ -47,17 +40,7 @@ export async function POST(req: NextRequest) {
     try {
       await adminAuth.deleteUser(userId);
     } catch (authError: any) {
-      const errorMsg = authError.message?.toLowerCase() || '';
-      const isCredentialError = 
-        errorMsg.includes('credential') || 
-        errorMsg.includes('key') || 
-        errorMsg.includes('auth/invalid-credential') || 
-        authError.code === 'app/no-credentials';
-
-      if (isCredentialError) {
-        // En desarrollo local sin archivo de clave privada, se permite continuar para no bloquear las pruebas
-        console.warn('⚠️ [DEV ONLY] No se pudo borrar el usuario de Authentication debido a falta de credenciales locales en Admin SDK. Procediendo con el éxito de la petición para permitir limpiar Firestore.');
-      } else if (authError.code !== 'auth/user-not-found') {
+      if (authError.code !== 'auth/user-not-found') {
         console.error('Error deleting from Auth:', authError);
         return NextResponse.json({ error: `Error en Authentication: ${authError.message}` }, { status: 500 });
       }
