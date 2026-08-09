@@ -359,8 +359,8 @@ export default function InformeMovimientosDenunciasPage() {
               const term = search.toLowerCase().trim();
               items = items.filter(m => 
                   (m.distrito || '').toLowerCase().includes(term) ||
-                  (m.maquinas_codigos || []).some(c => c.toLowerCase().includes(term)) ||
-                  (m.responsables || []).some(r => r.nombre.toLowerCase().includes(term))
+                  ((m as any).maquinas_codigos || []).some((c: any) => c.toLowerCase().includes(term)) ||
+                  ((m as any).responsables || []).some((r: any) => r.nombre.toLowerCase().includes(term))
               );
           }
           
@@ -678,7 +678,7 @@ export default function InformeMovimientosDenunciasPage() {
                               </div>
                           {pageItems.map(mov => (
                               <div key={mov.id} className="border border-slate-100 shadow-sm rounded-3xl p-2 bg-[#F8F9FA]">
-                                  <MovementRow mov={mov} denuncias={denuncias} />
+                                  <MovementRow mov={mov} denuncias={denuncias || undefined} />
                               </div>
                           ))}
                       </div>

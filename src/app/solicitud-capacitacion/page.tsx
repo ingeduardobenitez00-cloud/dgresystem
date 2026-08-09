@@ -251,7 +251,7 @@ export default function SolicitudCapacitacionPage() {
         nombre_completo: (profile?.username || user?.email || 'FUNCIONARIO').toUpperCase(),
         cedula: 'INTERNO',
         rol_solicitante: 'otro',
-        telefono: profile?.phone || 'S/D'
+        telefono: (profile as any)?.phone || 'S/D'
       }));
       setPadronFound(true);
     } else {

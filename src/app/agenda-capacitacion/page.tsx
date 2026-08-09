@@ -37,8 +37,8 @@ import {
   Ban,
   ImageIcon,
   Clock,
-  ChevronDown,
-  Truck
+  Truck,
+  Plus
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -946,7 +946,7 @@ export default function AgendaCapacitacionPage() {
                         <HistoricalToggle 
                             isHistorical={isHistorical} 
                             setIsHistorical={setIsHistorical} 
-                            isAdmin={hasAdminFilter} 
+                            isAdmin={!!hasAdminFilter} 
                         />
                         <div className="relative w-full md:w-80">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

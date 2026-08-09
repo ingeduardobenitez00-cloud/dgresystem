@@ -201,10 +201,10 @@ export default function CompendioGeneralPage() {
         // 2. Movimientos de Equipo
         if (act.movimiento) {
             const salida = Array.isArray(act.movimiento.foto_salida) ? act.movimiento.foto_salida : [act.movimiento.foto_salida];
-            salida.forEach(u => u && evidence.push({ url: u, label: 'ENTREGA DE EQUIPO' }));
+            salida.forEach((u: any) => u && evidence.push({ url: u, label: 'ENTREGA DE EQUIPO' }));
             
             const devolucion = Array.isArray(act.movimiento.foto_devolucion) ? act.movimiento.foto_devolucion : [act.movimiento.foto_devolucion];
-            devolucion.forEach(u => u && evidence.push({ url: u, label: 'DEVOLUCIÓN DE EQUIPO' }));
+            devolucion.forEach((u: any) => u && evidence.push({ url: u, label: 'DEVOLUCIÓN DE EQUIPO' }));
         }
 
         // 3. Informes (Documentación)

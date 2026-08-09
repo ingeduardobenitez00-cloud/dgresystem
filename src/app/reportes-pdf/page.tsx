@@ -566,7 +566,7 @@ export default function ReportesPDFPage() {
                         <HistoricalToggle 
                             isHistorical={isHistorical} 
                             setIsHistorical={setIsHistorical} 
-                            isAdmin={isAdmin} 
+                            isAdmin={!!isAdmin} 
                         />
                         {isAdmin && (
                             <Button 

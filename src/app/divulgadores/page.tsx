@@ -27,7 +27,9 @@ import {
   FileWarning, 
   Filter,
   Building2,
-  ChevronDown 
+  ChevronDown,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -360,6 +362,99 @@ export default function DivulgadoresPage() {
     });
   }, [firestore, filteredDivul, mutate]);
 
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        'CEDULA': '1234567',
+        'NOMBRES Y APELLIDOS': 'JUAN CARLOS PÉREZ GÓMEZ',
+        'VINCULO': 'CONTRATADO',
+        'DEPARTAMENTO': '00 - CAPITAL',
+        'DISTRITO': 'LA ENCARNACION'
+      },
+      {
+        'CEDULA': '2345678',
+        'NOMBRES Y APELLIDOS': 'MARÍA ELENA GONZÁLEZ BENÍTEZ',
+        'VINCULO': 'PERMANENTE',
+        'DEPARTAMENTO': '11 - CENTRAL',
+        'DISTRITO': 'CAPIATA'
+      },
+      {
+        'CEDULA': '3456789',
+        'NOMBRES Y APELLIDOS': 'CARLOS ALBERTO MARTÍNEZ RÍOS',
+        'VINCULO': 'COMISIONADO',
+        'DEPARTAMENTO': '07 - ITAPUA',
+        'DISTRITO': 'ENCARNACION'
+      },
+      {
+        'CEDULA': '4567890',
+        'NOMBRES Y APELLIDOS': 'LILIAN BEATRIZ AYALA SILVA',
+        'VINCULO': 'CONTRATADO',
+        'DEPARTAMENTO': '10 - ALTO PARANA',
+        'DISTRITO': 'CIUDAD DEL ESTE'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla_Divulgadores");
+
+    ws['!cols'] = [
+      { wch: 15 }, // CEDULA
+      { wch: 35 }, // NOMBRES Y APELLIDOS
+      { wch: 18 }, // VINCULO
+      { wch: 25 }, // DEPARTAMENTO
+      { wch: 25 }, // DISTRITO
+    ];
+
+    XLSX.writeFile(wb, "Plantilla_Ejemplo_Divulgadores.xlsx");
+    toast({
+      title: "Plantilla Descargada",
+      description: "Se ha descargado 'Plantilla_Ejemplo_Divulgadores.xlsx' con datos de ejemplo."
+    });
+  };
+
+  const exportToExcel = () => {
+    if (displayList.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Sin datos para exportar",
+        description: "No hay registros de divulgadores en el listado actual."
+      });
+      return;
+    }
+
+    const exportData = displayList.map((d, index) => ({
+      'N°': index + 1,
+      'CEDULA': d.cedula || '',
+      'NOMBRES Y APELLIDOS': d.nombre || '',
+      'VINCULO': d.vinculo || 'CONTRATADO',
+      'DEPARTAMENTO': d.departamento || '',
+      'DISTRITO': d.distrito || '',
+      'FECHA REGISTRO': d.fecha_registro ? new Date(d.fecha_registro).toLocaleDateString('es-PY') : ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Divulgadores");
+
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 15 },
+      { wch: 35 },
+      { wch: 18 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 18 }
+    ];
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Directorio_Divulgadores_${todayStr}.xlsx`);
+    toast({
+      title: "Excel Exportado",
+      description: `Se han exportado ${displayList.length} divulgadores exitosamente.`
+    });
+  };
+
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -386,55 +481,75 @@ export default function DivulgadoresPage() {
             throw new Error("El archivo Excel parece estar vacío.");
         }
 
-        const firstRow = json[0];
-        const headers = Object.keys(firstRow).map(h => h.toUpperCase().trim());
-        const requiredColumns = ['CEDULA', 'DISTRITO', 'DEPARTAMENTO'];
-        const hasNameHeader = headers.includes('NOMBRES Y APELLIDOS') || headers.includes('NOMBRE');
-        
-        const missing = requiredColumns.filter(col => !headers.includes(col));
-        if (!hasNameHeader) missing.push('NOMBRES Y APELLIDOS');
+        const normalizeKey = (k: string) => k.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "");
 
-        if (missing.length > 0) {
-            setImportErrors([`Estructura incorrecta. Faltan las siguientes columnas obligatorias: ${missing.join(', ')}`]);
-            setIsParsing(false);
-            return;
-        }
+        const getRowVal = (row: any, candidates: string[]) => {
+          const normCandidates = candidates.map(c => normalizeKey(c));
+          for (const key of Object.keys(row)) {
+            if (normCandidates.includes(normalizeKey(key))) {
+              return row[key];
+            }
+          }
+          return undefined;
+        };
 
         const errors: {row: number, reason: string}[] = [];
-        const mappedData: Omit<Divulgador, 'id' | 'fecha_registro'>[] = json.map((row, index) => {
+        const mappedData: Omit<Divulgador, 'id' | 'fecha_registro'>[] = [];
+
+        json.forEach((row, index) => {
           const excelRow = index + 2; 
-          const cedulaRaw = String(row.CEDULA || '').trim().toUpperCase();
-          const nombreRaw = String(row['NOMBRES Y APELLIDOS'] || row.NOMBRE || '').trim();
           
+          const cedulaRaw = String(getRowVal(row, ['CEDULA', 'CI', 'DOCUMENTO', 'CEDULA DE IDENTIDAD', 'NRO CEDULA', 'N° CEDULA']) || '').trim().toUpperCase();
+          const nombreRaw = String(getRowVal(row, ['NOMBRES Y APELLIDOS', 'NOMBRE', 'NOMBRES', 'NOMBRE Y APELLIDO', 'DIVULGADOR', 'FUNCIONARIO']) || '').trim();
+          let dptoRaw = String(getRowVal(row, ['DEPARTAMENTO', 'DEPTO', 'DPTO']) || '').trim();
+          let distRaw = String(getRowVal(row, ['DISTRITO', 'CIUDAD', 'MUNICIPIO', 'OFICINA']) || '').trim();
+          let vinculoRaw = String(getRowVal(row, ['VINCULO', 'VINCULO LABORAL', 'CONDICION', 'TIPO', 'ESTADO']) || '').trim().toUpperCase();
+
+          // Fallbacks de departamento/distrito si el usuario está restringido
+          if (!dptoRaw && profile?.departamento) {
+            dptoRaw = profile.departamento;
+          }
+          if (!distRaw && profile?.distrito) {
+            distRaw = profile.distrito;
+          }
+
           if (!cedulaRaw && !nombreRaw) {
-            errors.push({ row: excelRow, reason: "Fila vacía" });
-            return null;
+            errors.push({ row: excelRow, reason: "Fila vacía o sin datos reconocibles" });
+            return;
           }
           if (!cedulaRaw) {
-            errors.push({ row: excelRow, reason: "Falta Cédula" });
-            return null;
+            errors.push({ row: excelRow, reason: "Falta Cédula de Identidad" });
+            return;
           }
           if (!nombreRaw) {
             errors.push({ row: excelRow, reason: "Falta Nombre y Apellido" });
-            return null;
+            return;
+          }
+          if (!dptoRaw) {
+            errors.push({ row: excelRow, reason: "Falta Departamento" });
+            return;
+          }
+          if (!distRaw) {
+            errors.push({ row: excelRow, reason: "Falta Distrito / Oficina" });
+            return;
           }
 
-          let vinculo: any = String(row.VINCULO || '').toUpperCase();
-          if (!['PERMANENTE', 'CONTRATADO', 'COMISIONADO'].includes(vinculo)) {
-            vinculo = 'CONTRATADO'; 
+          let vinculo: 'PERMANENTE' | 'CONTRATADO' | 'COMISIONADO' = 'CONTRATADO';
+          if (['PERMANENTE', 'CONTRATADO', 'COMISIONADO'].includes(vinculoRaw)) {
+            vinculo = vinculoRaw as any;
           }
 
-          return {
+          mappedData.push({
             cedula: cedulaRaw,
             nombre: nombreRaw.toUpperCase(),
             vinculo: vinculo,
-            distrito: String(row.DISTRITO || '').trim().toUpperCase(),
-            departamento: String(row.DEPARTAMENTO || '').trim().toUpperCase(),
-          };
-        }).filter(d => d !== null) as Omit<Divulgador, 'id' | 'fecha_registro'>[];
+            departamento: dptoRaw.toUpperCase(),
+            distrito: distRaw.toUpperCase(),
+          });
+        });
 
         if (mappedData.length === 0) {
-            throw new Error("No se encontraron registros válidos en el archivo.");
+            throw new Error("No se encontraron registros válidos en el archivo. Verifique que las columnas coincidan con la plantilla de ejemplo.");
         }
 
         setSkippedDetails(errors);
@@ -597,14 +712,32 @@ export default function DivulgadoresPage() {
                   <CardTitle className="uppercase font-black text-xs text-white">LISTA DE PERSONAL ({displayList.length})</CardTitle>
                   <CardDescription className="text-white/60 text-[9px] uppercase font-bold">Personal operativo habilitado para capacitaciones</CardDescription>
                 </div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-black uppercase text-[10px] gap-2 h-9"
+                    onClick={downloadTemplate}
+                    title="Descargar plantilla de Excel con formato requerido"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-300" /> Descargar Ejemplo
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-black uppercase text-[10px] gap-2 h-9"
+                    onClick={exportToExcel}
+                    title="Exportar listado actual a Excel"
+                  >
+                    <Download className="h-3.5 w-3.5 text-cyan-300" /> Exportar Excel
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
                     className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-black uppercase text-[10px] gap-2 h-9"
                     onClick={() => { resetImport(); setIsImportModalOpen(true); }}
                   >
-                    <FileUp className="h-3.5 w-3.5" /> Importar Excel
+                    <FileUp className="h-3.5 w-3.5 text-amber-300" /> Importar Excel
                   </Button>
                   <div className="relative flex-1 md:w-48">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
@@ -730,7 +863,29 @@ export default function DivulgadoresPage() {
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-auto p-8 space-y-8 bg-[#F8F9FA]">
+          <div className="flex-1 overflow-auto p-8 space-y-6 bg-[#F8F9FA]">
+            {/* Banner de Descarga de Plantilla de Ejemplo */}
+            <div className="bg-white border-2 border-primary/20 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <FileSpreadsheet className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-black uppercase text-xs text-primary tracking-wide">Plantilla Oficial de Ejemplo</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase mt-0.5">Descarga el modelo en Excel con las columnas requeridas listas para completar</p>
+                </div>
+              </div>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                onClick={downloadTemplate}
+                className="font-black uppercase text-[10px] gap-2 border-2 border-primary/30 text-primary hover:bg-primary hover:text-white transition-all shrink-0 h-10 px-4 shadow-sm"
+              >
+                <Download className="h-4 w-4" /> Descargar Ejemplo (.xlsx)
+              </Button>
+            </div>
+
             {importErrors.length > 0 && (
                 <div className="bg-destructive/10 border-2 border-destructive p-6 rounded-2xl flex items-start gap-4 animate-in shake duration-500">
                     <AlertTriangle className="h-6 w-6 text-destructive shrink-0 mt-1" />
@@ -748,9 +903,9 @@ export default function DivulgadoresPage() {
                   <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center group-hover:scale-110 transition-transform">
                     {isParsing ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <FileUp className="h-8 w-8 text-primary/40" />}
                   </div>
-                  <div className="text-center">
-                    <p className="font-black uppercase text-sm text-primary">{isParsing ? "Analizando Registros..." : "Seleccionar Archivo Excel"}</p>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">Columnas: CEDULA, VINCULO, NOMBRES Y APELLIDOS, DISTRITO, DEPARTAMENTO</p>
+                  <div className="text-center px-4">
+                    <p className="font-black uppercase text-sm text-primary">{isParsing ? "Analizando Registros..." : "Seleccionar Archivo Excel para Importar"}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">Columnas requeridas: CEDULA, NOMBRES Y APELLIDOS, VINCULO, DEPARTAMENTO, DISTRITO</p>
                   </div>
                 </div>
                 <Input type="file" accept=".xlsx,.csv" className="hidden" onChange={handleFileImport} disabled={isParsing} />
