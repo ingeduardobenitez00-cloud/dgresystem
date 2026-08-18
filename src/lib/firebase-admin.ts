@@ -1,16 +1,22 @@
 import * as admin from 'firebase-admin';
 import { firebaseConfig } from '@/firebase/config';
 
-let isInitialized = false;
-
+// Robust initialization for Next.js to prevent "The default Firebase app does not exist" errors
 function getAdminApp() {
-  if (!admin.apps.length) {
-    admin.initializeApp({
+  if (admin.apps.length > 0) {
+    return admin.apps[0] as admin.app.App;
+  }
+  
+  try {
+    return admin.initializeApp({
       projectId: firebaseConfig.projectId
     });
+  } catch (error: any) {
+    if (admin.apps.length > 0) {
+      return admin.apps[0] as admin.app.App;
+    }
+    throw error;
   }
-  isInitialized = true;
-  return admin.app();
 }
 
 export function getAdminAuth() {
@@ -21,4 +27,4 @@ export function getAdminFirestore() {
   return getAdminApp().firestore();
 }
 
-export { isInitialized };
+export const isInitialized = true;

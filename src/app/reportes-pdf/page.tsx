@@ -263,8 +263,8 @@ export default function ReportesPDFPage() {
 
                 Object.values(depto.distritos).forEach((dist: any) => {
                     deptoStats[depto.nombre].total++;
-                    // Consideramos "con actividad" si hay capacitados registrados, encuestas, o al menos un usuario
-                    const tieneActividad = dist.capacitados > 0 || dist.encuestas > 0 || dist.tieneUsuario;
+                    // Consideramos "con actividad" si hay capacitados registrados o encuestas
+                    const tieneActividad = dist.capacitados > 0 || dist.encuestas > 0;
                     if (tieneActividad) {
                         distritosConUso++;
                         deptoStats[depto.nombre].usados++;
