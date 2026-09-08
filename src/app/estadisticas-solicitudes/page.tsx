@@ -430,7 +430,7 @@ export default function EstadisticasSolicitudesPage() {
         doc.text("Director General", 45, footerY + 9, { align: "center" });
 
         doc.text("Ing. Eduardo Benítez", pageWidth - 45, footerY + 5, { align: "center" });
-        doc.text("Encargado de Informática de la DGRE", pageWidth - 45, footerY + 9, { align: "center" });
+        doc.text("Encargado de Informática DGRE", pageWidth - 45, footerY + 9, { align: "center" });
 
         doc.save(`PRODUCTIVIDAD-TERRITORIAL-${new Date().getTime()}.pdf`);
     };

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Header from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUser, useFirebase, useDocOnce } from "@/firebase";
 import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Loader2, Users, ClipboardCheck, Building2, User, UserPlus, RefreshCw, Printer } from "lucide-react";
+import { Loader2, Users, ClipboardCheck, Building2, User, UserPlus, RefreshCw, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -47,27 +47,110 @@ export default function ReporteMiembrosMesaPage() {
             const solicitudesSnap = await getDocs(collection(firestore, colName));
             const allSolicitudes = solicitudesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+            // Obtener todos los informes para cruzar datos
+            const informesColName = isHistorical ? 'informes-divulgador_internas_2026' : 'informes-divulgador';
+            const informesSnap = await getDocs(collection(firestore, informesColName));
+            const allInformes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            const informesBySol = allInformes.reduce((acc: any, inf: any) => {
+                if (!acc[inf.solicitud_id]) acc[inf.solicitud_id] = [];
+                acc[inf.solicitud_id].push(inf);
+                return acc;
+            }, {});
+
+            // Obtener todos los departamentos y distritos base
+            const datosSnap = await getDocs(collection(firestore, 'datos'));
+            const allDatos = datosSnap.docs.map(d => d.data());
+
             let totalHombres = 0;
             let totalMujeres = 0;
             let totalCapacitados = 0;
             let totalSesiones = 0;
 
-            const deptosMap: Record<string, { hombres: number, mujeres: number, total: number, distritos: Record<string, { hombres: number, mujeres: number, total: number }> }> = {};
+            const deptosMap: Record<string, { 
+                hombres: number, 
+                mujeres: number, 
+                total: number, 
+                distritos: Record<string, { 
+                    hombres: number, 
+                    mujeres: number, 
+                    total: number,
+                    actividades: Array<{
+                        nombre: string,
+                        lugar: string,
+                        fecha: string,
+                        hombres: number,
+                        mujeres: number,
+                        total: number
+                    }>
+                }> 
+            }> = {};
             
+            // Pre-poblar el mapa con todos los departamentos y distritos en 0
+            allDatos.forEach((d: any) => {
+                const dept = d.departamento;
+                const dist = d.distrito;
+                if (!dept) return;
+                
+                if (!deptosMap[dept]) {
+                    deptosMap[dept] = { hombres: 0, mujeres: 0, total: 0, distritos: {} };
+                }
+                if (dist && !deptosMap[dept].distritos[dist]) {
+                    deptosMap[dept].distritos[dist] = { hombres: 0, mujeres: 0, total: 0, actividades: [] };
+                }
+            });
+
             allSolicitudes.forEach((sol: any) => {
                 if (sol.cancelada) return;
 
-                // Same logic as in agenda-anexo-v to detect MM
                 const isMM = sol.es_capacitacion_mm || (sol.tipo_solicitud || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
                 
-                const h = sol.cant_hombres || 0;
-                const m = sol.cant_mujeres || 0;
-                const hasData = h > 0 || m > 0;
+                const informes = informesBySol[sol.id] || [];
+                
+                let h = 0;
+                let m = 0;
+                let total = 0;
 
-                if (isMM && hasData) {
+                if (informes.length > 0) {
+                    informes.forEach((inf: any) => {
+                        const infTotal = inf.total_personas || 0;
+                        total += infTotal;
+                        
+                        const infH = inf.cant_hombres || 0;
+                        const infM = inf.cant_mujeres || 0;
+                        
+                        if (infH > 0 || infM > 0) {
+                            h += infH;
+                            m += infM;
+                        } else {
+                            // Si el informe no detalla géneros, sacamos la proporción de la solicitud original
+                            const origH = sol.cant_hombres || 0;
+                            const origM = sol.cant_mujeres || 0;
+                            const origTotal = origH + origM;
+                            
+                            if (origTotal > 0) {
+                                const propH = origH / origTotal;
+                                h += Math.round(infTotal * propH);
+                                m += infTotal - Math.round(infTotal * propH);
+                            } else {
+                                // 50/50 fallback
+                                h += Math.floor(infTotal / 2);
+                                m += Math.ceil(infTotal / 2);
+                            }
+                        }
+                    });
+                } else {
+                    // Si no tiene informes (aún no se cargó el retorno de la capacitación), 
+                    // usamos los datos preliminares/agendados de la solicitud original.
+                    h = sol.cant_hombres || 0;
+                    m = sol.cant_mujeres || 0;
+                    total = h + m;
+                }
+
+                if (isMM && total > 0) {
                     totalHombres += h;
                     totalMujeres += m;
-                    totalCapacitados += (h + m);
+                    totalCapacitados += total;
                     totalSesiones++;
 
                     const dept = sol.departamento || 'SIN ESPECIFICAR';
@@ -77,16 +160,33 @@ export default function ReporteMiembrosMesaPage() {
                         deptosMap[dept] = { hombres: 0, mujeres: 0, total: 0, distritos: {} };
                     }
                     if (!deptosMap[dept].distritos[dist]) {
-                        deptosMap[dept].distritos[dist] = { hombres: 0, mujeres: 0, total: 0 };
+                        deptosMap[dept].distritos[dist] = { hombres: 0, mujeres: 0, total: 0, actividades: [] };
                     }
 
                     deptosMap[dept].hombres += h;
                     deptosMap[dept].mujeres += m;
-                    deptosMap[dept].total += (h + m);
+                    deptosMap[dept].total += total;
 
                     deptosMap[dept].distritos[dist].hombres += h;
                     deptosMap[dept].distritos[dist].mujeres += m;
-                    deptosMap[dept].distritos[dist].total += (h + m);
+                    deptosMap[dept].distritos[dist].total += total;
+
+                    // Determine activity name
+                    let actNombre = sol.solicitante_entidad || '';
+                    if (actNombre === 'Otra' && sol.otra_entidad) actNombre = sol.otra_entidad;
+                    if (!actNombre) actNombre = 'ACTIVIDAD SIN NOMBRE';
+
+                    // Determine location
+                    const actLugar = sol.lugar_local || sol.direccion_calle || 'Sin lugar';
+
+                    deptosMap[dept].distritos[dist].actividades.push({
+                        nombre: actNombre,
+                        lugar: actLugar,
+                        fecha: sol.fecha || '',
+                        hombres: h,
+                        mujeres: m,
+                        total: total
+                    });
                 }
             });
 
@@ -264,7 +364,7 @@ export default function ReporteMiembrosMesaPage() {
         doc.text("Director General", 45, footerY + 9, { align: "center" });
 
         doc.text("Ing. Eduardo Benítez", pageWidth - 45, footerY + 5, { align: "center" });
-        doc.text("Dirección de Informática", pageWidth - 45, footerY + 9, { align: "center" });
+        doc.text("Encargado de Informática DGRE", pageWidth - 45, footerY + 9, { align: "center" });
 
         doc.save(`REPORTE-MM-${new Date().getTime()}.pdf`);
     };
@@ -493,12 +593,7 @@ if (isLoadingStats) return <div className="flex h-screen items-center justify-ce
                                                         </thead>
                                                         <tbody>
                                                             {Object.entries(depto.distritos || {}).sort(([a], [b]) => a.localeCompare(b)).map(([distName, distData]: [string, any]) => (
-                                                                <tr key={distName} className="border-b last:border-0 border-neutral-100 hover:bg-white transition-colors">
-                                                                    <td className="px-8 py-3.5 text-[11px] font-black uppercase text-slate-700">{distName}</td>
-                                                                    <td className="px-6 py-3.5 text-[11px] font-black text-right text-blue-600">{distData.hombres.toLocaleString()}</td>
-                                                                    <td className="px-6 py-3.5 text-[11px] font-black text-right text-pink-600">{distData.mujeres.toLocaleString()}</td>
-                                                                    <td className="px-6 py-3.5 text-[11px] font-black text-right text-primary">{distData.total.toLocaleString()}</td>
-                                                                </tr>
+                                                                <DistrictRow key={distName} distName={distName} distData={distData} />
                                                             ))}
                                                         </tbody>
                                                     </table>
@@ -527,5 +622,49 @@ if (isLoadingStats) return <div className="flex h-screen items-center justify-ce
                 )}
             </main>
         </div>
+    );
+}
+
+function DistrictRow({ distName, distData }: { distName: string, distData: any }) {
+    const [expanded, setExpanded] = useState(false);
+    const hasActivities = distData.actividades && distData.actividades.length > 0;
+
+    return (
+        <React.Fragment>
+            <tr 
+                onClick={() => { if (hasActivities) setExpanded(!expanded) }}
+                className={cn(
+                    "border-b border-neutral-100 transition-colors",
+                    hasActivities ? "cursor-pointer hover:bg-neutral-50" : ""
+                )}
+            >
+                <td className="px-8 py-3.5 text-[11px] font-black uppercase text-slate-700">
+                    <div className="flex items-center gap-2">
+                        {hasActivities ? (
+                            expanded ? <ChevronDown className="h-3 w-3 text-slate-400" /> : <ChevronRight className="h-3 w-3 text-slate-400" />
+                        ) : (
+                            <div className="w-3" />
+                        )}
+                        {distName}
+                    </div>
+                </td>
+                <td className="px-6 py-3.5 text-[11px] font-black text-right text-blue-600">{distData.hombres.toLocaleString()}</td>
+                <td className="px-6 py-3.5 text-[11px] font-black text-right text-pink-600">{distData.mujeres.toLocaleString()}</td>
+                <td className="px-6 py-3.5 text-[11px] font-black text-right text-primary">{distData.total.toLocaleString()}</td>
+            </tr>
+            {expanded && hasActivities && distData.actividades.map((act: any, idx: number) => (
+                <tr key={`${distName}-act-${idx}`} className="bg-neutral-50/50 border-b border-neutral-100 last:border-0 hover:bg-white transition-colors">
+                    <td className="px-8 py-2.5 pl-14 text-[10px] font-semibold text-slate-600">
+                        <div className="flex flex-col">
+                            <span className="font-bold text-slate-700 uppercase truncate max-w-[300px]">{act.nombre}</span>
+                            <span className="text-[9px] opacity-70 truncate max-w-[300px]">{act.lugar} {act.fecha ? `| ${act.fecha}` : ''}</span>
+                        </div>
+                    </td>
+                    <td className="px-6 py-2.5 text-[10px] font-semibold text-right text-blue-500/80">{act.hombres.toLocaleString()}</td>
+                    <td className="px-6 py-2.5 text-[10px] font-semibold text-right text-pink-500/80">{act.mujeres.toLocaleString()}</td>
+                    <td className="px-6 py-2.5 text-[10px] font-bold text-right text-primary/80">{act.total.toLocaleString()}</td>
+                </tr>
+            ))}
+        </React.Fragment>
     );
 }
