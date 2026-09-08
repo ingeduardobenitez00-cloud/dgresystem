@@ -14,6 +14,7 @@ import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import { cn, formatDateToDDMMYYYY } from "@/lib/utils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { HistoricalToggle } from "@/components/historical-toggle";
 
 const COLORS = ['#2563EB', '#EC4899']; // Blue for Hombres, Pink for Mujeres
 
@@ -25,8 +26,15 @@ export default function ReporteMiembrosMesaPage() {
 
     const isAdmin = ['admin', 'director', 'coordinador'].includes(user?.profile?.role || '') || user?.isOwner;
 
+    const [isHistorical, setIsHistorical] = useState(false);
+
     // Leer resumen
-    const statsDocRef = useMemo(() => firestore ? doc(firestore, 'stats-summary', 'miembros-mesa') : null, [firestore]);
+    const statsDocRef = useMemo(() => {
+        if (!firestore) return null;
+        const docName = isHistorical ? 'miembros-mesa_internas_2026' : 'miembros-mesa';
+        return doc(firestore, 'stats-summary', docName);
+    }, [firestore, isHistorical]);
+    
     const { data: stats, isLoading: isLoadingStats } = useDocOnce<any>(statsDocRef);
 
     const handleSync = async () => {
@@ -35,7 +43,8 @@ export default function ReporteMiembrosMesaPage() {
         try {
             toast({ title: "Sincronizando...", description: "Calculando estadísticas de Miembros de Mesa..." });
 
-            const solicitudesSnap = await getDocs(collection(firestore, 'solicitudes-capacitacion'));
+            const colName = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
+            const solicitudesSnap = await getDocs(collection(firestore, colName));
             const allSolicitudes = solicitudesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
             let totalHombres = 0;
@@ -105,7 +114,8 @@ export default function ReporteMiembrosMesaPage() {
                 updatedBy: user?.profile?.username || user?.email
             };
 
-            await setDoc(doc(firestore, 'stats-summary', 'miembros-mesa'), summary);
+            const docName = isHistorical ? 'miembros-mesa_internas_2026' : 'miembros-mesa';
+            await setDoc(doc(firestore, 'stats-summary', docName), summary);
             toast({ title: "Sincronización exitosa", description: "El reporte estadístico ha sido actualizado." });
             
             // Refrescar página para ver cambios
@@ -276,7 +286,12 @@ if (isLoadingStats) return <div className="flex h-screen items-center justify-ce
                             Reporte consolidado de capacitaciones a Miembros de Mesa Receptora de Votos discriminado por sexo.
                         </p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <HistoricalToggle 
+                            isHistorical={isHistorical} 
+                            setIsHistorical={setIsHistorical} 
+                            isAdmin={!!isAdmin} 
+                        />
                         {isAdmin && (
                             <Button 
                                 onClick={handleSync} 
