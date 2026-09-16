@@ -37,12 +37,13 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useCollectionPaginated } from '@/firebase';
-import { orderBy, limit } from 'firebase/firestore';
+import { orderBy, limit, updateDoc, deleteField } from 'firebase/firestore';
 
 function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
     const { firestore } = useFirebase();
     const { user } = useUser();
     const { toast } = useToast();
+    const [isHidden, setIsHidden] = useState(false);
     const profile = user?.profile;
     const isAdmin = ['admin', 'director'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
 
@@ -53,7 +54,7 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
         try {
             await deleteDoc(doc(firestore, 'solicitudes-capacitacion', item.id));
             toast({ title: "Actividad Eliminada", description: "El registro ha sido borrado exitosamente." });
-            setTimeout(() => window.location.reload(), 1500);
+            setIsHidden(true);
         } catch (error) {
             console.error(error);
             toast({ variant: 'destructive', title: "Error", description: "No se pudo eliminar el registro." });
@@ -85,6 +86,23 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
 
     const itemDate = new Date(item.fecha + 'T23:59:59');
     const isPast = itemDate < new Date();
+
+    const handleRestore = async () => {
+        if (!firestore) return;
+        try {
+            toast({ title: 'Restaurando...', description: 'Por favor espera' });
+            await updateDoc(doc(firestore, 'solicitudes-capacitacion', item.id), {
+                fecha_cumplido: deleteField()
+            });
+            toast({ title: 'Éxito', description: 'Actividad restaurada a agenda' });
+            setIsHidden(true);
+        } catch (e: any) {
+            console.error(e);
+            toast({ title: 'Error', description: e.message || 'No se pudo restaurar', variant: 'destructive' });
+        }
+    };
+
+    if (isHidden) return null;
 
     return (
         <tr className={cn("border-b hover:bg-muted/10 transition-colors", isCancelled && "bg-destructive/[0.01]")}>
@@ -160,11 +178,21 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
                         )}
                     </div>
                 ) : (
-                    <div className={cn("flex items-center gap-1.5", isPast ? "text-red-500" : "text-amber-500")}>
-                        {isPast ? <ShieldAlert className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-                        <span className="text-[8px] font-black uppercase">
-                            {isPast ? (hasReport ? 'PENDIENTE RETORNO' : 'PENDIENTE REPORTE') : 'PROCESANDO'}
-                        </span>
+                    <div className="flex flex-col items-center gap-2">
+                        <div className={cn("flex items-center gap-1.5", isPast ? "text-red-500" : "text-amber-500")}>
+                            {isPast ? <ShieldAlert className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+                            <span className="text-[8px] font-black uppercase">
+                                {isPast ? (hasReport ? 'PENDIENTE RETORNO' : 'PENDIENTE REPORTE') : 'PROCESANDO'}
+                            </span>
+                        </div>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-6 text-[7px] font-black uppercase border-dashed border-red-200 text-red-600 hover:bg-red-50"
+                            onClick={handleRestore}
+                        >
+                            RESTAURAR A AGENDA
+                        </Button>
                     </div>
                 )}
             </td>

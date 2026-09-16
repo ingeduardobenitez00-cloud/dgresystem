@@ -171,10 +171,6 @@ const DistrictSection = ({
             if (sol.fecha_cumplido) {
                 const diff = (currentTime.getTime() - new Date(sol.fecha_cumplido).getTime()) / (1000 * 60 * 60);
                 if (diff > 168) return false;
-            } else {
-                const mov = movementsData?.find(m => m.solicitud_id === sol.id);
-                const inf = reportsData?.find(i => i.solicitud_id === sol.id);
-                if (mov?.fecha_devolucion && inf) return false;
             }
             return !term || sol.nombre_completo?.toLowerCase().includes(term) || sol.solicitante_entidad?.toLowerCase().includes(term);
         }).sort((a, b) => a.fecha.localeCompare(b.fecha));

@@ -314,24 +314,7 @@ const DistrictSection = ({
         };
     }, [firestore, rawSolicitudes]);
 
-    // Auto-concluir MM al retornar la máquina
-    useEffect(() => {
-        if (!firestore) return;
-        rawSolicitudes.forEach(item => {
-            const isMM = item.es_capacitacion_mm || item.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
-            if (isMM && !item.fecha_cumplido) {
-                const mov = movimientosMap.get(item.id);
-                if (mov?.fecha_devolucion) {
-                    const docRef = doc(firestore, 'solicitudes-capacitacion', item.id);
-                    updateDoc(docRef, { fecha_cumplido: mov.fecha_devolucion })
-                        .then(() => {
-                            updateItem(item.id, { fecha_cumplido: mov.fecha_devolucion });
-                        })
-                        .catch(e => console.error("Error auto-concluding MM:", e));
-                }
-            }
-        });
-    }, [firestore, rawSolicitudes, movimientosMap, updateItem]);
+
 
     const activeSolicitudes = useMemo(() => {
         if (!rawSolicitudes) return [];
@@ -344,7 +327,7 @@ const DistrictSection = ({
             if (sol.fecha_cumplido) {
                 const completionTime = new Date(sol.fecha_cumplido);
                 const diffHours = (currentMs - completionTime.getTime()) / (1000 * 60 * 60);
-                if (diffHours > 0.05) return false; // Archivamiento automático después de 3 minutos (0.05h)
+                if (diffHours > 168) return false; // Archivamiento automático después de 7 días (168h)
                 return true;
             }
 
@@ -357,12 +340,7 @@ const DistrictSection = ({
 
             if (!matchesSearch) return false;
 
-            const mov = movimientosMap.get(sol.id);
-            const itemInformes = informesMap.get(sol.id) || [];
-            const inf = itemInformes.length > 0 ? itemInformes[0] : null;
-            
-            const isClosed = !!(mov?.fecha_devolucion && inf && sol.fecha_cumplido);
-            return !isClosed;
+            return true;
         });
     }, [rawSolicitudes, agendaSearch, currentTime, movimientosMap, informesMap]);
     
@@ -472,7 +450,8 @@ const DistrictSection = ({
                           if (!item.planilla_foto_url) return 6;
                           if (!(item.cant_hombres || item.cant_mujeres)) return 7;
                           if (!hasRetorno) return 8;
-                          return 9; // Concluido
+                          if (!item.fecha_cumplido) return 9;
+                          return 10; // Concluido
                       })();
 
                      const activeDivStep = (() => {
@@ -482,7 +461,8 @@ const DistrictSection = ({
                           if (!hasSalida) return 4;
                           if (pendingAnexoIII) return 5;
                           if (!hasRetorno) return 6;
-                          return 7; // Concluido
+                          if (!item.fecha_cumplido) return 7;
+                          return 8; // Concluido
                      })();
 
                      const showStep1 = !hasPersonnel;
@@ -771,6 +751,27 @@ const DistrictSection = ({
                                                     <Button disabled={pendingAnexoIII || (item.divulgadores || item.asignados || []).length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
                                                 )}
                                             </div>
+
+                                            {/* Paso 7: Concluir */}
+                                            <div className={cn(
+                                                "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                                item.fecha_cumplido ? "bg-green-50/50 border-green-200 text-green-700" : (hasRetorno ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                            )}>
+                                                {activeDivStep === 7 && (
+                                                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                        PENDIENTE
+                                                    </span>
+                                                )}
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[8px] font-black opacity-60 uppercase">Paso 7</span>
+                                                    <span className="text-[9px] font-black uppercase mt-1 leading-tight">Concluir</span>
+                                                </div>
+                                                {item.fecha_cumplido ? (
+                                                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                ) : (
+                                                    <Button disabled={!hasRetorno} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1007,6 +1008,27 @@ const DistrictSection = ({
                                                         "flex items-center justify-center h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0 leading-none",
                                                         !(item.cant_hombres || item.cant_mujeres) ? "pointer-events-none opacity-40" : ""
                                                     )}>RETORNO</Link>
+                                                )}
+                                            </div>
+
+                                            {/* Paso 9: Concluir MM */}
+                                            <div className={cn(
+                                                "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                                item.fecha_cumplido ? "bg-green-50/50 border-green-200 text-green-700" : (hasRetorno ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                            )}>
+                                                {activeMMStep === 9 && (
+                                                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                        PENDIENTE
+                                                    </span>
+                                                )}
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[8px] font-black opacity-60 uppercase">Paso 9</span>
+                                                    <span className="text-[9px] font-black uppercase mt-1 leading-tight">Concluir</span>
+                                                </div>
+                                                {item.fecha_cumplido ? (
+                                                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                                ) : (
+                                                    <Button disabled={!hasRetorno} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
                                                 )}
                                             </div>
                                         </div>

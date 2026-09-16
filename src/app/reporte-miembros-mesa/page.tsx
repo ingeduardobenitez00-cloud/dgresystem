@@ -35,7 +35,7 @@ export default function ReporteMiembrosMesaPage() {
         return doc(firestore, 'stats-summary', docName);
     }, [firestore, isHistorical]);
     
-    const { data: stats, isLoading: isLoadingStats } = useDocOnce<any>(statsDocRef);
+    const { data: stats, isLoading: isLoadingStats, refetch } = useDocOnce<any>(statsDocRef);
 
     const handleSync = async () => {
         if (!firestore || !isAdmin) return;
@@ -218,8 +218,8 @@ export default function ReporteMiembrosMesaPage() {
             await setDoc(doc(firestore, 'stats-summary', docName), summary);
             toast({ title: "Sincronización exitosa", description: "El reporte estadístico ha sido actualizado." });
             
-            // Refrescar página para ver cambios
-            window.location.reload();
+            // Refrescar estado local
+            await refetch();
         } catch (error: any) {
             console.error("Sync Error:", error);
             toast({ variant: "destructive", title: "Error en sincronización", description: error.message });

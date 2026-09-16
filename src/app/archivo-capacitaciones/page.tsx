@@ -29,16 +29,19 @@ import {
     Eye
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { formatDateToDDMMYYYY, cn, normalizeGeo } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useCollectionPaginated } from '@/firebase';
-import { orderBy, limit } from 'firebase/firestore';
+import { orderBy, limit, updateDoc, doc, deleteField } from 'firebase/firestore';
 
 function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
     const { firestore } = useFirebase();
+    const { toast } = useToast();
+    const [isHidden, setIsHidden] = useState(false);
     
     // Carga perezosa de datos vinculados
     const movQuery = useMemoFirebase(() => 
@@ -71,6 +74,23 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
 
     const itemDate = new Date(item.fecha + 'T23:59:59');
     const isPast = itemDate < new Date();
+
+    const handleRestore = async () => {
+        if (!firestore) return;
+        try {
+            toast({ title: 'Restaurando...', description: 'Por favor espera' });
+            await updateDoc(doc(firestore, 'solicitudes-capacitacion', item.id), {
+                fecha_cumplido: deleteField()
+            });
+            toast({ title: 'Éxito', description: 'Actividad restaurada a agenda' });
+            setIsHidden(true);
+        } catch (e: any) {
+            console.error(e);
+            toast({ title: 'Error', description: e.message || 'No se pudo restaurar', variant: 'destructive' });
+        }
+    };
+
+    if (isHidden) return null;
 
     return (
         <tr className={cn("border-b hover:bg-muted/10 transition-colors", isCancelled && "bg-destructive/[0.01]")}>
@@ -146,11 +166,21 @@ function ActivityRow({ item }: { item: SolicitudCapacitacion }) {
                         )}
                     </div>
                 ) : (
-                    <div className={cn("flex items-center gap-1.5", isPast ? "text-red-500" : "text-amber-500")}>
-                        {isPast ? <ShieldAlert className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-                        <span className="text-[8px] font-black uppercase">
-                            {isPast ? (hasReport ? 'PENDIENTE RETORNO' : 'PENDIENTE REPORTE') : 'PROCESANDO'}
-                        </span>
+                    <div className="flex flex-col items-center gap-2">
+                        <div className={cn("flex items-center gap-1.5", isPast ? "text-red-500" : "text-amber-500")}>
+                            {isPast ? <ShieldAlert className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+                            <span className="text-[8px] font-black uppercase">
+                                {isPast ? (hasReport ? 'PENDIENTE RETORNO' : 'PENDIENTE REPORTE') : 'PROCESANDO'}
+                            </span>
+                        </div>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-6 text-[7px] font-black uppercase border-dashed border-red-200 text-red-600 hover:bg-red-50"
+                            onClick={handleRestore}
+                        >
+                            RESTAURAR A AGENDA
+                        </Button>
                     </div>
                 )}
             </td>

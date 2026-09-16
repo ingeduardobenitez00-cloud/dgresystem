@@ -301,30 +301,6 @@ const DistrictSection = ({
         };
     }, [firestore, rawItems]);
 
-    // Auto-concluir Lugar Fijo al retornar la máquina y registrar el informe
-    useEffect(() => {
-        if (!firestore) return;
-        rawItems.forEach(item => {
-            if (!item.fecha_cumplido) {
-                const mov = movimientosMap.get(item.id);
-                const itemInformes = informesMap.get(item.id) || [];
-                const assignedList = item.divulgadores || item.asignados || [];
-                const missingInformesFrom = assignedList.filter((asignado: any) => !itemInformes.some(inf => (inf.divulgador_id === asignado.id || inf.cedula_divulgador === asignado.cedula)));
-                const pendingInforme = assignedList.length > 0 ? missingInformesFrom.length > 0 : !itemInformes.length;
-                const isFulfilled = !!(mov?.fecha_devolucion && !pendingInforme);
-
-                if (isFulfilled) {
-                    const docRef = doc(firestore, 'solicitudes-capacitacion', item.id);
-                    const nowIso = new Date().toISOString();
-                    updateDoc(docRef, { fecha_cumplido: nowIso })
-                        .then(() => {
-                            updateItem(item.id, { fecha_cumplido: nowIso });
-                        })
-                        .catch(e => console.error("Error auto-concluding Anexo I:", e));
-                }
-            }
-        });
-    }, [firestore, rawItems, movimientosMap, informesMap, updateItem]);
 
     const items = useMemo(() => {
         const searchTerm = agendaSearch.toLowerCase().trim();
@@ -333,17 +309,14 @@ const DistrictSection = ({
             if (sol.cancelada) return false;
             if (sol.fecha_cumplido) {
                 const diff = (currentMs - new Date(sol.fecha_cumplido).getTime()) / (1000 * 60 * 60);
-                if (diff > 0.05) return false; // Archivamiento automático después de 3 minutos (0.05h)
+                if (diff > 168) return false; // Archivamiento automático después de 7 días (168h)
                 return true;
             }
             const matchesSearch = !searchTerm || 
                 (sol.nombre_completo || '').toLowerCase().includes(searchTerm) || 
                 (sol.solicitante_entidad || '').toLowerCase().includes(searchTerm);
             if (!matchesSearch) return false;
-            const mov = movimientosMap.get(sol.id);
-            const itemInformes = informesMap.get(sol.id) || [];
-            const inf = itemInformes.length > 0 ? itemInformes[0] : null;
-            return !(mov?.fecha_devolucion && inf && sol.fecha_cumplido);
+            return true;
         }).sort((a,b) => (a.fecha || '').localeCompare(b.fecha || ''));
     }, [rawItems, agendaSearch, currentTime, movimientosMap, informesMap]);
 
@@ -660,6 +633,27 @@ const DistrictSection = ({
                                                 </Button>
                                             ) : (
                                                 <Button disabled={pendingInforme || assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
+                                            )}
+                                        </div>
+
+                                        {/* Paso 7: Concluir */}
+                                        <div className={cn(
+                                            "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
+                                            item.fecha_cumplido ? "bg-green-50/50 border-green-200 text-green-700" : (isFulfilled ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                        )}>
+                                            {minStep === 7 && (
+                                                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
+                                                    PENDIENTE
+                                                </span>
+                                            )}
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[8px] font-black opacity-60 uppercase">Paso 7</span>
+                                                <span className="text-[9px] font-black uppercase mt-1 leading-tight">Concluir</span>
+                                            </div>
+                                            {item.fecha_cumplido ? (
+                                                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                                            ) : (
+                                                <Button disabled={!isFulfilled} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
                                             )}
                                         </div>
                                     </div>

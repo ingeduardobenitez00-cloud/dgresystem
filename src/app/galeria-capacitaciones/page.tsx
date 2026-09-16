@@ -364,7 +364,8 @@ function DepartmentGallerySection({
     datosData: any[],
     profile: any,
     initialOpen?: boolean,
-    isHistorical?: boolean
+    isHistorical?: boolean,
+    refreshKey?: number
 }) {
     const [isExpanded, setIsExpanded] = useState(initialOpen);
 
@@ -377,7 +378,13 @@ function DepartmentGallerySection({
         );
     }, [firestore, deptName, isExpanded, isHistorical]);
 
-    const { data: rawInformes, isLoading } = useCollectionOnce<InformeDivulgador>(informesQuery);
+    const { data: rawInformes, isLoading, refetch } = useCollectionOnce<InformeDivulgador>(informesQuery);
+
+    React.useEffect(() => {
+        if (refreshKey && refreshKey > 0) {
+            refetch();
+        }
+    }, [refreshKey]);
 
     const informes = useMemo(() => {
         if (!rawInformes) return null;
@@ -477,6 +484,7 @@ export default function GaleriaCapacitacionesPage() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [isHistorical, setIsHistorical] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [selectedPhotoData, setSelectedPhotoData] = useState<{urls: string[], currentIndex: number} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
@@ -531,9 +539,7 @@ export default function GaleriaCapacitacionesPage() {
       }
       
       toast({ title: "¡Subida exitosa!", description: "La imagen se ha subido correctamente." });
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      setRefreshKey(prev => prev + 1);
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
@@ -549,9 +555,7 @@ export default function GaleriaCapacitacionesPage() {
     try {
         await deleteDoc(doc(firestore, 'informes-divulgador', id));
         toast({ title: "Informe eliminado correctamente" });
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
+        setRefreshKey(k => k + 1);
     } catch (error: any) {
         toast({ 
             variant: "destructive", 
@@ -580,9 +584,7 @@ export default function GaleriaCapacitacionesPage() {
       }
       
       toast({ title: "Evidencia eliminada correctamente" });
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      setRefreshKey(k => k + 1);
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
@@ -668,7 +670,7 @@ export default function GaleriaCapacitacionesPage() {
             </Card>
         ) : (
             <Accordion type="multiple" className="space-y-6">
-                {filteredDepts.map((deptName) => (
+                {filteredDepts.map((deptName, index) => (
                     <DepartmentGallerySection 
                         key={deptName}
                         deptName={deptName}
@@ -683,8 +685,9 @@ export default function GaleriaCapacitacionesPage() {
                         setSelectedPhotoData={setSelectedPhotoData}
                         datosData={datosData || []}
                         profile={profile}
-                        initialOpen={filteredDepts.length === 1}
+                        initialOpen={index === 0 && filteredDepts.length === 1}
                         isHistorical={isHistorical}
+                        refreshKey={refreshKey}
                     />
                 ))}
             </Accordion>
