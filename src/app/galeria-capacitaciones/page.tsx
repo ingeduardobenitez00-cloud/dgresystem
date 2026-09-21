@@ -349,7 +349,8 @@ function DepartmentGallerySection({
     datosData,
     profile,
     initialOpen = false,
-    isHistorical = false
+    isHistorical = false,
+    refreshKey
 }: { 
     deptName: string, 
     firestore: any, 
