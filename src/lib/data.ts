@@ -187,6 +187,7 @@ export type SolicitudCapacitacion = {
   cant_mujeres?: number;
   planilla_cidee_printed?: boolean;
   planilla_foto_url?: string | null;
+  planilla_fotos_urls?: string[];
 }
 
 export type EncuestaSatisfaccion = {

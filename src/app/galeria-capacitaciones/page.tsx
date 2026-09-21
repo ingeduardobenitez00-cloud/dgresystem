@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   collection, 
   query, 
@@ -380,7 +380,7 @@ function DepartmentGallerySection({
 
     const { data: rawInformes, isLoading, refetch } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (refreshKey && refreshKey > 0) {
             refetch();
         }

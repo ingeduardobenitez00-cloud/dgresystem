@@ -440,6 +440,7 @@ const DistrictSection = ({
                      const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
                      const isMM = item.es_capacitacion_mm || item.tipo_solicitud?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes('capacitacion');
+                     const hasPlanillaFotos = !!item.planilla_foto_url || (!!item.planilla_fotos_urls && item.planilla_fotos_urls.length > 0);
 
                      const activeMMStep = (() => {
                           if (assignedList.length === 0) return 1;
@@ -447,7 +448,7 @@ const DistrictSection = ({
                           if (!isQRViewed) return 3;
                           if (!hasSalida) return 4;
                           if (!item.planilla_cidee_printed) return 5;
-                          if (!item.planilla_foto_url) return 6;
+                          if (!hasPlanillaFotos) return 6;
                           if (!(item.cant_hombres || item.cant_mujeres)) return 7;
                           if (!hasRetorno) return 8;
                           if (!item.fecha_cumplido) return 9;
@@ -936,7 +937,7 @@ const DistrictSection = ({
                                             {/* Paso 6: Subir Foto Planilla */}
                                             <div className={cn(
                                                 "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
-                                                item.planilla_foto_url ? "bg-green-50/50 border-green-200 text-green-700" : (item.planilla_cidee_printed ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                                hasPlanillaFotos ? "bg-green-50/50 border-green-200 text-green-700" : (item.planilla_cidee_printed ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
                                             )}>
                                                 {activeMMStep === 6 && (
                                                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
@@ -947,11 +948,10 @@ const DistrictSection = ({
                                                     <span className="text-[8px] font-black opacity-60 uppercase">Paso 6</span>
                                                     <span className="text-[9px] font-black uppercase mt-1 leading-tight text-center">Foto Planilla<br/>Física MM</span>
                                                 </div>
-                                                {item.planilla_foto_url ? (
-                                                    <div className="flex flex-col items-center">
-                                                        <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                                                        <span className="text-[7px] font-black text-green-600 uppercase mt-0.5 leading-none">FOTO OK</span>
-                                                    </div>
+                                                {hasPlanillaFotos ? (
+                                                    <Button size="sm" variant="outline" className="h-6 px-2 border-green-600 text-green-700 hover:bg-green-100 rounded-md text-[7px] font-black uppercase shrink-0 flex gap-1 shadow-sm" onClick={() => setUploadingPlanilla(item)}>
+                                                        <CheckCircle2 className="h-3 w-3" /> VER / MAS ({(item.planilla_fotos_urls?.length || 0) + (item.planilla_foto_url ? 1 : 0)})
+                                                    </Button>
                                                 ) : (
                                                     <Button disabled={!item.planilla_cidee_printed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setUploadingPlanilla(item)}>SUBIR</Button>
                                                 )}
@@ -960,7 +960,7 @@ const DistrictSection = ({
                                             {/* Paso 7: Informe MM */}
                                             <div className={cn(
                                                 "p-3 rounded-2xl border-2 flex flex-col items-center justify-between gap-2 text-center transition-all duration-300 relative",
-                                                (item.cant_hombres || item.cant_mujeres) ? "bg-green-50/50 border-green-200 text-green-700" : (item.planilla_foto_url ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
+                                                (item.cant_hombres || item.cant_mujeres) ? "bg-green-50/50 border-green-200 text-green-700" : (hasPlanillaFotos ? "bg-indigo-50/30 border-indigo-100/80 text-indigo-600 animate-pulse" : "bg-muted/10 border-transparent opacity-40")
                                             )}>
                                                 {activeMMStep === 7 && (
                                                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded-full shadow-md animate-bounce tracking-wider border border-white z-10 whitespace-nowrap">
@@ -977,7 +977,7 @@ const DistrictSection = ({
                                                         <span className="text-[7px] font-black text-green-600 uppercase mt-0.5 leading-none">H:{item.cant_hombres || 0} M:{item.cant_mujeres || 0}</span>
                                                     </div>
                                                 ) : (
-                                                    <Button disabled={!item.planilla_foto_url} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
+                                                    <Button disabled={!hasPlanillaFotos} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
                                                         setMMReportSolicitud(item);
                                                         setHombres(item.cant_hombres || 0);
                                                         setMujeres(item.cant_mujeres || 0);
@@ -1188,71 +1188,98 @@ const DistrictSection = ({
                             <h3 className="font-black uppercase text-sm flex items-center gap-2"><Camera className="h-4 w-4" /> Respaldo de Planilla Firmada</h3>
                         </div>
                         <div className="p-8 space-y-6 bg-white text-center">
-                            {uploadingPlanilla?.planilla_foto_url ? (
-                                <div className="space-y-4">
-                                    <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border-4 border-indigo-50 shadow-inner bg-muted">
-                                        <Image 
-                                            src={uploadingPlanilla.planilla_foto_url} 
-                                            alt="Planilla Firmada" 
-                                            fill 
-                                            style={{ objectFit: 'contain' }}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] font-black text-green-600 uppercase">✓ PLANILLA CARGADA CORRECTAMENTE</p>
-                                </div>
-                            ) : (
-                                <div className="py-12 border-2 border-dashed border-indigo-100 rounded-3xl bg-indigo-50/30 flex flex-col items-center gap-4">
-                                    <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                                        <Upload className="h-8 w-8" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="font-black uppercase text-xs text-indigo-900">Sin archivo seleccionado</p>
-                                        <p className="text-[10px] font-bold text-indigo-400 uppercase">Sube una foto clara de la planilla</p>
-                                    </div>
-                                </div>
-                            )}
+                            {(() => {
+                                const allFotos = [
+                                    ...(uploadingPlanilla?.planilla_foto_url ? [uploadingPlanilla.planilla_foto_url] : []),
+                                    ...(uploadingPlanilla?.planilla_fotos_urls || [])
+                                ];
+                                
+                                return (
+                                    <>
+                                        {allFotos.length > 0 ? (
+                                            <div className="space-y-4">
+                                                <ScrollArea className="w-full whitespace-nowrap rounded-2xl border-4 border-indigo-50 bg-muted">
+                                                    <div className="flex w-max space-x-4 p-4">
+                                                        {allFotos.map((fotoUrl, i) => (
+                                                            <div key={i} className="relative aspect-[3/4] w-[180px] overflow-hidden rounded-xl shadow-md shrink-0">
+                                                                <Image 
+                                                                    src={fotoUrl} 
+                                                                    alt={`Planilla Firmada ${i + 1}`} 
+                                                                    fill 
+                                                                    style={{ objectFit: 'cover' }}
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </ScrollArea>
+                                                <p className="text-[10px] font-black text-green-600 uppercase">✓ {allFotos.length} PLANILLA{allFotos.length > 1 ? 'S' : ''} CARGADA{allFotos.length > 1 ? 'S' : ''}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="py-12 border-2 border-dashed border-indigo-100 rounded-3xl bg-indigo-50/30 flex flex-col items-center gap-4">
+                                                <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                                    <Upload className="h-8 w-8" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="font-black uppercase text-xs text-indigo-900">Sin archivo seleccionado</p>
+                                                    <p className="text-[10px] font-bold text-indigo-400 uppercase">Sube fotos claras de la planilla</p>
+                                                </div>
+                                            </div>
+                                        )}
 
-                            <div className="grid grid-cols-1 gap-3">
-                                <label className="cursor-pointer">
-                                    <div className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-indigo-200">
-                                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                                        <span className="font-black uppercase text-xs">{uploadingPlanilla?.planilla_foto_url ? 'CAMBIAR FOTO' : 'TOMAR FOTO / SUBIR'}</span>
-                                    </div>
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
-                                        capture="environment" 
-                                        className="hidden" 
-                                        disabled={isUploading}
-                                        onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (!file || !firestore) return;
-                                            
-                                            setIsUploading(true);
-                                            try {
-                                                const { compressImage } = await import('@/lib/image-utils');
-                                                const dataUri = await compressImage(file);
-                                                
-                                                await updateDoc(doc(firestore, 'solicitudes-capacitacion', uploadingPlanilla!.id), {
-                                                    planilla_foto_url: dataUri
-                                                });
-                                                
-                                                updateItem(uploadingPlanilla!.id, { planilla_foto_url: dataUri });
-                                                toast({ title: "Planilla Guardada", description: "El respaldo documental se ha subido con éxito." });
-                                                setUploadingPlanilla(null);
-                                            } catch (error) {
-                                                console.error(error);
-                                                toast({ variant: 'destructive', title: "Error", description: "No se pudo subir la imagen." });
-                                            } finally {
-                                                setIsUploading(false);
-                                            }
-                                        }}
-                                    />
-                                </label>
-                                <Button variant="ghost" className="h-12 font-black uppercase text-[10px]" onClick={() => setUploadingPlanilla(null)}>
-                                    CERRAR
-                                </Button>
-                            </div>
+                                        <div className="grid grid-cols-1 gap-3 mt-6">
+                                            {allFotos.length < 10 && (
+                                                <label className="cursor-pointer">
+                                                    <div className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-indigo-200">
+                                                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                                        <span className="font-black uppercase text-xs">{allFotos.length > 0 ? 'AÑADIR MÁS FOTOS' : 'TOMAR FOTO / SUBIR'}</span>
+                                                    </div>
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        capture="environment" 
+                                                        className="hidden" 
+                                                        multiple
+                                                        disabled={isUploading}
+                                                        onChange={async (e) => {
+                                                            const files = e.target.files;
+                                                            if (!files || files.length === 0 || !firestore) return;
+                                                            
+                                                            setIsUploading(true);
+                                                            try {
+                                                                const { compressImage } = await import('@/lib/image-utils');
+                                                                const newFotos = [];
+                                                                for (let i = 0; i < files.length; i++) {
+                                                                    const dataUri = await compressImage(files[i]);
+                                                                    newFotos.push(dataUri);
+                                                                }
+                                                                
+                                                                const currentFotosUrls = uploadingPlanilla?.planilla_fotos_urls || [];
+                                                                const updatedFotosUrls = [...currentFotosUrls, ...newFotos].slice(0, 10 - (uploadingPlanilla?.planilla_foto_url ? 1 : 0));
+                                                                
+                                                                await updateDoc(doc(firestore, 'solicitudes-capacitacion', uploadingPlanilla!.id), {
+                                                                    planilla_fotos_urls: updatedFotosUrls
+                                                                });
+                                                                
+                                                                updateItem(uploadingPlanilla!.id, { planilla_fotos_urls: updatedFotosUrls });
+                                                                toast({ title: "Planillas Guardadas", description: "Los respaldos documentales se han subido con éxito." });
+                                                                setUploadingPlanilla(prev => prev ? { ...prev, planilla_fotos_urls: updatedFotosUrls } : null);
+                                                            } catch (error) {
+                                                                console.error(error);
+                                                                toast({ variant: 'destructive', title: "Error", description: "No se pudieron subir las imágenes." });
+                                                            } finally {
+                                                                setIsUploading(false);
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
+                                            )}
+                                            <Button variant="ghost" className="h-12 font-black uppercase text-[10px]" onClick={() => setUploadingPlanilla(null)}>
+                                                CERRAR
+                                            </Button>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </DialogContent>
                 </Dialog>

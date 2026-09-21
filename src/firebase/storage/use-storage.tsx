@@ -23,14 +23,8 @@ export function useStorage() {
       const storageRef = ref(storage, path);
       
       if (typeof data === 'string' && data.startsWith('data:')) {
-        // Handle Base64 strings (like from canvas or camera)
-        // We need to extract the raw base64 part
-        const base64Content = data.split(',')[1];
-        const contentType = data.split(';')[0].split(':')[1];
-        
-        await uploadString(storageRef, base64Content, 'base64', {
-          contentType: contentType
-        });
+        // Handle Base64 strings (like from canvas or camera) directly via data_url
+        await uploadString(storageRef, data, 'data_url');
       } else if (data instanceof File) {
         // Handle File objects from <input type="file" />
         await uploadBytes(storageRef, data);
