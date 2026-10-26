@@ -12,6 +12,13 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase } from '@/firebase';
 import {
@@ -24,9 +31,10 @@ import {
   Loader2, BookOpen, Camera, Plus, ArrowLeft, Building2, UserCheck, Trash2,
   CheckCircle2, ImageIcon, ChevronLeft, ChevronRight, Upload, Search, ScanLine,
   FileSpreadsheet, Download, RefreshCw, AlertCircle, Edit, Check, X, FileUp, Sparkles, Filter,
-  MapPin, CheckSquare, Layers
+  MapPin, CheckSquare, Layers, FileText, Archive
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportLibroToPdf, exportLibroToZip, FolioInfo } from '@/lib/libro-exporter';
 
 /* ===================== Tipos ===================== */
 const TOTAL_FOLIOS = 200;
@@ -262,6 +270,71 @@ function EscaneoLibroContent() {
     [misRegistros, oficinaSeleccionadaId]
   );
 
+  const [downloadModal, setDownloadModal] = useState<{
+    open: boolean;
+    title: string;
+    current: number;
+    total: number;
+    message: string;
+  } | null>(null);
+
+  const handleDownloadLibro = async (libroTarget: LibroEscaneo, format: 'pdf' | 'zip') => {
+    if (!firestore) return;
+    try {
+      setDownloadModal({
+        open: true,
+        title: `Generando ${format === 'pdf' ? 'PDF' : 'archivo ZIP'}`,
+        current: 0,
+        total: 1,
+        message: 'Consultando folios digitalizados...',
+      });
+
+      const snap = await getDocs(collection(firestore, 'libros-escaneo', libroTarget.id, 'folios'));
+      const foliosList = snap.docs.map(d => d.data() as FolioInfo).sort((a, b) => a.folio - b.folio);
+
+      if (foliosList.length === 0) {
+        setDownloadModal(null);
+        return toast({
+          variant: 'destructive',
+          title: 'Sin folios escaneados',
+          description: 'Este libro aún no tiene folios fotografiados para descargar.',
+        });
+      }
+
+      setDownloadModal({
+        open: true,
+        title: `Descargando ${libroTarget.nombre_libro || 'Libro'} (${format.toUpperCase()})`,
+        current: 0,
+        total: foliosList.length,
+        message: `Preparando ${foliosList.length} folios...`,
+      });
+
+      if (format === 'pdf') {
+        await exportLibroToPdf(libroTarget, foliosList, (cur, tot, msg) => {
+          setDownloadModal(prev => prev ? { ...prev, current: cur, total: tot, message: msg } : null);
+        });
+      } else {
+        await exportLibroToZip(libroTarget, foliosList, (cur, tot, msg) => {
+          setDownloadModal(prev => prev ? { ...prev, current: cur, total: tot, message: msg } : null);
+        });
+      }
+
+      toast({
+        title: '✅ Descarga completada con éxito',
+        description: `Se descargó "${libroTarget.nombre_libro || 'Libro'}" en formato ${format.toUpperCase()}.`,
+      });
+    } catch (err: any) {
+      console.error('Error al exportar libro:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error al exportar',
+        description: err?.message || 'Ocurrió un error durante la descarga del libro.',
+      });
+    } finally {
+      setTimeout(() => setDownloadModal(null), 800);
+    }
+  };
+
   if (isUserLoading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
   }
@@ -276,7 +349,45 @@ function EscaneoLibroContent() {
           autoStartCamera={autoStartCamera}
           onBack={() => { setLibroActivo(null); setAutoStartCamera(false); loadBase(); }}
           onLibroChange={setLibroActivo}
+          onDownload={(fmt) => handleDownloadLibro(libroActivo, fmt)}
         />
+        {downloadModal && (
+          <Dialog open={downloadModal.open} onOpenChange={() => {}}>
+            <DialogContent className="max-w-md rounded-3xl p-6 sm:p-8 space-y-4">
+              <DialogHeader className="text-center space-y-2">
+                <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center animate-bounce">
+                  <Download className="h-7 w-7" />
+                </div>
+                <DialogTitle className="font-black uppercase text-base sm:text-lg">
+                  {downloadModal.title}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Por favor espere mientras procesamos los folios del libro.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between text-xs font-black uppercase text-muted-foreground">
+                  <span>Progreso</span>
+                  <span>
+                    {Math.round(((downloadModal.current || 0) / Math.max(1, downloadModal.total || 1)) * 100)}%
+                  </span>
+                </div>
+                <div className="h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${Math.round(((downloadModal.current || 0) / Math.max(1, downloadModal.total || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-center font-bold text-foreground animate-pulse pt-1">
+                  {downloadModal.message}
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     );
   }
@@ -302,6 +413,7 @@ function EscaneoLibroContent() {
           onSelectOficina={setOficinaSeleccionadaId}
           onOpen={(l) => { setAutoStartCamera(false); setLibroActivo(l); }}
           onNuevo={() => setShowNuevoLibro(true)}
+          onDownload={handleDownloadLibro}
         />
 
         <NuevoLibroDialog
@@ -315,10 +427,49 @@ function EscaneoLibroContent() {
             setLibroActivo(l);
           }}
         />
+
+        {downloadModal && (
+          <Dialog open={downloadModal.open} onOpenChange={() => {}}>
+            <DialogContent className="max-w-md rounded-3xl p-6 sm:p-8 space-y-4">
+              <DialogHeader className="text-center space-y-2">
+                <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center animate-bounce">
+                  <Download className="h-7 w-7" />
+                </div>
+                <DialogTitle className="font-black uppercase text-base sm:text-lg">
+                  {downloadModal.title}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Por favor espere mientras procesamos los folios del libro.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between text-xs font-black uppercase text-muted-foreground">
+                  <span>Progreso</span>
+                  <span>
+                    {Math.round(((downloadModal.current || 0) / Math.max(1, downloadModal.total || 1)) * 100)}%
+                  </span>
+                </div>
+                <div className="h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${Math.round(((downloadModal.current || 0) / Math.max(1, downloadModal.total || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-center font-bold text-foreground animate-pulse pt-1">
+                  {downloadModal.message}
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </main>
     </div>
   );
 }
+
 
 /* ===================== Listado de libros ===================== */
 function LibrosList({
@@ -329,6 +480,7 @@ function LibrosList({
   onSelectOficina,
   onOpen,
   onNuevo,
+  onDownload,
 }: {
   loading: boolean;
   libros: LibroEscaneo[];
@@ -337,6 +489,7 @@ function LibrosList({
   onSelectOficina: (id: string) => void;
   onOpen: (l: LibroEscaneo) => void;
   onNuevo: () => void;
+  onDownload: (l: LibroEscaneo, format: 'pdf' | 'zip') => void;
 }) {
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
 
@@ -488,11 +641,12 @@ function LibrosList({
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {librosFiltrados.map(l => {
               const pct = Math.round(((l.folios_escaneados || 0) / (l.total_folios || TOTAL_FOLIOS)) * 100);
+              const cantFolios = l.folios_escaneados || 0;
               return (
                 <Card
                   key={l.id}
                   onClick={() => onOpen(l)}
-                  className="cursor-pointer rounded-2xl hover:shadow-xl hover:-translate-y-0.5 transition-all border-l-8 border-l-primary bg-white"
+                  className="cursor-pointer rounded-2xl hover:shadow-xl hover:-translate-y-0.5 transition-all border-l-8 border-l-primary bg-white group flex flex-col justify-between"
                 >
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -516,7 +670,7 @@ function LibrosList({
 
                     <div>
                       <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                        <span>{l.folios_escaneados || 0} / {l.total_folios} folios</span>
+                        <span>{cantFolios} / {l.total_folios} folios</span>
                         <span>{pct}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -526,10 +680,57 @@ function LibrosList({
                         />
                       </div>
                     </div>
+
+                    {/* BOTÓN DESCARGAR LIBRO COMPLETO (PDF O FOTOS ZIP) */}
+                    <div
+                      className="pt-3 border-t flex items-center justify-between gap-2 mt-2"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                        {cantFolios === 0 ? 'Sin folios' : 'Descargar completo'}
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={cantFolios === 0}
+                            className="h-8 px-3 text-[10px] font-black uppercase gap-1.5 rounded-xl hover:bg-black hover:text-white transition-all shadow-sm"
+                          >
+                            <Download className="h-3.5 w-3.5 text-primary" />
+                            Descargar
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-60 rounded-2xl p-2 shadow-2xl">
+                          <DropdownMenuItem
+                            onClick={() => onDownload(l, 'pdf')}
+                            className="font-black uppercase text-xs p-2.5 rounded-xl cursor-pointer gap-2.5 flex items-center"
+                          >
+                            <FileText className="h-4 w-4 text-rose-500" />
+                            <div>
+                              <p className="leading-tight">Descargar en PDF</p>
+                              <p className="text-[9px] text-muted-foreground font-normal">Portada oficial y {cantFolios} folios</p>
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => onDownload(l, 'zip')}
+                            className="font-black uppercase text-xs p-2.5 rounded-xl cursor-pointer gap-2.5 flex items-center"
+                          >
+                            <Archive className="h-4 w-4 text-amber-500" />
+                            <div>
+                              <p className="leading-tight">Descargar en Fotos (ZIP)</p>
+                              <p className="text-[9px] text-muted-foreground font-normal">Todas las {cantFolios} fotos originales</p>
+                            </div>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </CardContent>
                 </Card>
               );
             })}
+
           </div>
         )}
       </div>
@@ -730,11 +931,13 @@ function LibroScanner({
   autoStartCamera = false,
   onBack,
   onLibroChange,
+  onDownload,
 }: {
   libro: LibroEscaneo;
   autoStartCamera?: boolean;
   onBack: () => void;
   onLibroChange: (l: LibroEscaneo) => void;
+  onDownload?: (format: 'pdf' | 'zip') => void;
 }) {
   const { user } = useUser();
   const { firestore } = useFirebase();
@@ -988,6 +1191,42 @@ function LibroScanner({
             className="font-black uppercase text-[10px] gap-2 h-11">
             <Upload className="h-4 w-4" /> Cargar varias fotos
           </Button>
+
+          {/* BOTÓN DESCARGAR LIBRO EN SCANNER */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={escaneados === 0}
+                className="font-black uppercase text-[10px] gap-2 h-11 rounded-xl shadow-sm hover:bg-black hover:text-white transition-all"
+              >
+                <Download className="h-4 w-4 text-primary" /> Descargar Libro
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-60 rounded-2xl p-2 shadow-2xl">
+              <DropdownMenuItem
+                onClick={() => onDownload?.('pdf')}
+                className="font-black uppercase text-xs p-2.5 rounded-xl cursor-pointer gap-2.5 flex items-center"
+              >
+                <FileText className="h-4 w-4 text-rose-500" />
+                <div>
+                  <p className="leading-tight">Descargar en PDF</p>
+                  <p className="text-[9px] text-muted-foreground font-normal">Documento oficial de alta resolución ({escaneados} folios)</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDownload?.('zip')}
+                className="font-black uppercase text-xs p-2.5 rounded-xl cursor-pointer gap-2.5 flex items-center"
+              >
+                <Archive className="h-4 w-4 text-amber-500" />
+                <div>
+                  <p className="leading-tight">Descargar en Fotos (ZIP)</p>
+                  <p className="text-[9px] text-muted-foreground font-normal">Todas las {escaneados} fotos JPG en un archivo ZIP</p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex gap-1">
           {(['todos', 'pendientes', 'escaneados'] as const).map(f => (
