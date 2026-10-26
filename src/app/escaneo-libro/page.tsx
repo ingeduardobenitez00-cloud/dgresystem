@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import Header from '@/components/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -31,7 +32,7 @@ import {
   Loader2, BookOpen, Camera, Plus, ArrowLeft, Building2, UserCheck, Trash2,
   CheckCircle2, ImageIcon, ChevronLeft, ChevronRight, Upload, Search, ScanLine,
   FileSpreadsheet, Download, RefreshCw, AlertCircle, Edit, Check, X, FileUp, Sparkles, Filter,
-  MapPin, CheckSquare, Layers, FileText, Archive
+  MapPin, CheckSquare, Layers, FileText, Archive, Zap, ZapOff, RotateCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { exportLibroToPdf, exportLibroToZip, FolioInfo } from '@/lib/libro-exporter';
@@ -111,36 +112,66 @@ const geoMatches = (a?: string, b?: string): boolean => {
   return false;
 };
 
-/** Compresión optimizada para manuscritos en alta resolución preservando legibilidad */
-const compressPageToBlob = (file: File): Promise<Blob> =>
+let cachedRegistros: RegistroCivil[] | null = null;
+
+/** Compresión optimizada para manuscritos en alta resolución preservando legibilidad y evitando saturación de memoria RAM */
+const compressPageToBlob = (fileOrBlob: File | Blob): Promise<Blob> =>
   new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        // En Cloudflare R2 no tenemos el límite de 1MB de Firestore, guardamos en 2048px con 85% de calidad
-        const MAX = 2048;
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('canvas'));
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('No se pudo generar el archivo de imagen'));
-          },
-          'image/jpeg',
-          0.85
-        );
-      };
-      img.onerror = reject;
-      img.src = e.target?.result as string;
+    // Si ya es un JPEG optimizado generado desde canvas o menor a 650KB, listo para subir
+    if (fileOrBlob instanceof Blob && fileOrBlob.size < 650 * 1024 && fileOrBlob.type === 'image/jpeg') {
+      return resolve(fileOrBlob);
+    }
+    const objectUrl = URL.createObjectURL(fileOrBlob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 1920; // 1920px garantiza legibilidad cristalina del manuscrito y reduce tamaño a ~300KB
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('No se pudo inicializar canvas'));
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('No se pudo generar el archivo de imagen'));
+        },
+        'image/jpeg',
+        0.82
+      );
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    img.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
+    };
+    img.src = objectUrl;
+  });
+
+/** Captura directa desde el stream de video de la cámara a un Blob JPEG en milisegundos */
+const captureVideoToBlob = (video: HTMLVideoElement): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const w = video.videoWidth || 1920;
+    const h = video.videoHeight || 1080;
+    const MAX = 1920;
+    const scale = Math.min(1, MAX / Math.max(w, h));
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return reject(new Error('No se pudo obtener el contexto del canvas'));
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('No se pudo capturar la foto de la cámara'));
+      },
+      'image/jpeg',
+      0.82
+    );
   });
 
 const emptyLibro = {
@@ -184,14 +215,49 @@ function EscaneoLibroContent() {
   const [autoStartCamera, setAutoStartCamera] = useState(false);
   const [showNuevoLibro, setShowNuevoLibro] = useState(false);
 
+  const searchParams = useSearchParams();
+  const urlLibroId = searchParams.get('libro');
+
+  // Si hay un libro en el URL o guardado en sessionStorage, restaurarlo inmediatamente sin recargar todo el módulo
+  useEffect(() => {
+    const targetId = urlLibroId || (typeof window !== 'undefined' ? sessionStorage.getItem('escaneo_activo_libro_id') : null);
+    if (!firestore || !targetId || libroActivo?.id === targetId) return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(firestore, 'libros-escaneo', targetId));
+        if (snap.exists() && isMounted) {
+          const data = { id: snap.id, ...snap.data() } as LibroEscaneo;
+          setLibroActivo(data);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('escaneo_activo_libro_id', snap.id);
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('libro') !== snap.id) {
+              url.searchParams.set('libro', snap.id);
+              window.history.replaceState({}, '', url.toString());
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error restaurando libro activo:', err);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [firestore, urlLibroId, libroActivo?.id]);
+
   /* -------- Carga inicial -------- */
   const loadBase = useCallback(async () => {
     if (!firestore || !user) return;
     setLoading(true);
     try {
-      const regSnap = await getDocs(collection(firestore, 'registros-civiles'));
-      const regs = regSnap.docs.map(d => ({ id: d.id, ...d.data() } as RegistroCivil));
-      regs.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+      let regs = cachedRegistros;
+      if (!regs || regs.length === 0) {
+        const regSnap = await getDocs(collection(firestore, 'registros-civiles'));
+        regs = regSnap.docs.map(d => ({ id: d.id, ...d.data() } as RegistroCivil));
+        regs.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+        cachedRegistros = regs;
+      }
       setRegistros(regs);
 
       // Cargar SOLAMENTE las oficinas asignadas específicamente a este usuario (máximo 2)
@@ -250,6 +316,29 @@ function EscaneoLibroContent() {
   }, [firestore, user, toast]);
 
   useEffect(() => { loadBase(); }, [loadBase]);
+
+  const handleOpenLibro = useCallback((l: LibroEscaneo) => {
+    setAutoStartCamera(false);
+    setLibroActivo(l);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('escaneo_activo_libro_id', l.id);
+      const url = new URL(window.location.href);
+      url.searchParams.set('libro', l.id);
+      window.history.pushState({}, '', url.toString());
+    }
+  }, []);
+
+  const handleBackFromLibro = useCallback(() => {
+    setLibroActivo(null);
+    setAutoStartCamera(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('escaneo_activo_libro_id');
+      const url = new URL(window.location.href);
+      url.searchParams.delete('libro');
+      window.history.pushState({}, '', url.toString());
+    }
+    loadBase();
+  }, [loadBase]);
 
   const misRegistros = useMemo(
     () => registros.filter(r => misRegistrosIds.includes(r.id)),
@@ -347,7 +436,7 @@ function EscaneoLibroContent() {
         <LibroScanner
           libro={libroActivo}
           autoStartCamera={autoStartCamera}
-          onBack={() => { setLibroActivo(null); setAutoStartCamera(false); loadBase(); }}
+          onBack={handleBackFromLibro}
           onLibroChange={setLibroActivo}
           onDownload={(fmt) => handleDownloadLibro(libroActivo, fmt)}
         />
@@ -411,7 +500,7 @@ function EscaneoLibroContent() {
           misRegistros={misRegistros}
           oficinaSeleccionadaId={oficinaSeleccionadaId}
           onSelectOficina={setOficinaSeleccionadaId}
-          onOpen={(l) => { setAutoStartCamera(false); setLibroActivo(l); }}
+          onOpen={handleOpenLibro}
           onNuevo={() => setShowNuevoLibro(true)}
           onDownload={handleDownloadLibro}
         />
@@ -424,7 +513,7 @@ function EscaneoLibroContent() {
             setShowNuevoLibro(false);
             setLibros(prev => [l, ...prev]);
             setAutoStartCamera(true);
-            setLibroActivo(l);
+            handleOpenLibro(l);
           }}
         />
 
@@ -925,6 +1014,334 @@ function NuevoLibroDialog({
   );
 }
 
+/* ===================== Modal de Cámara en Vivo (Ultra Rápida) ===================== */
+function CameraScannerModal({
+  open,
+  onClose,
+  targetFolio,
+  onTargetFolioChange,
+  numeros,
+  folios,
+  onSaveBlob,
+  onFallbackNative,
+}: {
+  open: boolean;
+  onClose: () => void;
+  targetFolio: number;
+  onTargetFolioChange: (n: number) => void;
+  numeros: number[];
+  folios: Record<number, Folio>;
+  onSaveBlob: (n: number, blob: Blob) => Promise<boolean>;
+  onFallbackNative: (n: number) => void;
+}) {
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [lastSaved, setLastSaved] = useState<number | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [flash, setFlash] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  const startStream = useCallback(async () => {
+    stopStream();
+    setErrorMsg(null);
+    setTorchOn(false);
+    setHasTorch(false);
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setErrorMsg('El navegador no tiene soporte directo para cámara en vivo. Use la cámara del sistema.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const caps = (track.getCapabilities ? track.getCapabilities() : {}) as any;
+        setHasTorch(Boolean(caps?.torch));
+      }
+    } catch (err: any) {
+      console.warn('Error accediendo a cámara:', err);
+      setErrorMsg(
+        err?.name === 'NotAllowedError'
+          ? 'Permiso de cámara denegado en el navegador.'
+          : 'No se pudo iniciar la cámara en vivo del dispositivo.'
+      );
+    }
+  }, [facingMode, stopStream]);
+
+  useEffect(() => {
+    if (open) {
+      startStream();
+    } else {
+      stopStream();
+      setLastSaved(null);
+    }
+    return () => {
+      stopStream();
+    };
+  }, [open, startStream, stopStream]);
+
+  const toggleTorch = async () => {
+    if (!streamRef.current) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const next = !torchOn;
+      await (track as any).applyConstraints({
+        advanced: [{ torch: next }],
+      });
+      setTorchOn(next);
+    } catch (e) {
+      console.warn('Error alternando linterna:', e);
+    }
+  };
+
+  const toggleFacingMode = () => {
+    setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'));
+  };
+
+  const handleCapture = async () => {
+    if (!videoRef.current || isCapturing) return;
+    setIsCapturing(true);
+    setFlash(true);
+    setTimeout(() => setFlash(false), 150);
+
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(40);
+      }
+    } catch {}
+
+    try {
+      const blob = await captureVideoToBlob(videoRef.current);
+      const current = targetFolio;
+      await onSaveBlob(current, blob);
+      setLastSaved(current);
+      setTimeout(() => setLastSaved(null), 2000);
+
+      if (autoAdvance) {
+        const next = numeros.find(x => x > current && !folios[x]);
+        if (next) {
+          onTargetFolioChange(next);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error al capturar folio:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  if (!open) return null;
+
+  const yaEscaneado = !!folios[targetFolio];
+  const idx = numeros.indexOf(targetFolio);
+  const prevFolio = idx > 0 ? numeros[idx - 1] : null;
+  const nextFolio = idx < numeros.length - 1 ? numeros[idx + 1] : null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/95 text-white flex flex-col justify-between select-none animate-in fade-in duration-200">
+      {/* BARRA SUPERIOR */}
+      <div className="p-4 sm:p-5 flex items-center justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent z-30">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="text-white hover:bg-white/20 font-black uppercase text-xs h-9 px-3 gap-1 rounded-xl"
+        >
+          <X className="h-4 w-4" /> Cerrar
+        </Button>
+
+        <div className="text-center">
+          <div className="inline-flex items-center gap-1.5 bg-emerald-600/80 backdrop-blur-md px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+            Cámara en Vivo
+          </div>
+          <h2 className="text-base sm:text-lg font-black uppercase tracking-tight mt-0.5">
+            Folio {targetFolio} <span className="text-xs text-white/60 font-medium">de {numeros[numeros.length - 1]}</span>
+          </h2>
+          {yaEscaneado && (
+            <p className="text-[10px] font-bold text-amber-300 uppercase">
+              ⚠️ Ya tiene foto (se reemplazará)
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {hasTorch && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTorch}
+              className={cn("h-9 w-9 rounded-xl text-white", torchOn ? "bg-amber-500 hover:bg-amber-600 text-black" : "hover:bg-white/20")}
+              title="Linterna"
+            >
+              {torchOn ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleFacingMode}
+            className="h-9 w-9 rounded-xl text-white hover:bg-white/20"
+            title="Cambiar Cámara"
+          >
+            <RotateCw className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* VISOR CENTRAL DE LA CÁMARA */}
+      <div className="relative flex-1 flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+        {errorMsg ? (
+          <div className="bg-zinc-900 border border-zinc-700 text-white rounded-3xl p-6 max-w-sm text-center space-y-4 shadow-2xl">
+            <AlertCircle className="h-10 w-10 text-amber-400 mx-auto" />
+            <p className="text-sm font-bold">{errorMsg}</p>
+            <p className="text-xs text-zinc-400">
+              Puede continuar utilizando la cámara del sistema o cargando fotos desde sus archivos.
+            </p>
+            <Button
+              onClick={() => { onClose(); onFallbackNative(targetFolio); }}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 font-black uppercase text-xs rounded-xl h-11 gap-2"
+            >
+              <Camera className="h-4 w-4" /> Abrir Cámara del Sistema
+            </Button>
+          </div>
+        ) : (
+          <div className="relative w-full max-w-md aspect-[3/4] max-h-[68vh] rounded-3xl overflow-hidden border-2 border-white/20 bg-zinc-950 shadow-2xl flex items-center justify-center">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+
+            {/* Flash al disparar */}
+            {flash && (
+              <div className="absolute inset-0 bg-white z-20 pointer-events-none transition-opacity duration-150" />
+            )}
+
+            {/* Guías de encuadre para la hoja del libro */}
+            <div className="absolute inset-5 pointer-events-none border-2 border-dashed border-white/30 rounded-2xl flex flex-col justify-between p-3">
+              <div className="flex justify-between items-start">
+                <div className="w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl shadow-sm" />
+                <div className="w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl shadow-sm" />
+              </div>
+              <div className="text-center">
+                <span className="bg-black/70 backdrop-blur-md text-[10px] font-black uppercase px-3 py-1 rounded-full text-emerald-300 tracking-wider shadow">
+                  Alinee la página del folio aquí
+                </span>
+              </div>
+              <div className="flex justify-between items-end">
+                <div className="w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl shadow-sm" />
+                <div className="w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-xl shadow-sm" />
+              </div>
+            </div>
+
+            {/* Aviso flotante de guardado */}
+            {lastSaved !== null && (
+              <div className="absolute top-4 bg-emerald-500 text-white font-black uppercase text-xs px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 z-30 animate-bounce">
+                <Check className="h-4 w-4" /> ¡Folio {lastSaved} Guardado!
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* BARRA INFERIOR DE CONTROLES */}
+      <div className="p-4 sm:p-6 bg-gradient-to-t from-black/90 via-black/70 to-transparent space-y-3 z-30">
+        <div className="flex items-center justify-center gap-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!prevFolio || isCapturing}
+            onClick={() => prevFolio && onTargetFolioChange(prevFolio)}
+            className="text-white hover:bg-white/20 font-black uppercase text-xs rounded-xl h-10 px-3 gap-1"
+          >
+            <ChevronLeft className="h-4 w-4" /> Folio {prevFolio || '—'}
+          </Button>
+
+          {/* BOTÓN DISPARADOR PRINCIPAL */}
+          <button
+            type="button"
+            disabled={isCapturing || !!errorMsg}
+            onClick={handleCapture}
+            className={cn(
+              "relative h-20 w-20 rounded-full border-4 border-white flex items-center justify-center transition-all shadow-2xl active:scale-90",
+              isCapturing ? "opacity-50 cursor-not-allowed bg-zinc-700" : "bg-emerald-500 hover:bg-emerald-400 cursor-pointer hover:scale-105"
+            )}
+          >
+            <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center">
+              {isCapturing ? (
+                <Loader2 className="h-8 w-8 animate-spin text-white" />
+              ) : (
+                <Camera className="h-8 w-8 text-white drop-shadow" />
+              )}
+            </div>
+          </button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!nextFolio || isCapturing}
+            onClick={() => nextFolio && onTargetFolioChange(nextFolio)}
+            className="text-white hover:bg-white/20 font-black uppercase text-xs rounded-xl h-10 px-3 gap-1"
+          >
+            Folio {nextFolio || '—'} <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* AJUSTES Y ALTERNATIVA NATIVA */}
+        <div className="flex flex-wrap items-center justify-between gap-2 max-w-md mx-auto pt-1">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold uppercase text-white/90">
+            <Checkbox
+              checked={autoAdvance}
+              onCheckedChange={v => setAutoAdvance(!!v)}
+              className="border-white data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+            />
+            <span>Avance continuo (Siguiente folio)</span>
+          </label>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { onClose(); onFallbackNative(targetFolio); }}
+            className="text-white/70 hover:text-white hover:bg-white/10 font-bold uppercase text-[10px] h-8 px-2"
+          >
+            <Upload className="h-3.5 w-3.5 mr-1" /> Usar cámara nativa / archivo
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ===================== Escáner de folios ===================== */
 function LibroScanner({
   libro,
@@ -948,6 +1365,9 @@ function LibroScanner({
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
   const [filter, setFilter] = useState<'todos' | 'pendientes' | 'escaneados'>('todos');
+  const [liveCameraOpen, setLiveCameraOpen] = useState(false);
+  const [liveCameraFolio, setLiveCameraFolio] = useState<number>(libro.folio_desde || 1);
+
   const cameraRef = useRef<HTMLInputElement>(null);
   const bulkRef = useRef<HTMLInputElement>(null);
   const targetFolio = useRef<number>(1);
@@ -977,11 +1397,24 @@ function LibroScanner({
     })();
   }, [firestore, libro.id, toast]);
 
-  // Si se viene desde el botón "Siguiente" de Agregar Libro, abrir directamente la cámara
+  const openLiveCamera = (n: number) => {
+    setLiveCameraFolio(n);
+    setLiveCameraOpen(true);
+  };
+
+  const openNativeCamera = (n: number) => {
+    targetFolio.current = n;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('escaneo_target_folio', String(n));
+    }
+    cameraRef.current?.click();
+  };
+
+  // Si se viene desde el botón "Siguiente" de Agregar Libro, abrir directamente la cámara en vivo
   useEffect(() => {
     if (autoStartCamera) {
       const timer = setTimeout(() => {
-        openCamera(libro.folio_desde || 1);
+        openLiveCamera(libro.folio_desde || 1);
       }, 400);
       return () => clearTimeout(timer);
     }
@@ -993,46 +1426,49 @@ function LibroScanner({
     onLibroChange({ ...libro, folios_escaneados: count });
   }, [firestore, libro, onLibroChange]);
 
-  const saveFolio = async (n: number, file: File): Promise<boolean> => {
+  const saveFolio = async (n: number, fileOrBlob: File | Blob): Promise<boolean> => {
     if (!firestore || !user) return false;
-    // 1. Optimizar resolución del folio preservando legibilidad de manuscritos
-    const blob = await compressPageToBlob(file);
+    setUploading(n);
+    try {
+      // 1. Optimizar resolución del folio preservando legibilidad de manuscritos
+      const blob = await compressPageToBlob(fileOrBlob);
 
-    // 2. Subir directamente a Cloudflare R2 mediante nuestra API
-    const formData = new FormData();
-    formData.append('file', blob, `folio_${String(n).padStart(4, '0')}.jpg`);
-    formData.append('libroId', libro.id);
-    formData.append('folio', String(n));
+      // 2. Subir directamente a Cloudflare R2 mediante nuestra API
+      const formData = new FormData();
+      formData.append('file', blob, `folio_${String(n).padStart(4, '0')}.jpg`);
+      formData.append('libroId', libro.id);
+      formData.append('folio', String(n));
 
-    const res = await fetch('/api/r2/upload', {
-      method: 'POST',
-      body: formData,
-    });
+      const res = await fetch('/api/r2/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-    const resData = await res.json();
-    if (!res.ok) {
-      throw new Error(resData.error || 'Error subiendo imagen a Cloudflare R2');
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.error || 'Error subiendo imagen a Cloudflare R2');
+      }
+
+      const publicUrl = resData.url;
+
+      // 3. Guardar metadatos y URL pública en Firestore
+      const data = {
+        folio: n,
+        foto: publicUrl,
+        usuario_id: user.uid,
+        username: user.profile?.username || user.email || '',
+        fecha: new Date().toISOString(),
+      };
+      const isNew = !folios[n];
+      await setDoc(doc(firestore, 'libros-escaneo', libro.id, 'folios', String(n).padStart(4, '0')), data);
+      setFolios(prev => ({ ...prev, [n]: { id: String(n), ...data } }));
+      if (isNew) {
+        await syncCount(Object.keys(folios).length + 1);
+      }
+      return isNew;
+    } finally {
+      setUploading(null);
     }
-
-    const publicUrl = resData.url;
-
-    // 3. Guardar solo los metadatos y la URL pública en Firestore
-    const data = {
-      folio: n,
-      foto: publicUrl,
-      usuario_id: user.uid,
-      username: user.profile?.username || user.email || '',
-      fecha: new Date().toISOString(),
-    };
-    const isNew = !folios[n];
-    await setDoc(doc(firestore, 'libros-escaneo', libro.id, 'folios', String(n).padStart(4, '0')), data);
-    setFolios(prev => ({ ...prev, [n]: { id: String(n), ...data } }));
-    return isNew;
-  };
-
-  const openCamera = (n: number) => {
-    targetFolio.current = n;
-    cameraRef.current?.click();
   };
 
   const handleCamera = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1040,19 +1476,12 @@ function LibroScanner({
     e.target.value = '';
     if (!file) return;
     const n = targetFolio.current;
-    setUploading(n);
     try {
-      const isNew = await saveFolio(n, file);
-      if (isNew) await syncCount(escaneados + 1);
-      toast({ title: `✅ Folio ${n} guardado en R2` });
-      // Abrir automáticamente el siguiente pendiente para agilizar el relevamiento continuo
-      const next = numeros.find(x => x > n && !folios[x]);
-      if (next && isNew) setTimeout(() => openCamera(next), 400);
+      await saveFolio(n, file);
+      toast({ title: `✅ Folio ${n} guardado con éxito` });
     } catch (err: any) {
       console.error(err);
       toast({ variant: 'destructive', title: `Error al guardar folio ${n}`, description: err?.message });
-    } finally {
-      setUploading(null);
     }
   };
 
@@ -1100,13 +1529,28 @@ function LibroScanner({
     }
   };
 
-
   const visibles = numeros.filter(n =>
     filter === 'todos' ? true : filter === 'pendientes' ? !folios[n] : !!folios[n]
   );
 
   return (
     <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full space-y-6">
+      {/* Modal de Cámara en Vivo */}
+      <CameraScannerModal
+        open={liveCameraOpen}
+        onClose={() => setLiveCameraOpen(false)}
+        targetFolio={liveCameraFolio}
+        onTargetFolioChange={setLiveCameraFolio}
+        numeros={numeros}
+        folios={folios}
+        onSaveBlob={async (n, blob) => {
+          const isNew = await saveFolio(n, blob);
+          toast({ title: `✅ Folio ${n} guardado` });
+          return isNew;
+        }}
+        onFallbackNative={(n) => openNativeCamera(n)}
+      />
+
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleCamera} />
       <input ref={bulkRef} type="file" accept="image/*" multiple className="hidden" onChange={handleBulk} />
 
@@ -1129,15 +1573,15 @@ function LibroScanner({
                 Folio Pendiente: N° {siguientePendiente} de {numeros.length}
               </h3>
               <p className="text-xs text-emerald-100 font-medium">
-                Presione el botón para abrir la cámara de su dispositivo y fotografiar la hoja.
+                Presione el botón para abrir la cámara en vivo y escanear de forma rápida y continua.
               </p>
             </div>
           </div>
           <Button
-            onClick={() => openCamera(siguientePendiente)}
+            onClick={() => siguientePendiente && openLiveCamera(siguientePendiente)}
             className="bg-white text-emerald-950 hover:bg-emerald-50 font-black uppercase text-xs h-12 px-7 rounded-2xl shadow-xl gap-2 shrink-0 w-full sm:w-auto"
           >
-            <Camera className="h-5 w-5 text-emerald-600" /> Abrir Cámara (Folio {siguientePendiente})
+            <Camera className="h-5 w-5 text-emerald-600 animate-pulse" /> Abrir Cámara en Vivo (Folio {siguientePendiente})
           </Button>
         </div>
       ) : (
@@ -1183,12 +1627,29 @@ function LibroScanner({
       {/* ===== ACCIONES ===== */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={() => siguientePendiente && openCamera(siguientePendiente)} disabled={!siguientePendiente || uploading !== null || !!bulkProgress}
-            className="font-black uppercase text-[10px] gap-2 h-11">
-            <Camera className="h-4 w-4" /> {siguientePendiente ? `Fotografiar folio ${siguientePendiente}` : 'Libro completo'}
+          <Button
+            onClick={() => siguientePendiente && openLiveCamera(siguientePendiente)}
+            disabled={!siguientePendiente || uploading !== null || !!bulkProgress}
+            className="font-black uppercase text-[10px] gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+          >
+            <Camera className="h-4 w-4" /> {siguientePendiente ? `Fotografiar folio ${siguientePendiente} (En Vivo)` : 'Libro completo'}
           </Button>
-          <Button variant="outline" onClick={() => bulkRef.current?.click()} disabled={!siguientePendiente || !!bulkProgress}
-            className="font-black uppercase text-[10px] gap-2 h-11">
+
+          <Button
+            variant="outline"
+            onClick={() => siguientePendiente && openNativeCamera(siguientePendiente)}
+            disabled={!siguientePendiente || uploading !== null || !!bulkProgress}
+            className="font-black uppercase text-[10px] gap-2 h-11"
+          >
+            <ImageIcon className="h-4 w-4 text-muted-foreground" /> Cámara del sistema / Galería
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => bulkRef.current?.click()}
+            disabled={!siguientePendiente || !!bulkProgress}
+            className="font-black uppercase text-[10px] gap-2 h-11"
+          >
             <Upload className="h-4 w-4" /> Cargar varias fotos
           </Button>
 
@@ -1251,7 +1712,7 @@ function LibroScanner({
             const f = folios[n];
             return (
               <button key={n} type="button"
-                onClick={() => (f ? setViewer(n) : openCamera(n))}
+                onClick={() => (f ? setViewer(n) : openLiveCamera(n))}
                 className={cn(
                   'relative aspect-[3/4] rounded-lg border-2 overflow-hidden flex flex-col items-center justify-center transition-all hover:scale-105 hover:shadow-lg',
                   f ? 'border-green-600' : 'border-dashed border-muted-foreground/30 bg-white hover:border-primary'
@@ -1297,8 +1758,8 @@ function LibroScanner({
                     <Trash2 className="h-4 w-4" /> Eliminar
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => { const n = viewer; setViewer(null); openCamera(n); }} className="font-black uppercase text-[10px] gap-2">
-                  <Camera className="h-4 w-4" /> Volver a fotografiar
+                <Button variant="outline" onClick={() => { const n = viewer; setViewer(null); openLiveCamera(n); }} className="font-black uppercase text-[10px] gap-2">
+                  <Camera className="h-4 w-4" /> Volver a fotografiar en vivo
                 </Button>
               </DialogFooter>
             </>
