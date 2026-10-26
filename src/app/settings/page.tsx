@@ -23,13 +23,17 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
 import { ACTION_LABELS, GLOBAL_PERMS } from '@/lib/permissions-config';
+import Link from 'next/link';
 import {
   Shield,
   FileCheck,
   Layout,
   Bookmark,
   RefreshCw,
-  Zap
+  Zap,
+  Building2,
+  Users,
+  ArrowRight
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -549,9 +553,12 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="geografia" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 lg:w-[850px] bg-white border shadow-sm h-auto p-1">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 lg:w-[1020px] bg-white border shadow-sm h-auto p-1">
             <TabsTrigger value="geografia" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Database className="h-3.5 w-3.5" /> Geografía
+            </TabsTrigger>
+            <TabsTrigger value="registros-civiles" className="gap-2 font-black uppercase text-[10px] py-2">
+                <Building2 className="h-3.5 w-3.5 text-primary" /> Registros Civiles
             </TabsTrigger>
             <TabsTrigger value="perfiles" className="gap-2 font-black uppercase text-[10px] py-2">
                 <Shield className="h-3.5 w-3.5" /> Perfiles Acceso
@@ -658,6 +665,93 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
                 </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="registros-civiles" className="space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="shadow-lg border-t-4 border-t-primary rounded-2xl overflow-hidden bg-white">
+                <CardHeader className="bg-muted/10 border-b p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-black uppercase tracking-tight">Catálogo y Migración de Oficinas</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground mt-0.5">
+                        Importación masiva Excel/CSV, Upsert, reemplazo total y plantillas.
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Cargue o actualice la base de datos completa de las Oficinas del Registro Civil mediante archivos Excel (<code className="font-mono text-primary font-bold">.xlsx</code>, <code className="font-mono text-primary font-bold">.xls</code>) o <code className="font-mono text-primary font-bold">.csv</code>.
+                  </p>
+                  <div className="bg-muted/20 border rounded-xl p-4 space-y-2 text-[11px]">
+                    <div className="font-black uppercase text-foreground flex items-center gap-2">
+                      <FileUp className="h-3.5 w-3.5 text-primary" /> Funcionalidades Disponibles:
+                    </div>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li>Descarga de plantilla oficial en Excel.</li>
+                      <li>Fusión Inteligente (Upsert) sin borrar el catálogo existente.</li>
+                      <li>Reemplazo total con confirmación de seguridad.</li>
+                      <li>Exportación del catálogo actual a Excel.</li>
+                    </ul>
+                  </div>
+                </CardContent>
+                <CardFooter className="p-6 pt-0">
+                  <Button asChild className="w-full gap-2 font-black uppercase text-xs h-11 shadow-sm">
+                    <Link href="/importar-oficinas">
+                      Ir a Gestión de Datos: Catálogo REC <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              <Card className="shadow-lg border-t-4 border-t-black rounded-2xl overflow-hidden bg-white">
+                <CardHeader className="bg-muted/10 border-b p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-black/10 text-black flex items-center justify-center">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-black uppercase tracking-tight">Asignación de Usuarios de Distrito</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground mt-0.5">
+                        Límite estricto de hasta 2 oficinas por usuario según reglas del sistema.
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Asigne a cada usuario de distrito 1 o 2 oficinas registrales de su jurisdicción para emisión de actas y gestión de libros escaneados.
+                  </p>
+                  <div className="bg-muted/20 border rounded-xl p-4 space-y-2 text-[11px]">
+                    <div className="font-black uppercase text-foreground flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5 text-primary" /> Reglas y Accesos Rápidos:
+                    </div>
+                    <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                      <li>Asignación rápida desde el Directorio de Usuarios por Jurisdicción.</li>
+                      <li>Sugerencia automática de oficinas del mismo distrito del usuario.</li>
+                      <li>Control de límite máximo (1 o 2 oficinas) con alerta de sobrecupo.</li>
+                      <li>Relleno automático en 1 clic en Actas de Defunción.</li>
+                    </ul>
+                  </div>
+                </CardContent>
+                <CardFooter className="p-6 pt-0 flex gap-2">
+                  <Button asChild variant="outline" className="flex-1 gap-2 font-black uppercase text-xs h-11 border-2">
+                    <Link href="/users">
+                      Directorio Usuarios <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button asChild className="flex-1 gap-2 font-black uppercase text-xs h-11 bg-black text-white hover:bg-neutral-800">
+                    <Link href="/escaneo-libro">
+                      Panel Asignaciones <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
             </div>
           </TabsContent>
 

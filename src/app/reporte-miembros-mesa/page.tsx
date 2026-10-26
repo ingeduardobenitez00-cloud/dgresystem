@@ -24,7 +24,7 @@ export default function ReporteMiembrosMesaPage() {
     const { toast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
 
-    const isAdmin = ['admin', 'director', 'coordinador'].includes(user?.profile?.role || '') || user?.isOwner;
+    const isAdmin = ['admin', 'director', 'coordinador', 'superadmin'].includes(user?.profile?.role || '') || user?.isOwner || user?.isSuperAdmin;
 
     const [isHistorical, setIsHistorical] = useState(false);
 
@@ -111,7 +111,16 @@ export default function ReporteMiembrosMesaPage() {
                 let m = 0;
                 let total = 0;
 
-                if (informes.length > 0) {
+                const solH = Number(sol.cant_hombres) || 0;
+                const solM = Number(sol.cant_mujeres) || 0;
+
+                if (isMM && (solH > 0 || solM > 0)) {
+                    // Informe MM cargado directamente en la agenda (Paso 7): es la fuente oficial,
+                    // aunque se haya omitido la planilla física u otros pasos.
+                    h = solH;
+                    m = solM;
+                    total = h + m;
+                } else if (informes.length > 0) {
                     informes.forEach((inf: any) => {
                         const infTotal = inf.total_personas || 0;
                         total += infTotal;

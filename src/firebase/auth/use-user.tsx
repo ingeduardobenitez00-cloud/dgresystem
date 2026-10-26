@@ -43,7 +43,8 @@ export const ALL_SYSTEM_MODULES = [
   'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
   'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
   'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
-  'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
+  'importar-locales', 'importar-partidos', 'importar-oficinas', 'escaneo-libro', 'acta-defuncion', 'reporte-miembros-mesa',
+  'users', 'settings', 'documentacion', 'auditoria',
   'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes', 'compendio-general', 'informe-cidee',
   'archivo-anexo-i', 'archivo-anexo-v', 'archivo-semanal-registro'
 ];

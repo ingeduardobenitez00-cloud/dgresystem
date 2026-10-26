@@ -45,7 +45,9 @@ import {
   Settings,
   MapPin,
   Calendar,
-  Cpu
+  Cpu,
+  Building2,
+  ScanLine
 } from "lucide-react";
 import { useUser, CIDEE_MODULES, JEFE_MODULES } from "@/firebase/auth/use-user";
 import { useModuleCategories } from "@/firebase";
@@ -101,6 +103,10 @@ const MODULE_REGISTRY: Record<string, { label: string; icon: any }> = {
   'importar-reportes': { label: "Importar Reportes", icon: MapPin },
   'importar-locales': { label: "Importar Locales", icon: MapPin },
   'importar-partidos': { label: "Importar Partidos", icon: Flag },
+  'importar-oficinas': { label: "Importar Oficinas REC", icon: Building2 },
+
+  // DEPURACIONES
+  'escaneo-libro': { label: "Escaneo de Libros REC", icon: ScanLine },
 
   // SISTEMA
   'users': { label: "Usuarios", icon: Users },

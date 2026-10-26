@@ -466,6 +466,7 @@ const DistrictSection = ({
                           return 8; // Concluido
                      })();
 
+                     const isSuperAdmin = profile?.role === 'superadmin';
                      const showStep1 = !hasPersonnel;
                      const showStep2 = !!(hasPersonnel && !item.qr_enabled);
                      const showStep3 = !!(hasPersonnel && !!item.qr_enabled && !hasSalida && !isQRViewed);
@@ -625,7 +626,7 @@ const DistrictSection = ({
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <Button disabled={(item.divulgadores || item.asignados || []).length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
+                                                    <Button disabled={!isSuperAdmin && (item.divulgadores || item.asignados || []).length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
                                                 )}
                                             </div>
 
@@ -651,7 +652,7 @@ const DistrictSection = ({
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <Button disabled={!qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { const url = window.location.origin + `/encuesta-satisfaccion?solicitudId=${item.id}`; setQrSolicitud({ ...item, qr_url: url }); markQRAsViewed(item.id); }}>IMPRIMIR</Button>
+                                                    <Button disabled={!isSuperAdmin && !qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { const url = window.location.origin + `/encuesta-satisfaccion?solicitudId=${item.id}`; setQrSolicitud({ ...item, qr_url: url }); markQRAsViewed(item.id); }}>IMPRIMIR</Button>
                                                 )}
                                             </div>
 
@@ -674,7 +675,7 @@ const DistrictSection = ({
                                                         <Eye className="h-3 w-3" /> VER
                                                     </Button>
                                                 ) : (
-                                                    <Button disabled={!isQRViewed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>SALIDA</Button>
+                                                    <Button disabled={!isSuperAdmin && !isQRViewed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>SALIDA</Button>
                                                 )}
                                             </div>
 
@@ -698,7 +699,7 @@ const DistrictSection = ({
                                                     missingInformesFrom.length > 1 ? (
                                                         <Popover>
                                                             <PopoverTrigger asChild>
-                                                                <Button disabled={!hasSalida} size="sm" className="h-7 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[7px] font-black uppercase shrink-0 shadow-sm border border-indigo-700">INFORME ({missingInformesFrom.length})</Button>
+                                                                <Button disabled={!isSuperAdmin && !hasSalida} size="sm" className="h-7 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[7px] font-black uppercase shrink-0 shadow-sm border border-indigo-700">INFORME ({missingInformesFrom.length})</Button>
                                                             </PopoverTrigger>
                                                             <PopoverContent className="w-[300px] sm:w-[350px] p-3 rounded-2xl shadow-2xl border border-indigo-100 bg-white/95 backdrop-blur-sm">
                                                                 <p className="text-[10px] font-black uppercase text-indigo-900/60 mb-3 px-2 flex items-center gap-2">
@@ -722,7 +723,7 @@ const DistrictSection = ({
                                                             </PopoverContent>
                                                         </Popover>
                                                     ) : (
-                                                        <Button disabled={!hasSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
+                                                        <Button disabled={!isSuperAdmin && !hasSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
                                                             const targetId = missingInformesFrom.length === 1 ? `&reporterUid=${missingInformesFrom[0].id}` : '';
                                                             router.push(`/informe-divulgador?solicitudId=${item.id}${targetId}`);
                                                         }}>INFORME</Button>
@@ -749,7 +750,7 @@ const DistrictSection = ({
                                                         <Eye className="h-3 w-3" /> VER
                                                     </Button>
                                                 ) : (
-                                                    <Button disabled={pendingAnexoIII || (item.divulgadores || item.asignados || []).length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
+                                                    <Button disabled={!isSuperAdmin && (pendingAnexoIII || (item.divulgadores || item.asignados || []).length === 0)} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
                                                 )}
                                             </div>
 
@@ -770,7 +771,7 @@ const DistrictSection = ({
                                                 {item.fecha_cumplido ? (
                                                     <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
                                                 ) : (
-                                                    <Button disabled={!hasRetorno} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
+                                                    <Button disabled={!isSuperAdmin && !hasRetorno} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
                                                 )}
                                             </div>
                                         </div>
@@ -834,7 +835,7 @@ const DistrictSection = ({
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <Button disabled={assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
+                                                    <Button disabled={!isSuperAdmin && assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
                                                 )}
                                             </div>
 
@@ -868,7 +869,7 @@ const DistrictSection = ({
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <Button disabled={!qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { 
+                                                    <Button disabled={!isSuperAdmin && !qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { 
                                                         const baseUrl = '/evaluacion-mm';
                                                         const url = window.location.origin + `${baseUrl}?solicitudId=${item.id}`;
                                                         setQrSolicitud({ ...item, qr_url: url }); 
@@ -898,7 +899,7 @@ const DistrictSection = ({
                                                 ) : (
                                                     <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className={cn(
                                                         "flex items-center justify-center h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0 leading-none",
-                                                        !isQRViewed ? "pointer-events-none opacity-40" : ""
+                                                        !isQRViewed && !isSuperAdmin ? "pointer-events-none opacity-40" : ""
                                                     )}>SALIDA</Link>
                                                 )}
                                             </div>
@@ -920,7 +921,7 @@ const DistrictSection = ({
                                                 {item.planilla_cidee_printed ? (
                                                     <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
                                                 ) : (
-                                                    <Button disabled={!hasSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
+                                                    <Button disabled={!isSuperAdmin && !hasSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
                                                         import('@/lib/pdf-cidee').then(async m => {
                                                             m.generatePlanillaCIDEE(item);
                                                             try {
@@ -953,7 +954,7 @@ const DistrictSection = ({
                                                         <CheckCircle2 className="h-3 w-3" /> VER / MAS ({(item.planilla_fotos_urls?.length || 0) + (item.planilla_foto_url ? 1 : 0)})
                                                     </Button>
                                                 ) : (
-                                                    <Button disabled={!item.planilla_cidee_printed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setUploadingPlanilla(item)}>SUBIR</Button>
+                                                    <Button disabled={!isSuperAdmin && !item.planilla_cidee_printed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setUploadingPlanilla(item)}>SUBIR</Button>
                                                 )}
                                             </div>
 
@@ -977,7 +978,7 @@ const DistrictSection = ({
                                                         <span className="text-[7px] font-black text-green-600 uppercase mt-0.5 leading-none">H:{item.cant_hombres || 0} M:{item.cant_mujeres || 0}</span>
                                                     </div>
                                                 ) : (
-                                                    <Button disabled={!hasPlanillaFotos} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
+                                                    <Button disabled={!isSuperAdmin && !hasPlanillaFotos} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
                                                         setMMReportSolicitud(item);
                                                         setHombres(item.cant_hombres || 0);
                                                         setMujeres(item.cant_mujeres || 0);
@@ -1006,7 +1007,7 @@ const DistrictSection = ({
                                                 ) : (
                                                     <Link href={`/control-movimiento-maquinas?solicitudId=${item.id}`} className={cn(
                                                         "flex items-center justify-center h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0 leading-none",
-                                                        !(item.cant_hombres || item.cant_mujeres) ? "pointer-events-none opacity-40" : ""
+                                                        !(item.cant_hombres || item.cant_mujeres) && !isSuperAdmin ? "pointer-events-none opacity-40" : ""
                                                     )}>RETORNO</Link>
                                                 )}
                                             </div>
@@ -1028,7 +1029,7 @@ const DistrictSection = ({
                                                 {item.fecha_cumplido ? (
                                                     <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
                                                 ) : (
-                                                    <Button disabled={!hasRetorno} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
+                                                    <Button disabled={!isSuperAdmin && !hasRetorno} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
                                                 )}
                                             </div>
                                         </div>

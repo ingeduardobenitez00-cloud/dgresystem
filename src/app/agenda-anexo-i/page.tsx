@@ -392,6 +392,7 @@ const DistrictSection = ({
                      const isManuallyActive = item.qr_expires_at && currentTime < new Date(item.qr_expires_at);
                      const qrActive = item.qr_enabled && (!isPastEvent || isManuallyActive);
 
+                    const isSuperAdmin = profile?.role === 'superadmin';
                     const showStep1 = assignedList.length === 0;
                     const showStep2 = !!(assignedList.length > 0 && !item.qr_enabled);
                     const showStep3 = !!(assignedList.length > 0 && !!item.qr_enabled && !mov && !isQRViewed);
@@ -508,7 +509,7 @@ const DistrictSection = ({
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <Button disabled={assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
+                                                <Button disabled={!isSuperAdmin && assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => handleToggleQr(item)}>ENCENDER</Button>
                                             )}
                                         </div>
 
@@ -534,7 +535,7 @@ const DistrictSection = ({
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <Button disabled={!qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }}>IMPRIMIR</Button>
+                                                <Button disabled={!isSuperAdmin && !qrActive} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => { setQrSolicitud(item); markQRAsViewed(item.id); }}>IMPRIMIR</Button>
                                             )}
                                         </div>
 
@@ -557,7 +558,7 @@ const DistrictSection = ({
                                                     <Eye className="h-3 w-3" /> VER
                                                 </Button>
                                             ) : (
-                                                <Button disabled={!isQRViewed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>SALIDA</Button>
+                                                <Button disabled={!isSuperAdmin && !isQRViewed} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>SALIDA</Button>
                                             )}
                                         </div>
 
@@ -581,7 +582,7 @@ const DistrictSection = ({
                                                 missingInformesFrom.length > 1 ? (
                                                     <Popover>
                                                         <PopoverTrigger asChild>
-                                                            <Button disabled={pendingSalida} size="sm" className="h-7 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[7px] font-black uppercase shrink-0 shadow-sm border border-indigo-700">INFORME ({missingInformesFrom.length})</Button>
+                                                            <Button disabled={!isSuperAdmin && pendingSalida} size="sm" className="h-7 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[7px] font-black uppercase shrink-0 shadow-sm border border-indigo-700">INFORME ({missingInformesFrom.length})</Button>
                                                         </PopoverTrigger>
                                                         <PopoverContent className="w-[300px] sm:w-[350px] p-3 rounded-2xl shadow-2xl border border-indigo-100 bg-white/95 backdrop-blur-sm">
                                                             <p className="text-[10px] font-black uppercase text-indigo-900/60 mb-3 px-2 flex items-center gap-2">
@@ -605,7 +606,7 @@ const DistrictSection = ({
                                                         </PopoverContent>
                                                     </Popover>
                                                 ) : (
-                                                    <Button disabled={pendingSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
+                                                    <Button disabled={!isSuperAdmin && pendingSalida} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => {
                                                         const targetId = missingInformesFrom.length === 1 ? `&reporterUid=${missingInformesFrom[0].id}` : '';
                                                         router.push(`/informe-divulgador?solicitudId=${item.id}${targetId}`);
                                                     }}>INFORME</Button>
@@ -632,7 +633,7 @@ const DistrictSection = ({
                                                     <Eye className="h-3 w-3" /> VER
                                                 </Button>
                                             ) : (
-                                                <Button disabled={pendingInforme || assignedList.length === 0} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
+                                                <Button disabled={!isSuperAdmin && (pendingInforme || assignedList.length === 0)} size="sm" className="h-7 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => router.push(`/control-movimiento-maquinas?solicitudId=${item.id}`)}>RETORNO</Button>
                                             )}
                                         </div>
 
@@ -653,7 +654,7 @@ const DistrictSection = ({
                                             {item.fecha_cumplido ? (
                                                 <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
                                             ) : (
-                                                <Button disabled={!isFulfilled} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
+                                                <Button disabled={!isSuperAdmin && !isFulfilled} size="sm" className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[8px] font-black uppercase shrink-0" onClick={() => setConcludingSolicitud(item)}>CONCLUIR</Button>
                                             )}
                                         </div>
                                     </div>

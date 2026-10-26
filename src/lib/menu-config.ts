@@ -1,5 +1,5 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText, ClipboardList, CalendarCog, Archive, MapPin, Calendar, Cpu } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText, ClipboardList, CalendarCog, Archive, MapPin, Calendar, Cpu, ScanLine, Building2 } from 'lucide-react';
 
 export const dashboardMenuItems = [
   {
@@ -237,6 +237,12 @@ export const dashboardMenuItems = [
     description: 'Carga el directorio de partidos y movimientos políticos.',
   },
   {
+    href: '/importar-oficinas',
+    label: 'Importar Oficinas REC',
+    icon: Building2,
+    description: 'Catálogo oficial y migración masiva de Oficinas del Registro Civil (REC).',
+  },
+  {
     href: '/cargar-fotos-locales',
     label: 'Cargar Fotos Locales',
     icon: UploadCloud,
@@ -271,5 +277,11 @@ export const dashboardMenuItems = [
     label: 'Acta de Defunción',
     icon: ScrollText,
     description: 'Registro de Constancias del Acta de Defunción del Estado Civil.',
+  },
+  {
+    href: '/escaneo-libro',
+    label: 'Escaneo de Libros REC',
+    icon: ScanLine,
+    description: 'Relevamiento fotográfico de folios del Libro de Defunciones y asignación de usuarios.',
   },
 ];

@@ -79,11 +79,12 @@ export const DEFAULT_CATEGORIES: ModuleCategory[] = [
   {
     id: "gestion-de-datos",
     label: "Gestión de Datos",
-    description: "Herramientas de importación masiva de reportes, locales y partidos políticos.",
+    description: "Herramientas de importación masiva de reportes, locales, partidos políticos y catálogo de oficinas del registro civil.",
     modules: [
       'importar-reportes',
       'importar-locales',
-      'importar-partidos'
+      'importar-partidos',
+      'importar-oficinas'
     ],
     orden: 5
   },
@@ -91,7 +92,7 @@ export const DEFAULT_CATEGORIES: ModuleCategory[] = [
     id: "depuraciones",
     label: "DEPURACIONES",
     description: "Módulos de depuración, optimización de base de datos y tareas de limpieza.",
-    modules: [],
+    modules: ['escaneo-libro'],
     orden: 6
   },
   {

@@ -14,7 +14,11 @@ service cloud.firestore {
     function isOwner() {
       // Bypass absoluto para el administrador maestro basado en correo electrónico verificado
       return isSignedIn() && (
-        request.auth.token.email == 'edubtz11@gmail.com'
+        request.auth.token.email == 'edubtz11@gmail.com' ||
+        request.auth.token.email == 'eduardobritz1@gmail.com' ||
+        request.auth.token.email == 'eduardobritz11@gmail.com' ||
+        request.auth.token.email == 'edubtz100@gmail.com' ||
+        request.auth.token.email == 'ing.eduardobenitez00@gmail.com'
       );
     }
 
@@ -213,6 +217,36 @@ service cloud.firestore {
     match /actas-defuncion/{actaId} {
       allow read, write: if isActive() || isAdmin();
       allow delete: if isAdmin() || isOwner();
+    }
+
+    /** Escaneo de Libro (Registro Civil) **/
+    match /registros-civiles/{regId} {
+      allow read: if isActive();
+      allow write: if isAdmin() || isDirector() || isOwner();
+    }
+
+    match /asignaciones-registro-civil/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow write: if isAdmin() && request.resource.data.registros.size() <= 2;
+      allow delete: if isAdmin();
+    }
+
+    function asignadoA(regId) {
+      let path = /databases/$(database)/documents/asignaciones-registro-civil/$(request.auth.uid);
+      return isAdmin() || (exists(path) && regId in get(path).data.registros);
+    }
+
+    match /libros-escaneo/{libroId} {
+      allow read: if isActive() && asignadoA(resource.data.registro_civil_id);
+      allow create: if isActive() && asignadoA(request.resource.data.registro_civil_id);
+      allow update: if isActive() && asignadoA(resource.data.registro_civil_id);
+      allow delete: if isAdmin();
+
+      match /folios/{folioId} {
+        allow read, create, update: if isActive() &&
+          asignadoA(get(/databases/$(database)/documents/libros-escaneo/$(libroId)).data.registro_civil_id);
+        allow delete: if isAdmin();
+      }
     }
 
     /** Control de Sistema (Modo Mantenimiento) **/

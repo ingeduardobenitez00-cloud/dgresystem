@@ -8,9 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, FileText, Save, Search, Trash2, Plus, ScrollText } from 'lucide-react';
+import { Loader2, FileText, Save, Search, Trash2, Plus, ScrollText, Building2 } from 'lucide-react';
 import { useUser, useFirebase, useMemoFirebase, useCollectionOnce } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, deleteDoc, doc, getDocs, getDoc } from 'firebase/firestore';
 import { type ActaDefuncion } from '@/lib/data';
 import { recordAuditLog } from '@/lib/audit';
 import { cn } from '@/lib/utils';
@@ -98,6 +98,7 @@ function ActaDefuncionContent() {
   const [isSearchingCedula, setIsSearchingCedula] = useState(false);
   const [padronFound, setPadronFound] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [misOficinas, setMisOficinas] = useState<any[]>([]);
 
   const actasQuery = useMemoFirebase(() => {
     if (!firestore || activeTab !== 'historial') return null;
@@ -116,6 +117,39 @@ function ActaDefuncionContent() {
       fecha_expedicion: today.toISOString().split('T')[0],
     }));
   }, []);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+    (async () => {
+      try {
+        const asigDoc = await getDoc(doc(firestore, 'asignaciones-registro-civil', user.uid));
+        const regIds: string[] = (asigDoc.exists() ? asigDoc.data()?.registros : []) || user.profile?.oficinas_registro_civil || [];
+        if (regIds.length > 0) {
+          const snap = await getDocs(collection(firestore, 'registros-civiles'));
+          const matched = snap.docs.filter(d => regIds.includes(d.id)).map(d => ({ id: d.id, ...(d.data() as any) }));
+          setMisOficinas(matched);
+          // Si tiene exactamente 1 oficina asignada y los campos están vacíos, autocompletar
+          if (matched.length === 1) {
+            const one = matched[0];
+            setForm(prev => {
+              if (!prev.oficina_numero) {
+                return {
+                  ...prev,
+                  oficina_numero: one.numero || '',
+                  oficina_descripcion: one.nombre || '',
+                  departamento_registral: one.departamento || '',
+                  distrito_registral: one.distrito || '',
+                };
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Error loading user assigned civil registry offices', e);
+      }
+    })();
+  }, [firestore, user]);
 
   const set = (field: keyof FormState, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -323,6 +357,37 @@ function ActaDefuncionContent() {
 
               {/* DATOS DE LA OFICINA REGISTRAL */}
               <SectionHeader title="Datos de la Oficina Registral" />
+              {misOficinas.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap mb-4 p-3 bg-muted/20 rounded-xl border border-dashed">
+                  <span className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-primary" /> Oficinas Asignadas a su Distrito:
+                  </span>
+                  {misOficinas.map(ofi => (
+                    <Button
+                      key={ofi.id}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setForm(p => ({
+                          ...p,
+                          oficina_numero: ofi.numero || '',
+                          oficina_descripcion: ofi.nombre || '',
+                          departamento_registral: ofi.departamento || '',
+                          distrito_registral: ofi.distrito || '',
+                        }));
+                        toast({ title: `Oficina N° ${ofi.numero} — ${ofi.nombre} seleccionada` });
+                      }}
+                      className={cn(
+                        "font-black uppercase text-[9px] h-8 px-3 rounded-lg border-2 transition-all gap-1.5",
+                        form.oficina_numero === ofi.numero ? "bg-black text-white border-black" : "hover:bg-primary/5"
+                      )}
+                    >
+                      <Building2 className="h-3 w-3" /> N° {ofi.numero} — {ofi.nombre} ({ofi.distrito})
+                    </Button>
+                  ))}
+                </div>
+              )}
               <FieldRow className="grid-cols-2 md:grid-cols-4">
                 <Field label="Oficina N°">{smallInp('oficina_numero', '000', 'w-full')}</Field>
                 <div className="col-span-3">

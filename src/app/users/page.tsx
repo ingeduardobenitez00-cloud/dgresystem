@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from 'react';
+import Link from 'next/link';
 import Header from '@/components/header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -30,6 +31,7 @@ import {
   CheckCircle2,
   AlertCircle,
   MapPin,
+  Layers,
   Clock,
   ChevronRight,
   UserCircle,
@@ -41,6 +43,7 @@ import { useFirebase, useCollectionOnce, useMemoFirebase, useUser, useCollection
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, updateDoc, writeBatch, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { dashboardMenuItems } from '@/lib/menu-config';
+import { ACTION_LABELS, MODULE_STRUCTURE, GLOBAL_PERMS } from '@/lib/permissions-config';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -79,9 +82,114 @@ type UserProfile = {
   presence?: any;
   profileId?: string | null;
   registration_method?: string;
+  oficinas_registro_civil?: string[];
 };
 
-import { ACTION_LABELS, MODULE_STRUCTURE, GLOBAL_PERMS } from '@/lib/permissions-config';
+const normalizeDept = (dept?: string): string => {
+  if (!dept) return '';
+  let s = String(dept)
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^\d+\s*-\s*/, '')
+    .trim();
+  
+  if (s === 'SEDE CENTRAL' || s === 'DGRE' || s === 'SEDE CENTRAL DGRE') return 'SEDE CENTRAL';
+  if (s === 'CAPITAL' || s === 'ASUNCION' || s === 'ASUNCIÓN' || s === 'DISTRITO CAPITAL') return 'CAPITAL';
+  return s;
+};
+
+const deptsMatch = (a?: string, b?: string): boolean => {
+  if (!a || !b) return false;
+  const nA = normalizeDept(a);
+  const nB = normalizeDept(b);
+  if (!nA || !nB) return false;
+
+  // SEDE CENTRAL representa la Sede Central en Asunción / Capital, NUNCA el Departamento 11 Central
+  if (nA === 'SEDE CENTRAL') {
+    return nB === 'SEDE CENTRAL' || nB === 'CAPITAL' || nB === 'ASUNCION';
+  }
+  if (nB === 'SEDE CENTRAL') {
+    return nA === 'SEDE CENTRAL' || nA === 'CAPITAL' || nA === 'ASUNCION';
+  }
+
+  // Prevenir que CENTRAL coincida con SEDE CENTRAL
+  if (nA === 'CENTRAL' && nB !== 'CENTRAL') return false;
+  if (nB === 'CENTRAL' && nA !== 'CENTRAL') return false;
+
+  return nA === nB;
+};
+
+const normalizeDist = (dist?: string): string => {
+  if (!dist) return '';
+  return String(dist)
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^\d+\s*-\s*/, '')
+    .trim();
+};
+
+const distsMatch = (a?: string, b?: string): boolean => {
+  if (!a || !b) return false;
+  const nA = normalizeDist(a);
+  const nB = normalizeDist(b);
+  if (!nA || !nB) return false;
+  if (nA === nB) return true;
+  if ((nA === 'CAPITAL' && nB === 'ASUNCION') || (nA === 'ASUNCION' && nB === 'CAPITAL')) return true;
+  if (nA.length >= 4 && nB.length >= 4) {
+    if (nA.includes(nB) || nB.includes(nA)) return true;
+  }
+  return false;
+};
+
+const geoMatches = (a?: string, b?: string): boolean => {
+  return distsMatch(a, b);
+};
+
+const matchesUserDistrict = (r: any, u?: { departamento?: string; distrito?: string } | null): boolean => {
+  if (!u) return false;
+  const userDist = (u.distrito || '').trim().toUpperCase();
+  const userDept = (u.departamento || '').trim().toUpperCase();
+  if (!userDist || userDist === 'TODOS LOS DISTRITOS' || userDist === 'SIN DISTRITO') return false;
+  if (userDept && userDept !== 'ALCANCE NACIONAL' && !deptsMatch(r.departamento, userDept)) return false;
+
+  const rDist = (r.distrito || '').trim().toUpperCase();
+  const rNombre = (r.nombre || '').trim().toUpperCase();
+
+  if (distsMatch(rDist, userDist)) return true;
+  const cleanDist = normalizeDist(userDist);
+  const cleanNombre = normalizeDist(rNombre);
+  return cleanDist.length >= 4 && cleanNombre.includes(cleanDist);
+};
+
+const matchesUserJurisdiction = (r: any, u?: { departamento?: string; distrito?: string } | null): boolean => {
+  if (!u) return false;
+  const userDept = (u.departamento || '').trim().toUpperCase();
+  const userDist = (u.distrito || '').trim().toUpperCase();
+
+  const rDept = (r.departamento || '').trim().toUpperCase();
+
+  // Si no tiene departamento o es de alcance nacional
+  if (!userDept || userDept === 'ALCANCE NACIONAL' || userDept === 'SIN DEPARTAMENTO') {
+    return true;
+  }
+
+  // REGLA CLAVE: La oficina debe pertenecer al departamento del funcionario
+  if (!deptsMatch(rDept, userDept)) {
+    return false;
+  }
+
+  // Si el usuario tiene un distrito asignado y coincide, es sugerencia prioritaria
+  if (userDist && userDist !== 'TODOS LOS DISTRITOS' && userDist !== 'SIN DISTRITO') {
+    if (matchesUserDistrict(r, u)) return true;
+  }
+
+  // Pertenece al mismo departamento
+  return true;
+};
 
 const PermissionMatrix = ({ 
   userObj, 
@@ -110,7 +218,7 @@ const PermissionMatrix = ({
       return acc;
     }, {} as Record<string, string>);
 
-    return categories.map(cat => {
+    return (categories || []).map(cat => {
       const items: any[] = [];
       (cat.modules || []).forEach(moduleId => {
         const label = labelsMap[moduleId] || moduleId.toUpperCase();
@@ -285,6 +393,22 @@ function UsersContent() {
   const presenceQuery = useMemoFirebase(() => firestore ? collection(firestore, 'presencia') : null, [firestore]);
   const { data: presenceData } = useCollectionOnce<any>(presenceQuery);
 
+  const registrosCivilesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'registros-civiles') : null), [firestore]);
+  const { data: registrosCivilesData } = useCollectionOnce<any>(registrosCivilesQuery);
+
+  const asignacionesQuery = useMemoFirebase(() => (firestore ? collection(firestore, 'asignaciones-registro-civil') : null), [firestore]);
+  const { data: asignacionesData, setData: setAsignacionesData } = useCollectionOnce<any>(asignacionesQuery);
+
+  const asignacionesMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    if (asignacionesData) {
+      asignacionesData.forEach((a: any) => {
+        map[a.id || a.usuario_id] = a.registros || [];
+      });
+    }
+    return map;
+  }, [asignacionesData]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [regDepartamento, setRegDepartamento] = useState<string>('');
   const [regDistrito, setRegDistrito] = useState<string>('');
@@ -298,10 +422,37 @@ function UsersContent() {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Estados para asignación directa de oficinas del Registro Civil
+  const [isOficinasModalOpen, setIsOficinasModalOpen] = useState(false);
+  const [selectedUserForOficinas, setSelectedUserForOficinas] = useState<UserProfile | null>(null);
+  const [selectedOficinasUser, setSelectedOficinasUser] = useState<string[]>([]);
+  const [savingOficinasUser, setSavingOficinasUser] = useState(false);
+  const [modalOfficeSearch, setModalOfficeSearch] = useState('');
+  const [modalOfficeTab, setModalOfficeTab] = useState<'sugeridas' | 'todas'>('sugeridas');
+  const [modalDeptFilter, setModalDeptFilter] = useState('TODOS');
+
+  // Estados para asignación de oficinas en creación de usuario (Nexo Registro Civil)
+  const [regOficinas, setRegOficinas] = useState<string[]>([]);
+  const [isCreateOficinasModalOpen, setIsCreateOficinasModalOpen] = useState(false);
+  const [createOfficeSearch, setCreateOfficeSearch] = useState('');
+
+  // Estados para búsqueda de oficinas en edición de perfil
+  const [editOfficeSearch, setEditOfficeSearch] = useState('');
+  const [editOfficeTab, setEditOfficeTab] = useState<'sugeridas' | 'todas'>('sugeridas');
+
   useEffect(() => {
     const searchVal = searchParams.get('search');
     if (searchVal) setSearchTerm(searchVal);
   }, [searchParams]);
+
+  const civilRegistryDepartments = useMemo(() => {
+    if (!registrosCivilesData) return [];
+    const set = new Set<string>();
+    registrosCivilesData.forEach((r: any) => {
+      if (r.departamento) set.add(String(r.departamento).toUpperCase().trim());
+    });
+    return Array.from(set).sort();
+  }, [registrosCivilesData]);
 
   const departments = useMemo(() => {
     if (!datosData) return [];
@@ -626,6 +777,7 @@ function UsersContent() {
       distrito: regDistrito || 'TODOS LOS DISTRITOS',
       active: true,
       profileId: selectedProfileId || null,
+      oficinas_registro_civil: regOficinas,
       registration_method: 'creado_por_admin'
     };
 
@@ -644,15 +796,36 @@ function UsersContent() {
       setDoc(userDocRef, {
         ...newUser,
         id: newUid,
+        oficinas_registro_civil: regOficinas,
         fecha_creacion: new Date().toISOString()
-      }).then(() => {
+      }).then(async () => {
+          if (regOficinas.length > 0) {
+            try {
+              await setDoc(doc(firestore, 'asignaciones-registro-civil', newUid), {
+                usuario_id: newUid,
+                username,
+                departamento: regDepartamento || '',
+                distrito: regDistrito || '',
+                registros: regOficinas,
+                actualizado_por: currentUser.uid,
+                fecha_actualizacion: new Date().toISOString()
+              });
+              if (setAsignacionesData) {
+                setAsignacionesData(prev => [...(prev || []), { id: newUid, usuario_id: newUid, registros: regOficinas }]);
+              }
+            } catch (e) {
+              console.warn('Error guardando asignación de registro civil', e);
+            }
+          }
+
           toast({ title: 'Usuario registrado con éxito' });
           
           if (setFirestoreUsers) {
-            setFirestoreUsers(prev => prev ? [...prev, { ...newUser, id: newUid, active: true } as UserProfile].sort((a,b) => a.username.localeCompare(b.username)) : null);
+            setFirestoreUsers(prev => prev ? [...prev, { ...newUser, id: newUid, active: true, oficinas_registro_civil: regOficinas } as UserProfile].sort((a,b) => a.username.localeCompare(b.username)) : null);
           }
 
           form.reset(); 
+          setRegOficinas([]);
           setSelectedModules(new Set()); 
           setSelectedPerms(new Set());
           setSelectedProfileId(null);
@@ -679,12 +852,100 @@ function UsersContent() {
     }
   };
 
+  const handleOpenOficinasModal = (u: UserProfile) => {
+    setSelectedUserForOficinas(u);
+    const existing = asignacionesMap[u.id] || u.oficinas_registro_civil || [];
+    setSelectedOficinasUser(existing);
+    setModalOfficeSearch('');
+    setModalOfficeTab('sugeridas');
+    
+    // Preseleccionar automáticamente el departamento del funcionario en el catálogo de Registros Civiles
+    const userDept = (u.departamento || '').trim();
+    if (userDept && userDept !== 'ALCANCE NACIONAL' && userDept !== 'SIN DEPARTAMENTO') {
+      const matchedDept = civilRegistryDepartments.find(d => deptsMatch(d, userDept));
+      setModalDeptFilter(matchedDept || 'TODOS');
+    } else {
+      setModalDeptFilter('TODOS');
+    }
+    
+    setIsOficinasModalOpen(true);
+  };
+
+  const handleToggleOficinaUser = (regId: string) => {
+    setSelectedOficinasUser(prev => {
+      if (prev.includes(regId)) return prev.filter(id => id !== regId);
+      if (prev.length >= 2) {
+        toast({
+          variant: 'destructive',
+          title: 'Máximo 2 oficinas',
+          description: 'El usuario de este distrito solo puede tener asignado un máximo de 2 oficinas del Registro Civil.'
+        });
+        return prev;
+      }
+      return [...prev, regId];
+    });
+  };
+
+  const handleSaveOficinasUser = async () => {
+    if (!firestore || !selectedUserForOficinas || !currentUser) return;
+    setSavingOficinasUser(true);
+    try {
+      const finalRegs = selectedOficinasUser.slice(0, 2);
+      await setDoc(doc(firestore, 'asignaciones-registro-civil', selectedUserForOficinas.id), {
+        usuario_id: selectedUserForOficinas.id,
+        username: selectedUserForOficinas.username || selectedUserForOficinas.email,
+        departamento: selectedUserForOficinas.departamento || '',
+        distrito: selectedUserForOficinas.distrito || '',
+        registros: finalRegs,
+        actualizado_por: currentUser.uid,
+        fecha_actualizacion: new Date().toISOString()
+      });
+
+      try {
+        await updateDoc(doc(firestore, 'users', selectedUserForOficinas.id), {
+          oficinas_registro_civil: finalRegs
+        });
+      } catch (e) {
+        console.warn('Error syncing to users collection', e);
+      }
+
+      if (setAsignacionesData) {
+        setAsignacionesData(prev => {
+          const others = (prev || []).filter((a: any) => (a.id || a.usuario_id) !== selectedUserForOficinas.id);
+          return [...others, { id: selectedUserForOficinas.id, usuario_id: selectedUserForOficinas.id, registros: finalRegs }];
+        });
+      }
+
+      recordAuditLog(firestore, {
+        usuario_id: currentUser.uid,
+        usuario_nombre: currentUser.profile?.username || currentUser.email || 'Admin',
+        usuario_rol: currentUser.profile?.role || 'admin',
+        accion: 'EDITAR',
+        modulo: 'users',
+        documento_id: selectedUserForOficinas.id,
+        detalles: `Asignación de oficinas del Registro Civil a ${selectedUserForOficinas.username}: ${finalRegs.join(', ') || 'Ninguna'}`
+      });
+
+      toast({
+        title: '✅ Oficinas asignadas',
+        description: `Se han asignado ${finalRegs.length} de 2 oficinas a ${selectedUserForOficinas.username}.`
+      });
+
+      setIsOficinasModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Error al guardar asignación' });
+    } finally {
+      setSavingOficinasUser(false);
+    }
+  };
+
   const handleUpdateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!firestore || !editingUser) return;
     setIsSubmitting(true);
     const userDocRef = doc(firestore, 'users', editingUser.id);
-    const updateData = {
+    const updateData: any = {
         username: editingUser.username.toUpperCase(),
         role: editingUser.role,
         modules: editingUser.modules || [],
@@ -695,13 +956,41 @@ function UsersContent() {
         distrito: editingUser.distrito || 'TODOS LOS DISTRITOS'
     };
 
+    if (editingUser.oficinas_registro_civil) {
+      updateData.oficinas_registro_civil = editingUser.oficinas_registro_civil.slice(0, 2);
+    }
+
     // Usamos setDoc con merge para crear el perfil si no existe (Reparación de Fantasmas)
     setDoc(userDocRef, {
         ...updateData,
         id: editingUser.id,
         fecha_actualizacion: new Date().toISOString()
     }, { merge: true })
-        .then(() => {
+        .then(async () => {
+            // Sincronizar asignaciones-registro-civil si se editaron oficinas
+            if (editingUser.oficinas_registro_civil && currentUser) {
+              try {
+                await setDoc(doc(firestore, 'asignaciones-registro-civil', editingUser.id), {
+                  usuario_id: editingUser.id,
+                  username: editingUser.username || editingUser.email,
+                  departamento: editingUser.departamento || '',
+                  distrito: editingUser.distrito || '',
+                  registros: editingUser.oficinas_registro_civil.slice(0, 2),
+                  actualizado_por: currentUser.uid,
+                  fecha_actualizacion: new Date().toISOString()
+                }, { merge: true });
+
+                if (setAsignacionesData) {
+                  setAsignacionesData(prev => {
+                    const others = (prev || []).filter((a: any) => (a.id || a.usuario_id) !== editingUser.id);
+                    return [...others, { id: editingUser.id, usuario_id: editingUser.id, registros: (editingUser.oficinas_registro_civil || []).slice(0, 2) }];
+                  });
+                }
+              } catch (err) {
+                console.warn('Error al sincronizar asignaciones-registro-civil:', err);
+              }
+            }
+
             toast({ title: "Perfil Sincronizado y Actualizado" });
             
             if (setFirestoreUsers) {
@@ -814,10 +1103,10 @@ function UsersContent() {
     }
   };
 
-  if (isAuthLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>;
+
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
+    <div className="flex min-h-screen flex-col bg-muted/5">
       <Header title="Gestión de Usuarios" />
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8">
         
@@ -948,9 +1237,77 @@ function UsersContent() {
                     </Select>
                 </div>
               </div>
+
+              {/* NEXO CON REGISTRO CIVIL (VINCULACIÓN A OFICINA POR DEPARTAMENTO) */}
+              <div className="p-5 rounded-2xl bg-primary/[0.03] border-2 border-primary/20 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-[11px] font-black uppercase text-primary tracking-wide">
+                          Nexo con Registro Civil (Oficina para Consulta)
+                        </Label>
+                        <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/30 text-primary">
+                          {regOficinas.length} / 2 VINCULADAS
+                        </Badge>
+                      </div>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase mt-0.5">
+                        {regDepartamento 
+                          ? `Oficinas habilitadas en ${regDepartamento}` 
+                          : 'Debe seleccionar un Departamento arriba para vincular una oficina'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!regDepartamento}
+                    onClick={() => {
+                      setCreateOfficeSearch('');
+                      setIsCreateOficinasModalOpen(true);
+                    }}
+                    className="font-black text-[9px] uppercase border-2 h-10 px-5 rounded-xl gap-2 bg-white shadow-sm hover:bg-black hover:text-white transition-all shrink-0"
+                  >
+                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                    {regOficinas.length > 0 ? `Cambiar Oficina (${regOficinas.length}/2)` : 'Asignar Oficina Nexo'}
+                  </Button>
+                </div>
+
+                {regOficinas.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-dashed border-primary/15">
+                    {regOficinas.map(regId => {
+                      const reg = (registrosCivilesData || []).find((r: any) => r.id === regId);
+                      return (
+                        <Badge key={regId} variant="secondary" className="text-[9px] font-black uppercase py-1.5 px-3 bg-white text-primary border-2 border-primary/20 flex items-center gap-2 shadow-sm">
+                          <Building2 className="h-3.5 w-3.5 text-primary" />
+                          <span>{reg ? `N° ${reg.numero} — ${reg.nombre} (${reg.distrito})` : 'Oficina Asignada'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setRegOficinas(prev => prev.filter(id => id !== regId))}
+                            className="hover:text-destructive font-black text-xs ml-1 text-muted-foreground hover:bg-destructive/10 rounded-full h-4 w-4 flex items-center justify-center"
+                            title="Desvincular"
+                          >
+                            ✕
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-[8px] font-bold uppercase text-muted-foreground/60 italic pt-1">
+                    {regDepartamento 
+                      ? '⚠️ Sin oficina vinculada. Haga clic en "Asignar Oficina Nexo" para asociar la oficina del Registro Civil.' 
+                      : 'ℹ️ Primero elija el Departamento del funcionario en el menú superior.'}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-4 pt-4 border-t border-dashed">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground">Perfiles de Acceso Rápidos</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Perfiles de Acceso Rápidos</Label>
                     <Button variant="link" className="text-[8px] font-black uppercase h-auto p-0" onClick={() => window.location.href='/settings#perfiles'}>Gestionar Perfiles</Button>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -984,196 +1341,21 @@ function UsersContent() {
           </form>
         </Card>
 
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black uppercase text-primary flex items-center gap-3 tracking-tighter">
-                    <Users className="h-7 w-7" /> DIRECTORIO POR JURISDICCIÓN
-                </h2>
-                <div className="relative w-64 md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
-                    <Input 
-                        placeholder="Buscar por nombre, correo o zona..." 
-                        className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                    />
-                </div>
-            </div>
-
-            {isLoadingUsers ? (
-                <div className="flex justify-center py-20"><Loader2 className="h-12 w-12 animate-spin text-primary opacity-20"/></div>
-            ) : hierarchy.length === 0 ? (
-                <Card className="p-32 text-center border-4 border-dashed bg-white rounded-[3rem] opacity-20">
-                    <p className="font-black uppercase tracking-[0.2em] text-xl">Sin resultados encontrados</p>
-                </Card>
-            ) : (
-                <Accordion type="multiple" className="space-y-6">
-                    {hierarchy.map((dept) => {
-                        const filledCount = dept.districts.filter(d => d.users.length > 0).length;
-                        return (
-                            <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
-                                <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
-                                    <div className="flex items-center justify-between w-full pr-6">
-                                        <div className="flex items-center gap-6 text-left">
-                                            <div className="h-14 w-14 rounded-2xl bg-primary/5 text-primary flex items-center justify-center shadow-inner relative group-hover:scale-105 transition-transform">
-                                                <Landmark className="h-7 w-7" />
-                                            </div>
-                                            <div>
-                                                <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
-                                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{dept.districts.length} DISTRITOS EN JURISDICCIÓN</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <Badge variant="secondary" className="bg-black text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
-                                                {dept.fulfilledCount} CUMPLIDOS
-                                            </Badge>
-                                            {dept.pendingCount > 0 && (
-                                                <Badge variant="secondary" className="bg-destructive text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
-                                                    {dept.pendingCount} PENDIENTES
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="px-8 pb-8 pt-2">
-                                    <Accordion type="multiple" className="space-y-4">
-                                        {dept.districts.map((dist) => {
-                                            const isPending = dist.users.length === 0;
-                                            return (
-                                                <AccordionItem key={dist.name} value={dist.name} className="border-none">
-                                                    <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border-2 border-dashed border-muted transition-all hover:border-primary/20">
-                                                        <div className="flex items-center justify-between w-full pr-4">
-                                                            <div className="flex items-center gap-4">
-                                                                <Building2 className={cn("h-5 w-5 transition-colors", isPending ? "text-muted-foreground/30" : "text-primary")} />
-                                                                <span className="font-black uppercase text-sm tracking-tight text-foreground/80">{dist.name}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-4">
-                                                                {isPending ? (
-                                                                    <Badge variant="outline" className="text-destructive border-destructive/20 bg-destructive/[0.03] text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1">
-                                                                        <AlertCircle className="h-3 w-3" /> PENDIENTE
-                                                                    </Badge>
-                                                                ) : (
-                                                                    <Badge className="bg-green-600 text-white text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1 shadow-md">
-                                                                        <CheckCircle2 className="h-3 w-3" /> CUMPLIDO
-                                                                    </Badge>
-                                                                )}
-                                                                {!isPending && <Badge variant="secondary" className="bg-black text-white text-[9px] font-black min-w-[28px]">{dist.users.length}</Badge>}
-                                                            </div>
-                                                        </div>
-                                                    </AccordionTrigger>
-                                                    <AccordionContent className="pt-6 px-2">
-                                                        {!isPending && (
-                                                            <div className="overflow-x-auto border-2 rounded-2xl bg-white shadow-inner">
-                                                                <Table>
-                                                                    <TableHeader className="bg-muted/30">
-                                                                        <TableRow>
-                                                                            <TableHead className="text-[9px] font-black uppercase px-8">Funcionario Autorizado</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase">Rol Sistema</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase">Última Conexión</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase">Estado</TableHead>
-                                                                            <TableHead className="text-right text-[9px] font-black uppercase px-8">Gestión</TableHead>
-                                                                        </TableRow>
-                                                                    </TableHeader>
-                                                                    <TableBody>
-                                                                        {dist.users.map(u => (
-                                                                            <TableRow key={u.id} className="hover:bg-muted/10 transition-colors border-b last:border-0">
-                                                                                <TableCell className="px-8 py-5">
-                                                                                    <div className="flex items-center gap-3">
-                                                                                        <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center font-black text-xs text-primary border border-primary/10">
-                                                                                            {u.username.substring(0, 2).toUpperCase()}
-                                                                                        </div>
-                                                                                        <div className="flex flex-col">
-                                                                                            <span className="font-black text-xs uppercase text-primary leading-tight">{u.username}</span>
-                                                                                            <span className="text-[9px] text-muted-foreground font-bold lowercase">{u.email}</span>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </TableCell>
-                                                                                <TableCell>
-                                                                                    {u.role === 'superadmin' ? (
-                                                                                        <Badge className="bg-green-700 text-white text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1 shadow-md border-b-2 border-green-900">
-                                                                                            <Shield className="h-3 w-3" /> SÚPER ADMIN
-                                                                                        </Badge>
-                                                                                    ) : (
-                                                                                        <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10 bg-primary/[0.02]">
-                                                                                            {u.role}
-                                                                                        </Badge>
-                                                                                    )}
-                                                                                </TableCell>
-                                                                                <TableCell>
-                                                                                    <div className="flex items-center gap-2 text-muted-foreground whitespace-nowrap">
-                                                                                        <Clock className="h-3 w-3 opacity-40" />
-                                                                                        <span className="text-[8px] font-black uppercase tracking-tighter">
-                                                                                            {u.presence?.ultima_actividad 
-                                                                                                ? (typeof u.presence.ultima_actividad.toDate === 'function' 
-                                                                                                    ? u.presence.ultima_actividad.toDate().toLocaleString() 
-                                                                                                    : new Date(u.presence.ultima_actividad).toLocaleString())
-                                                                                                : 'SIN REGISTRO'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </TableCell>
-                                                                                <TableCell>
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <div className={cn(
-                                                                                            "h-2 w-2 rounded-full",
-                                                                                            u.active !== false ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-red-500"
-                                                                                        )} />
-                                                                                        <span className={cn("text-[9px] font-black uppercase", u.active !== false ? "text-green-600" : "text-destructive")}>
-                                                                                            {u.active !== false ? 'Activo' : 'Bloqueado'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </TableCell>
-                                                                                <TableCell className="text-right px-8">
-                                                                                    <div className="flex justify-end gap-2">
-                                                                                        {(isMasterAdmin || u.role !== 'admin') && (
-                                                                                            <>
-                                                                                                <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-primary/5 text-primary/40 hover:text-primary transition-all" onClick={() => { setEditingUser(u); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
-                                                                                                <Button variant="ghost" size="icon" className={cn("h-9 w-9 transition-all", u.active !== false ? "text-amber-600/40 hover:text-amber-600 hover:bg-amber-50" : "text-green-600/40 hover:text-green-600 hover:bg-green-50")} onClick={() => toggleUserStatus(u)}>
-                                                                                                    {u.active !== false ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                                                                                                </Button>
-                                                                                                <AlertDialog>
-                                                                                                    <AlertDialogTrigger asChild>
-                                                                                                        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-4 w-4" /></Button>
-                                                                                                    </AlertDialogTrigger>
-                                                                                                    <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-8">
-                                                                                                        <AlertDialogHeader className="space-y-4">
-                                                                                                            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
-                                                                                                                <ShieldAlert className="h-8 w-8 text-destructive" />
-                                                                                                            </div>
-                                                                                                            <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR ACCESO DEFINITIVAMENTE?</AlertDialogTitle>
-                                                                                                            <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
-                                                                                                                Se borrará el perfil de <span className="text-primary font-black">{u.username}</span> en Firestore y su rastro de conexión. El acceso será revocado de inmediato.
-                                                                                                            </AlertDialogDescription>
-                                                                                                        </AlertDialogHeader>
-                                                                                                        <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
-                                                                                                            <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
-                                                                                                            <AlertDialogAction onClick={() => handleDeleteUser(u)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl">
-                                                                                                                SÍ, ELIMINAR PERFIL
-                                                                                                            </AlertDialogAction>
-                                                                                                        </AlertDialogFooter>
-                                                                                                    </AlertDialogContent>
-                                                                                                </AlertDialog>
-                                                                                            </>
-                                                                                        )}
-                                                                                    </div>
-                                                                                </TableCell>
-                                                                            </TableRow>
-                                                                        ))}
-                                                                    </TableBody>
-                                                                </Table>
-                                                            </div>
-                                                        )}
-                                                    </AccordionContent>
-                                                </AccordionItem>
-                                            );
-                                        })}
-                                    </Accordion>
-                                </AccordionContent>
-                            </AccordionItem>
-                        );
-                    })}
-                </Accordion>
-            )}
-        </div>
+        {/* DIRECTORIO POR JURISDICCIÓN */}
+        <DirectorioJurisdiccion
+          hierarchy={hierarchy}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          isLoadingUsers={isLoadingUsers}
+          asignacionesMap={asignacionesMap}
+          registrosCivilesData={registrosCivilesData || []}
+          handleOpenOficinasModal={handleOpenOficinasModal}
+          isMasterAdmin={isMasterAdmin}
+          setEditingUser={setEditingUser}
+          setEditModalOpen={setEditModalOpen}
+          toggleUserStatus={toggleUserStatus}
+          handleDeleteUser={handleDeleteUser}
+        />
       </main>
 
       <Dialog open={isEditModalOpen} onOpenChange={setEditModalOpen}>
@@ -1284,6 +1466,154 @@ function UsersContent() {
                             </Select>
                         </div>
                     </div>
+
+                    {/* Asignación de Oficinas del Registro Civil (Máx. 2) */}
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border-2 border-dashed space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-2">
+                                    <Building2 className="h-4 w-4" /> Asignación de Oficinas del Registro Civil (Máx. 2)
+                                </Label>
+                                <p className="text-[9px] text-muted-foreground uppercase font-bold mt-0.5">
+                                    Seleccione hasta 2 oficinas del Registro Civil para este usuario distrital.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Badge className="bg-black text-white text-[9px] font-black uppercase px-3">
+                                    {((editingUser.oficinas_registro_civil || asignacionesMap[editingUser.id]) || []).length} / 2 ASIGNADAS
+                                </Badge>
+                            </div>
+                        </div>
+
+                        {/* Buscador y selector de modo en edición */}
+                        <div className="space-y-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Buscar oficina por N°, nombre, distrito o departamento..."
+                                        value={editOfficeSearch}
+                                        onChange={e => setEditOfficeSearch(e.target.value)}
+                                        className="pl-8 h-9 border-2 font-bold text-xs rounded-xl"
+                                    />
+                                    {editOfficeSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditOfficeSearch('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex gap-1.5 shrink-0">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={editOfficeTab === 'sugeridas' ? 'default' : 'outline'}
+                                        onClick={() => setEditOfficeTab('sugeridas')}
+                                        className="font-black uppercase text-[9px] h-9 rounded-xl gap-1"
+                                    >
+                                        <MapPin className="h-3 w-3" /> Sugeridas
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={editOfficeTab === 'todas' ? 'default' : 'outline'}
+                                        onClick={() => setEditOfficeTab('todas')}
+                                        className="font-black uppercase text-[9px] h-9 rounded-xl gap-1"
+                                    >
+                                        <Layers className="h-3 w-3" /> Todas ({(registrosCivilesData || []).length})
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Listado de oficinas disponibles */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1 border rounded-xl bg-muted/10">
+                            {(() => {
+                                const currentRegs = editingUser.oficinas_registro_civil || asignacionesMap[editingUser.id] || [];
+                                const allCivil = (registrosCivilesData || []) as any[];
+
+                                const term = editOfficeSearch.toLowerCase().trim();
+
+                                const filteredOffices = allCivil.filter((r: any) => {
+                                    // Pestaña sugeridas
+                                    if (editOfficeTab === 'sugeridas' && !matchesUserJurisdiction(r, editingUser) && !currentRegs.includes(r.id)) {
+                                        return false;
+                                    }
+                                    if (term) {
+                                        const matchNumero = String(r.numero || '').toLowerCase().includes(term);
+                                        const matchNombre = String(r.nombre || '').toLowerCase().includes(term);
+                                        const matchDistrito = String(r.distrito || '').toLowerCase().includes(term);
+                                        const matchDepto = String(r.departamento || '').toLowerCase().includes(term);
+                                        return matchNumero || matchNombre || matchDistrito || matchDepto;
+                                    }
+                                    return true;
+                                });
+
+                                if (filteredOffices.length === 0) {
+                                    return (
+                                        <div className="col-span-2 text-center p-6 bg-white rounded-xl text-[10px] font-bold uppercase text-muted-foreground space-y-2">
+                                            <p>No se encontraron oficinas para este filtro.</p>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => { setEditOfficeTab('todas'); setEditOfficeSearch(''); }}
+                                                className="font-black uppercase text-[9px] h-8 rounded-lg"
+                                            >
+                                                Ver Todas las Oficinas ({allCivil.length})
+                                            </Button>
+                                        </div>
+                                    );
+                                }
+
+                                return filteredOffices.map((r: any) => {
+                                    const checked = currentRegs.includes(r.id);
+                                    const disabled = !checked && currentRegs.length >= 2;
+                                    const isSug = matchesUserJurisdiction(r, editingUser);
+                                    return (
+                                        <label
+                                            key={r.id}
+                                            className={cn(
+                                                'flex items-center justify-between border-2 rounded-xl p-3 cursor-pointer transition-all bg-white',
+                                                checked ? 'border-primary bg-primary/5 shadow-sm' : 'hover:border-primary/30',
+                                                disabled && 'opacity-40 cursor-not-allowed'
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                                <Checkbox
+                                                    checked={checked}
+                                                    disabled={disabled}
+                                                    onCheckedChange={() => {
+                                                        const next = checked ? currentRegs.filter((id: string) => id !== r.id) : [...currentRegs, r.id].slice(0, 2);
+                                                        setEditingUser({ ...editingUser, oficinas_registro_civil: next });
+                                                    }}
+                                                />
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black uppercase truncate">N° {r.numero} — {r.nombre}</p>
+                                                    <p className="text-[9px] text-muted-foreground uppercase font-bold truncate">📍 {r.distrito}, {r.departamento}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                {isSug && (
+                                                    <Badge variant="outline" className="text-[7px] font-black uppercase bg-primary/5 text-primary border-primary/20">
+                                                        Jurisdicción
+                                                    </Badge>
+                                                )}
+                                                {checked && (
+                                                    <Badge className="bg-primary text-white text-[8px] font-black uppercase">
+                                                        OK
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </label>
+                                    );
+                                });
+                            })()}
+                        </div>
+                    </div>
                     
                     <PermissionMatrix userObj={editingUser} isEditing={true} selectedPerms={selectedPerms} selectedModules={selectedModules} onTogglePerm={handleTogglePerm} onToggleModuleAction={handleToggleModuleAction} onToggleColumn={handleToggleColumn} />
                 </div>
@@ -1298,6 +1628,732 @@ function UsersContent() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para Asignación Rápida de Oficinas del Registro Civil desde el Directorio */}
+      <Dialog open={isOficinasModalOpen} onOpenChange={setIsOficinasModalOpen}>
+        <DialogContent className="max-w-2xl rounded-3xl p-6 max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-xl font-black uppercase flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" /> Asignar Oficinas del Registro Civil
+            </DialogTitle>
+            <DialogDescription className="text-xs font-medium flex flex-wrap items-center justify-between gap-1">
+              <span>Funcionario: <span className="font-black uppercase text-foreground">{selectedUserForOficinas?.username}</span> ({selectedUserForOficinas?.email})</span>
+              {isAdminView && (
+                <Link href="/importar-oficinas" target="_blank" className="text-emerald-700 hover:underline font-bold inline-flex items-center gap-1">
+                  <Building2 className="h-3 w-3" /> Catálogo en Gestión de Datos ↗
+                </Link>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 flex-1 overflow-hidden flex flex-col">
+            <div className="bg-primary/5 rounded-2xl p-3.5 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-[9px] font-black uppercase text-muted-foreground">Jurisdicción Registral del Usuario</p>
+                  <p className="text-xs font-black uppercase text-primary">
+                    {selectedUserForOficinas?.departamento || 'Sin Departamento'} — {selectedUserForOficinas?.distrito || 'Sin Distrito'}
+                  </p>
+                </div>
+              </div>
+              <Badge className={cn("text-[9px] font-black uppercase w-fit", selectedOficinasUser.length === 2 ? "bg-green-600 text-white" : "bg-black text-white")}>
+                {selectedOficinasUser.length} / 2 ASIGNADAS
+              </Badge>
+            </div>
+
+            {/* Oficinas seleccionadas */}
+            <div className="space-y-1 shrink-0">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground">Oficinas Seleccionadas (Hasta 2)</Label>
+              <div className="flex flex-wrap gap-1.5 min-h-[38px] p-2 bg-muted/20 border rounded-xl items-center">
+                {selectedOficinasUser.length === 0 ? (
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground px-1">
+                    Ninguna oficina seleccionada. Marque las oficinas del listado inferior.
+                  </span>
+                ) : (
+                  selectedOficinasUser.map(id => {
+                    const r = (registrosCivilesData || []).find((x: any) => x.id === id);
+                    return (
+                      <Badge key={id} className="text-[9px] font-black uppercase gap-1.5 py-1 px-2.5 bg-black text-white shadow-sm">
+                        <Building2 className="h-3 w-3 text-amber-400" />
+                        {r ? `N° ${r.numero} — ${r.nombre} (${r.distrito})` : 'Oficina'}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOficinaUser(id)}
+                          className="ml-1 rounded-full hover:bg-white/20 p-0.5 text-xs font-bold leading-none"
+                        >
+                          ✕
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Buscador y Controles de Filtro */}
+            <div className="space-y-2 shrink-0">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por N° de oficina (ej. 25), nombre o ciudad..."
+                    value={modalOfficeSearch}
+                    onChange={e => setModalOfficeSearch(e.target.value)}
+                    className="pl-8 h-9 border-2 font-bold text-xs rounded-xl"
+                  />
+                  {modalOfficeSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setModalOfficeSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <Select value={modalDeptFilter} onValueChange={setModalDeptFilter}>
+                  <SelectTrigger className="h-9 border-2 font-bold text-xs uppercase rounded-xl sm:w-48 bg-white">
+                    <SelectValue placeholder="Departamento..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos los Deptos</SelectItem>
+                    {civilRegistryDepartments.map(d => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Pestañas de modo */}
+              {(() => {
+                const allCivil = (registrosCivilesData || []) as any[];
+                const userDept = selectedUserForOficinas?.departamento;
+                const normUserDept = normalizeDept(userDept);
+                const suggestedCount = allCivil.filter(r => matchesUserJurisdiction(r, selectedUserForOficinas)).length;
+                return (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={modalOfficeTab === 'sugeridas' ? 'default' : 'outline'}
+                      onClick={() => setModalOfficeTab('sugeridas')}
+                      className="font-black uppercase text-[10px] h-8 rounded-xl flex-1 gap-1.5"
+                    >
+                      <MapPin className="h-3 w-3" /> {normUserDept && normUserDept !== 'ALCANCE NACIONAL' ? `Oficinas de ${normUserDept}` : 'Sugeridas para Jurisdicción'} ({suggestedCount})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={modalOfficeTab === 'todas' ? 'default' : 'outline'}
+                      onClick={() => setModalOfficeTab('todas')}
+                      className="font-black uppercase text-[10px] h-8 rounded-xl flex-1 gap-1.5"
+                    >
+                      <Layers className="h-3 w-3" /> Catálogo Completo ({allCivil.length})
+                    </Button>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Listado con scroll de oficinas */}
+            <div className="flex-1 overflow-y-auto space-y-2 border rounded-2xl p-2 bg-muted/10 min-h-[200px]">
+              {(() => {
+                const allCivil = (registrosCivilesData || []) as any[];
+                const term = modalOfficeSearch.toLowerCase().trim();
+
+                const filtered = allCivil
+                  .filter((r: any) => {
+                    const isSelected = selectedOficinasUser.includes(r.id);
+
+                    // Filtro de pestaña sugeridas: solo oficinas que pertenezcan a la jurisdicción/departamento del funcionario
+                    if (modalOfficeTab === 'sugeridas' && !matchesUserJurisdiction(r, selectedUserForOficinas) && !isSelected) {
+                      return false;
+                    }
+                    // Filtro por departamento seleccionado en el Select
+                    if (modalDeptFilter !== 'TODOS' && !deptsMatch(r.departamento, modalDeptFilter) && !isSelected) {
+                      return false;
+                    }
+                    // Filtro de búsqueda
+                    if (term) {
+                      const matchNumero = String(r.numero || '').toLowerCase().includes(term);
+                      const matchNombre = String(r.nombre || '').toLowerCase().includes(term);
+                      const matchDistrito = String(r.distrito || '').toLowerCase().includes(term);
+                      const matchDepto = String(r.departamento || '').toLowerCase().includes(term);
+                      return matchNumero || matchNombre || matchDistrito || matchDepto;
+                    }
+                    return true;
+                  })
+                  .sort((a: any, b: any) => {
+                    // 1. Oficinas ya seleccionadas primero
+                    const aSel = selectedOficinasUser.includes(a.id) ? 1 : 0;
+                    const bSel = selectedOficinasUser.includes(b.id) ? 1 : 0;
+                    if (aSel !== bSel) return bSel - aSel;
+
+                    // 2. Oficinas del distrito específico del funcionario
+                    const aDist = matchesUserDistrict(a, selectedUserForOficinas) ? 1 : 0;
+                    const bDist = matchesUserDistrict(b, selectedUserForOficinas) ? 1 : 0;
+                    if (aDist !== bDist) return bDist - aDist;
+
+                    // 3. Orden numérico de oficina
+                    const aNum = parseInt(String(a.numero || '0').replace(/\D/g, ''), 10) || 0;
+                    const bNum = parseInt(String(b.numero || '0').replace(/\D/g, ''), 10) || 0;
+                    if (aNum !== bNum) return aNum - bNum;
+
+                    return String(a.nombre || '').localeCompare(String(b.nombre || ''));
+                  });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-muted-foreground space-y-3 bg-white rounded-xl">
+                      <Building2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-black uppercase text-foreground">
+                          {modalOfficeTab === 'sugeridas' 
+                            ? 'No se encontraron oficinas registradas directamente para este departamento o jurisdicción.' 
+                            : 'No se encontraron oficinas que coincidan con los filtros seleccionados.'}
+                        </p>
+                        <p className="text-[10px]">
+                          {modalOfficeTab === 'sugeridas' 
+                            ? 'Puede explorar todas las oficinas del país o cambiar el filtro de departamento arriba.' 
+                            : 'Pruebe buscando por otro término o cambiando el filtro de departamento.'}
+                        </p>
+                      </div>
+                      {modalOfficeTab === 'sugeridas' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setModalOfficeTab('todas'); setModalDeptFilter('TODOS'); setModalOfficeSearch(''); }}
+                          className="font-black uppercase text-[10px] h-8 rounded-xl"
+                        >
+                          Ver Catálogo Completo ({allCivil.length} Oficinas)
+                        </Button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return filtered.map((r: any) => {
+                  const checked = selectedOficinasUser.includes(r.id);
+                  const disabled = !checked && selectedOficinasUser.length >= 2;
+                  const isDist = matchesUserDistrict(r, selectedUserForOficinas);
+                  const isSug = matchesUserJurisdiction(r, selectedUserForOficinas);
+                  return (
+                    <label
+                      key={r.id}
+                      className={cn(
+                        'flex items-center justify-between border-2 rounded-xl p-3 cursor-pointer transition-all bg-white',
+                        checked ? 'border-primary bg-primary/5 shadow-sm' : 'hover:border-primary/30',
+                        disabled && 'opacity-40 cursor-not-allowed'
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 pr-2">
+                        <Checkbox
+                          checked={checked}
+                          disabled={disabled}
+                          onCheckedChange={() => handleToggleOficinaUser(r.id)}
+                          className="h-4 w-4"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase text-foreground leading-tight truncate">
+                            N° {r.numero} — {r.nombre}
+                          </p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase mt-0.5 truncate">
+                            📍 {r.distrito}, {r.departamento}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isDist && (
+                          <Badge variant="outline" className="text-[8px] font-black uppercase bg-amber-500/10 text-amber-800 border-amber-500/30">
+                            Distrito
+                          </Badge>
+                        )}
+                        {isSug && !isDist && (
+                          <Badge variant="outline" className="text-[8px] font-black uppercase bg-primary/5 text-primary border-primary/20">
+                            Jurisdicción
+                          </Badge>
+                        )}
+                        {checked && (
+                          <Badge className="bg-primary text-white text-[8px] font-black uppercase">
+                            ASIGNADA
+                          </Badge>
+                        )}
+                      </div>
+                    </label>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 border-t gap-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsOficinasModalOpen(false)}
+              className="font-black uppercase text-[10px] rounded-xl h-10 px-5"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveOficinasUser}
+              disabled={savingOficinasUser}
+              className="font-black uppercase text-[10px] gap-2 rounded-xl h-10 px-6 bg-black hover:bg-black/90 text-white shadow-lg"
+            >
+              {savingOficinasUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+              Guardar Asignación ({selectedOficinasUser.length}/2)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para Asignación de Oficinas Registro Civil en Creación de Usuario */}
+      <Dialog open={isCreateOficinasModalOpen} onOpenChange={setIsCreateOficinasModalOpen}>
+        <DialogContent className="max-w-2xl rounded-3xl p-6 max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-xl font-black uppercase flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" /> Nexo con Registro Civil — Asignar Oficina
+            </DialogTitle>
+            <DialogDescription className="text-xs font-medium flex flex-wrap items-center justify-between gap-1">
+              <span>Jurisdicción: <span className="font-black uppercase text-foreground">{regDepartamento || 'Sin Departamento'}</span> — <span className="font-bold text-muted-foreground">{regDistrito || 'Todos los distritos'}</span></span>
+              {isAdminView && (
+                <Link href="/importar-oficinas" target="_blank" className="text-emerald-700 hover:underline font-bold inline-flex items-center gap-1">
+                  <Building2 className="h-3 w-3" /> Catálogo en Gestión de Datos ↗
+                </Link>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 flex-1 overflow-hidden flex flex-col">
+            <div className="bg-primary/5 rounded-2xl p-3.5 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-[9px] font-black uppercase text-muted-foreground">Oficinas vinculadas al Departamento</p>
+                  <p className="text-xs font-black uppercase text-primary">
+                    {regDepartamento || 'Seleccione departamento en el formulario'}
+                  </p>
+                </div>
+              </div>
+              <Badge className={cn("text-[9px] font-black uppercase w-fit", regOficinas.length === 2 ? "bg-green-600 text-white" : "bg-black text-white")}>
+                {regOficinas.length} / 2 VINCULADAS
+              </Badge>
+            </div>
+
+            {/* Oficinas seleccionadas actualmente */}
+            <div className="space-y-1.5 shrink-0">
+              <p className="text-[9px] font-black uppercase text-muted-foreground">Oficinas Seleccionadas para el Funcionario:</p>
+              <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 rounded-xl bg-muted/20 border border-dashed">
+                {regOficinas.length === 0 ? (
+                  <span className="text-[10px] font-bold text-muted-foreground/60 italic self-center">
+                    Ninguna oficina seleccionada aún (haga clic en una de la lista abajo).
+                  </span>
+                ) : (
+                  regOficinas.map(regId => {
+                    const r = (registrosCivilesData || []).find((x: any) => x.id === regId);
+                    return (
+                      <Badge key={regId} variant="secondary" className="text-[9px] font-black uppercase py-1 px-2.5 bg-primary/10 text-primary border-primary/20 flex items-center gap-1.5">
+                        <Building2 className="h-3 w-3" />
+                        <span>{r ? `N° ${r.numero} — ${r.nombre}` : regId}</span>
+                        <button
+                          type="button"
+                          onClick={() => setRegOficinas(prev => prev.filter(id => id !== regId))}
+                          className="hover:text-destructive font-black text-xs ml-1"
+                        >
+                          ✕
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Buscador */}
+            <div className="relative shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder={`Buscar oficina en ${regDepartamento || 'catálogo'} por N°, nombre o distrito...`}
+                value={createOfficeSearch}
+                onChange={e => setCreateOfficeSearch(e.target.value)}
+                className="pl-8 h-9 border-2 font-bold text-xs rounded-xl"
+              />
+              {createOfficeSearch && (
+                <button
+                  type="button"
+                  onClick={() => setCreateOfficeSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Lista de Oficinas filtradas por el Departamento */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-1.5 min-h-[220px]">
+              {(() => {
+                const allCivil = (registrosCivilesData || []) as any[];
+                const filtered = allCivil.filter(r => {
+                  // Filtro principal: vinculado al departamento del funcionario
+                  const matchesDept = regDepartamento 
+                    ? deptsMatch(r.departamento, regDepartamento)
+                    : true;
+
+                  if (!matchesDept && !createOfficeSearch) return false;
+
+                  if (createOfficeSearch.trim()) {
+                    const s = createOfficeSearch.toLowerCase();
+                    const num = String(r.numero || '').toLowerCase();
+                    const nom = String(r.nombre || '').toLowerCase();
+                    const dis = String(r.distrito || '').toLowerCase();
+                    const dep = String(r.departamento || '').toLowerCase();
+                    return num.includes(s) || nom.includes(s) || dis.includes(s) || dep.includes(s);
+                  }
+
+                  return matchesDept;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-xs font-bold text-muted-foreground uppercase border-2 border-dashed rounded-2xl bg-muted/10">
+                      No se encontraron oficinas del Registro Civil para {regDepartamento || 'la búsqueda'}.
+                    </div>
+                  );
+                }
+
+                return filtered.map(r => {
+                  const checked = regOficinas.includes(r.id);
+                  const isSug = regDistrito && distsMatch(r.distrito, regDistrito);
+                  return (
+                    <label
+                      key={r.id}
+                      onClick={() => {
+                        setRegOficinas(prev => {
+                          if (prev.includes(r.id)) return prev.filter(id => id !== r.id);
+                          if (prev.length >= 2) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Máximo 2 oficinas',
+                              description: 'El funcionario solo puede tener un máximo de 2 oficinas del Registro Civil vinculadas.'
+                            });
+                            return prev;
+                          }
+                          return [...prev, r.id];
+                        });
+                      }}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-xl border-2 transition-all cursor-pointer text-left",
+                        checked ? "border-primary bg-primary/5 shadow-sm" : "border-muted hover:border-primary/30 hover:bg-muted/10",
+                        isSug && !checked && "bg-emerald-50/50 border-emerald-200"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => {}}
+                          className="h-4 w-4 rounded-md"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase text-foreground leading-tight truncate">
+                            N° {r.numero} — {r.nombre}
+                          </p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase mt-0.5 truncate">
+                            📍 {r.distrito}, {r.departamento}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isSug && (
+                          <Badge variant="outline" className="text-[8px] font-black uppercase bg-emerald-50 text-emerald-700 border-emerald-300">
+                            Mismo Distrito
+                          </Badge>
+                        )}
+                        {checked && (
+                          <Badge className="bg-primary text-white text-[8px] font-black uppercase">
+                            VINCULADA
+                          </Badge>
+                        )}
+                      </div>
+                    </label>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4 border-t gap-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateOficinasModalOpen(false)}
+              className="font-black uppercase text-[10px] rounded-xl h-10 px-5"
+            >
+              Cerrar
+            </Button>
+            <Button
+              onClick={() => setIsCreateOficinasModalOpen(false)}
+              className="font-black uppercase text-[10px] gap-2 rounded-xl h-10 px-6 bg-black hover:bg-black/90 text-white shadow-lg"
+            >
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              Confirmar Asignación ({regOficinas.length}/2)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function DirectorioJurisdiccion(props: {
+  hierarchy: any[];
+  searchTerm: string;
+  setSearchTerm: (s: string) => void;
+  isLoadingUsers: boolean;
+  asignacionesMap: Record<string, string[]>;
+  registrosCivilesData: any[];
+  handleOpenOficinasModal: (u: UserProfile) => void;
+  isMasterAdmin: boolean;
+  setEditingUser: (u: UserProfile) => void;
+  setEditModalOpen: (open: boolean) => void;
+  toggleUserStatus: (u: UserProfile) => void;
+  handleDeleteUser: (u: UserProfile) => void;
+}) {
+  const {
+    hierarchy,
+    searchTerm,
+    setSearchTerm,
+    isLoadingUsers,
+    asignacionesMap,
+    registrosCivilesData,
+    handleOpenOficinasModal,
+    isMasterAdmin,
+    setEditingUser,
+    setEditModalOpen,
+    toggleUserStatus,
+    handleDeleteUser
+  } = props;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-black uppercase text-primary flex items-center gap-3 tracking-tighter">
+          <Users className="h-7 w-7" /> DIRECTORIO POR JURISDICCIÓN
+        </h2>
+        <div className="relative w-64 md:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
+          <Input 
+            placeholder="Buscar por nombre, correo o zona..." 
+            className="h-12 pl-10 font-bold border-2 rounded-2xl bg-white shadow-sm"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {isLoadingUsers ? (
+        <div className="flex justify-center py-20"><Loader2 className="h-12 w-12 animate-spin text-primary opacity-20"/></div>
+      ) : hierarchy.length === 0 ? (
+        <Card className="p-32 text-center border-4 border-dashed bg-white rounded-[3rem] opacity-20">
+          <p className="font-black uppercase tracking-[0.2em] text-xl">Sin resultados encontrados</p>
+        </Card>
+      ) : (
+        <Accordion type="multiple" className="space-y-6">
+          {hierarchy.map((dept) => (
+            <AccordionItem key={dept.name} value={dept.name} className="border-none bg-white rounded-[2rem] shadow-sm overflow-hidden">
+              <AccordionTrigger className="hover:no-underline px-8 py-6 bg-white group">
+                <div className="flex items-center justify-between w-full pr-6">
+                  <div className="flex items-center gap-6 text-left">
+                    <div className="h-14 w-14 rounded-2xl bg-primary/5 text-primary flex items-center justify-center shadow-inner relative group-hover:scale-105 transition-transform">
+                      <Landmark className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black uppercase tracking-tight text-[#1A1A1A]">{dept.name}</h2>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{dept.districts.length} DISTRITOS EN JURISDICCIÓN</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary" className="bg-black text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
+                      {dept.fulfilledCount} CUMPLIDOS
+                    </Badge>
+                    {dept.pendingCount > 0 && (
+                      <Badge variant="secondary" className="bg-destructive text-white text-[9px] font-black uppercase px-4 h-7 rounded-full shadow-lg">
+                        {dept.pendingCount} PENDIENTES
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-8 pb-8 pt-2">
+                <Accordion type="multiple" className="space-y-4">
+                  {dept.districts.map((dist: any) => {
+                    const isPending = dist.users.length === 0;
+                    return (
+                      <AccordionItem key={dist.name} value={dist.name} className="border-none">
+                        <AccordionTrigger className="hover:no-underline py-4 bg-[#F8F9FA] rounded-2xl px-6 group border-2 border-dashed border-muted transition-all hover:border-primary/20">
+                          <div className="flex items-center justify-between w-full pr-4">
+                            <div className="flex items-center gap-4">
+                              <Building2 className={cn("h-5 w-5 transition-colors", isPending ? "text-muted-foreground/30" : "text-primary")} />
+                              <span className="font-black uppercase text-sm tracking-tight text-foreground/80">{dist.name}</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              {isPending ? (
+                                <Badge variant="outline" className="text-destructive border-destructive/20 bg-destructive/[0.03] text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1">
+                                  <AlertCircle className="h-3 w-3" /> PENDIENTE
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-green-600 text-white text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1 shadow-md">
+                                  <CheckCircle2 className="h-3 w-3" /> CUMPLIDO
+                                </Badge>
+                              )}
+                              {!isPending && <Badge variant="secondary" className="bg-black text-white text-[9px] font-black min-w-[28px]">{dist.users.length}</Badge>}
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-6 px-2">
+                          {!isPending && (
+                            <div className="overflow-x-auto border-2 rounded-2xl bg-white shadow-inner">
+                              <Table>
+                                <TableHeader className="bg-muted/30">
+                                  <TableRow>
+                                    <TableHead className="text-[9px] font-black uppercase px-8">Funcionario Autorizado</TableHead>
+                                    <TableHead className="text-[9px] font-black uppercase">Rol Sistema</TableHead>
+                                    <TableHead className="text-[9px] font-black uppercase">Última Conexión</TableHead>
+                                    <TableHead className="text-[9px] font-black uppercase">Estado</TableHead>
+                                    <TableHead className="text-[9px] font-black uppercase">Oficinas Registro Civil (Nexo)</TableHead>
+                                    <TableHead className="text-right text-[9px] font-black uppercase px-8">Gestión</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {dist.users.map((u: any) => {
+                                    const userOffices: string[] = asignacionesMap[u.id] || u.oficinas_registro_civil || [];
+                                    return (
+                                      <TableRow key={u.id} className="hover:bg-muted/10 transition-colors border-b last:border-0">
+                                        <TableCell className="px-8 py-5">
+                                          <div className="flex items-center gap-3">
+                                            <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center font-black text-xs text-primary border border-primary/10">
+                                              {u.username.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <span className="font-black text-xs uppercase text-primary leading-tight">{u.username}</span>
+                                              <span className="text-[9px] text-muted-foreground font-bold lowercase">{u.email}</span>
+                                            </div>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          {u.role === 'superadmin' ? (
+                                            <Badge className="bg-green-700 text-white text-[8px] font-black uppercase flex gap-2 items-center px-3 py-1 shadow-md border-b-2 border-green-900">
+                                              <Shield className="h-3 w-3" /> SÚPER ADMIN
+                                            </Badge>
+                                          ) : (
+                                            <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/10 bg-primary/[0.02]">
+                                              {u.role}
+                                            </Badge>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center gap-2 text-muted-foreground whitespace-nowrap">
+                                            <Clock className="h-3 w-3 opacity-40" />
+                                            <span className="text-[8px] font-black uppercase tracking-tighter">
+                                              {u.presence?.ultima_actividad 
+                                                ? (typeof u.presence.ultima_actividad.toDate === 'function' 
+                                                  ? u.presence.ultima_actividad.toDate().toLocaleString() 
+                                                  : new Date(u.presence.ultima_actividad).toLocaleString())
+                                                : 'SIN REGISTRO'}
+                                            </span>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center gap-2">
+                                            <div className={cn(
+                                              "h-2 w-2 rounded-full",
+                                              u.active !== false ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-red-500"
+                                            )} />
+                                            <span className={cn("text-[9px] font-black uppercase", u.active !== false ? "text-green-600" : "text-destructive")}>
+                                              {u.active !== false ? 'Activo' : 'Bloqueado'}
+                                            </span>
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <div className="flex flex-col gap-1 min-w-[140px]">
+                                            {userOffices.length === 0 ? (
+                                              <Badge variant="outline" className="text-[8px] font-black uppercase text-muted-foreground border-dashed w-fit">
+                                                Sin Asignar (0/2)
+                                              </Badge>
+                                            ) : (
+                                              <div className="flex flex-wrap gap-1">
+                                                {userOffices.map((regId: string) => {
+                                                  const reg = (registrosCivilesData || []).find((r: any) => r.id === regId);
+                                                  return (
+                                                    <Badge key={regId} variant="secondary" className="text-[8px] font-black uppercase py-0.5 px-2 bg-primary/10 text-primary border-primary/20 flex items-center gap-1">
+                                                      <Building2 className="h-2.5 w-2.5" />
+                                                      {reg ? `N° ${reg.numero} - ${reg.nombre}` : 'Oficina'}
+                                                    </Badge>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="text-right px-8">
+                                          <div className="flex justify-end gap-2">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-9 w-9 text-primary/60 hover:text-primary hover:bg-primary/5 transition-all"
+                                              title="Asignar Oficinas del Registro Civil (1 o 2)"
+                                              onClick={() => handleOpenOficinasModal(u)}
+                                            >
+                                              <Building2 className="h-4 w-4" />
+                                            </Button>
+                                            {(isMasterAdmin || u.role !== 'admin') && (
+                                              <>
+                                                <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-primary/5 text-primary/40 hover:text-primary transition-all" onClick={() => { setEditingUser(u); setEditModalOpen(true); }}><Edit className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className={cn("h-9 w-9 transition-all", u.active !== false ? "text-amber-600/40 hover:text-amber-600 hover:bg-amber-50" : "text-green-600/40 hover:text-green-600 hover:bg-green-50")} onClick={() => toggleUserStatus(u)}>
+                                                  {u.active !== false ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                                                </Button>
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/5"><Trash2 className="h-4 w-4" /></Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent className="rounded-3xl border-none shadow-2xl p-8">
+                                                    <AlertDialogHeader className="space-y-4">
+                                                      <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto border-4 border-destructive/20">
+                                                        <ShieldAlert className="h-8 w-8 text-destructive" />
+                                                      </div>
+                                                      <AlertDialogTitle className="font-black uppercase tracking-tight text-center text-xl">¿ELIMINAR ACCESO DEFINITIVAMENTE?</AlertDialogTitle>
+                                                      <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-muted-foreground text-center">
+                                                        Se borrará el perfil de <span className="text-primary font-black">{u.username}</span> en Firestore y su rastro de conexión. El acceso será revocado de inmediato.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter className="mt-8 sm:justify-center gap-4">
+                                                      <AlertDialogCancel className="h-12 rounded-xl font-black uppercase text-[10px] px-8 border-2">CANCELAR</AlertDialogCancel>
+                                                      <AlertDialogAction onClick={() => handleDeleteUser(u)} className="h-12 bg-destructive hover:bg-destructive/90 text-white rounded-xl font-black uppercase text-[10px] px-8 shadow-xl">
+                                                        SÍ, ELIMINAR PERFIL
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
+                                              </>
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      )}
     </div>
   );
 }
