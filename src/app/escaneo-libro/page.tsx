@@ -32,10 +32,20 @@ import {
   Loader2, BookOpen, Camera, Plus, ArrowLeft, Building2, UserCheck, Trash2,
   CheckCircle2, ImageIcon, ChevronLeft, ChevronRight, Upload, Search, ScanLine,
   FileSpreadsheet, Download, RefreshCw, AlertCircle, Edit, Check, X, FileUp, Sparkles, Filter,
-  MapPin, CheckSquare, Layers, FileText, Archive, Zap, ZapOff, RotateCw
+  MapPin, CheckSquare, Layers, FileText, Archive, Zap, ZapOff, RotateCw,
+  Wifi, WifiOff, CloudUpload, HardDrive
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { exportLibroToPdf, exportLibroToZip, FolioInfo } from '@/lib/libro-exporter';
+import {
+  saveOfflineFolio,
+  getOfflineFoliosForLibro,
+  syncAllOfflineFolios,
+  syncSingleFolio,
+  removeOfflineFolio,
+  OfflineFolioItem,
+  subscribeToSyncEvents,
+} from '@/lib/offline-sync';
 
 /* ===================== Tipos ===================== */
 const TOTAL_FOLIOS = 200;
@@ -1022,6 +1032,8 @@ function CameraScannerModal({
   onTargetFolioChange,
   numeros,
   folios,
+  offlineMap,
+  isOnline = true,
   onSaveBlob,
   onFallbackNative,
 }: {
@@ -1031,6 +1043,8 @@ function CameraScannerModal({
   onTargetFolioChange: (n: number) => void;
   numeros: number[];
   folios: Record<number, Folio>;
+  offlineMap?: Record<number, OfflineFolioItem>;
+  isOnline?: boolean;
   onSaveBlob: (n: number, blob: Blob) => Promise<boolean>;
   onFallbackNative: (n: number) => void;
 }) {
@@ -1145,7 +1159,7 @@ function CameraScannerModal({
       setTimeout(() => setLastSaved(null), 2000);
 
       if (autoAdvance) {
-        const next = numeros.find(x => x > current && !folios[x]);
+        const next = numeros.find(x => x > current && !folios[x] && !offlineMap?.[x]);
         if (next) {
           onTargetFolioChange(next);
         }
@@ -1160,6 +1174,7 @@ function CameraScannerModal({
   if (!open) return null;
 
   const yaEscaneado = !!folios[targetFolio];
+  const isOfflineSaved = !!offlineMap?.[targetFolio];
   const idx = numeros.indexOf(targetFolio);
   const prevFolio = idx > 0 ? numeros[idx - 1] : null;
   const nextFolio = idx < numeros.length - 1 ? numeros[idx + 1] : null;
@@ -1178,18 +1193,25 @@ function CameraScannerModal({
         </Button>
 
         <div className="text-center">
-          <div className="inline-flex items-center gap-1.5 bg-emerald-600/80 backdrop-blur-md px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
-            Cámara en Vivo
+          <div className={cn(
+            "inline-flex items-center gap-1.5 backdrop-blur-md px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg",
+            isOnline ? "bg-emerald-600/80" : "bg-amber-600/90"
+          )}>
+            <span className={cn("w-2 h-2 rounded-full", isOnline ? "bg-emerald-300 animate-ping" : "bg-amber-300 animate-pulse")} />
+            {isOnline ? "Cámara en Vivo" : "Modo Offline"}
           </div>
           <h2 className="text-base sm:text-lg font-black uppercase tracking-tight mt-0.5">
             Folio {targetFolio} <span className="text-xs text-white/60 font-medium">de {numeros[numeros.length - 1]}</span>
           </h2>
-          {yaEscaneado && (
+          {isOfflineSaved ? (
             <p className="text-[10px] font-bold text-amber-300 uppercase">
-              ⚠️ Ya tiene foto (se reemplazará)
+              ⏳ Guardado localmente en el teléfono (pendiente de subir)
             </p>
-          )}
+          ) : yaEscaneado ? (
+            <p className="text-[10px] font-bold text-emerald-300 uppercase">
+              ⚠️ Ya tiene foto en la nube (se reemplazará)
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -1360,6 +1382,10 @@ function LibroScanner({
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const [folios, setFolios] = useState<Record<number, Folio>>({});
+  const [offlineMap, setOfflineMap] = useState<Record<number, OfflineFolioItem>>({});
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<number | null>(null);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
@@ -1377,8 +1403,22 @@ function LibroScanner({
   const desde = libro.folio_desde || 1;
   const numeros = useMemo(() => Array.from({ length: libro.total_folios || TOTAL_FOLIOS }, (_, i) => desde + i), [libro, desde]);
   const escaneados = Object.keys(folios).length;
-  const pct = Math.round((escaneados / numeros.length) * 100);
-  const siguientePendiente = numeros.find(n => !folios[n]);
+  const offlineCount = Object.keys(offlineMap).length;
+  const totalCapturados = useMemo(() => {
+    const ids = new Set([...Object.keys(folios), ...Object.keys(offlineMap)]);
+    return ids.size;
+  }, [folios, offlineMap]);
+  const pct = Math.round((totalCapturados / numeros.length) * 100);
+  const siguientePendiente = numeros.find(n => !folios[n] && !offlineMap[n]);
+
+  const refreshOfflineFolios = useCallback(async () => {
+    try {
+      const map = await getOfflineFoliosForLibro(libro.id);
+      setOfflineMap(map || {});
+    } catch (err) {
+      console.warn('Error al leer folios offline:', err);
+    }
+  }, [libro.id]);
 
   useEffect(() => {
     if (!firestore) return;
@@ -1390,12 +1430,93 @@ function LibroScanner({
         snap.docs.forEach(d => { const f = { id: d.id, ...d.data() } as Folio; map[f.folio] = f; });
         setFolios(map);
       } catch {
-        toast({ variant: 'destructive', title: 'Error al cargar folios' });
+        toast({ variant: 'destructive', title: 'Error al cargar folios remotos' });
       } finally {
         setLoading(false);
       }
     })();
   }, [firestore, libro.id, toast]);
+
+  useEffect(() => {
+    refreshOfflineFolios();
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast({ title: '🌐 Conexión restablecida', description: 'Listo para sincronizar fotos con Cloudflare R2.' });
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast({ title: '📡 Modo Sin Conexión', description: 'Las fotos se guardarán localmente en este dispositivo.' });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const unsubscribe = subscribeToSyncEvents((event) => {
+      if (event.type === 'synced') {
+        refreshOfflineFolios();
+        if (event.item && event.item.libroId === libro.id && event.publicUrl) {
+          const n = event.item.folio;
+          setFolios(prev => ({
+            ...prev,
+            [n]: {
+              id: String(n),
+              folio: n,
+              foto: event.publicUrl,
+              usuario_id: event.item.usuario_id,
+              username: event.item.username,
+              fecha: event.item.fecha,
+            }
+          }));
+        }
+      } else if (event.type === 'completed') {
+        setIsSyncing(false);
+        setSyncProgress(null);
+        refreshOfflineFolios();
+        if (event.success > 0) {
+          toast({ title: '✅ Sincronización completada', description: `Se subieron ${event.success} folios a Cloudflare R2.` });
+        }
+      }
+    });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
+    };
+  }, [refreshOfflineFolios, toast, libro.id]);
+
+  const handleTriggerSync = async () => {
+    if (!firestore || !user) return;
+    if (!navigator.onLine) {
+      toast({ variant: 'destructive', title: 'Sin conexión', description: 'Conéctese a una red Wi-Fi o datos móviles para sincronizar.' });
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const res = await syncAllOfflineFolios(firestore, (current, total) => {
+        setSyncProgress({ current, total, message: `Subiendo folio ${current} de ${total}` });
+      });
+      await refreshOfflineFolios();
+      if (res.success > 0) {
+        toast({ title: `✅ Sincronizados ${res.success} folios a Cloudflare R2` });
+        const snap = await getDocs(collection(firestore, 'libros-escaneo', libro.id, 'folios'));
+        const map: Record<number, Folio> = {};
+        snap.docs.forEach(d => { const f = { id: d.id, ...d.data() } as Folio; map[f.folio] = f; });
+        setFolios(map);
+        await syncCount(Object.keys(map).length);
+      } else if (res.failed > 0) {
+        toast({ variant: 'destructive', title: `⚠️ ${res.failed} folios no se pudieron subir`, description: 'Intente nuevamente más tarde.' });
+      } else {
+        toast({ title: 'Todo al día', description: 'No hay fotos pendientes de sincronizar.' });
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error al sincronizar', description: err?.message });
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress(null);
+    }
+  };
 
   const openLiveCamera = (n: number) => {
     setLiveCameraFolio(n);
@@ -1427,45 +1548,81 @@ function LibroScanner({
   }, [firestore, libro, onLibroChange]);
 
   const saveFolio = async (n: number, fileOrBlob: File | Blob): Promise<boolean> => {
-    if (!firestore || !user) return false;
+    if (!user) return false;
     setUploading(n);
     try {
       // 1. Optimizar resolución del folio preservando legibilidad de manuscritos
       const blob = await compressPageToBlob(fileOrBlob);
 
-      // 2. Subir directamente a Cloudflare R2 mediante nuestra API
-      const formData = new FormData();
-      formData.append('file', blob, `folio_${String(n).padStart(4, '0')}.jpg`);
-      formData.append('libroId', libro.id);
-      formData.append('folio', String(n));
-
-      const res = await fetch('/api/r2/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const resData = await res.json();
-      if (!res.ok) {
-        throw new Error(resData.error || 'Error subiendo imagen a Cloudflare R2');
+      // Si el dispositivo está sin conexión a internet, guardar directo en IndexedDB
+      if (!navigator.onLine || !firestore) {
+        await saveOfflineFolio({
+          libroId: libro.id,
+          folio: n,
+          blob,
+          usuario_id: user.uid,
+          username: user.profile?.username || user.email || '',
+          fecha: new Date().toISOString(),
+        });
+        await refreshOfflineFolios();
+        toast({
+          title: `💾 Folio ${n} guardado en el teléfono`,
+          description: 'Sin internet: Se subirá automáticamente a Cloudflare R2 al restablecer conexión.',
+        });
+        return true;
       }
 
-      const publicUrl = resData.url;
+      // Si está en línea, intentar subir directamente a Cloudflare R2
+      try {
+        const formData = new FormData();
+        formData.append('file', blob, `folio_${String(n).padStart(4, '0')}.jpg`);
+        formData.append('libroId', libro.id);
+        formData.append('folio', String(n));
 
-      // 3. Guardar metadatos y URL pública en Firestore
-      const data = {
-        folio: n,
-        foto: publicUrl,
-        usuario_id: user.uid,
-        username: user.profile?.username || user.email || '',
-        fecha: new Date().toISOString(),
-      };
-      const isNew = !folios[n];
-      await setDoc(doc(firestore, 'libros-escaneo', libro.id, 'folios', String(n).padStart(4, '0')), data);
-      setFolios(prev => ({ ...prev, [n]: { id: String(n), ...data } }));
-      if (isNew) {
-        await syncCount(Object.keys(folios).length + 1);
+        const res = await fetch('/api/r2/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const resData = await res.json();
+        if (!res.ok) {
+          throw new Error(resData.error || 'Error subiendo imagen a Cloudflare R2');
+        }
+
+        const publicUrl = resData.url;
+
+        // 3. Guardar metadatos y URL pública en Firestore
+        const data = {
+          folio: n,
+          foto: publicUrl,
+          usuario_id: user.uid,
+          username: user.profile?.username || user.email || '',
+          fecha: new Date().toISOString(),
+        };
+        const isNew = !folios[n];
+        await setDoc(doc(firestore, 'libros-escaneo', libro.id, 'folios', String(n).padStart(4, '0')), data);
+        setFolios(prev => ({ ...prev, [n]: { id: String(n), ...data } }));
+        if (isNew) {
+          await syncCount(Object.keys(folios).length + 1);
+        }
+        return isNew;
+      } catch (uploadErr: any) {
+        console.warn('Subida online falló por inestabilidad de red; guardando localmente:', uploadErr);
+        await saveOfflineFolio({
+          libroId: libro.id,
+          folio: n,
+          blob,
+          usuario_id: user.uid,
+          username: user.profile?.username || user.email || '',
+          fecha: new Date().toISOString(),
+        });
+        await refreshOfflineFolios();
+        toast({
+          title: `💾 Folio ${n} respaldado localmente`,
+          description: 'La subida falló por mala señal. La foto está segura y lista para sincronizarse.',
+        });
+        return true;
       }
-      return isNew;
     } finally {
       setUploading(null);
     }
@@ -1529,9 +1686,10 @@ function LibroScanner({
     }
   };
 
-  const visibles = numeros.filter(n =>
-    filter === 'todos' ? true : filter === 'pendientes' ? !folios[n] : !!folios[n]
-  );
+  const visibles = numeros.filter(n => {
+    const hasFolio = !!folios[n] || !!offlineMap[n];
+    return filter === 'todos' ? true : filter === 'pendientes' ? !hasFolio : hasFolio;
+  });
 
   return (
     <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full space-y-6">
@@ -1543,9 +1701,11 @@ function LibroScanner({
         onTargetFolioChange={setLiveCameraFolio}
         numeros={numeros}
         folios={folios}
+        offlineMap={offlineMap}
+        isOnline={isOnline}
         onSaveBlob={async (n, blob) => {
           const isNew = await saveFolio(n, blob);
-          toast({ title: `✅ Folio ${n} guardado` });
+          toast({ title: `✅ Folio ${n} procesado` });
           return isNew;
         }}
         onFallbackNative={(n) => openNativeCamera(n)}
@@ -1557,6 +1717,73 @@ function LibroScanner({
       <Button variant="ghost" onClick={onBack} className="font-black uppercase text-[10px] gap-2 -ml-2">
         <ArrowLeft className="h-4 w-4" /> Volver a libros
       </Button>
+
+      {/* BARRA DE ESTADO DE CONEXIÓN Y SINCRONIZACIÓN OFFLINE */}
+      <div className={cn(
+        "rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border transition-all",
+        !isOnline
+          ? "bg-amber-500/10 border-amber-500/40 text-amber-900"
+          : offlineCount > 0
+          ? "bg-sky-500/10 border-sky-500/40 text-sky-950"
+          : "bg-emerald-500/10 border-emerald-500/30 text-emerald-950"
+      )}>
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+            !isOnline ? "bg-amber-500 text-white" : offlineCount > 0 ? "bg-sky-500 text-white" : "bg-emerald-500 text-white"
+          )}>
+            {!isOnline ? (
+              <WifiOff className="h-5 w-5" />
+            ) : offlineCount > 0 ? (
+              <HardDrive className="h-5 w-5 animate-pulse" />
+            ) : (
+              <Wifi className="h-5 w-5" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider",
+                !isOnline ? "bg-amber-500 text-white" : "bg-emerald-600 text-white"
+              )}>
+                {!isOnline ? "Modo Offline Activo" : "En Línea"}
+              </span>
+              {offlineCount > 0 && (
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-600 text-white animate-pulse">
+                  {offlineCount} {offlineCount === 1 ? 'foto en este teléfono' : 'fotos en este teléfono'}
+                </span>
+              )}
+            </div>
+            <p className="text-xs font-bold mt-0.5">
+              {!isOnline
+                ? "Sin conexión a internet. Puede seguir sacando fotos; se guardan protegidas en la memoria del dispositivo."
+                : offlineCount > 0
+                ? `Tiene ${offlineCount} folio(s) guardado(s) en este dispositivo listos para subir a la nube.`
+                : "Sistema conectado y sincronizado con Cloudflare R2."}
+            </p>
+          </div>
+        </div>
+
+        {offlineCount > 0 && (
+          <Button
+            onClick={handleTriggerSync}
+            disabled={!isOnline || isSyncing}
+            className="font-black uppercase text-xs h-10 px-5 rounded-xl gap-2 bg-sky-600 hover:bg-sky-700 text-white shadow-md shrink-0 w-full sm:w-auto"
+          >
+            {isSyncing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {syncProgress ? `Subiendo ${syncProgress.current}/${syncProgress.total}` : 'Sincronizando...'}
+              </>
+            ) : (
+              <>
+                <CloudUpload className="h-4 w-4" />
+                Sincronizar {offlineCount} a Cloudflare R2
+              </>
+            )}
+          </Button>
+        )}
+      </div>
 
       {/* BANNER PRINCIPAL DE CAPTURA ACTIVA CON CÁMARA */}
       {siguientePendiente ? (
@@ -1710,23 +1937,32 @@ function LibroScanner({
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
           {visibles.map(n => {
             const f = folios[n];
+            const off = offlineMap[n];
+            const hasData = !!f || !!off;
+            const previewUrl = f ? f.foto : off ? URL.createObjectURL(off.blob) : null;
+
             return (
               <button key={n} type="button"
-                onClick={() => (f ? setViewer(n) : openLiveCamera(n))}
+                onClick={() => (hasData ? setViewer(n) : openLiveCamera(n))}
                 className={cn(
                   'relative aspect-[3/4] rounded-lg border-2 overflow-hidden flex flex-col items-center justify-center transition-all hover:scale-105 hover:shadow-lg',
-                  f ? 'border-green-600' : 'border-dashed border-muted-foreground/30 bg-white hover:border-primary'
+                  f ? 'border-green-600' : off ? 'border-amber-500 bg-amber-500/10' : 'border-dashed border-muted-foreground/30 bg-white hover:border-primary'
                 )}>
-                {f ? (
-                  <img src={f.foto} alt={`Folio ${n}`} className="absolute inset-0 w-full h-full object-cover" />
+                {previewUrl ? (
+                  <img src={previewUrl} alt={`Folio ${n}`} className="absolute inset-0 w-full h-full object-cover" />
                 ) : uploading === n ? (
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 ) : (
                   <Camera className="h-5 w-5 text-muted-foreground/50" />
                 )}
+                {off && (
+                  <span className="absolute top-1 right-1 bg-amber-500 text-black text-[8px] font-black px-1 rounded-sm shadow">
+                    LOCAL
+                  </span>
+                )}
                 <span className={cn(
                   'absolute bottom-0 inset-x-0 text-[10px] font-black py-0.5 text-center',
-                  f ? 'bg-green-600 text-white' : 'bg-muted/60'
+                  f ? 'bg-green-600 text-white' : off ? 'bg-amber-500 text-black' : 'bg-muted/60'
                 )}>{n}</span>
               </button>
             );
@@ -1737,33 +1973,88 @@ function LibroScanner({
       {/* ===== VISOR ===== */}
       <Dialog open={viewer !== null} onOpenChange={o => !o && setViewer(null)}>
         <DialogContent className="max-w-3xl rounded-2xl">
-          {viewer !== null && folios[viewer] && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="font-black uppercase flex items-center gap-2"><ImageIcon className="h-5 w-5" /> Folio {viewer}</DialogTitle>
-                <DialogDescription>
-                  Capturado por {folios[viewer].username} — {new Date(folios[viewer].fecha).toLocaleString('es-PY')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="relative bg-black rounded-xl overflow-hidden">
-                <img src={folios[viewer].foto} alt={`Folio ${viewer}`} className="w-full max-h-[65vh] object-contain" />
-                <button type="button" onClick={() => { const p = numeros.slice().reverse().find(x => x < viewer && folios[x]); if (p) setViewer(p); }}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-2"><ChevronLeft className="h-5 w-5" /></button>
-                <button type="button" onClick={() => { const nx = numeros.find(x => x > viewer && folios[x]); if (nx) setViewer(nx); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-2"><ChevronRight className="h-5 w-5" /></button>
-              </div>
-              <DialogFooter className="gap-2">
-                {isAdmin && (
-                  <Button variant="destructive" onClick={() => handleDeleteFolio(viewer)} className="font-black uppercase text-[10px] gap-2">
-                    <Trash2 className="h-4 w-4" /> Eliminar
-                  </Button>
-                )}
-                <Button variant="outline" onClick={() => { const n = viewer; setViewer(null); openLiveCamera(n); }} className="font-black uppercase text-[10px] gap-2">
-                  <Camera className="h-4 w-4" /> Volver a fotografiar en vivo
-                </Button>
-              </DialogFooter>
-            </>
-          )}
+          {viewer !== null && (folios[viewer] || offlineMap[viewer]) && (() => {
+            const f = folios[viewer];
+            const off = offlineMap[viewer];
+            const imgUrl = f ? f.foto : off ? URL.createObjectURL(off.blob) : '';
+            const isLocalOnly = !f && !!off;
+
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center justify-between gap-2">
+                    <DialogTitle className="font-black uppercase flex items-center gap-2">
+                      <ImageIcon className="h-5 w-5" /> Folio {viewer}
+                    </DialogTitle>
+                    {isLocalOnly && (
+                      <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500 text-black">
+                        ⏳ Guardado en este teléfono (Pendiente de subir)
+                      </span>
+                    )}
+                  </div>
+                  <DialogDescription>
+                    {f ? (
+                      `Capturado por ${f.username} — ${new Date(f.fecha).toLocaleString('es-PY')}`
+                    ) : off ? (
+                      `Guardado localmente por ${off.username} — ${new Date(off.fecha || off.timestamp).toLocaleString('es-PY')}`
+                    ) : null}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="relative bg-black rounded-xl overflow-hidden">
+                  <img src={imgUrl} alt={`Folio ${viewer}`} className="w-full max-h-[65vh] object-contain" />
+                  <button type="button" onClick={() => { const p = numeros.slice().reverse().find(x => x < viewer && (folios[x] || offlineMap[x])); if (p) setViewer(p); }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-2"><ChevronLeft className="h-5 w-5" /></button>
+                  <button type="button" onClick={() => { const nx = numeros.find(x => x > viewer && (folios[x] || offlineMap[x])); if (nx) setViewer(nx); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 rounded-full p-2"><ChevronRight className="h-5 w-5" /></button>
+                </div>
+                <DialogFooter className="gap-2 flex-wrap sm:justify-between">
+                  <div>
+                    {isLocalOnly && isOnline && (
+                      <Button
+                        onClick={async () => {
+                          if (!off || !firestore) return;
+                          try {
+                            setUploading(viewer);
+                            await syncSingleFolio(off, firestore);
+                            await refreshOfflineFolios();
+                            toast({ title: `✅ Folio ${viewer} sincronizado a Cloudflare R2` });
+                          } catch (err: any) {
+                            toast({ variant: 'destructive', title: 'Error al subir', description: err?.message });
+                          } finally {
+                            setUploading(null);
+                          }
+                        }}
+                        disabled={uploading === viewer}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] gap-2"
+                      >
+                        {uploading === viewer ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+                        Subir a Cloudflare R2 ahora
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {isAdmin && (
+                      <Button variant="destructive" onClick={async () => {
+                        if (isLocalOnly) {
+                          await removeOfflineFolio(off.libroId, off.folio);
+                          await refreshOfflineFolios();
+                          setViewer(null);
+                          toast({ title: `Folio ${viewer} eliminado de la memoria local` });
+                        } else {
+                          await handleDeleteFolio(viewer);
+                        }
+                      }} className="font-black uppercase text-[10px] gap-2">
+                        <Trash2 className="h-4 w-4" /> Eliminar
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => { const n = viewer; setViewer(null); openLiveCamera(n); }} className="font-black uppercase text-[10px] gap-2">
+                      <Camera className="h-4 w-4" /> Volver a fotografiar en vivo
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </main>
