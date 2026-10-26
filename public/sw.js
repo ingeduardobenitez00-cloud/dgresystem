@@ -7,6 +7,7 @@ const OFFLINE_URLS = [
   '/',
   '/escaneo-libro',
   '/manifest.json',
+  '/logo1.png',
   '/favicon.ico',
 ];
 

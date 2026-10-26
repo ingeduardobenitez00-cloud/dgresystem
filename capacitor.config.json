@@ -1,9 +1,10 @@
 {
   "appId": "py.gov.dgrec.sistema",
-  "appName": "DGREC Registral",
+  "appName": "DD-DGRE-REC",
   "webDir": "public",
   "bundledWebRuntime": false,
   "server": {
+    "url": "https://dgre-tsje.web.app",
     "androidScheme": "https",
     "cleartext": true
   },

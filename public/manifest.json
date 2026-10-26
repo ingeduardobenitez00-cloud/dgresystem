@@ -1,6 +1,6 @@
 {
-  "name": "DGREC - Sistema Registral",
-  "short_name": "DGREC",
+  "name": "DD-DGRE-REC",
+  "short_name": "DD-DGRE-REC",
   "description": "Plataforma de Digitalización, Auditoría y Relevamiento Registral de la República del Paraguay",
   "start_url": "/escaneo-libro",
   "display": "standalone",
