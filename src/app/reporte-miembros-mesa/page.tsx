@@ -15,6 +15,7 @@ import html2canvas from "html2canvas";
 import { cn, formatDateToDDMMYYYY } from "@/lib/utils";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { HistoricalToggle } from "@/components/historical-toggle";
+import { useElectionPeriod } from "@/context/election-period-context";
 
 const COLORS = ['#2563EB', '#EC4899']; // Blue for Hombres, Pink for Mujeres
 
@@ -23,17 +24,16 @@ export default function ReporteMiembrosMesaPage() {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
+    const { period, getDocName, getCollectionName } = useElectionPeriod();
 
     const isAdmin = ['admin', 'director', 'coordinador', 'superadmin'].includes(user?.profile?.role || '') || user?.isOwner || user?.isSuperAdmin;
-
-    const [isHistorical, setIsHistorical] = useState(false);
 
     // Leer resumen
     const statsDocRef = useMemo(() => {
         if (!firestore) return null;
-        const docName = isHistorical ? 'miembros-mesa_internas_2026' : 'miembros-mesa';
+        const docName = getDocName('miembros-mesa');
         return doc(firestore, 'stats-summary', docName);
-    }, [firestore, isHistorical]);
+    }, [firestore, getDocName, period]);
     
     const { data: stats, isLoading: isLoadingStats, refetch } = useDocOnce<any>(statsDocRef);
 
@@ -43,12 +43,12 @@ export default function ReporteMiembrosMesaPage() {
         try {
             toast({ title: "Sincronizando...", description: "Calculando estadísticas de Miembros de Mesa..." });
 
-            const colName = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
+            const colName = getCollectionName('solicitudes-capacitacion');
             const solicitudesSnap = await getDocs(collection(firestore, colName));
             const allSolicitudes = solicitudesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
             // Obtener todos los informes para cruzar datos
-            const informesColName = isHistorical ? 'informes-divulgador_internas_2026' : 'informes-divulgador';
+            const informesColName = getCollectionName('informes-divulgador');
             const informesSnap = await getDocs(collection(firestore, informesColName));
             const allInformes = informesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -223,7 +223,7 @@ export default function ReporteMiembrosMesaPage() {
                 updatedBy: user?.profile?.username || user?.email
             };
 
-            const docName = isHistorical ? 'miembros-mesa_internas_2026' : 'miembros-mesa';
+            const docName = getDocName('miembros-mesa');
             await setDoc(doc(firestore, 'stats-summary', docName), summary);
             toast({ title: "Sincronización exitosa", description: "El reporte estadístico ha sido actualizado." });
             
@@ -397,8 +397,6 @@ if (isLoadingStats) return <div className="flex h-screen items-center justify-ce
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                         <HistoricalToggle 
-                            isHistorical={isHistorical} 
-                            setIsHistorical={setIsHistorical} 
                             isAdmin={!!isAdmin} 
                         />
                         {isAdmin && (

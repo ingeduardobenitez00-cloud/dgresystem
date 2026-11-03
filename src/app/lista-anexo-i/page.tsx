@@ -61,6 +61,7 @@ type Dato = {
 
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 const DistrictSection = ({ 
     deptName,
@@ -213,16 +214,18 @@ const DepartmentSection = ({
 }: any) => {
     const [isOpen, setIsOpen] = useState(initialOpen || !['admin', 'director'].includes(profile?.role || ''));
 
+    const { period, getCollectionName } = useElectionPeriod();
+
     const deptQuery = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
         const norm = normalizeGeo(deptName);
         const variations = Array.from(new Set([deptName, norm, norm.charAt(0) + norm.slice(1).toLowerCase()])).filter(Boolean);
-        const colName = isHistorical ? 'anexo-i_internas_2026' : 'anexo-i';
+        const colName = getCollectionName('anexo-i');
         return query(
             collection(firestore, colName),
             where('departamento', 'in', variations)
         );
-    }, [firestore, isOpen, deptName, isHistorical]);
+    }, [firestore, isOpen, deptName, getCollectionName, period]);
 
     const { data: allDeptItems, isLoading: isDeptLoading, setData: setAllDeptItems } = useCollectionOnce<AnexoI>(deptQuery);
 
@@ -356,8 +359,6 @@ export default function ListaAnexoIPage() {
             </div>
             <div className="flex flex-col md:flex-row gap-4 items-center justify-end w-full">
                 <HistoricalToggle 
-                    isHistorical={isHistorical} 
-                    setIsHistorical={setIsHistorical} 
                     isAdmin={['admin', 'director'].includes(profile?.role?.toLowerCase() || '') || !!user?.isAdmin} 
                 />
                 <div className="relative w-full md:w-80">

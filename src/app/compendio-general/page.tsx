@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { HistoricalToggle } from "@/components/historical-toggle";
 import { useUser } from "@/firebase";
+import { useElectionPeriod } from "@/context/election-period-context";
 
 export default function CompendioGeneralPage() {
     const { firestore, storage } = useFirebase();
@@ -51,7 +52,7 @@ export default function CompendioGeneralPage() {
     const [logo2, setLogo2] = useState<string | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isHistorical, setIsHistorical] = useState(false);
+    const { period, getPeriodSuffix } = useElectionPeriod();
 
     const { data: datosData } = useCollectionOnce<Dato>(firestore ? collection(firestore, 'datos') : null);
 
@@ -125,7 +126,7 @@ export default function CompendioGeneralPage() {
         if (!firestore || !selectedDepartment || !selectedDistrict) return;
         setIsLoadingData(true);
         try {
-            const suffix = isHistorical ? '_internas_2026' : '';
+            const suffix = getPeriodSuffix();
             const q = query(collection(firestore, `solicitudes-capacitacion${suffix}`), where('departamento', '==', selectedDepartment), where('distrito', '==', selectedDistrict));
             const snap = await getDocs(q);
             const enriched = await Promise.all(snap.docs.map(async (d) => {
@@ -411,8 +412,6 @@ export default function CompendioGeneralPage() {
                     </div>
                     <div className="flex gap-4">
                         <HistoricalToggle 
-                            isHistorical={isHistorical} 
-                            setIsHistorical={setIsHistorical} 
                             isAdmin={['admin', 'director'].includes(user?.profile?.role || '')} 
                         />
                         <Button onClick={() => generatePDF()} disabled={isGenerating || activities.length === 0} className="h-12 px-8 rounded-xl font-black uppercase text-[10px] gap-2">

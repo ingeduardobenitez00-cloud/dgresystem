@@ -35,7 +35,8 @@ import {
   Download,
   Search,
   ChevronsUpDown,
-  ChevronDown
+  ChevronDown,
+  Archive
 } from 'lucide-react';
 import { useUser, useFirebase, useCollectionPaginated, useCollectionOnce, useMemoFirebase, useDocOnce, useStorage } from '@/firebase';
 import { collection, addDoc, query, where, doc, updateDoc, serverTimestamp, getDocs, orderBy, limit } from 'firebase/firestore';
@@ -163,9 +164,19 @@ function ControlMovimientoContent() {
 
   const profile = user?.profile;
 
+  const [targetElection, setTargetElection] = useState<'consejo' | 'generales'>('consejo');
+
+  const agendaCollectionName = targetElection === 'generales' 
+    ? 'solicitudes-capacitacion_generales_2026' 
+    : 'solicitudes-capacitacion';
+
+  const movimientosCollectionName = targetElection === 'generales' 
+    ? 'movimientos-maquinas_generales_2026' 
+    : 'movimientos-maquinas';
+
   const agendaQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
-    const colRef = collection(firestore, 'solicitudes-capacitacion');
+    const colRef = collection(firestore, agendaCollectionName);
     const isAdmin = ['admin', 'director'].includes(profile.role || '') || profile.permissions?.includes('admin_filter');
     
     if (isAdmin) return colRef;
@@ -174,14 +185,14 @@ function ControlMovimientoContent() {
     if (!profile.departamento || !profile.distrito) return null;
     
     return query(colRef, where('departamento', '==', profile.departamento), where('distrito', '==', profile.distrito));
-  }, [firestore, isUserLoading, profile]);
+  }, [firestore, isUserLoading, profile, agendaCollectionName]);
 
   const { data: rawAgendaItems, isLoading: isLoadingAgenda, hasMore: hasMoreAgenda, loadMore: loadMoreAgenda, isLoadingMore: isLoadingMoreAgenda } = useCollectionPaginated<SolicitudCapacitacion>(agendaQuery, 30);
 
   const directSolicitudRef = useMemoFirebase(() => {
     if (!firestore || !solicitudIdFromUrl) return null;
-    return doc(firestore, 'solicitudes-capacitacion', solicitudIdFromUrl);
-  }, [firestore, solicitudIdFromUrl]);
+    return doc(firestore, agendaCollectionName, solicitudIdFromUrl);
+  }, [firestore, solicitudIdFromUrl, agendaCollectionName]);
 
   const { data: directSolicitudData } = useDocOnce<SolicitudCapacitacion>(directSolicitudRef);
 
@@ -224,7 +235,7 @@ function ControlMovimientoContent() {
   // OPTIMIZACIÓN CRÍTICA: En lugar de cargar TODO, cargamos solo los movimientos de las solicitudes que estamos viendo
   const movimientosQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const colRef = collection(firestore, 'movimientos-maquinas');
+    const colRef = collection(firestore, movimientosCollectionName);
     
     // Si venimos de un ID directo, priorizamos traer el movimiento de ese ID
     if (solicitudIdFromUrl) {
@@ -233,7 +244,7 @@ function ControlMovimientoContent() {
 
     if (!rawAgendaItems || rawAgendaItems.length === 0) return null;
     return query(colRef, orderBy('fecha_creacion', 'desc'), limit(100));
-  }, [firestore, rawAgendaItems, solicitudIdFromUrl]);
+  }, [firestore, rawAgendaItems, solicitudIdFromUrl, movimientosCollectionName]);
   const { data: allMovimientos } = useCollectionOnce<MovimientoMaquina>(movimientosQuery);
 
   const denunciasQuery = useMemoFirebase(() => {
@@ -470,7 +481,7 @@ function ControlMovimientoContent() {
           fecha_creacion: new Date().toISOString(),
         };
 
-        await addDoc(collection(firestore, 'movimientos-maquinas'), docData);
+        await addDoc(collection(firestore, movimientosCollectionName), docData);
         
         toast({ 
             variant: "warning",
@@ -530,7 +541,7 @@ function ControlMovimientoContent() {
           foto_devolucion: uploadedUrls
         };
 
-        await updateDoc(doc(firestore, 'movimientos-maquinas', currentMovimiento.id), updateData);
+        await updateDoc(doc(firestore, movimientosCollectionName, currentMovimiento.id), updateData);
         
         setIsDevolucionGuardada(true);
         const hasTampering = movimientoData.maquinas.some(m => m.lacre_estado === 'violentado');
@@ -884,6 +895,68 @@ function ControlMovimientoContent() {
                 </Button>
             )}
         </div>
+
+        {user?.canLoadGenerales && (
+          <div className="p-5 rounded-[2rem] bg-gradient-to-r from-indigo-950 via-slate-900 to-black text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-indigo-500/30">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-indigo-600/30 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/30 shadow-inner">
+                <Archive className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">MODALIDAD DE GESTIÓN HABILITADA</span>
+                  <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 border-none">
+                    AUTORIZADO POR ADMINISTRACIÓN
+                  </Badge>
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-tight text-white mt-0.5">
+                  {targetElection === 'generales' ? 'PROCESO ACTIVO: ELECCIONES GENERALES 2026' : 'PROCESO ACTIVO: CONSEJO DE LA MAGISTRATURA'}
+                </h3>
+                <p className="text-[9px] font-bold text-white/60 uppercase">
+                  {targetElection === 'generales'
+                    ? 'Gestionando salidas y devoluciones de máquinas de Elecciones Generales 2026.'
+                    : 'Gestionando salidas y devoluciones de máquinas del Consejo de la Magistratura.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-2xl border border-white/10 shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                variant={targetElection === 'consejo' ? 'default' : 'ghost'}
+                className={cn(
+                  "h-10 text-[9px] font-black uppercase rounded-xl px-4 transition-all cursor-pointer",
+                  targetElection === 'consejo' 
+                    ? "bg-white text-black hover:bg-white shadow-lg" 
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                )}
+                onClick={() => {
+                  setTargetElection('consejo');
+                  setSelectedSolicitudId(null);
+                }}
+              >
+                Consejo de la Magistratura
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={targetElection === 'generales' ? 'default' : 'ghost'}
+                className={cn(
+                  "h-10 text-[9px] font-black uppercase rounded-xl px-4 transition-all cursor-pointer",
+                  targetElection === 'generales' 
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg" 
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                )}
+                onClick={() => {
+                  setTargetElection('generales');
+                  setSelectedSolicitudId(null);
+                }}
+              >
+                Elecciones Generales 2026
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Card className="border-primary/20 shadow-md">
           <CardHeader className="py-4 bg-primary/5">

@@ -123,12 +123,26 @@ service cloud.firestore {
     }
 
     /** CIDEE - Colecciones de Archivo Histórico (Internas 2026) **/
-    match /solicitudes-capacitacion_internas_2026/{docId} { allow read, write: if isAdmin(); }
-    match /informes-divulgador_internas_2026/{docId} { allow read, write: if isAdmin(); }
-    match /informes-semanales-anexo-iv_internas_2026/{docId} { allow read, write: if isAdmin(); }
-    match /movimientos-maquinas_internas_2026/{docId} { allow read, write: if isAdmin(); }
-    match /denuncias-lacres_internas_2026/{docId} { allow read, write: if isAdmin(); }
-    match /encuestas-satisfaccion_internas_2026/{docId} { allow read, write: if isAdmin(); }
+    match /solicitudes-capacitacion_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /informes-divulgador_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /informes-semanales-anexo-iv_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /movimientos-maquinas_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /denuncias-lacres_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /encuestas-satisfaccion_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /anexo-i_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /partidos-politicos_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /reports_internas_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+
+    /** CIDEE - Colecciones de Archivo Histórico (Generales 2026) **/
+    match /solicitudes-capacitacion_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /informes-divulgador_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /informes-semanales-anexo-iv_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /movimientos-maquinas_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /denuncias-lacres_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /encuestas-satisfaccion_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /anexo-i_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /partidos-politicos_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
+    match /reports_generales_2026/{docId} { allow read: if isActive(); allow write, delete: if isAdmin(); }
 
     /** Reglas Generales de Configuración y Geografía **/
     match /datos/{datoId} {

@@ -203,15 +203,17 @@ function DepartmentAnexoIVSection({
 }: DepartmentAnexoIVSectionProps & { isHistorical?: boolean }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
+    const { period, getCollectionName } = useElectionPeriod();
+
     // Consulta por departamento SOLO cuando se expande (SMART LOADING)
     const anexosQuery = useMemoFirebase(() => {
         if (!firestore || !isExpanded) return null;
-        const colName = isHistorical ? 'informes-semanales-anexo-iv_internas_2026' : 'informes-semanales-anexo-iv';
+        const colName = getCollectionName('informes-semanales-anexo-iv');
         return query(
             collection(firestore, colName),
             where('departamento', '==', deptName)
         );
-    }, [firestore, deptName, isExpanded, isHistorical]);
+    }, [firestore, deptName, isExpanded, getCollectionName, period]);
 
     const { data: rawAnexos, isLoading, setData: setRawAnexos } = useCollectionOnce<AnexoIV>(anexosQuery);
 
@@ -295,6 +297,7 @@ function DepartmentAnexoIVSection({
 // --- PÁGINA PRINCIPAL ---
 
 import { HistoricalToggle } from "@/components/historical-toggle";
+import { useElectionPeriod } from "@/context/election-period-context";
 
 export default function ListaAnexoIVPage() {
     const { user, isUserLoading } = useUser();
@@ -365,8 +368,6 @@ export default function ListaAnexoIVPage() {
                     </div>
                 <div className="flex flex-col md:flex-row gap-4 items-center justify-end mb-8 w-full">
                     <HistoricalToggle 
-                        isHistorical={isHistorical} 
-                        setIsHistorical={setIsHistorical} 
                         isAdmin={isAdmin} 
                     />
                     <div className="relative w-full md:w-96">

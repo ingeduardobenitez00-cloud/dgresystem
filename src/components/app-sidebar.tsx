@@ -47,7 +47,8 @@ import {
   Calendar,
   Cpu,
   Building2,
-  ScanLine
+  ScanLine,
+  Scale
 } from "lucide-react";
 import { useUser, CIDEE_MODULES, JEFE_MODULES } from "@/firebase/auth/use-user";
 import { useModuleCategories } from "@/firebase";
@@ -55,6 +56,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 
 const MODULE_REGISTRY: Record<string, { label: string; icon: any }> = {
+  // PROCESO ELECTORAL VIGENTE
+  'consejo-magistratura': { label: "Consejo de la Magistratura", icon: Scale },
+
   // CIDEE - CAPACITACIONES
   'calendario-capacitaciones': { label: "Calendario Mensual", icon: Calendar },
   'anexo-i': { label: "Anexo I - Lugares Fijos", icon: MapPin },

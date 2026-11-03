@@ -73,17 +73,18 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 export default function CalendarioCapacitacionesPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const { period, getCollectionName } = useElectionPeriod();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDayActivities, setSelectedDayActivities] = useState<SolicitudCapacitacion[] | null>(null);
   const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador>>(new Map());
   const [viewingReport, setViewingReport] = useState<InformeDivulgador | null>(null);
   const [fullViewerImage, setFullViewerImage] = useState<string | null>(null);
-  const [isHistorical, setIsHistorical] = useState(false);
 
   // Estados de Filtro
   const [filterDept, setFilterDept] = useState<string>('all');
@@ -113,7 +114,7 @@ export default function CalendarioCapacitacionesPage() {
    */
   const solicitudesQuery = useMemoFirebase(() => {
     if (!firestore || isUserLoading || !profile) return null;
-    const colRef = collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion');
+    const colRef = collection(firestore, getCollectionName('solicitudes-capacitacion'));
     
     // Rango de fechas del mes visible
     const start = format(startOfWeek(startOfMonth(currentMonth)), 'yyyy-MM-dd');
@@ -179,7 +180,7 @@ export default function CalendarioCapacitacionesPage() {
     }
 
     Promise.all(chunks.map(chunk => 
-        getDocs(query(collection(firestore, isHistorical ? 'informes-divulgador_internas_2026' : 'informes-divulgador'), where('solicitud_id', 'in', chunk)))
+        getDocs(query(collection(firestore, getCollectionName('informes-divulgador')), where('solicitud_id', 'in', chunk)))
     )).then(snapshots => {
         const newMap = new Map();
         snapshots.forEach(snap => snap.docs.forEach(doc => {
@@ -188,7 +189,7 @@ export default function CalendarioCapacitacionesPage() {
         }));
         setInformesMap(newMap);
     }).catch(e => console.error("Error cargando informes:", e));
-  }, [firestore, rawActivities, isHistorical]);
+  }, [firestore, rawActivities, getCollectionName, period]);
 
   const datosQuery = useMemoFirebase(() => firestore ? collection(firestore, 'datos') : null, [firestore]);
   const { data: datosData, isLoading: isLoadingDatos } = useCollectionOnce<Dato>(datosQuery);
@@ -255,8 +256,6 @@ export default function CalendarioCapacitacionesPage() {
 
             <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                 <HistoricalToggle 
-                    isHistorical={isHistorical} 
-                    setIsHistorical={setIsHistorical} 
                     isAdmin={!!hasAdminFilter} 
                 />
                 {hasAdminFilter ? (

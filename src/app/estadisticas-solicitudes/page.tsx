@@ -14,6 +14,7 @@ import autoTable from "jspdf-autotable";
 import { cn, normalizeGeo } from "@/lib/utils";
 import html2canvas from "html2canvas";
 import { HistoricalToggle } from "@/components/historical-toggle";
+import { useElectionPeriod } from "@/context/election-period-context";
 
 const COLORS = ['#0F172A', '#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -22,15 +23,14 @@ export default function EstadisticasSolicitudesPage() {
     const { firestore } = useFirebase();
     const { toast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
-
-    const [isHistorical, setIsHistorical] = useState(false);
+    const { period, getDocName, getCollectionName } = useElectionPeriod();
 
     // Leer resumen de solicitudes
     const statsDocRef = useMemo(() => {
         if (!firestore) return null;
-        const docName = isHistorical ? 'solicitudes_internas_2026' : 'solicitudes';
+        const docName = getDocName('solicitudes');
         return doc(firestore, 'stats-summary', docName);
-    }, [firestore, isHistorical]);
+    }, [firestore, getDocName, period]);
     const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
     const isAdmin = ['admin', 'director', 'coordinador'].includes(user?.profile?.role || '') || user?.isOwner;
@@ -41,7 +41,7 @@ export default function EstadisticasSolicitudesPage() {
         try {
             toast({ title: "Sincronizando...", description: "Consolidando partidos y movimientos políiticos..." });
 
-            const colName = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
+            const colName = getCollectionName('solicitudes-capacitacion');
             const [solicitudesSnap, datosSnap] = await Promise.all([
                 getDocs(collection(firestore, colName)),
                 getDocs(collection(firestore, 'datos'))
@@ -155,7 +155,7 @@ export default function EstadisticasSolicitudesPage() {
             };
 
             // 4. Guardar Resumen Jerárquico
-            const docName = isHistorical ? 'solicitudes_internas_2026' : 'solicitudes';
+            const docName = getDocName('solicitudes');
             await setDoc(doc(firestore, 'stats-summary', docName), {
                 lastUpdate: new Date().toISOString(),
                 totalSolicitudes: total,
@@ -454,8 +454,6 @@ export default function EstadisticasSolicitudesPage() {
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                         <HistoricalToggle 
-                            isHistorical={isHistorical} 
-                            setIsHistorical={setIsHistorical} 
                             isAdmin={!!isAdmin} 
                         />
                         {isAdmin && (

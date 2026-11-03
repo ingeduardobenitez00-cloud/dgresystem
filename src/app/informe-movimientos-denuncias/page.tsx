@@ -257,19 +257,20 @@ function DistrictArchiveSection({
     );
 }
 
-function DepartmentSection({ dept, firestore, searchTerm, denuncias, dateFrom, dateTo, isHistorical }: any) {
+function DepartmentSection({ dept, firestore, searchTerm, denuncias, dateFrom, dateTo }: any) {
     const [isOpen, setIsOpen] = useState(false);
+    const { period, getCollectionName } = useElectionPeriod();
 
     // Fetch ALL department items for this module
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
-        const colName = isHistorical ? 'movimientos-maquinas_internas_2026' : 'movimientos-maquinas';
+        const colName = getCollectionName('movimientos-maquinas');
         return query(
             collection(firestore, colName),
             where('departamento', '==', dept.name),
             orderBy('fecha_creacion', 'desc')
         );
-    }, [firestore, dept.name, isOpen, isHistorical]);
+    }, [firestore, dept.name, isOpen, getCollectionName, period]);
 
     const { data: allDeptItems, isLoading: isDeptLoading } = useCollectionOnce<MovimientoMaquina>(q);
 
@@ -319,10 +320,12 @@ function DepartmentSection({ dept, firestore, searchTerm, denuncias, dateFrom, d
 }
 
 import { HistoricalToggle } from "@/components/historical-toggle";
+import { useElectionPeriod } from "@/context/election-period-context";
 
 export default function InformeMovimientosDenunciasPage() {
   const { firestore } = useFirebase();
   const { user, isUserLoading, isProfileLoading } = useUser();
+  const { period, getCollectionName } = useElectionPeriod();
   const [search, setSearch] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
@@ -330,7 +333,6 @@ export default function InformeMovimientosDenunciasPage() {
   const [dateTo, setDateTo] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [itemsToExport, setItemsToExport] = useState<MovimientoMaquina[] | null>(null);
-  const [isHistorical, setIsHistorical] = useState(false);
 
   const handleGeneratePdf = async () => {
       if (!firestore) return;
@@ -342,7 +344,7 @@ export default function InformeMovimientosDenunciasPage() {
           }
           constraints.push(orderBy('fecha_creacion', 'desc'));
           
-          const colName = isHistorical ? 'movimientos-maquinas_internas_2026' : 'movimientos-maquinas';
+          const colName = getCollectionName('movimientos-maquinas');
           const snapshot = await getDocs(query(collection(firestore, colName), ...constraints));
           let items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MovimientoMaquina));
 
@@ -486,9 +488,9 @@ export default function InformeMovimientosDenunciasPage() {
 
   const denunciasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const colName = isHistorical ? 'denuncias-lacres_internas_2026' : 'denuncias-lacres';
+    const colName = getCollectionName('denuncias-lacres');
     return collection(firestore, colName);
-  }, [firestore, isHistorical]);
+  }, [firestore, getCollectionName, period]);
 
   const { data: denuncias } = useCollectionOnce<any>(denunciasQuery);
 
@@ -550,8 +552,6 @@ export default function InformeMovimientosDenunciasPage() {
             </div>
             <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto items-center justify-end">
                 <HistoricalToggle 
-                    isHistorical={isHistorical} 
-                    setIsHistorical={setIsHistorical} 
                     isAdmin={isAdminGlobal} 
                 />
                 <div className="relative w-full md:w-64">

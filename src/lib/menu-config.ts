@@ -1,7 +1,13 @@
 
-import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText, ClipboardList, CalendarCog, Archive, MapPin, Calendar, Cpu, ScanLine, Building2 } from 'lucide-react';
+import { FileText, BarChart3, Users, Settings, FileArchive, UploadCloud, ImageIcon, FileUp, Vote, CalendarDays, ClipboardCheck, MessageSquareHeart, UserCheck, PieChart, TableProperties, ArrowLeftRight, Flag, ShieldAlert, BookOpen, UserCircle, History, Images, Activity, ScrollText, ClipboardList, CalendarCog, Archive, MapPin, Calendar, Cpu, ScanLine, Building2, Scale } from 'lucide-react';
 
 export const dashboardMenuItems = [
+  {
+    href: '/consejo-magistratura',
+    label: 'Consejo de la Magistratura',
+    icon: Scale,
+    description: 'Panel operativo y coordinación de Elecciones del Consejo de la Magistratura.',
+  },
   {
     href: '/calendario-capacitaciones',
     label: 'Calendario Mensual',

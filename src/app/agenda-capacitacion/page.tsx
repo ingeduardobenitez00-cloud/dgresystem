@@ -67,6 +67,7 @@ import html2canvas from 'html2canvas';
 import { generatePlanillaCIDEE } from '@/lib/pdf-cidee';
 import { MaquinaVotacion } from '@/lib/data';
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 const normalizeGeo = (str: string) => {
   if (!str) return '';
@@ -131,15 +132,17 @@ const DistrictSection = ({
     }, [firestore, logisticsSolicitud]);
     const { data: maquinasData } = useCollectionOnce<MaquinaVotacion>(maquinasQuery);
 
+    const { period, getCollectionName } = useElectionPeriod();
+
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
         return query(
-            collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion'),
+            collection(firestore, getCollectionName('solicitudes-capacitacion')),
             where('departamento', '==', deptName),
             where('distrito', '==', distName),
             orderBy('fecha', 'asc')
         );
-    }, [firestore, isOpen, deptName, distName, isHistorical]);
+    }, [firestore, isOpen, deptName, distName, getCollectionName, period]);
 
     const { 
         data: rawItems, 
@@ -940,8 +943,6 @@ export default function AgendaCapacitacionPage() {
                     </div>
                     <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                         <HistoricalToggle 
-                            isHistorical={isHistorical} 
-                            setIsHistorical={setIsHistorical} 
                             isAdmin={!!hasAdminFilter} 
                         />
                         <div className="relative w-full md:w-80">

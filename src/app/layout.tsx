@@ -7,6 +7,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
+import { ElectionPeriodProvider } from '@/context/election-period-context';
 import AppLayout from '@/components/app-layout';
 import PwaRegister from '@/components/pwa-register';
 
@@ -66,7 +67,9 @@ export default function RootLayout({
         )}
       >
         <FirebaseClientProvider>
-          <AppLayout>{children}</AppLayout>
+          <ElectionPeriodProvider>
+            <AppLayout>{children}</AppLayout>
+          </ElectionPeriodProvider>
         </FirebaseClientProvider>
         <PwaRegister />
         <Toaster />

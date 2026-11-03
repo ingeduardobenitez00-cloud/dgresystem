@@ -17,10 +17,11 @@ export interface UserProfile {
   active?: boolean;
   registration_method?: string;
   photo_url?: string | null;
+  puede_cargar_generales?: boolean;
 }
 
 export const CIDEE_MODULES = [
-  'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+  'consejo-magistratura', 'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
   'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 
@@ -28,13 +29,14 @@ export const CIDEE_MODULES = [
 ];
 
 export const JEFE_MODULES = [
-  'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
+  'consejo-magistratura', 'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-divulgador', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
   'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'compendio-general', 'informe-cidee'
 ];
 
 export const ALL_SYSTEM_MODULES = [
+  'consejo-magistratura',
   'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
@@ -57,6 +59,7 @@ export type AppUser = User & {
   isStaff?: boolean;
   isCideeStaff?: boolean;
   isJefeStaff?: boolean;
+  canLoadGenerales?: boolean;
 };
 
 export interface UserHookResult {
@@ -92,6 +95,7 @@ export const useUser = (): UserHookResult => {
     // Si el correo coincide, otorgamos acceso total ignorando el estado de Firestore.
     if (isOwner) {
       const allModules = [
+        'consejo-magistratura',
         'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
         'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
         'informe-movimientos-denuncias', 'encuesta-satisfaccion', 'informe-divulgador', 
@@ -129,7 +133,8 @@ export const useUser = (): UserHookResult => {
         isAdmin: true,
         isSuperAdmin: true,
         isOwner: true,
-        isStaff: true
+        isStaff: true,
+        canLoadGenerales: true
       };
     }
     
@@ -184,14 +189,16 @@ export const useUser = (): UserHookResult => {
         role: profileData?.role || (isStaff ? role : 'funcionario'),
         active: profileData?.active ?? true,
         departamento: profileData?.departamento || '',
-        distrito: profileData?.distrito || ''
+        distrito: profileData?.distrito || '',
+        puede_cargar_generales: isOwner || isAdmin || profileData?.puede_cargar_generales === true
       },
       isAdmin,
       isSuperAdmin,
       isOwner: isOwner,
       isStaff,
       isCideeStaff,
-      isJefeStaff
+      isJefeStaff,
+      canLoadGenerales: isOwner || isAdmin || profileData?.puede_cargar_generales === true
     };
   }, [authUser, profileData, isOwner]);
 

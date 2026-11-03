@@ -35,7 +35,8 @@ import {
   Clock,
   ChevronRight,
   UserCircle,
-  ChevronDown
+  ChevronDown,
+  Archive
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -83,6 +84,7 @@ type UserProfile = {
   profileId?: string | null;
   registration_method?: string;
   oficinas_registro_civil?: string[];
+  puede_cargar_generales?: boolean;
 };
 
 const normalizeDept = (dept?: string): string => {
@@ -413,6 +415,7 @@ function UsersContent() {
   const [regDepartamento, setRegDepartamento] = useState<string>('');
   const [regDistrito, setRegDistrito] = useState<string>('');
   const [regRole, setRegRole] = useState<UserProfile['role']>('funcionario');
+  const [regPuedeCargarGenerales, setRegPuedeCargarGenerales] = useState<boolean>(false);
   
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
@@ -778,6 +781,7 @@ function UsersContent() {
       active: true,
       profileId: selectedProfileId || null,
       oficinas_registro_civil: regOficinas,
+      puede_cargar_generales: regPuedeCargarGenerales,
       registration_method: 'creado_por_admin'
     };
 
@@ -953,7 +957,8 @@ function UsersContent() {
         active: editingUser.active ?? true,
         email: editingUser.email,
         departamento: editingUser.departamento || 'ALCANCE NACIONAL',
-        distrito: editingUser.distrito || 'TODOS LOS DISTRITOS'
+        distrito: editingUser.distrito || 'TODOS LOS DISTRITOS',
+        puede_cargar_generales: editingUser.puede_cargar_generales === true
     };
 
     if (editingUser.oficinas_registro_civil) {
@@ -1008,6 +1013,35 @@ function UsersContent() {
             }));
             setIsSubmitting(false);
         });
+  };
+
+  const handleToggleCargaGenerales = async (u: UserProfile) => {
+    if (!firestore || !isAdminView) return;
+    const currentVal = u.puede_cargar_generales === true;
+    const newVal = !currentVal;
+    try {
+      await updateDoc(doc(firestore, 'users', u.id), {
+        puede_cargar_generales: newVal
+      });
+      if (setFirestoreUsers) {
+        setFirestoreUsers(prev => prev ? prev.map(item => item.id === u.id ? { ...item, puede_cargar_generales: newVal } : item) : null);
+      }
+      recordAuditLog(firestore, {
+        usuario_id: currentUser?.uid || 'admin',
+        usuario_nombre: currentUser?.profile?.username || currentUser?.email || 'Admin',
+        usuario_rol: currentUser?.profile?.role || 'admin',
+        accion: 'EDITAR',
+        modulo: 'users',
+        documento_id: u.id,
+        detalles: `${newVal ? 'Habilitó' : 'Deshabilitó'} permiso de carga de Generales 2026 para ${u.username}`
+      });
+      toast({
+        title: newVal ? 'Carga de Generales Habilitada' : 'Carga de Generales Deshabilitada',
+        description: `${u.username || u.email} ${newVal ? 'ahora puede' : 'ya no puede'} cargar registros para Elecciones Generales 2026.`
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error al actualizar permiso', description: err.message });
+    }
   };
 
   const repairAllJefes = async () => {
@@ -1305,6 +1339,33 @@ function UsersContent() {
                 )}
               </div>
 
+              <div className="p-4 rounded-2xl bg-indigo-50/60 border-2 border-indigo-200/80 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <Archive className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <Label htmlFor="reg-generales" className="text-[10px] font-black uppercase text-indigo-950 cursor-pointer">
+                      Habilitar Carga de Elecciones Generales 2026
+                    </Label>
+                    <p className="text-[9px] font-bold text-indigo-700/80 uppercase">
+                      Permite al usuario alternar y cargar actas, partidos tradicionales y movimientos de máquinas de Generales
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    id="reg-generales" 
+                    checked={regPuedeCargarGenerales} 
+                    onCheckedChange={(val) => setRegPuedeCargarGenerales(!!val)}
+                    className="h-5 w-5 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                  />
+                  <Label htmlFor="reg-generales" className={cn("text-[10px] font-black uppercase cursor-pointer", regPuedeCargarGenerales ? "text-indigo-700" : "text-muted-foreground")}>
+                    {regPuedeCargarGenerales ? "HABILITADO" : "NO"}
+                  </Label>
+                </div>
+              </div>
+
               <div className="space-y-4 pt-4 border-t border-dashed">
                 <div className="flex items-center justify-between">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground">Perfiles de Acceso Rápidos</Label>
@@ -1355,6 +1416,7 @@ function UsersContent() {
           setEditModalOpen={setEditModalOpen}
           toggleUserStatus={toggleUserStatus}
           handleDeleteUser={handleDeleteUser}
+          handleToggleCargaGenerales={handleToggleCargaGenerales}
         />
       </main>
 
@@ -1431,6 +1493,22 @@ function UsersContent() {
                                 />
                                 <Label htmlFor="edit-status" className={cn("text-[11px] font-black uppercase", editingUser.active !== false ? "text-green-600" : "text-destructive")}>
                                     {editingUser.active !== false ? "ACCESO HABILITADO" : "ACCESO BLOQUEADO"}
+                                </Label>
+                            </div>
+                        </div>
+                        <div className="space-y-2 bg-indigo-50/70 p-3 rounded-2xl border-2 border-indigo-200">
+                            <Label className="text-[10px] font-black uppercase text-indigo-950 flex items-center gap-1.5">
+                                <Archive className="h-3.5 w-3.5 text-indigo-700" /> Carga Elecciones Generales 2026
+                            </Label>
+                            <div className="flex items-center gap-3 pt-1">
+                                <Checkbox 
+                                    id="edit-generales" 
+                                    checked={editingUser.puede_cargar_generales === true} 
+                                    onCheckedChange={(val) => setEditingUser({...editingUser, puede_cargar_generales: !!val})}
+                                    className="h-5 w-5 border-indigo-400"
+                                />
+                                <Label htmlFor="edit-generales" className={cn("text-[10px] font-black uppercase cursor-pointer", editingUser.puede_cargar_generales ? "text-indigo-700" : "text-muted-foreground")}>
+                                    {editingUser.puede_cargar_generales ? "CARGA HABILITADA" : "DESHABILITADO"}
                                 </Label>
                             </div>
                         </div>
@@ -2117,6 +2195,7 @@ function DirectorioJurisdiccion(props: {
   setEditModalOpen: (open: boolean) => void;
   toggleUserStatus: (u: UserProfile) => void;
   handleDeleteUser: (u: UserProfile) => void;
+  handleToggleCargaGenerales: (u: UserProfile) => void;
 }) {
   const {
     hierarchy,
@@ -2130,7 +2209,8 @@ function DirectorioJurisdiccion(props: {
     setEditingUser,
     setEditModalOpen,
     toggleUserStatus,
-    handleDeleteUser
+    handleDeleteUser,
+    handleToggleCargaGenerales
   } = props;
 
   return (
@@ -2304,6 +2384,21 @@ function DirectorioJurisdiccion(props: {
                                               onClick={() => handleOpenOficinasModal(u)}
                                             >
                                               <Building2 className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant={u.puede_cargar_generales ? "default" : "outline"}
+                                              size="sm"
+                                              className={cn(
+                                                "h-8 px-2.5 text-[8px] font-black uppercase rounded-xl gap-1.5 transition-all cursor-pointer",
+                                                u.puede_cargar_generales 
+                                                  ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" 
+                                                  : "text-muted-foreground border-2 border-dashed hover:border-indigo-500 hover:text-indigo-600 bg-white"
+                                              )}
+                                              title={u.puede_cargar_generales ? "Carga de Generales Habilitada (Clic para deshabilitar)" : "Habilitar Carga de Elecciones Generales a este usuario"}
+                                              onClick={() => handleToggleCargaGenerales(u)}
+                                            >
+                                              <Archive className="h-3 w-3" />
+                                              {u.puede_cargar_generales ? "GENERALES ON" : "+ GENERALES"}
                                             </Button>
                                             {(isMasterAdmin || u.role !== 'admin') && (
                                               <>

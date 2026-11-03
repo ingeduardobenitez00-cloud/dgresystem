@@ -14,6 +14,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -23,8 +24,8 @@ export default function InformeGeneralPage() {
   const { firestore } = useFirebase();
   const { user: currentUser } = useUser();
   const { toast } = useToast();
+  const { period, getCollectionName } = useElectionPeriod();
   
-  const [isHistorical, setIsHistorical] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [logo1, setLogo1] = useState<string | null>(null);
   const [logo2, setLogo2] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export default function InformeGeneralPage() {
         // Fetch ALL data on demand only to save memory on start
         const [datosSnap, reportsSnap, imagesSnap] = await Promise.all([
             getDocs(collection(firestore, 'datos')),
-            getDocs(collection(firestore, isHistorical ? 'reports_internas_2026' : 'reports')),
+            getDocs(collection(firestore, getCollectionName('reports'))),
             getDocs(collection(firestore, 'imagenes'))
         ]);
 
@@ -109,8 +110,6 @@ export default function InformeGeneralPage() {
            <CardHeader className="text-center relative">
             <div className="absolute top-4 right-4">
                 <HistoricalToggle 
-                    isHistorical={isHistorical} 
-                    setIsHistorical={setIsHistorical} 
                     isAdmin={!!canGenerate} 
                 />
             </div>

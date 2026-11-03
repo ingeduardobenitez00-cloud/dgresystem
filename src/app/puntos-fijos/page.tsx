@@ -33,11 +33,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 export default function PuntosFijosPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
+  const { period, getCollectionName } = useElectionPeriod();
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfWeek(new Date(), { weekStartsOn: 0 }),
@@ -45,7 +47,6 @@ export default function PuntosFijosPage() {
   });
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
-  const [isHistorical, setIsHistorical] = useState(false);
 
   const profile = user?.profile;
   const isAdminView = ['admin', 'director', 'coordinador'].includes(profile?.role || '') || profile?.permissions?.includes('admin_filter');
@@ -80,10 +81,10 @@ export default function PuntosFijosPage() {
   // Consulta de Puntos Fijos (Solicitudes tipo 'Lugar Fijo')
   const puntosFijosQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    const colRef = collection(firestore, isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion');
+    const colRef = collection(firestore, getCollectionName('solicitudes-capacitacion'));
     // Quitamos 'orderBy' para evitar la necesidad de índices compuestos manuales. El ordenamiento se hace en memoria.
     return query(colRef, where('tipo_solicitud', '==', 'Lugar Fijo'));
-  }, [firestore, isHistorical]);
+  }, [firestore, getCollectionName, period]);
 
   const { data: rawPuntosFijos, isLoading } = useCollectionOnce<SolicitudCapacitacion>(puntosFijosQuery);
 
@@ -152,8 +153,6 @@ export default function PuntosFijosPage() {
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-4">
               <HistoricalToggle 
-                  isHistorical={isHistorical} 
-                  setIsHistorical={setIsHistorical} 
                   isAdmin={!!isAdminView} 
               />
               <Button 

@@ -24,6 +24,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cleanFileName } from '@/lib/utils';
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
@@ -96,13 +97,13 @@ export default function ResumenPage() {
     setIsClient(true);
   }, []);
 
-  const [isHistorical, setIsHistorical] = useState(false);
+  const { period, getDocName } = useElectionPeriod();
   
   // Leer resumen pre-calculado (Bajo Costo)
   const statsDocRef = useMemo(() => {
     if (!firestore) return null;
-    return doc(firestore, 'stats-summary', isHistorical ? 'ubicaciones_internas_2026' : 'ubicaciones');
-  }, [firestore, isHistorical]);
+    return doc(firestore, 'stats-summary', getDocName('ubicaciones'));
+  }, [firestore, getDocName, period]);
   const { data: summary, isLoading: isLoadingSummary } = useDocOnce<any>(statsDocRef);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -250,8 +251,6 @@ const handleGeneratePdf = async () => {
                   </div>
                   <div className="flex flex-wrap items-center gap-4">
                     <HistoricalToggle 
-                        isHistorical={isHistorical} 
-                        setIsHistorical={setIsHistorical} 
                         isAdmin={['admin', 'director'].includes(currentUser?.profile?.role?.toLowerCase() || '') || !!currentUser?.isAdmin} 
                     />
                     {canGeneratePdf && (

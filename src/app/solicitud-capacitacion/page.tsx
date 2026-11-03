@@ -29,7 +29,8 @@ import {
   Flag,
   ChevronsUpDown,
   Globe,
-  MapPin
+  MapPin,
+  Archive
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirebase, useCollectionOnce, useMemoFirebase, useStorage } from '@/firebase';
@@ -38,9 +39,10 @@ import { Separator } from '@/components/ui/separator';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, formatDateToDDMMYYYY } from '@/lib/utils';
-import { type PartidoPolitico, type MaquinaVotacion, type SolicitudCapacitacion, type Dato } from '@/lib/data';
+import { type PartidoPolitico, type MaquinaVotacion, type SolicitudCapacitacion, type Dato, LISTAS_CONSEJO_MAGISTRATURA } from '@/lib/data';
 import Image from 'next/image';
 import { compressImage, captureVideoFrame } from '@/lib/image-utils';
+import { useElectionPeriod } from '@/context/election-period-context';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { recordAuditLog } from '@/lib/audit';
@@ -174,6 +176,7 @@ export default function SolicitudCapacitacionPage() {
   const { firestore } = useFirebase();
   const { uploadFile, isUploading: isStorageUploading } = useStorage();
   const { toast } = useToast();
+  const { period, getCollectionName } = useElectionPeriod();
 
   const [formData, setFormData] = useState({
     solicitante_entidad: '',
@@ -212,6 +215,18 @@ export default function SolicitudCapacitacionPage() {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const [targetElection, setTargetElection] = useState<'consejo' | 'generales'>('consejo');
+
+  const handleSelectElection = (election: 'consejo' | 'generales') => {
+    setTargetElection(election);
+    setFormData(prev => ({
+      ...prev,
+      solicitante_entidad: '',
+      otra_entidad: '',
+      movimiento_politico: ''
+    }));
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -423,6 +438,10 @@ export default function SolicitudCapacitacionPage() {
           );
         }
 
+        const targetCol = targetElection === 'generales' 
+          ? 'solicitudes-capacitacion_generales_2026' 
+          : 'solicitudes-capacitacion';
+
         const docData = { 
           ...formData, 
           departamento: formData.departamento, 
@@ -431,26 +450,35 @@ export default function SolicitudCapacitacionPage() {
           usuario_id: user.uid, 
           creado_por: profile?.username || user.email,
           es_capacitacion_mm: formData.es_capacitacion_mm,
+          proceso_electoral: targetElection === 'generales' ? 'generales_2026' : 'consejo_magistratura',
           fecha_creacion: new Date().toISOString(), 
           server_timestamp: serverTimestamp() 
         };
         
-        const docRef = await addDoc(collection(firestore, 'solicitudes-capacitacion'), docData);
+        const docRef = await addDoc(collection(firestore, targetCol), docData);
         
         // Incrementar contadores atómicos en tiempo real
-        await updateStats(docData, 1);
+        if (targetElection === 'consejo') {
+          await updateStats(docData, 1);
+        }
 
         recordAuditLog(firestore, {
           usuario_id: user.uid,
           usuario_nombre: profile?.username || user.email || 'Usuario Desconocido',
           usuario_rol: profile?.role || 'funcionario',
           accion: 'CREAR',
-          modulo: 'solicitud-capacitacion',
+          modulo: targetCol,
           documento_id: docRef.id,
-          detalles: `Nueva solicitud para ${formData.lugar_local} (Storage)${isOmisionActive ? ' [OMISIÓN DE SOLICITANTE]' : ''}`
+          detalles: `Nueva solicitud para ${formData.lugar_local} [${targetElection === 'generales' ? 'ELECCIONES GENERALES 2026' : 'CONSEJO DE LA MAGISTRATURA'}]${isOmisionActive ? ' [OMISIÓN DE SOLICITANTE]' : ''}`
         });
 
-        toast({ variant: "warning", title: "¡Solicitud Registrada!" });
+        toast({ 
+          variant: "warning", 
+          title: "¡Solicitud Registrada!",
+          description: targetElection === 'generales' 
+            ? "Guardada exitosamente en la base de Elecciones Generales 2026" 
+            : "Guardada exitosamente para el Consejo de la Magistratura"
+        });
         setFormData(p => ({ 
             ...p, 
             solicitante_entidad: '', 
@@ -590,7 +618,7 @@ export default function SolicitudCapacitacionPage() {
 
     y += 10;
     doc.setFont('helvetica', 'normal');
-    const intro = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones de Intendentes y Juntas Municipales del 04 de octubre del 2026, a los efectos de solicitar:";
+    const intro = "Tengo el agrado de dirigirme a usted/es, en virtud a las próximas Elecciones del Consejo de la Magistratura, a los efectos de solicitar:";
     const introLines = doc.splitTextToSize(intro, pageWidth - (margin * 2) - 10);
     doc.text(introLines, margin + 5, y);
 
@@ -672,28 +700,54 @@ export default function SolicitudCapacitacionPage() {
     doc.save(`AnexoV-${formData.lugar_local.replace(/\s+/g, '-')}.pdf`);
   };
 
-  const partidosQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'partidos-politicos'), orderBy('nombre')) : null, [firestore]);
+  const partidosQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    if (targetElection === 'generales') {
+      return query(collection(firestore, 'partidos-politicos_generales_2026'), orderBy('nombre'));
+    }
+    return query(collection(firestore, getCollectionName('partidos-politicos')), orderBy('nombre'));
+  }, [firestore, period, getCollectionName, targetElection]);
   const { data: partidosData } = useCollectionOnce<PartidoPolitico>(partidosQuery);
 
+  const fallbackPartidosQuery = useMemoFirebase(() => {
+    if (!firestore || targetElection !== 'generales') return null;
+    return query(collection(firestore, 'partidos-politicos'), orderBy('nombre'));
+  }, [firestore, targetElection]);
+  const { data: fallbackPartidosData } = useCollectionOnce<PartidoPolitico>(fallbackPartidosQuery);
+
+  const activePartidosData = useMemo(() => {
+    if (targetElection === 'generales') {
+      if (partidosData && partidosData.length > 0) return partidosData;
+      return (fallbackPartidosData || []).filter(p => !p.nombre.toUpperCase().startsWith('LISTA '));
+    }
+    return partidosData || [];
+  }, [targetElection, partidosData, fallbackPartidosData]);
+
   const uniqueParties = useMemo(() => {
-    if (!partidosData) return [];
+    if (targetElection === 'consejo') {
+      const dbConsejo = (partidosData || []).filter(p => p.nombre.toUpperCase().includes('LISTA'));
+      if (dbConsejo.length > 0) return dbConsejo;
+      return LISTAS_CONSEJO_MAGISTRATURA;
+    }
+    if (!activePartidosData) return [];
     const seen = new Set<string>();
-    return partidosData.filter(p => {
+    return activePartidosData.filter(p => {
         if (seen.has(p.nombre)) return false;
         seen.add(p.nombre);
         return true;
     });
-  }, [partidosData]);
+  }, [targetElection, partidosData, activePartidosData]);
 
   const availableMovements = useMemo(() => {
-    if (!partidosData || !formData.solicitante_entidad) return [];
-    const movements = partidosData
+    if (targetElection === 'consejo') return [];
+    if (!activePartidosData || !formData.solicitante_entidad) return [];
+    const movements = activePartidosData
         .filter(p => p.nombre === formData.solicitante_entidad && p.movimiento)
         .map(p => p.movimiento!)
         .filter((v, i, a) => a.indexOf(v) === i)
         .sort();
     return movements;
-  }, [partidosData, formData.solicitante_entidad]);
+  }, [targetElection, activePartidosData, formData.solicitante_entidad]);
 
   const searchCedulaInPadron = useCallback(async (cedulaInput: string) => {
     const cleanTerm = (cedulaInput || '').trim().toUpperCase(); 
@@ -740,6 +794,62 @@ export default function SolicitudCapacitacionPage() {
                 </Button>
             </div>
         </div>
+
+        {user?.canLoadGenerales && (
+          <div className="p-5 rounded-[2rem] bg-gradient-to-r from-indigo-950 via-slate-900 to-black text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-indigo-500/30">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-indigo-600/30 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/30 shadow-inner">
+                <Archive className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">MODALIDAD DE CARGA HABILITADA</span>
+                  <Badge className="bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 border-none">
+                    AUTORIZADO POR ADMINISTRACIÓN
+                  </Badge>
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-tight text-white mt-0.5">
+                  {targetElection === 'generales' ? 'PROCESO ACTIVO: ELECCIONES GENERALES 2026' : 'PROCESO ACTIVO: CONSEJO DE LA MAGISTRATURA'}
+                </h3>
+                <p className="text-[9px] font-bold text-white/60 uppercase">
+                  {targetElection === 'generales'
+                    ? 'Guardando en la base de Elecciones Generales 2026 con partidos políticos tradicionales y movimientos.'
+                    : 'Guardando en la base del Consejo de la Magistratura con las 4 Listas Oficiales.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-2xl border border-white/10 shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                variant={targetElection === 'consejo' ? 'default' : 'ghost'}
+                className={cn(
+                  "h-10 text-[9px] font-black uppercase rounded-xl px-4 transition-all cursor-pointer",
+                  targetElection === 'consejo' 
+                    ? "bg-white text-black hover:bg-white shadow-lg" 
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                )}
+                onClick={() => handleSelectElection('consejo')}
+              >
+                Consejo de la Magistratura
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={targetElection === 'generales' ? 'default' : 'ghost'}
+                className={cn(
+                  "h-10 text-[9px] font-black uppercase rounded-xl px-4 transition-all cursor-pointer",
+                  targetElection === 'generales' 
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg" 
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                )}
+                onClick={() => handleSelectElection('generales')}
+              >
+                Elecciones Generales 2026
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <Card className="lg:col-span-2 shadow-2xl border-none overflow-hidden rounded-[2rem] bg-white">
@@ -817,19 +927,21 @@ export default function SolicitudCapacitacionPage() {
               )}
 
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={cn("grid gap-6", targetElection === 'consejo' ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
                     <div className="space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-primary">Grupo Político o Institución Solicitante</Label>
+                        <Label className="text-[9px] font-black uppercase text-primary">
+                          {targetElection === 'consejo' ? 'Lista Oficial Solicitante (Consejo de la Magistratura)' : 'Partido Político Solicitante (Elecciones Generales 2026)'}
+                        </Label>
                         <Popover open={isPartyPopoverOpen} onOpenChange={setIsPartyPopoverOpen}>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" className="w-full justify-between h-14 font-black text-lg border-2 rounded-xl overflow-hidden uppercase">
-                                    <span className="truncate">{formData.solicitante_entidad || "Seleccionar..."}</span>
+                                    <span className="truncate">{formData.solicitante_entidad || (targetElection === 'consejo' ? "Seleccionar Lista Oficial..." : "Seleccionar Partido Político...")}</span>
                                     <Search className="ml-2 h-5 w-5 opacity-30 shrink-0" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-none overflow-hidden">
                                 <Command>
-                                    <CommandInput placeholder="Buscar partido..." />
+                                    <CommandInput placeholder={targetElection === 'consejo' ? "Buscar entre las 4 listas oficiales..." : "Buscar partido..."} />
                                     <CommandList>
                                         <CommandEmpty>No encontrado.</CommandEmpty>
                                         <CommandGroup>
@@ -839,7 +951,7 @@ export default function SolicitudCapacitacionPage() {
                                                     setIsPartyPopoverOpen(false); 
                                                 }} className="flex flex-col items-start gap-1 p-4 cursor-pointer hover:bg-muted">
                                                     <span className="font-black text-xs uppercase text-left">{p.nombre}</span>
-                                                    <span className="text-[10px] font-black text-primary uppercase opacity-40">{p.siglas}</span>
+                                                    <span className="text-[10px] font-black text-primary uppercase opacity-60">{p.siglas || p.numero_lista}</span>
                                                 </CommandItem>
                                             ))}
                                         </CommandGroup>
@@ -849,39 +961,43 @@ export default function SolicitudCapacitacionPage() {
                         </Popover>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label className="text-[9px] font-black uppercase text-primary">Movimiento Político (Opcional)</Label>
-                        <Popover open={isMovementPopoverOpen} onOpenChange={setIsMovementPopoverOpen}>
-                            <PopoverTrigger asChild disabled={!formData.solicitante_entidad || availableMovements.length === 0}>
-                                <Button variant="outline" className={cn(
-                                    "w-full justify-between h-14 font-black text-lg border-2 rounded-xl overflow-hidden uppercase",
-                                    (!formData.solicitante_entidad || availableMovements.length === 0) && "opacity-40 bg-muted/20"
-                                )}>
-                                    <span className="truncate">{formData.movimiento_politico || (availableMovements.length === 0 ? "Sin movimientos" : "Seleccionar...")}</span>
-                                    <ChevronsUpDown className="ml-2 h-5 w-5 opacity-30 shrink-0" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-none overflow-hidden">
-                                <Command>
-                                    <CommandInput placeholder="Buscar movimiento..." />
-                                    <CommandList>
-                                        <CommandEmpty>No encontrado.</CommandEmpty>
-                                        <CommandGroup>
-                                            {availableMovements.map(m => (
-                                                <CommandItem key={m} value={m} onSelect={() => { 
-                                                    setFormData(prev => ({...prev, movimiento_politico: m})); 
-                                                    setIsMovementPopoverOpen(false); 
-                                                }} className="p-4 cursor-pointer hover:bg-muted">
-                                                    <Flag className="mr-2 h-4 w-4 opacity-40" />
-                                                    <span className="font-black text-xs uppercase">{m}</span>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
-                    </div>
+                    {targetElection === 'generales' && (
+                      <div className="space-y-2">
+                          <Label className="text-[9px] font-black uppercase text-primary">
+                            Movimiento Político (Opcional)
+                          </Label>
+                          <Popover open={isMovementPopoverOpen} onOpenChange={setIsMovementPopoverOpen}>
+                              <PopoverTrigger asChild disabled={!formData.solicitante_entidad || availableMovements.length === 0}>
+                                  <Button variant="outline" className={cn(
+                                      "w-full justify-between h-14 font-black text-lg border-2 rounded-xl overflow-hidden uppercase",
+                                      (!formData.solicitante_entidad || availableMovements.length === 0) && "opacity-40 bg-muted/20"
+                                  )}>
+                                      <span className="truncate">{formData.movimiento_politico || (availableMovements.length === 0 ? "Sin movimientos" : "Seleccionar...")}</span>
+                                      <ChevronsUpDown className="ml-2 h-5 w-5 opacity-30 shrink-0" />
+                                  </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-none overflow-hidden">
+                                  <Command>
+                                      <CommandInput placeholder="Buscar movimiento..." />
+                                      <CommandList>
+                                          <CommandEmpty>No encontrado.</CommandEmpty>
+                                          <CommandGroup>
+                                              {availableMovements.map(m => (
+                                                  <CommandItem key={m} value={m} onSelect={() => { 
+                                                      setFormData(prev => ({...prev, movimiento_politico: m})); 
+                                                      setIsMovementPopoverOpen(false); 
+                                                  }} className="p-4 cursor-pointer hover:bg-muted">
+                                                      <Flag className="mr-2 h-4 w-4 opacity-40" />
+                                                      <span className="font-black text-xs uppercase">{m}</span>
+                                                  </CommandItem>
+                                              ))}
+                                          </CommandGroup>
+                                      </CommandList>
+                                  </Command>
+                              </PopoverContent>
+                          </Popover>
+                      </div>
+                    )}
                 </div>
 
                 <div className="space-y-2">

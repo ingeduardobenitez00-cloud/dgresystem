@@ -72,6 +72,7 @@ import Image from 'next/image';
 import { normalizeGeo } from '@/lib/utils';
 import { compressImage } from '@/lib/image-utils';
 import { HistoricalToggle } from '@/components/historical-toggle';
+import { useElectionPeriod } from '@/context/election-period-context';
 
 interface InformeDivulgador {
   id: string;
@@ -369,15 +370,16 @@ function DepartmentGallerySection({
     refreshKey?: number
 }) {
     const [isExpanded, setIsExpanded] = useState(initialOpen);
+    const { period, getCollectionName } = useElectionPeriod();
 
     const informesQuery = useMemoFirebase(() => {
         if (!firestore || !isExpanded) return null;
-        const colName = isHistorical ? 'informes-divulgador_internas_2026' : 'informes-divulgador';
+        const colName = getCollectionName('informes-divulgador');
         return query(
             collection(firestore, colName),
             where('departamento', '==', deptName)
         );
-    }, [firestore, deptName, isExpanded, isHistorical]);
+    }, [firestore, deptName, isExpanded, getCollectionName, period]);
 
     const { data: rawInformes, isLoading, refetch } = useCollectionOnce<InformeDivulgador>(informesQuery);
 
@@ -646,8 +648,6 @@ export default function GaleriaCapacitacionesPage() {
             </div>
             <div className="flex flex-col md:flex-row gap-4 items-center justify-end w-full">
                 <HistoricalToggle 
-                    isHistorical={isHistorical} 
-                    setIsHistorical={setIsHistorical} 
                     isAdmin={['admin', 'director'].includes(profile?.role?.toLowerCase() || '') || !!isAdmin} 
                 />
                 <div className="relative w-full md:w-80">

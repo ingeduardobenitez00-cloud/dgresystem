@@ -7,14 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle2, Database, Search, AlertTriangle, FileUp, Plus, Trash2, X, Edit, Rocket, ShieldAlert, History, Archive, Download } from 'lucide-react';
+import { Loader2, CheckCircle2, Database, Search, AlertTriangle, FileUp, Plus, Trash2, X, Edit, Rocket, ShieldAlert, History, Archive, Download, Scale } from 'lucide-react';
 import Header from '@/components/header';
 import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type Dato } from '@/lib/data';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { useFirebase, useMemoFirebase, useUser, useCollectionOnce, useDocOnce, useModuleCategories } from '@/firebase';
-import { collection, doc, setDoc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit, where } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, writeBatch, addDoc, deleteDoc, updateDoc, getDocs, query, limit, where } from 'firebase/firestore';
 import { dashboardMenuItems } from '@/lib/menu-config';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
@@ -491,22 +491,146 @@ export default function SettingsPage() {
     }
   };
 
+  const handleResetGenerales = async () => {
+    if (!firestore || !isAdminView) return;
+    setIsResetting(true);
+    setResetProgress(0);
+    setResetTotal(0);
+    const collectionsToClear = [
+      'solicitudes-capacitacion', 
+      'informes-divulgador', 
+      'informes-semanales-anexo-iv', 
+      'movimientos-maquinas', 
+      'denuncias-lacres', 
+      'encuestas-satisfaccion',
+      'anexo-i',
+      'partidos-politicos'
+    ];
+    try {
+      let totalDocs = 0;
+      const snapshotsToProcess: { colName: string, docs: any[] }[] = [];
+      
+      for (const colName of collectionsToClear) {
+        try {
+          const q = query(collection(firestore, colName));
+          const snapshot = await getDocs(q);
+          totalDocs += snapshot.docs.length;
+          snapshotsToProcess.push({ colName, docs: snapshot.docs });
+        } catch (readErr: any) {
+          console.warn(`No se pudo leer colección ${colName}:`, readErr);
+        }
+      }
+      
+      setResetTotal(totalDocs);
+      let processed = 0;
+
+      for (const colData of snapshotsToProcess) {
+        const docsArray = colData.docs;
+        if (docsArray.length === 0) continue;
+        const BATCH_SIZE = 100;
+        
+        for (let i = 0; i < docsArray.length; i += BATCH_SIZE) {
+          const chunk = docsArray.slice(i, i + BATCH_SIZE);
+          const batch = writeBatch(firestore);
+          let opsCount = 0;
+          
+          chunk.forEach(d => {
+            const data = d.data();
+            const archiveRef = doc(firestore, `${colData.colName}_generales_2026`, d.id);
+            batch.set(archiveRef, data);
+            batch.delete(d.ref);
+            opsCount++;
+          });
+          
+          if (opsCount > 0) {
+             await batch.commit();
+             await delay(150);
+          }
+          
+          processed += chunk.length;
+          setResetProgress(processed);
+        }
+      }
+
+      // Archivar documentos de resumen estadístico de Elecciones Generales
+      try {
+        const statsSummaryDocs = ['ubicaciones', 'capacitaciones', 'miembros-mesa', 'solicitudes'];
+        for (const statName of statsSummaryDocs) {
+          const statSnap = await getDoc(doc(firestore, 'stats-summary', statName));
+          if (statSnap.exists()) {
+            await setDoc(doc(firestore, 'stats-summary', `${statName}_generales_2026`), statSnap.data());
+            await deleteDoc(doc(firestore, 'stats-summary', statName));
+          }
+        }
+      } catch (e) {
+        console.error("Error archivando estadísticas de generales:", e);
+      }
+
+      toast({ 
+        title: 'Cierre de Elecciones Generales Completado', 
+        description: 'Datos archivados en _generales_2026. Entorno limpio para Elecciones del Consejo de la Magistratura.' 
+      });
+    } catch (err: any) { 
+      console.error("Error detallado en handleResetGenerales:", err);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Error al realizar el cierre de generales',
+        description: err?.message || 'Permiso denegado por reglas de seguridad en Firestore. Verifique firestore.rules.'
+      }); 
+    } finally { 
+      setIsResetting(false);
+      setResetProgress(0);
+      setResetTotal(0);
+    }
+  };
+
+  const [isArchivingPartidos, setIsArchivingPartidos] = useState(false);
+  const handleArchivePartidos = async () => {
+    if (!firestore || !isAdminView) return;
+    setIsArchivingPartidos(true);
+    try {
+      const snap = await getDocs(collection(firestore, 'partidos-politicos'));
+      if (snap.empty) {
+        toast({ title: 'Sin registros', description: 'No hay partidos políticos en la colección activa actual.' });
+        return;
+      }
+      const batch = writeBatch(firestore);
+      snap.docs.forEach(d => {
+        batch.set(doc(firestore, 'partidos-politicos_generales_2026', d.id), d.data());
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+      toast({
+        title: 'Partidos Archivados con Éxito',
+        description: `Se archivaron ${snap.docs.length} organizaciones en "partidos-politicos_generales_2026". Base lista para listas del Consejo.`
+      });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error al archivar partidos' });
+    } finally {
+      setIsArchivingPartidos(false);
+    }
+  };
+
   const sysConfigRef = useMemoFirebase(() => firestore ? doc(firestore, 'sysconfig', 'status') : null, [firestore]);
   const { data: sysConfig, refetch: refetchSysConfig } = useDocOnce<{maintenance: boolean}>(sysConfigRef);
   const isMaintenanceActive = sysConfig?.maintenance === true;
 
   const [isExporting, setIsExporting] = useState(false);
+  const [historyPeriod, setHistoryPeriod] = useState<'generales' | 'internas'>('generales');
 
   const handleExportHistory = async (collectionName: string) => {
     if (!firestore) return;
     setIsExporting(true);
     try {
-      const q = query(collection(firestore, `${collectionName}_internas_2026`));
+      const suffix = historyPeriod === 'generales' ? '_generales_2026' : '_internas_2026';
+      const periodLabel = historyPeriod === 'generales' ? 'Generales_2026' : 'Internas_2026';
+      const colTarget = `${collectionName}${suffix}`;
+      const q = query(collection(firestore, colTarget));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       if (data.length === 0) {
-        toast({ title: 'Sin datos', description: `No hay registros archivados en ${collectionName}.` });
+        toast({ title: 'Sin datos', description: `No hay registros archivados en ${colTarget}.` });
         setIsExporting(false);
         return;
       }
@@ -514,8 +638,8 @@ export default function SettingsPage() {
       const worksheet = XLSX.utils.json_to_sheet(data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Historial');
-      XLSX.writeFile(workbook, `Historial_${collectionName}_Internas_2026.xlsx`);
-      toast({ title: 'Exportación completada' });
+      XLSX.writeFile(workbook, `Historial_${collectionName}_${periodLabel}.xlsx`);
+      toast({ title: 'Exportación completada', description: `Descargado archivo de ${periodLabel.replace('_', ' ')}.` });
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error al exportar' });
     } finally {
@@ -998,53 +1122,168 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
-              <CardHeader className="bg-primary text-white p-8">
-                <CardTitle className="text-xl font-black uppercase flex items-center gap-3"><Archive className="h-8 w-8" /> ARCHIVO Y RESETEO CIDEE</CardTitle>
-                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">PREPARACIÓN PARA ELECCIONES GENERALES (RESPETA DATOS DESDE 27/07/2026)</CardDescription>
+            {/* CIERRE DE ELECCIONES GENERALES - HACIA CONSEJO DE LA MAGISTRATURA */}
+            <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white border-2 border-indigo-100">
+              <CardHeader className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white p-8">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                    <Archive className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-black uppercase flex items-center gap-2">
+                      ARCHIVO Y RESETEO - ELECCIONES GENERALES
+                    </CardTitle>
+                    <CardDescription className="text-indigo-200 font-bold uppercase text-[10px] tracking-widest mt-1">
+                      PREPARACIÓN PARA ELECCIONES DEL CONSEJO DE LA MAGISTRATURA
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="p-10 space-y-8 flex flex-col items-center text-center">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">ESTO MIGRARÁ AL HISTORIAL LA ACTIVIDAD TRANSACCIONAL ANTIGUA Y DEJARÁ LIMPIO EL ENTORNO OPERATIVO. LOS DATOS NUEVOS NO SE VERÁN AFECTADOS.</p>
+              <CardContent className="p-8 sm:p-10 space-y-6 flex flex-col items-center text-center">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider max-w-xl leading-relaxed">
+                  ESTA ACCIÓN COPIARÁ TODA LA ACTIVIDAD TRANSACCIONAL DE LAS ELECCIONES GENERALES A LA BASE DE DATOS HISTÓRICA (<span className="text-indigo-600 font-black">_generales_2026</span>), ARCHIVARÁ LAS ESTADÍSTICAS Y DEJARÁ LIMPIO EL ENTORNO OPERATIVO PARA EL INICIO DE LAS <span className="text-emerald-700 font-black">ELECCIONES DEL CONSEJO DE LA MAGISTRATURA</span>.
+                </p>
+
                 {isResetting && resetTotal > 0 && (
                   <div className="w-full max-w-md space-y-2">
                     <div className="flex justify-between text-[10px] font-black uppercase text-muted-foreground">
-                      <span>PROCESANDO...</span>
+                      <span>ARCHIVANDO GENERALES...</span>
                       <span>{resetProgress} / {resetTotal}</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
                       <div 
-                        className="bg-primary h-full transition-all duration-300" 
+                        className="bg-indigo-600 h-full transition-all duration-300" 
                         style={{ width: `${Math.min(100, Math.round((resetProgress / resetTotal) * 100))}%` }} 
                       />
                     </div>
                   </div>
                 )}
+
                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="default" className="h-20 px-12 text-xl font-black uppercase rounded-[1.5rem] shadow-2xl gap-4" disabled={isResetting}>
-                            {isResetting ? (
-                                <>
-                                    <Loader2 className="h-8 w-8 animate-spin" />
-                                    GUARDANDO Y LIMPIANDO...
-                                </>
-                            ) : (
-                                <>
-                                    <Archive className="h-8 w-8" />
-                                    GUARDAR EN HISTORIAL Y LIMPIAR
-                                </>
-                            )}
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="font-black uppercase text-primary">¿CONFIRMAR ARCHIVO Y RESETEO?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-xs font-bold uppercase">Esta acción copiará las transacciones antiguas al historial y las removerá de la vista principal. Los registros creados desde el 27 de julio se mantendrán intactos.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="mt-8 gap-4">
-                            <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleResetCIDEE} className="h-14 flex-1 bg-primary text-white hover:bg-primary/90 font-black uppercase text-[10px]">GUARDAR Y LIMPIAR DATOS</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="default" className="h-20 px-10 text-lg font-black uppercase rounded-[1.5rem] shadow-2xl gap-4 bg-indigo-700 hover:bg-indigo-800 text-white" disabled={isResetting}>
+                      {isResetting ? (
+                        <>
+                          <Loader2 className="h-7 w-7 animate-spin" />
+                          ARCHIVANDO Y PREPARANDO SISTEMA...
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-7 w-7" />
+                          CERRAR GENERALES Y PREPARAR SISTEMA
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="font-black uppercase text-indigo-700 flex items-center gap-2">
+                        <Archive className="h-6 w-6" /> ¿CONFIRMAR CIERRE DE ELECCIONES GENERALES?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-foreground/80">
+                        Esta acción migrará todos los formularios, solicitudes, denuncias, movimientos y reportes de Elecciones Generales a la colección histórica <span className="text-indigo-600 font-black">_generales_2026</span>. El sistema quedará preparado para las <span className="text-emerald-700 font-black">Elecciones del Consejo de la Magistratura</span>.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="mt-8 gap-4">
+                      <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleResetGenerales} className="h-14 flex-1 bg-indigo-700 text-white hover:bg-indigo-800 font-black uppercase text-[10px]">
+                        CONFIRMAR Y ARCHIVAR GENERALES
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+
+            {/* ARCHIVO ESPECÍFICO DE PARTIDOS POLÍTICOS TRADICIONALES */}
+            <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white border-2 border-emerald-100">
+              <CardHeader className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-900 text-white p-8">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <Scale className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-black uppercase flex items-center gap-2">
+                      ARCHIVAR PARTIDOS Y HABILITAR LISTAS DEL CONSEJO
+                    </CardTitle>
+                    <CardDescription className="text-emerald-200 font-bold uppercase text-[10px] tracking-widest mt-1">
+                      MIGRACIÓN DE PARTIDOS TRADICIONALES A GENERALES 2026
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-8 sm:p-10 space-y-6 flex flex-col items-center text-center">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider max-w-xl leading-relaxed">
+                  LAS ELECCIONES DEL CONSEJO DE LA MAGISTRATURA NO UTILIZAN PARTIDOS POLÍTICOS TRADICIONALES SINO <span className="text-emerald-700 font-black">LISTAS Y MOVIMIENTOS GREMIALES</span> (ABOGADOS Y DOCENTES). ESTE BOTÓN RESPALDA EL DIRECTORIO DE PARTIDOS EN <span className="text-indigo-600 font-black">partidos-politicos_generales_2026</span> Y DEJA LA BASE LISTA PARA CARGAR LAS NUEVAS LISTAS INSCRIPTAS.
+                </p>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="default" className="h-16 px-10 text-sm font-black uppercase rounded-2xl shadow-xl gap-3 bg-emerald-700 hover:bg-emerald-800 text-white" disabled={isArchivingPartidos}>
+                      {isArchivingPartidos ? (
+                        <>
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                          ARCHIVANDO PARTIDOS...
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-6 w-6" />
+                          ARCHIVAR DIRECTORIO DE PARTIDOS A GENERALES
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="font-black uppercase text-emerald-700 flex items-center gap-2">
+                        <Scale className="h-6 w-6" /> ¿ARCHIVAR DIRECTORIO DE PARTIDOS POLÍTICOS?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-xs font-bold uppercase leading-relaxed text-foreground/80">
+                        Todos los partidos y movimientos políticos actuales se guardarán en <span className="text-indigo-600 font-black">partidos-politicos_generales_2026</span> para consulta histórica. La base activa quedará libre para registrar las listas que pugnarán en las Elecciones del Consejo de la Magistratura.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="mt-8 gap-4">
+                      <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleArchivePartidos} className="h-14 flex-1 bg-emerald-700 text-white hover:bg-emerald-800 font-black uppercase text-[10px]">
+                        CONFIRMAR ARCHIVADO
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+
+            {/* CIERRE DE ELECCIONES INTERNAS (HISTÓRICO) */}
+            <Card className="border-2 border-dashed border-amber-200 shadow-sm overflow-hidden rounded-[2.5rem] bg-amber-50/20">
+              <CardHeader className="bg-amber-800 text-white p-6">
+                <CardTitle className="text-base font-black uppercase flex items-center gap-3">
+                  <History className="h-6 w-6" /> ARCHIVO Y RESETEO PREVIO - ELECCIONES INTERNAS
+                </CardTitle>
+                <CardDescription className="text-white/80 font-bold uppercase text-[9px] tracking-widest mt-1">
+                  MIGRACIÓN HISTÓRICA DE ELECCIONES INTERNAS 2026 (_internas_2026)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4 flex flex-col items-center text-center">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider max-w-lg">
+                  HERRAMIENTA HISTÓRICA QUE MIGRÓ LAS INTERNAS DE JULIO 2026 A LA COLECCIÓN <span className="text-amber-700 font-black">_internas_2026</span>.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="h-12 px-6 text-xs font-black uppercase rounded-xl border-2 border-amber-300 hover:bg-amber-100 gap-2 text-amber-900" disabled={isResetting}>
+                      <History className="h-4 w-4" />
+                      EJECUTAR RESETEO DE INTERNAS
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="font-black uppercase text-amber-800">¿CONFIRMAR RESETEO DE INTERNAS?</AlertDialogTitle>
+                      <AlertDialogDescription className="text-xs font-bold uppercase">Esta acción copiará registros anteriores al 27/07/2026 al historial de internas.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="mt-8 gap-4">
+                      <AlertDialogCancel className="h-14 rounded-xl font-black uppercase text-[10px] border-2">CANCELAR</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleResetCIDEE} className="h-14 flex-1 bg-amber-700 text-white hover:bg-amber-800 font-black uppercase text-[10px]">CONFIRMAR</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
                 </AlertDialog>
               </CardContent>
             </Card>
@@ -1253,29 +1492,82 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="historial" className="space-y-6 animate-in fade-in duration-500">
             <Card className="border-none shadow-2xl overflow-hidden rounded-[2.5rem] bg-white">
-              <CardHeader className="bg-slate-800 text-white p-8">
-                <CardTitle className="text-xl font-black uppercase flex items-center gap-3">
-                  <History className="h-8 w-8" /> HISTORIAL DE ELECCIONES INTERNAS
-                </CardTitle>
-                <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">
-                  EXPLORA Y EXPORTA LOS DATOS ARCHIVADOS DE LAS ELECCIONES INTERNAS 2026.
-                </CardDescription>
+              <CardHeader className="bg-slate-900 text-white p-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl font-black uppercase flex items-center gap-3">
+                      <History className="h-8 w-8 text-primary" /> HISTORIAL Y AUDITORÍA ELECTORAL
+                    </CardTitle>
+                    <CardDescription className="text-white/80 font-bold uppercase text-[10px] tracking-widest mt-2">
+                      EXPLORA Y EXPORTA LAS BASES DE DATOS ARCHIVADAS DE LAS ELECCIONES GENERALES E INTERNAS.
+                    </CardDescription>
+                  </div>
+
+                  {/* Selector de periodo para exportación */}
+                  <div className="flex items-center gap-2 bg-slate-800/90 p-1.5 rounded-2xl border border-white/10 self-start md:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPeriod('generales')}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer",
+                        historyPeriod === 'generales'
+                          ? "bg-indigo-600 text-white shadow-md font-black"
+                          : "text-white/60 hover:text-white"
+                      )}
+                    >
+                      <Archive className="h-3.5 w-3.5" />
+                      GENERALES 2026
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPeriod('internas')}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer",
+                        historyPeriod === 'internas'
+                          ? "bg-amber-600 text-white shadow-md font-black"
+                          : "text-white/60 hover:text-white"
+                      )}
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      INTERNAS 2026
+                    </button>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="p-10 space-y-8 flex flex-col items-center text-center">
+              <CardContent className="p-8 sm:p-10 space-y-8 flex flex-col items-center text-center">
+                <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/60 border">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                    Base seleccionada:
+                  </span>
+                  <Badge className={cn("font-black text-[9px] uppercase tracking-wider", historyPeriod === 'generales' ? "bg-indigo-600" : "bg-amber-600")}>
+                    {historyPeriod === 'generales' ? "ELECCIONES GENERALES 2026 (_generales_2026)" : "ELECCIONES INTERNAS 2026 (_internas_2026)"}
+                  </Badge>
+                </div>
+
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] max-w-lg">
-                  DESCARGA LAS BASES DE DATOS HISTÓRICAS EN FORMATO EXCEL PARA AUDITORÍA Y ANÁLISIS.
+                  DESCARGA LAS BASES DE DATOS HISTÓRICAS EN FORMATO EXCEL PARA AUDITORÍA, CONTROL Y ANÁLISIS ESTADÍSTICO.
                 </p>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                  {['solicitudes-capacitacion', 'informes-divulgador', 'informes-semanales-anexo-iv', 'movimientos-maquinas', 'denuncias-lacres', 'encuestas-satisfaccion'].map(col => (
+                  {[
+                    { id: 'solicitudes-capacitacion', label: 'Solicitudes Anexo V' },
+                    { id: 'informes-divulgador', label: 'Informes Anexo III' },
+                    { id: 'anexo-i', label: 'Lugares Fijos Anexo I' },
+                    { id: 'informes-semanales-anexo-iv', label: 'Informes Semanales Anexo IV' },
+                    { id: 'movimientos-maquinas', label: 'Movimiento de Máquinas' },
+                    { id: 'denuncias-lacres', label: 'Denuncia de Lacres' },
+                    { id: 'encuestas-satisfaccion', label: 'Encuestas Anexo II' },
+                    { id: 'partidos-politicos', label: 'Partidos y Organizaciones' }
+                  ].map(col => (
                     <Button 
-                      key={col} 
+                      key={col.id} 
                       variant="outline" 
                       className="h-20 flex-col gap-2 font-black text-[10px] uppercase border-2 shadow-sm rounded-2xl hover:bg-primary/5 hover:border-primary/50"
-                      onClick={() => handleExportHistory(col)}
+                      onClick={() => handleExportHistory(col.id)}
                       disabled={isExporting}
                     >
                       <Download className="h-6 w-6 text-primary" />
-                      EXPORTAR {col.replace(/-/g, ' ')}
+                      EXPORTAR {col.label}
                     </Button>
                   ))}
                 </div>

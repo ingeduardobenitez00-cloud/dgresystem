@@ -8,6 +8,21 @@ export interface ModuleCategory {
 
 export const DEFAULT_CATEGORIES: ModuleCategory[] = [
   {
+    id: "consejo-magistratura",
+    label: "ELECCIONES CONSEJO DE LA MAGISTRATURA",
+    description: "Proceso electoral oficial para la elección de representantes de Abogados y Docentes Universitarios ante el Consejo de la Magistratura.",
+    modules: [
+      'consejo-magistratura',
+      'solicitud-capacitacion',
+      'puntos-fijos',
+      'calendario-capacitaciones',
+      'control-movimiento-maquinas',
+      'resumen',
+      'reportes-pdf'
+    ],
+    orden: 0
+  },
+  {
     id: "cidee-capacitaciones",
     label: "CIDEE - CAPACITACIONES",
     description: "Planificación de capacitaciones, control de inventario de máquinas, denuncias de lacres y reportes del personal del CIDEE.",

@@ -274,7 +274,57 @@ export type PartidoPolitico = {
   nombre: string;
   siglas: string;
   movimiento?: string;
+  numero_lista?: string;
+  estamento?: 'abogados' | 'docentes' | 'general' | string;
+  candidatos?: string;
 }
+
+export type ListaConsejoMagistratura = {
+  id: string;
+  nombre: string;
+  numero_lista?: string;
+  siglas?: string;
+  estamento: 'abogados' | 'docentes' | 'general' | string;
+  movimiento?: string;
+  candidatos?: string;
+  apoderado?: string;
+  contacto?: string;
+}
+
+export const LISTAS_CONSEJO_MAGISTRATURA: PartidoPolitico[] = [
+  {
+    id: 'lista-a',
+    nombre: 'LISTA A - RENOVACIÓN GREMIAL',
+    siglas: 'LISTA A',
+    numero_lista: 'LISTA A',
+    estamento: 'ABOGADOS',
+    movimiento: ''
+  },
+  {
+    id: 'lista-b',
+    nombre: 'LISTA B - GREMIO UNIDO Y SOLIDARIO',
+    siglas: 'LISTA B',
+    numero_lista: 'LISTA B',
+    estamento: 'ABOGADOS',
+    movimiento: ''
+  },
+  {
+    id: 'lista-j',
+    nombre: 'LISTA J - ES NUESTRO MOMENTO',
+    siglas: 'LISTA J',
+    numero_lista: 'LISTA J',
+    estamento: 'ABOGADOS',
+    movimiento: ''
+  },
+  {
+    id: 'lista-s',
+    nombre: 'LISTA S - UNIDAD GREMIAL',
+    siglas: 'LISTA S',
+    numero_lista: 'LISTA S',
+    estamento: 'ABOGADOS',
+    movimiento: ''
+  }
+];
 
 export type OrganizacionAsistida = {
   tipo: string;

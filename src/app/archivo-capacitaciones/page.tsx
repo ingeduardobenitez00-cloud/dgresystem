@@ -268,18 +268,19 @@ function DistrictArchiveSection({
     );
 }
 
-function DepartmentSection({ dept, firestore, profile, searchTerm, isHistorical }: any) {
+function DepartmentSection({ dept, firestore, profile, searchTerm }: any) {
     const [isOpen, setIsOpen] = useState(false);
+    const { period, getCollectionName } = useElectionPeriod();
 
     // Fetch ALL department items for history
     const q = useMemoFirebase(() => {
         if (!firestore || !isOpen) return null;
-        const colName = isHistorical ? 'solicitudes-capacitacion_internas_2026' : 'solicitudes-capacitacion';
+        const colName = getCollectionName('solicitudes-capacitacion');
         return query(
             collection(firestore, colName),
             where('departamento', '==', dept.name)
         );
-    }, [firestore, dept.name, isOpen, isHistorical]);
+    }, [firestore, dept.name, isOpen, getCollectionName, period]);
 
     const { data: allDeptItems, isLoading: isDeptLoading } = useCollectionOnce<SolicitudCapacitacion>(q);
 
@@ -366,6 +367,7 @@ function DistrictTable({ items }: { items: SolicitudCapacitacion[] }) {
 }
 
 import { HistoricalToggle } from "@/components/historical-toggle";
+import { useElectionPeriod } from "@/context/election-period-context";
 
 export default function ArchivoCapacitacionesPage() {
   const { user, isUserLoading } = useUser();
@@ -429,8 +431,6 @@ export default function ArchivoCapacitacionesPage() {
             
             <div className="flex flex-col md:flex-row gap-4 items-center justify-end mb-8 w-full">
                 <HistoricalToggle 
-                    isHistorical={isHistorical} 
-                    setIsHistorical={setIsHistorical} 
                     isAdmin={['admin', 'director'].includes(profile?.role || '')} 
                 />
                 <div className="relative w-full md:max-w-md group">
