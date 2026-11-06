@@ -4,7 +4,6 @@
   "webDir": "public",
   "bundledWebRuntime": false,
   "server": {
-    "url": "https://dgre-tsje.web.app",
     "androidScheme": "https",
     "cleartext": true
   },
@@ -15,8 +14,8 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 1500,
-      "backgroundColor": "#000000"
+      "launchShowDuration": 1200,
+      "backgroundColor": "#040810"
     }
   }
 }

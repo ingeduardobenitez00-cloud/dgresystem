@@ -7,6 +7,16 @@ const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || '0af5f8f3d1ed9b
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'librosrecversion1';
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || 'https://pub-5c6e9cb061f444b6906be0071ea6e8c8.r2.dev').replace(/\/+$/, '');
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 function getS3Client() {
   if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
     throw new Error('Las credenciales de Cloudflare R2 no están configuradas en las variables de entorno.');
@@ -30,7 +40,7 @@ export async function POST(req: NextRequest) {
     const folio = formData.get('folio') as string | null;
 
     if (!file || !libroId || !folio) {
-      return NextResponse.json({ error: 'Faltan parámetros: file, libroId y folio son requeridos' }, { status: 400 });
+      return NextResponse.json({ error: 'Faltan parámetros: file, libroId y folio son requeridos' }, { status: 400, headers: CORS_HEADERS });
     }
 
     const s3 = getS3Client();
@@ -51,16 +61,19 @@ export async function POST(req: NextRequest) {
 
     const publicUrl = `${R2_PUBLIC_URL}/${key}`;
 
-    return NextResponse.json({
-      success: true,
-      url: publicUrl,
-      key,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        url: publicUrl,
+        key,
+      },
+      { headers: CORS_HEADERS }
+    );
   } catch (error: any) {
     console.error('Error al subir a Cloudflare R2:', error);
     return NextResponse.json(
       { error: error?.message || 'Error interno al subir el archivo a R2' },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }
@@ -69,7 +82,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const { libroId, folio } = await req.json();
     if (!libroId || !folio) {
-      return NextResponse.json({ error: 'Faltan parámetros: libroId y folio' }, { status: 400 });
+      return NextResponse.json({ error: 'Faltan parámetros: libroId y folio' }, { status: 400, headers: CORS_HEADERS });
     }
 
     const s3 = getS3Client();
@@ -83,9 +96,9 @@ export async function DELETE(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: CORS_HEADERS });
   } catch (error: any) {
     console.error('Error al eliminar de Cloudflare R2:', error);
-    return NextResponse.json({ error: error?.message || 'Error al eliminar de R2' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Error al eliminar de R2' }, { status: 500, headers: CORS_HEADERS });
   }
 }

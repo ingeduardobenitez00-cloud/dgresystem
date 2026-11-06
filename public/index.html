@@ -1,81 +1,1993 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>DD-DGRE-REC</title>
-  <link rel="manifest" href="manifest.json">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>DD-DGRE-REC · Depuración Móvil</title>
+  <link rel="manifest" href="manifest.json" />
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #070b14;
+      --card: #111827;
+      --card-2: #1e293b;
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --emerald: #10b981;
+      --emerald-dark: #059669;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --indigo: #6366f1;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
-      background-color: #040810;
-      color: #ffffff;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding-bottom: 88px;
+      overflow-x: hidden;
+      user-select: none;
+    }
+    input, select, textarea, button { font-family: inherit; }
+
+    /* Top App Bar */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(7, 11, 20, 0.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      background: #fff;
+      padding: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .brand-logo img { width: 100%; height: 100%; object-fit: contain; }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--emerald);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-top: 2px;
+    }
+    .status-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .pill-online { background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+    .pill-offline { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .pill-queue { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); cursor: pointer; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .dot-online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+    .dot-offline { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+
+    /* Sync Banner */
+    .sync-banner {
+      background: linear-gradient(90deg, #1e1b4b, #064e3b);
+      border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 10px 16px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .sync-banner.active { display: flex; }
+
+    /* Main Container */
+    .container {
+      padding: 14px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .tab-view { display: none; flex-direction: column; gap: 14px; }
+    .tab-view.active { display: flex; }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-subtitle {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* Form Controls */
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    .label {
+      display: block;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .input, .select, .textarea {
+      width: 100%;
+      background: #0b1120;
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 11px 13px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-normal { text-transform: none; }
+    .input:focus, .select:focus, .textarea:focus {
+      border-color: var(--emerald);
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      width: 100%;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; pointer-events: none; }
+    .btn-primary { background: var(--emerald); color: #04130d; box-shadow: 0 6px 18px rgba(16, 185, 129, 0.28); }
+    .btn-indigo { background: var(--indigo); color: #fff; box-shadow: 0 6px 18px rgba(99, 102, 241, 0.3); }
+    .btn-amber { background: var(--amber); color: #1a1002; }
+    .btn-outline { background: rgba(255,255,255,0.05); color: var(--text); border: 1.5px solid var(--border); }
+    .btn-danger { background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); }
+    .btn-sm { padding: 8px 12px; font-size: 10px; border-radius: 10px; width: auto; }
+
+    /* Book Item */
+    .book-card {
+      background: var(--card-2);
+      border: 1.5px solid var(--border);
+      border-left: 5px solid var(--emerald);
+      border-radius: 16px;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      margin-bottom: 10px;
+    }
+    .book-card:last-child { margin-bottom: 0; }
+    .book-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .book-name { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #fff; }
+    .book-meta { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+    .progress-track {
+      height: 7px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-fill { height: 100%; background: var(--emerald); transition: width 0.25s; }
+
+    /* Scanner View & 200 Folios Grid */
+    .scanner-box {
+      background: linear-gradient(180deg, #0f172a, #090d16);
+      border: 2px solid rgba(16, 185, 129, 0.35);
+      border-radius: 22px;
+      padding: 16px;
+      text-align: center;
+    }
+    .folio-badge-lg {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    .folio-number-giant {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    .preview-frame {
+      width: 100%;
+      aspect-ratio: 3/4;
+      max-height: 330px;
+      background: #04070e;
+      border: 2px dashed rgba(255,255,255,0.16);
+      border-radius: 16px;
+      margin-bottom: 14px;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
-      padding: 24px;
-      text-align: center;
+      position: relative;
     }
-    .logo-container {
-      width: 130px;
-      height: 130px;
-      border-radius: 28px;
-      background: #ffffff;
-      padding: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 24px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 40px rgba(5, 150, 105, 0.2);
-    }
-    .logo-container img {
+    .preview-frame img {
       width: 100%;
       height: 100%;
       object-fit: contain;
     }
-    h1 {
-      font-size: 26px;
+    .folios-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 7px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+    .folio-cell {
+      aspect-ratio: 1;
+      border-radius: 11px;
+      border: 1.5px solid var(--border);
+      background: #0b1120;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
       font-weight: 900;
-      letter-spacing: 0.5px;
+      cursor: pointer;
+      position: relative;
+    }
+    .folio-cell.active-folio {
+      outline: 2.5px solid #fff;
+      transform: scale(1.04);
+      z-index: 2;
+    }
+    .folio-cell.state-local {
+      background: rgba(245, 158, 11, 0.22);
+      border-color: #f59e0b;
+      color: #fde68a;
+    }
+    .folio-cell.state-synced {
+      background: rgba(16, 185, 129, 0.22);
+      border-color: #10b981;
+      color: #a7f3d0;
+    }
+    .folio-cell span.sub-tag {
+      font-size: 7px;
+      font-weight: 800;
       text-transform: uppercase;
+      margin-top: 2px;
+      opacity: 0.85;
+    }
+
+    /* Queue Item */
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
       margin-bottom: 8px;
-      color: #ffffff;
     }
-    p {
-      color: #94a3b8;
-      font-size: 13px;
-      max-width: 320px;
-      line-height: 1.5;
-      margin-bottom: 28px;
+    .queue-thumb {
+      width: 48px;
+      height: 60px;
+      border-radius: 8px;
+      background: #000;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
     }
-    .loader {
-      width: 40px;
-      height: 40px;
-      border: 3.5px solid rgba(255,255,255,0.12);
-      border-top-color: #10b981;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+    .queue-info { flex: 1; min-width: 0; }
+    .queue-title { font-size: 12px; font-weight: 900; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .queue-sub { font-size: 10px; color: var(--muted); font-weight: 700; margin-top: 2px; }
+
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      background: rgba(10, 15, 28, 0.96);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 4px;
+      border-radius: 12px;
+      cursor: pointer;
+      position: relative;
+      font-size: 9px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .nav-btn.active {
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.1);
+    }
+    .nav-badge {
+      position: absolute;
+      top: 2px;
+      right: 18%;
+      background: var(--amber);
+      color: #000;
+      font-size: 9px;
+      font-weight: 900;
+      padding: 1px 5px;
+      border-radius: 999px;
+      min-width: 16px;
+      text-align: center;
+    }
+
+    /* Toast */
+    #toast-box {
+      position: fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      background: #10b981;
+      color: #03150e;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      padding: 10px 18px;
+      border-radius: 999px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: none;
+      white-space: nowrap;
+      max-width: 92vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      background: rgba(0, 0, 0, 0.78);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px;
+      width: 100%;
+      max-width: 420px;
     }
   </style>
 </head>
 <body>
-  <div class="logo-container">
-    <img src="logo1.png" alt="DD-DGRE-REC" />
+
+  <!-- TOP HEADER -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-logo">
+        <img src="logo1.png" alt="Logo" onerror="this.style.display='none'" />
+      </div>
+      <div>
+        <div class="brand-title">DD-DGRE-REC</div>
+        <div class="brand-sub">Depuración Móvil Offline</div>
+      </div>
+    </div>
+    <div class="status-pills">
+      <div id="queue-pill" class="pill pill-queue" onclick="switchTab('sync')" title="Imágenes alojadas en el celular">
+        <span>📱</span> <span id="header-pending-count">0</span>
+      </div>
+      <div id="net-pill" class="pill pill-offline">
+        <span id="net-dot" class="dot dot-offline"></span>
+        <span id="net-label">OFFLINE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- AUTO SYNC BANNER -->
+  <div id="sync-banner" class="sync-banner">
+    <span id="sync-banner-text">🔄 Sincronizando datos del celular con el servidor...</span>
+    <span id="sync-banner-pct">0%</span>
   </div>
-  <h1>DD-DGRE-REC</h1>
-  <p>Iniciando módulo de digitalización de libros de defunciones...</p>
-  <div class="loader"></div>
+
+  <!-- TOAST -->
+  <div id="toast-box"></div>
+
+  <!-- MAIN CONTAINER -->
+  <main class="container">
+
+    <!-- ==================== TAB 1: ESCANEO DE LIBROS REC (FOLIOS) ==================== -->
+    <section id="tab-libros" class="tab-view active">
+
+      <!-- Vista Listado de Oficina y Libros -->
+      <div id="libros-list-view" style="display:flex; flex-direction:column; gap:14px;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🏛️ Oficina del Registro Civil Activa</div>
+              <div class="card-subtitle">Funciona 100% sin señal. Las fotos se alojan en la memoria interna del celular.</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="openModalOficina()">Configurar</button>
+          </div>
+
+          <div id="active-office-box" style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:12px;">
+            <div style="font-size:13px; font-weight:900; text-transform:uppercase; color:#34d399;" id="ui-office-name">OFICINA N° -- (SIN CONFIGURAR)</div>
+            <div style="font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-top:3px;" id="ui-office-geo">📍 Toque "Configurar" o inicie sesión para cargar sus oficinas asignadas</div>
+          </div>
+
+          <div id="assigned-offices-selector" style="margin-top:10px; display:none;">
+            <label class="label">Cambiar entre mis oficinas asignadas:</label>
+            <select id="select-assigned-office" class="select" onchange="handleAssignedOfficeChange(this.value)"></select>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📚 Libros de Defunciones</div>
+              <div class="card-subtitle">Seleccione un libro para capturar sus 200 folios o agregue uno nuevo.</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openModalNuevoLibro()">+ Nuevo Libro</button>
+          </div>
+
+          <div id="books-container"></div>
+        </div>
+      </div>
+
+      <!-- Vista Escáner de un Libro (Folios 1 al 200) -->
+      <div id="libro-scanner-view" style="display:none; flex-direction:column; gap:14px;">
+        <div class="card" style="padding:12px 14px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="closeBookScanner()">← Volver a Libros</button>
+            <div style="text-align:right; min-width:0;">
+              <div id="scan-book-title" style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">LIBRO</div>
+              <div id="scan-book-sub" style="font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase;">OFICINA</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Capturador Rápido de Folio -->
+        <div class="scanner-box">
+          <div class="folio-badge-lg" id="scan-folio-status-badge">⚪ FOLIO DISPONIBLE</div>
+          <div class="folio-number-giant">FOLIO N° <span id="scan-current-folio">1</span> <span style="font-size:14px; color:var(--muted);">/ <span id="scan-total-folios">200</span></span></div>
+
+          <div class="preview-frame" id="scan-preview-box">
+            <div id="scan-empty-placeholder" style="padding:20px; color:var(--muted);">
+              <div style="font-size:38px; margin-bottom:8px;">📷</div>
+              <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#e2e8f0;">Sin imagen en este folio</div>
+              <div style="font-size:10px; margin-top:4px;">Presione "Tomar Foto del Folio" abajo. Se guardará en la memoria del dispositivo aunque no tenga internet.</div>
+            </div>
+            <img id="scan-preview-img" src="" alt="Vista previa del folio" style="display:none;" />
+          </div>
+
+          <!-- Inputs ocultos para Cámara Nativa y Galería -->
+          <input type="file" id="camera-folio-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFolioFilePicked(event)" />
+          <input type="file" id="gallery-folio-input" accept="image/*" style="display:none;" onchange="handleFolioFilePicked(event)" />
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <button class="btn btn-primary" style="padding:16px; font-size:14px;" onclick="document.getElementById('camera-folio-input').click()">
+              📸 TOMAR FOTO DEL FOLIO N° <span id="btn-cam-folio-num">1</span>
+            </button>
+            <div class="grid-3">
+              <button class="btn btn-outline" onclick="changeFolio(-1)">◀ Anterior</button>
+              <button class="btn btn-outline" onclick="document.getElementById('gallery-folio-input').click()">🖼️ Galería</button>
+              <button class="btn btn-outline" onclick="changeFolio(1)">Siguiente ▶</button>
+            </div>
+            <button id="btn-delete-local-folio" class="btn btn-danger" style="display:none; padding:10px;" onclick="deleteCurrentLocalFolio()">
+              🗑️ Eliminar foto local de este folio
+            </button>
+          </div>
+        </div>
+
+        <!-- Cuadrícula de los 200 Folios -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🔢 Mapa de 200 Folios del Libro</div>
+              <div class="card-subtitle">🟢 Sincronizado en Nube · 🟠 Alojado en Celular · ⚪ Vacío</div>
+            </div>
+          </div>
+          <div id="folios-grid-container" class="folios-grid"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB 2: ACTA DE DEFUNCIÓN (DEPURACIÓN) ==================== -->
+    <section id="tab-actas" class="tab-view">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📜 Constancia de Acta de Defunción</div>
+            <div class="card-subtitle">Guarda el acta y su fotografía en el celular sin internet y la sube automáticamente al módulo de Depuración al conectar.</div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="margin-bottom:12px;">
+          <div class="field">
+            <label class="label">Tomo *</label>
+            <input id="acta-tomo" class="input" placeholder="Ej: I" />
+          </div>
+          <div class="field">
+            <label class="label">Folio *</label>
+            <input id="acta-folio" class="input" placeholder="Ej: 45" />
+          </div>
+          <div class="field">
+            <label class="label">Acta N° *</label>
+            <input id="acta-numero" class="input" placeholder="Ej: 102" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label">Cédula de Identidad del Fallecido</label>
+          <div style="display:flex; gap:8px;">
+            <input id="acta-cedula" class="input" placeholder="Ej: 1234567" />
+            <button class="btn btn-outline btn-sm" onclick="buscarCedulaPadronOnline()">🔍 Padrón</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label class="label">Nombres del Fallecido *</label>
+            <input id="acta-nombres" class="input" placeholder="NOMBRES" />
+          </div>
+          <div class="field">
+            <label class="label">Apellidos del Fallecido *</label>
+            <input id="acta-apellidos" class="input" placeholder="APELLIDOS" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:12px;">
+          <div class="field">
+            <label class="label">Sexo</label>
+            <select id="acta-sexo" class="select">
+              <option value="M">MASCULINO (M)</option>
+              <option value="F">FEMENINO (F)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">Fecha Fallecimiento *</label>
+            <input type="date" id="acta-fecha-fall" class="input" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:12px;">
+          <div class="field">
+            <label class="label">Lugar de Fallecimiento</label>
+            <input id="acta-lugar-fall" class="input" placeholder="HOSPITAL / CIUDAD" />
+          </div>
+          <div class="field">
+            <label class="label">Causa /Observación</label>
+            <input id="acta-obs" class="input" placeholder="OPCIONAL" />
+          </div>
+        </div>
+
+        <!-- Foto del Acta Física -->
+        <div class="field" style="margin-top:14px;">
+          <label class="label">Fotografía del Acta Física *</label>
+          <input type="file" id="acta-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleActaPhotoPicked(event)" />
+          <div id="acta-photo-preview-box" style="background:#0b1120; border:2px dashed var(--border); border-radius:14px; padding:14px; text-align:center;">
+            <div id="acta-photo-empty">
+              <div style="font-size:26px; margin-bottom:4px;">📷</div>
+              <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Capture la foto del acta de defunción física</div>
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">Capturar Foto del Acta</button>
+            </div>
+            <div id="acta-photo-loaded" style="display:none;">
+              <img id="acta-photo-img" src="" alt="Foto Acta" style="max-height:200px; border-radius:10px; margin-bottom:8px;" />
+              <div>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">Cambiar Foto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="saveActaOfflineOrOnline()">
+          💾 GUARDAR ACTA EN EL DISPOSITIVO
+        </button>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: COLA DE MEMORIA Y SINCRONIZACIÓN ==================== -->
+    <section id="tab-sync" class="tab-view">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">☁️ Memoria Interna y Sincronización</div>
+            <div class="card-subtitle">Todo lo capturado sin internet queda alojado de forma segura en el teléfono hasta conectarse al servidor.</div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="margin-bottom:14px; text-align:center;">
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:10px;">
+            <div style="font-size:20px; font-weight:900; color:#fbbf24;" id="stat-pending-folios">0</div>
+            <div style="font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;">Folios en Celular</div>
+          </div>
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:10px;">
+            <div style="font-size:20px; font-weight:900; color:#a5b4fc;" id="stat-pending-actas">0</div>
+            <div style="font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;">Actas en Celular</div>
+          </div>
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:10px;">
+            <div style="font-size:20px; font-weight:900; color:#34d399;" id="stat-storage-mb">0 MB</div>
+            <div style="font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;">Espacio Usado</div>
+          </div>
+        </div>
+
+        <button id="btn-sync-now" class="btn btn-primary" onclick="syncAllPendingToCloud(true)">
+          🔄 SUBIR TODO AL MÓDULO DE DEPURACIÓN AHORA
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📦 Imágenes y Registros Alojados en el Celular</div>
+        </div>
+        <div id="queue-list-container"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: USUARIO Y CONEXIÓN ==================== -->
+    <section id="tab-user" class="tab-view">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">👤 Credenciales del Funcionario</div>
+            <div class="card-subtitle">Inicie sesión cuando tenga internet para descargar sus oficinas asignadas y habilitar la subida a Firestore.</div>
+          </div>
+        </div>
+
+        <div id="user-logged-box" style="display:none; background:#0b1120; border:1px solid rgba(16,185,129,0.35); border-radius:14px; padding:14px; margin-bottom:14px;">
+          <div style="font-size:10px; font-weight:900; color:#34d399; text-transform:uppercase;">✅ SESIÓN VINCULADA EN EL DISPOSITIVO</div>
+          <div style="font-size:14px; font-weight:900; margin-top:4px;" id="ui-user-name">FUNCIONARIO</div>
+          <div style="font-size:11px; color:var(--muted);" id="ui-user-email">correo@tsje.gov.py</div>
+          <div style="display:flex; gap:8px; margin-top:12px;">
+            <button class="btn btn-outline btn-sm" onclick="fetchUserCloudData()">🔄 Actualizar Oficinas y Libros</button>
+            <button class="btn btn-danger btn-sm" onclick="logoutUser()">Cerrar Sesión</button>
+          </div>
+        </div>
+
+        <div id="user-login-form">
+          <div class="field">
+            <label class="label">Correo Electrónico Institucional</label>
+            <input type="email" id="login-email" class="input input-normal" placeholder="usuario@correo.com" />
+          </div>
+          <div class="field">
+            <label class="label">Contraseña</label>
+            <input type="password" id="login-password" class="input input-normal" placeholder="••••••••" />
+          </div>
+          <button id="btn-login" class="btn btn-indigo" style="margin-top:10px;" onclick="loginWithFirebaseREST()">
+            🔐 VINCULAR CUENTA Y DESCARGAR OFICINAS
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">⚙️ Modo de Trabajo en Campo (Sin Señal)</div>
+            <div class="card-subtitle">Si instaló la APK en una zona sin internet, indique su nombre aquí para etiquetar las fotos que capture hoy.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label">Nombre del Operador / Funcionario</label>
+          <input id="local-operator-name" class="input" placeholder="NOMBRE Y APELLIDO" onchange="saveLocalOperatorName()" />
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: CONFIGURAR OFICINA LOCALMENTE -->
+  <div id="modal-oficina" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="card-title" style="margin-bottom:12px;">🏛️ Configurar Oficina del Registro Civil</div>
+      <div class="grid-2">
+        <div class="field">
+          <label class="label">N° de Oficina *</label>
+          <input id="mod-oficina-num" class="input" placeholder="Ej: 001" />
+        </div>
+        <div class="field">
+          <label class="label">Nombre Oficina *</label>
+          <input id="mod-oficina-nom" class="input" placeholder="Ej: ASUNCIÓN" />
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:10px;">
+        <div class="field">
+          <label class="label">Departamento</label>
+          <input id="mod-oficina-dep" class="input" placeholder="Ej: CAPITAL" />
+        </div>
+        <div class="field">
+          <label class="label">Distrito</label>
+          <input id="mod-oficina-dis" class="input" placeholder="Ej: ASUNCIÓN" />
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:16px;">
+        <button class="btn btn-outline" onclick="closeModalOficina()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveManualOffice()">Guardar Oficina</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVO LIBRO -->
+  <div id="modal-nuevo-libro" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="card-title" style="margin-bottom:12px;">📚 Agregar Libro de Defunciones</div>
+      <div class="field">
+        <label class="label">Nombre / Identificador del Libro o Tomo *</label>
+        <input id="mod-libro-nombre" class="input" placeholder="Ej: TOMO I - DEFUNCIONES" />
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label class="label">Año del Libro *</label>
+          <input id="mod-libro-anio" type="number" class="input" value="2026" />
+        </div>
+        <div class="field">
+          <label class="label">Total Folios</label>
+          <input id="mod-libro-folios" type="number" class="input" value="200" />
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:16px;">
+        <button class="btn btn-outline" onclick="closeModalNuevoLibro()">Cancelar</button>
+        <button class="btn btn-primary" onclick="createNewBook()">Crear y Escanear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAVIGATION BAR -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="nav-libros" onclick="switchTab('libros')">
+      <span style="font-size:18px;">📚</span>
+      <span>Libros REC</span>
+    </button>
+    <button class="nav-btn" id="nav-actas" onclick="switchTab('actas')">
+      <span style="font-size:18px;">📜</span>
+      <span>Acta Defunción</span>
+    </button>
+    <button class="nav-btn" id="nav-sync" onclick="switchTab('sync')">
+      <span style="font-size:18px;">☁️</span>
+      <span>Sincronizar</span>
+      <span id="nav-pending-badge" class="nav-badge" style="display:none;">0</span>
+    </button>
+    <button class="nav-btn" id="nav-user" onclick="switchTab('user')">
+      <span style="font-size:18px;">👤</span>
+      <span>Operador</span>
+    </button>
+  </nav>
 
   <script>
-    setTimeout(function() {
-      window.location.href = 'https://dgre-tsje.web.app/escaneo-libro';
-    }, 400);
+    /* ============================================================================
+     * CONFIGURACIÓN DE FIREBASE Y SERVIDOR (DEPURACIÓN DGRE-REC)
+     * ============================================================================ */
+    const FIREBASE_PROJECT_ID = "studio-1827480670-a09b0";
+    const FIREBASE_API_KEY = "AIzaSyDSgDKEI3VvXae8hMfePipJp3L7CUfArBw";
+    const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+    const WEB_SERVER_BASE = "https://dgre-tsje.web.app";
+    const R2_UPLOAD_ENDPOINT = `${WEB_SERVER_BASE}/api/r2/upload`;
+
+    /* ============================================================================
+     * ESTADO LOCAL Y CACHÉ DEL DISPOSITIVO
+     * ============================================================================ */
+    let authSession = JSON.parse(localStorage.getItem("dgrec_auth_session") || "null");
+    let assignedOffices = JSON.parse(localStorage.getItem("dgrec_assigned_offices") || "[]");
+    let activeOffice = JSON.parse(localStorage.getItem("dgrec_active_office") || "null");
+    let syncedFoliosMap = JSON.parse(localStorage.getItem("dgrec_synced_folios_map") || "{}"); // { [libroId]: { [folioNum]: url } }
+    let localOperatorName = localStorage.getItem("dgrec_operator_name") || "OPERADOR MÓVIL";
+
+    let currentBook = null;
+    let currentFolioNum = 1;
+    let currentBookLocalFolios = {}; // { [folioNum]: OfflineFolioRecord }
+    let currentActaPhotoDataUrl = "";
+    let isSyncingNow = false;
+
+    /* ============================================================================
+     * BASE DE DATOS INDEXEDDB DEL TELÉFONO (DGREC_MOBILE_DEPURACION_V1)
+     * ============================================================================ */
+    const IDB_NAME = "DGREC_MOBILE_DEPURACION_V1";
+    const IDB_VERSION = 1;
+    let idbInstance = null;
+
+    function openMobileDb() {
+      if (idbInstance) return Promise.resolve(idbInstance);
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains("offline_libros")) {
+            db.createObjectStore("offline_libros", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("offline_folios")) {
+            const s = db.createObjectStore("offline_folios", { keyPath: "id" });
+            s.createIndex("libroId", "libroId", { unique: false });
+          }
+          if (!db.objectStoreNames.contains("offline_actas")) {
+            db.createObjectStore("offline_actas", { keyPath: "id" });
+          }
+        };
+        req.onsuccess = (e) => {
+          idbInstance = e.target.result;
+          resolve(idbInstance);
+        };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    async function idbPut(storeName, val) {
+      const db = await openMobileDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put(val);
+        tx.oncomplete = () => resolve(val);
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function idbGetAll(storeName) {
+      const db = await openMobileDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readonly");
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbDelete(storeName, key) {
+      const db = await openMobileDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    /* ============================================================================
+     * UTILIDADES DE INTERFAZ Y COMPRESIÓN DE IMAGEN EN EL CELULAR
+     * ============================================================================ */
+    function showToast(msg, bg = "#10b981") {
+      const el = document.getElementById("toast-box");
+      el.textContent = msg;
+      el.style.background = bg;
+      el.style.color = bg === "#ef4444" ? "#fff" : "#03150e";
+      el.style.display = "block";
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => { el.style.display = "none"; }, 3200);
+    }
+
+    function switchTab(tab) {
+      ["libros", "actas", "sync", "user"].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
+        document.getElementById(`nav-${t}`).classList.toggle("active", t === tab);
+      });
+      if (tab === "sync") renderSyncQueue();
+    }
+
+    function compressPhotoFile(file, maxDim = 1920, quality = 0.82) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+              else { w = Math.round((w * maxDim) / h); h = maxDim; }
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL("image/jpeg", quality);
+            canvas.toBlob((blob) => {
+              if (!blob) return reject(new Error("No se pudo comprimir la foto"));
+              resolve({ blob, dataUrl, sizeBytes: blob.size });
+            }, "image/jpeg", quality);
+          };
+          img.onerror = reject;
+          img.src = ev.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    /* ============================================================================
+     * MONITOREO DE CONECTIVIDAD Y AUTO-SINCRONIZACIÓN
+     * ============================================================================ */
+    function updateNetworkUI() {
+      const online = navigator.onLine;
+      const pill = document.getElementById("net-pill");
+      const dot = document.getElementById("net-dot");
+      const lbl = document.getElementById("net-label");
+      if (online) {
+        pill.className = "pill pill-online";
+        dot.className = "dot dot-online";
+        lbl.textContent = "EN LÍNEA";
+      } else {
+        pill.className = "pill pill-offline";
+        dot.className = "dot dot-offline";
+        lbl.textContent = "MODO OFFLINE";
+      }
+    }
+
+    window.addEventListener("online", () => {
+      updateNetworkUI();
+      showToast("🌐 Conexión detectada: iniciando sincronización automática...");
+      syncAllPendingToCloud(false);
+    });
+    window.addEventListener("offline", () => {
+      updateNetworkUI();
+      showToast("🟠 Sin internet: trabajando en memoria interna del celular", "#f59e0b");
+    });
+
+    /* ============================================================================
+     * AUTENTICACIÓN FIREBASE REST Y CACHÉ DE OFICINAS / LIBROS
+     * ============================================================================ */
+    async function ensureValidIdToken() {
+      if (!authSession || !authSession.refreshToken) return null;
+      // Refrescar si pasaron más de 45 min
+      if (Date.now() - (authSession.tokenTimestamp || 0) < 45 * 60 * 1000 && authSession.idToken) {
+        return authSession.idToken;
+      }
+      try {
+        const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(authSession.refreshToken)}`
+        });
+        if (!res.ok) return authSession.idToken;
+        const data = await res.json();
+        authSession.idToken = data.id_token;
+        authSession.refreshToken = data.refresh_token || authSession.refreshToken;
+        authSession.tokenTimestamp = Date.now();
+        localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+        return authSession.idToken;
+      } catch {
+        return authSession.idToken;
+      }
+    }
+
+    async function loginWithFirebaseREST() {
+      const email = document.getElementById("login-email").value.trim().toLowerCase();
+      const password = document.getElementById("login-password").value;
+      if (!email || !password) return showToast("Ingrese su correo y contraseña", "#ef4444");
+      if (!navigator.onLine) return showToast("Necesita conexión para vincular la cuenta por primera vez", "#f59e0b");
+
+      const btn = document.getElementById("btn-login");
+      btn.disabled = true;
+      btn.textContent = "VERIFICANDO CREDENCIALES...";
+      try {
+        const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, returnSecureToken: true })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || "Credenciales inválidas");
+
+        authSession = {
+          uid: data.localId,
+          email: data.email,
+          idToken: data.idToken,
+          refreshToken: data.refreshToken,
+          username: email.split("@")[0].toUpperCase(),
+          tokenTimestamp: Date.now()
+        };
+        localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+        await fetchUserCloudData();
+        renderUserUI();
+        showToast("✅ Cuenta vinculada y oficinas descargadas al celular");
+        syncAllPendingToCloud(false);
+      } catch (err) {
+        showToast("❌ Error: " + err.message, "#ef4444");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🔐 VINCULAR CUENTA Y DESCARGAR OFICINAS";
+      }
+    }
+
+    function parseFirestoreFields(docObj) {
+      const out = {};
+      const fields = docObj?.fields || {};
+      for (const k of Object.keys(fields)) {
+        const v = fields[k];
+        if ("stringValue" in v) out[k] = v.stringValue;
+        else if ("integerValue" in v) out[k] = Number(v.integerValue);
+        else if ("doubleValue" in v) out[k] = Number(v.doubleValue);
+        else if ("booleanValue" in v) out[k] = Boolean(v.booleanValue);
+        else if ("arrayValue" in v) {
+          out[k] = (v.arrayValue.values || []).map(x => x.stringValue || x.integerValue || "");
+        }
+      }
+      return out;
+    }
+
+    async function fetchUserCloudData() {
+      if (!navigator.onLine || !authSession) return;
+      const token = await ensureValidIdToken();
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+
+      try {
+        // 1. Perfil del usuario
+        const uRes = await fetch(`${FIRESTORE_BASE_URL}/users/${authSession.uid}`, { headers });
+        let profileRegs = [];
+        if (uRes.ok) {
+          const uData = parseFirestoreFields(await uRes.json());
+          if (uData.username) {
+            authSession.username = uData.username;
+            localOperatorName = uData.username;
+            localStorage.setItem("dgrec_operator_name", localOperatorName);
+            localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+          }
+          if (Array.isArray(uData.oficinas_registro_civil)) profileRegs = uData.oficinas_registro_civil;
+        }
+
+        // 2. Asignaciones del Registro Civil
+        const aRes = await fetch(`${FIRESTORE_BASE_URL}/asignaciones-registro-civil/${authSession.uid}`, { headers });
+        let assignedIds = [...profileRegs];
+        if (aRes.ok) {
+          const aData = parseFirestoreFields(await aRes.json());
+          if (Array.isArray(aData.registros) && aData.registros.length > 0) {
+            assignedIds = aData.registros;
+          }
+        }
+
+        // 3. Catálogo de oficinas registros-civiles
+        const rRes = await fetch(`${FIRESTORE_BASE_URL}/registros-civiles?pageSize=300`, { headers });
+        if (rRes.ok) {
+          const rJson = await rRes.json();
+          const allOffices = (rJson.documents || []).map(d => {
+            const id = d.name.split("/").pop();
+            return { id, ...parseFirestoreFields(d) };
+          });
+          const filtered = assignedIds.length > 0
+            ? allOffices.filter(o => assignedIds.includes(o.id))
+            : allOffices;
+
+          if (filtered.length > 0) {
+            assignedOffices = filtered;
+            localStorage.setItem("dgrec_assigned_offices", JSON.stringify(assignedOffices));
+            if (!activeOffice || !assignedOffices.some(o => o.id === activeOffice.id)) {
+              activeOffice = assignedOffices[0];
+              localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
+            }
+          }
+        }
+
+        // 4. Descargar libros de las oficinas asignadas
+        const lRes = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo?pageSize=200`, { headers });
+        if (lRes.ok) {
+          const lJson = await lRes.json();
+          const cloudBooks = (lJson.documents || []).map(d => {
+            const id = d.name.split("/").pop();
+            return { id, ...parseFirestoreFields(d), syncedToCloud: true };
+          });
+          for (const b of cloudBooks) {
+            await idbPut("offline_libros", b);
+          }
+        }
+
+        renderOfficeHeader();
+        await renderBooksList();
+      } catch (e) {
+        console.warn("Error sincronizando catálogo inicial:", e);
+      }
+    }
+
+    function logoutUser() {
+      authSession = null;
+      localStorage.removeItem("dgrec_auth_session");
+      renderUserUI();
+      showToast("Sesión cerrada en el dispositivo");
+    }
+
+    function saveLocalOperatorName() {
+      const val = document.getElementById("local-operator-name").value.trim().toUpperCase();
+      if (val) {
+        localOperatorName = val;
+        localStorage.setItem("dgrec_operator_name", val);
+        showToast("Nombre de operador guardado localmente");
+      }
+    }
+
+    function renderUserUI() {
+      const loggedBox = document.getElementById("user-logged-box");
+      const loginForm = document.getElementById("user-login-form");
+      document.getElementById("local-operator-name").value = localOperatorName;
+      if (authSession && authSession.uid) {
+        loggedBox.style.display = "block";
+        loginForm.style.display = "none";
+        document.getElementById("ui-user-name").textContent = authSession.username || localOperatorName;
+        document.getElementById("ui-user-email").textContent = authSession.email || "";
+      } else {
+        loggedBox.style.display = "none";
+        loginForm.style.display = "block";
+      }
+    }
+
+    /* ============================================================================
+     * GESTIÓN DE OFICINA REC Y LIBROS (100% OFFLINE + CLOUD)
+     * ============================================================================ */
+    function renderOfficeHeader() {
+      const nameEl = document.getElementById("ui-office-name");
+      const geoEl = document.getElementById("ui-office-geo");
+      const selBox = document.getElementById("assigned-offices-selector");
+      const sel = document.getElementById("select-assigned-office");
+
+      if (activeOffice) {
+        nameEl.textContent = `N° ${activeOffice.numero || "S/N"} — ${activeOffice.nombre || "OFICINA REC"}`;
+        geoEl.textContent = `📍 ${activeOffice.distrito || "DISTRITO"}, ${activeOffice.departamento || "DEPARTAMENTO"}`;
+      } else {
+        nameEl.textContent = "OFICINA SIN SELECCIONAR";
+        geoEl.textContent = "📍 Toque 'Configurar' para indicar su Oficina del Registro Civil";
+      }
+
+      if (assignedOffices && assignedOffices.length > 1) {
+        selBox.style.display = "block";
+        sel.innerHTML = assignedOffices.map(o =>
+          `<option value="${o.id}" ${activeOffice && activeOffice.id === o.id ? "selected" : ""}>N° ${o.numero} - ${o.nombre} (${o.distrito})</option>`
+        ).join("");
+      } else {
+        selBox.style.display = "none";
+      }
+    }
+
+    function handleAssignedOfficeChange(officeId) {
+      const found = assignedOffices.find(o => o.id === officeId);
+      if (found) {
+        activeOffice = found;
+        localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
+        renderOfficeHeader();
+        renderBooksList();
+      }
+    }
+
+    function openModalOficina() {
+      if (activeOffice) {
+        document.getElementById("mod-oficina-num").value = activeOffice.numero || "";
+        document.getElementById("mod-oficina-nom").value = activeOffice.nombre || "";
+        document.getElementById("mod-oficina-dep").value = activeOffice.departamento || "";
+        document.getElementById("mod-oficina-dis").value = activeOffice.distrito || "";
+      }
+      document.getElementById("modal-oficina").classList.add("open");
+    }
+
+    function closeModalOficina() {
+      document.getElementById("modal-oficina").classList.remove("open");
+    }
+
+    function saveManualOffice() {
+      const numero = document.getElementById("mod-oficina-num").value.trim().toUpperCase();
+      const nombre = document.getElementById("mod-oficina-nom").value.trim().toUpperCase();
+      const departamento = document.getElementById("mod-oficina-dep").value.trim().toUpperCase() || "CENTRAL";
+      const distrito = document.getElementById("mod-oficina-dis").value.trim().toUpperCase() || nombre;
+      if (!numero || !nombre) return showToast("Complete N° y Nombre de la Oficina", "#ef4444");
+
+      activeOffice = {
+        id: activeOffice?.id || `oficina_${numero.replace(/\W+/g, "")}`,
+        numero,
+        nombre,
+        departamento,
+        distrito
+      };
+      localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
+      closeModalOficina();
+      renderOfficeHeader();
+      renderBooksList();
+      showToast("✅ Oficina activa guardada en el dispositivo");
+    }
+
+    function openModalNuevoLibro() {
+      if (!activeOffice) {
+        openModalOficina();
+        return showToast("Primero configure la Oficina del Registro Civil", "#f59e0b");
+      }
+      document.getElementById("mod-libro-nombre").value = "";
+      document.getElementById("modal-nuevo-libro").classList.add("open");
+    }
+
+    function closeModalNuevoLibro() {
+      document.getElementById("modal-nuevo-libro").classList.remove("open");
+    }
+
+    async function createNewBook() {
+      const nombre = document.getElementById("mod-libro-nombre").value.trim().toUpperCase();
+      const anio = document.getElementById("mod-libro-anio").value.trim() || "2026";
+      const totalFolios = Number(document.getElementById("mod-libro-folios").value) || 200;
+      if (!nombre) return showToast("Ingrese el nombre o tomo del libro", "#ef4444");
+
+      const bookId = "libro_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+      const newBook = {
+        id: bookId,
+        registro_civil_id: activeOffice.id,
+        registro_civil_nombre: activeOffice.nombre,
+        registro_civil_numero: activeOffice.numero,
+        departamento: activeOffice.departamento,
+        distrito: activeOffice.distrito,
+        nombre_libro: nombre,
+        tipo_libro: "DEFUNCIONES",
+        anio: String(anio),
+        tomo: nombre,
+        numero_libro: "1",
+        folio_desde: 1,
+        total_folios: totalFolios,
+        fecha_apertura: new Date().toISOString().split("T")[0],
+        fecha_cierre: "",
+        observaciones: "",
+        folios_escaneados: 0,
+        usuario_id: authSession?.uid || "offline_user",
+        username: authSession?.username || localOperatorName,
+        fecha_creacion: new Date().toISOString(),
+        syncedToCloud: false
+      };
+
+      await idbPut("offline_libros", newBook);
+      closeModalNuevoLibro();
+      await renderBooksList();
+      await openBookScanner(bookId);
+      showToast("📚 Libro creado en memoria del teléfono");
+      if (navigator.onLine) syncAllPendingToCloud(false);
+    }
+
+    async function renderBooksList() {
+      const allBooks = await idbGetAll("offline_libros");
+      const allFolios = await idbGetAll("offline_folios");
+      const container = document.getElementById("books-container");
+
+      const books = activeOffice
+        ? allBooks.filter(b => b.registro_civil_id === activeOffice.id || b.registro_civil_numero === activeOffice.numero)
+        : allBooks;
+
+      books.sort((a, b) => (b.fecha_creacion || "").localeCompare(a.fecha_creacion || ""));
+
+      if (books.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:26px 12px; color:var(--muted); border:1.5px dashed var(--border); border-radius:16px;">
+            <div style="font-size:30px; margin-bottom:6px;">📖</div>
+            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#e2e8f0;">No hay libros en esta oficina</div>
+            <div style="font-size:11px; margin-top:4px;">Toque "+ Nuevo Libro" arriba para iniciar el escaneo de folios (incluso sin internet).</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = books.map(b => {
+        const localCount = allFolios.filter(f => f.libroId === b.id).length;
+        const syncedCount = Object.keys(syncedFoliosMap[b.id] || {}).length;
+        const totalDone = Math.max(b.folios_escaneados || 0, localCount + syncedCount);
+        const total = b.total_folios || 200;
+        const pct = Math.min(100, Math.round((totalDone / total) * 100));
+
+        return `
+          <div class="book-card" onclick="openBookScanner('${b.id}')">
+            <div class="book-top">
+              <div>
+                <div class="book-name">${b.nombre_libro || b.tomo} · AÑO ${b.anio}</div>
+                <div class="book-meta">🏛️ OFICINA N° ${b.registro_civil_numero} — ${b.registro_civil_nombre}</div>
+              </div>
+              <span class="pill ${localCount > 0 ? 'pill-offline' : 'pill-online'}">
+                ${localCount > 0 ? `📱 ${localCount} EN CELULAR` : `${totalDone}/${total} FOLIOS`}
+              </span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    /* ============================================================================
+     * ESCÁNER DE FOLIOS (1 AL 200) CON ALMACENAMIENTO FÍSICO EN EL DISPOSITIVO
+     * ============================================================================ */
+    async function openBookScanner(bookId) {
+      const allBooks = await idbGetAll("offline_libros");
+      currentBook = allBooks.find(b => b.id === bookId);
+      if (!currentBook) return;
+
+      document.getElementById("libros-list-view").style.display = "none";
+      document.getElementById("libro-scanner-view").style.display = "flex";
+      document.getElementById("scan-book-title").textContent = `${currentBook.nombre_libro} (${currentBook.anio})`;
+      document.getElementById("scan-book-sub").textContent = `OFICINA N° ${currentBook.registro_civil_numero} - ${currentBook.registro_civil_nombre}`;
+      document.getElementById("scan-total-folios").textContent = currentBook.total_folios || 200;
+
+      // Si estamos en línea y con sesión, consultar folios ya subidos en la nube
+      if (navigator.onLine && authSession?.idToken) {
+        fetchCloudFoliosForBook(currentBook.id);
+      }
+
+      await reloadCurrentBookFolios();
+      // Buscar el primer folio vacío para posicionar automáticamente
+      const total = currentBook.total_folios || 200;
+      const syncedForBook = syncedFoliosMap[currentBook.id] || {};
+      let firstEmpty = 1;
+      for (let i = 1; i <= total; i++) {
+        if (!currentBookLocalFolios[i] && !syncedForBook[i]) {
+          firstEmpty = i;
+          break;
+        }
+      }
+      selectFolio(firstEmpty);
+    }
+
+    async function fetchCloudFoliosForBook(bookId) {
+      try {
+        const token = await ensureValidIdToken();
+        if (!token) return;
+        const res = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${bookId}/folios?pageSize=250`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!syncedFoliosMap[bookId]) syncedFoliosMap[bookId] = {};
+        for (const docItem of (data.documents || [])) {
+          const parsed = parseFirestoreFields(docItem);
+          if (parsed.folio && parsed.foto) {
+            syncedFoliosMap[bookId][parsed.folio] = parsed.foto;
+          }
+        }
+        localStorage.setItem("dgrec_synced_folios_map", JSON.stringify(syncedFoliosMap));
+        if (currentBook && currentBook.id === bookId) {
+          renderFoliosGrid();
+          updateCurrentFolioPreview();
+        }
+      } catch (e) {
+        console.warn("No se pudieron consultar folios en la nube:", e);
+      }
+    }
+
+    function closeBookScanner() {
+      currentBook = null;
+      document.getElementById("libro-scanner-view").style.display = "none";
+      document.getElementById("libros-list-view").style.display = "flex";
+      renderBooksList();
+    }
+
+    async function reloadCurrentBookFolios() {
+      if (!currentBook) return;
+      const allFolios = await idbGetAll("offline_folios");
+      currentBookLocalFolios = {};
+      for (const f of allFolios) {
+        if (f.libroId === currentBook.id) {
+          currentBookLocalFolios[f.folio] = f;
+        }
+      }
+      renderFoliosGrid();
+      updateHeaderCounters();
+    }
+
+    function selectFolio(num) {
+      if (!currentBook) return;
+      const total = currentBook.total_folios || 200;
+      if (num < 1) num = 1;
+      if (num > total) num = total;
+      currentFolioNum = num;
+
+      document.getElementById("scan-current-folio").textContent = num;
+      document.getElementById("btn-cam-folio-num").textContent = num;
+      updateCurrentFolioPreview();
+      renderFoliosGrid();
+    }
+
+    function changeFolio(delta) {
+      selectFolio(currentFolioNum + delta);
+    }
+
+    function updateCurrentFolioPreview() {
+      if (!currentBook) return;
+      const localItem = currentBookLocalFolios[currentFolioNum];
+      const syncedUrl = (syncedFoliosMap[currentBook.id] || {})[currentFolioNum];
+      const badge = document.getElementById("scan-folio-status-badge");
+      const img = document.getElementById("scan-preview-img");
+      const empty = document.getElementById("scan-empty-placeholder");
+      const delBtn = document.getElementById("btn-delete-local-folio");
+
+      if (localItem) {
+        badge.textContent = "🟠 ALOJADO EN EL CELULAR (PENDIENTE DE SUBIR)";
+        badge.style.background = "rgba(245, 158, 11, 0.2)";
+        badge.style.color = "#fbbf24";
+        img.src = localItem.dataUrl;
+        img.style.display = "block";
+        empty.style.display = "none";
+        delBtn.style.display = "inline-flex";
+      } else if (syncedUrl) {
+        badge.textContent = "🟢 SINCRONIZADO EN EL SERVIDOR";
+        badge.style.background = "rgba(16, 185, 129, 0.2)";
+        badge.style.color = "#34d399";
+        img.src = syncedUrl;
+        img.style.display = "block";
+        empty.style.display = "none";
+        delBtn.style.display = "none";
+      } else {
+        badge.textContent = "⚪ FOLIO PENDIENTE DE CAPTURA";
+        badge.style.background = "rgba(255, 255, 255, 0.08)";
+        badge.style.color = "#cbd5e1";
+        img.src = "";
+        img.style.display = "none";
+        empty.style.display = "block";
+        delBtn.style.display = "none";
+      }
+    }
+
+    function renderFoliosGrid() {
+      if (!currentBook) return;
+      const total = currentBook.total_folios || 200;
+      const syncedForBook = syncedFoliosMap[currentBook.id] || {};
+      const grid = document.getElementById("folios-grid-container");
+      let html = "";
+      for (let i = 1; i <= total; i++) {
+        const isLocal = !!currentBookLocalFolios[i];
+        const isSynced = !!syncedForBook[i];
+        const isCurrent = i === currentFolioNum;
+        let cls = "folio-cell";
+        let tag = "VACÍO";
+        if (isCurrent) cls += " active-folio";
+        if (isLocal) { cls += " state-local"; tag = "CELULAR"; }
+        else if (isSynced) { cls += " state-synced"; tag = "NUBE"; }
+
+        html += `
+          <div class="${cls}" onclick="selectFolio(${i})">
+            <span>${i}</span>
+            <span class="sub-tag">${tag}</span>
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+    }
+
+    async function handleFolioFilePicked(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file || !currentBook) return;
+
+      const targetFolio = currentFolioNum;
+      showToast(`⏳ Procesando y guardando Folio N° ${targetFolio} en el celular...`);
+      try {
+        const { blob, dataUrl, sizeBytes } = await compressPhotoFile(file, 1920, 0.82);
+        const record = {
+          id: `${currentBook.id}_${targetFolio}`,
+          libroId: currentBook.id,
+          libroNombre: currentBook.nombre_libro || currentBook.tomo,
+          oficinaNombre: `N° ${currentBook.registro_civil_numero} - ${currentBook.registro_civil_nombre}`,
+          folio: targetFolio,
+          blob,
+          dataUrl,
+          sizeBytes,
+          usuario_id: authSession?.uid || "offline_user",
+          username: authSession?.username || localOperatorName,
+          fecha: new Date().toISOString(),
+          status: "pending",
+          timestamp: Date.now()
+        };
+
+        await idbPut("offline_folios", record);
+        await reloadCurrentBookFolios();
+        showToast(`✅ Folio N° ${targetFolio} alojado en la memoria del celular`);
+
+        // Avanzar automáticamente al siguiente folio
+        const total = currentBook.total_folios || 200;
+        if (targetFolio < total) {
+          selectFolio(targetFolio + 1);
+        } else {
+          updateCurrentFolioPreview();
+        }
+
+        // Si hay internet, disparar sincronización en segundo plano
+        if (navigator.onLine) {
+          syncAllPendingToCloud(false);
+        }
+      } catch (err) {
+        showToast("❌ Error al procesar la imagen: " + err.message, "#ef4444");
+      }
+    }
+
+    async function deleteCurrentLocalFolio() {
+      if (!currentBook) return;
+      const key = `${currentBook.id}_${currentFolioNum}`;
+      await idbDelete("offline_folios", key);
+      await reloadCurrentBookFolios();
+      updateCurrentFolioPreview();
+      showToast(`🗑️ Foto local del Folio N° ${currentFolioNum} eliminada`);
+    }
+
+    /* ============================================================================
+     * ACTAS DE DEFUNCIÓN (ALMACENAMIENTO OFFLINE Y BÚSQUEDA EN PADRÓN)
+     * ============================================================================ */
+    async function handleActaPhotoPicked(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      try {
+        const { dataUrl } = await compressPhotoFile(file, 1600, 0.8);
+        currentActaPhotoDataUrl = dataUrl;
+        document.getElementById("acta-photo-empty").style.display = "none";
+        document.getElementById("acta-photo-loaded").style.display = "block";
+        document.getElementById("acta-photo-img").src = dataUrl;
+        showToast("📷 Foto del acta cargada");
+      } catch {
+        showToast("Error al procesar foto del acta", "#ef4444");
+      }
+    }
+
+    async function buscarCedulaPadronOnline() {
+      const ci = document.getElementById("acta-cedula").value.trim().replace(/\./g, "");
+      if (!ci) return showToast("Ingrese un número de cédula", "#f59e0b");
+      if (!navigator.onLine) return showToast("Sin internet: complete Nombres y Apellidos manualmente", "#f59e0b");
+
+      const token = await ensureValidIdToken();
+      if (!token) return showToast("Inicie sesión en la pestaña Operador para consultar el Padrón", "#f59e0b");
+
+      showToast("🔍 Buscando en el padrón...");
+      try {
+        const res = await fetch(`${FIRESTORE_BASE_URL}:runQuery`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            structuredQuery: {
+              from: [{ collectionId: "padron" }],
+              where: {
+                fieldFilter: {
+                  field: { fieldPath: "cedula" },
+                  op: "EQUAL",
+                  value: { stringValue: ci }
+                }
+              },
+              limit: 1
+            }
+          })
+        });
+        const rows = await res.json();
+        const foundDoc = rows?.[0]?.document;
+        if (foundDoc) {
+          const d = parseFirestoreFields(foundDoc);
+          document.getElementById("acta-nombres").value = (d.nombre || "").toUpperCase();
+          document.getElementById("acta-apellidos").value = (d.apellido || "").toUpperCase();
+          if (d.sexo === "M" || d.sexo === "F") document.getElementById("acta-sexo").value = d.sexo;
+          showToast(`✅ Encontrado: ${d.nombre} ${d.apellido}`);
+        } else {
+          showToast("No figura en el padrón. Ingrese manualmente.", "#f59e0b");
+        }
+      } catch {
+        showToast("No se pudo consultar el padrón ahora", "#f59e0b");
+      }
+    }
+
+    async function saveActaOfflineOrOnline() {
+      const tomo = document.getElementById("acta-tomo").value.trim().toUpperCase();
+      const folio = document.getElementById("acta-folio").value.trim().toUpperCase();
+      const actaNum = document.getElementById("acta-numero").value.trim().toUpperCase();
+      const cedula = document.getElementById("acta-cedula").value.trim().toUpperCase();
+      const nombres = document.getElementById("acta-nombres").value.trim().toUpperCase();
+      const apellidos = document.getElementById("acta-apellidos").value.trim().toUpperCase();
+      const sexo = document.getElementById("acta-sexo").value;
+      const fechaFall = document.getElementById("acta-fecha-fall").value;
+      const lugarFall = document.getElementById("acta-lugar-fall").value.trim().toUpperCase();
+      const obs = document.getElementById("acta-obs").value.trim().toUpperCase();
+
+      if (!nombres || !apellidos || !fechaFall) {
+        return showToast("Nombres, Apellidos y Fecha de Fallecimiento son obligatorios", "#ef4444");
+      }
+      if (!currentActaPhotoDataUrl) {
+        return showToast("Por favor capture la fotografía del acta física", "#ef4444");
+      }
+
+      const now = new Date();
+      const actaRecord = {
+        id: "acta_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+        form: {
+          oficina_numero: activeOffice?.numero || "S/N",
+          oficina_descripcion: activeOffice?.nombre || "OFICINA MÓVIL",
+          departamento_registral: activeOffice?.departamento || "",
+          distrito_registral: activeOffice?.distrito || "",
+          fecha_dia: String(now.getDate()).padStart(2, "0"),
+          fecha_mes: String(now.getMonth() + 1).padStart(2, "0"),
+          fecha_anio: String(now.getFullYear()),
+          inscripcion_tomo: tomo,
+          inscripcion_folio: folio,
+          inscripcion_acta: actaNum,
+          cedula_identidad: cedula,
+          nombres,
+          apellidos,
+          sexo,
+          fecha_fallecimiento: fechaFall,
+          lugar_fallecimiento: lugarFall,
+          observaciones: obs,
+          foto_url: currentActaPhotoDataUrl,
+          usuario_id: authSession?.uid || "offline_user",
+          username: authSession?.username || localOperatorName,
+          fecha_creacion: now.toISOString()
+        },
+        sizeBytes: Math.round(currentActaPhotoDataUrl.length * 0.75),
+        status: "pending",
+        timestamp: Date.now()
+      };
+
+      await idbPut("offline_actas", actaRecord);
+
+      // Limpiar formulario
+      ["acta-tomo", "acta-folio", "acta-numero", "acta-cedula", "acta-nombres", "acta-apellidos", "acta-lugar-fall", "acta-obs"].forEach(id => {
+        document.getElementById(id).value = "";
+      });
+      currentActaPhotoDataUrl = "";
+      document.getElementById("acta-photo-empty").style.display = "block";
+      document.getElementById("acta-photo-loaded").style.display = "none";
+
+      await updateHeaderCounters();
+      showToast("✅ Acta y foto alojadas en la memoria del celular");
+      if (navigator.onLine) syncAllPendingToCloud(false);
+    }
+
+    /* ============================================================================
+     * COLA DE MEMORIA INTERNA Y MOTOR DE SINCRONIZACIÓN A CLOUDFLARE R2 + FIRESTORE
+     * ============================================================================ */
+    async function updateHeaderCounters() {
+      const folios = await idbGetAll("offline_folios");
+      const actas = await idbGetAll("offline_actas");
+      const totalPending = folios.length + actas.length;
+
+      document.getElementById("header-pending-count").textContent = totalPending;
+      const badge = document.getElementById("nav-pending-badge");
+      if (totalPending > 0) {
+        badge.style.display = "inline-block";
+        badge.textContent = totalPending;
+      } else {
+        badge.style.display = "none";
+      }
+
+      const bytes = folios.reduce((acc, f) => acc + (f.sizeBytes || 0), 0) +
+                    actas.reduce((acc, a) => acc + (a.sizeBytes || 0), 0);
+      const mb = (bytes / (1024 * 1024)).toFixed(1);
+
+      document.getElementById("stat-pending-folios").textContent = folios.length;
+      document.getElementById("stat-pending-actas").textContent = actas.length;
+      document.getElementById("stat-storage-mb").textContent = `${mb} MB`;
+    }
+
+    async function renderSyncQueue() {
+      await updateHeaderCounters();
+      const folios = await idbGetAll("offline_folios");
+      const actas = await idbGetAll("offline_actas");
+      const box = document.getElementById("queue-list-container");
+
+      if (folios.length === 0 && actas.length === 0) {
+        box.innerHTML = `
+          <div style="text-align:center; padding:28px 12px; color:var(--muted);">
+            <div style="font-size:34px; margin-bottom:6px;">✅</div>
+            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399;">Todo sincronizado con el servidor</div>
+            <div style="font-size:11px; margin-top:4px;">No hay imágenes ni actas pendientes en la memoria del teléfono.</div>
+          </div>
+        `;
+        return;
+      }
+
+      let html = "";
+      for (const f of folios.sort((a, b) => b.timestamp - a.timestamp)) {
+        const kb = Math.round((f.sizeBytes || 0) / 1024);
+        html += `
+          <div class="queue-item">
+            <img class="queue-thumb" src="${f.dataUrl}" alt="Folio" />
+            <div class="queue-info">
+              <div class="queue-title">📘 ${f.libroNombre} · FOLIO N° ${f.folio}</div>
+              <div class="queue-sub">${f.oficinaNombre} · ${kb} KB · ${f.errorMsg ? '⚠️ ' + f.errorMsg : '🟠 Alojado en celular'}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      for (const a of actas.sort((a, b) => b.timestamp - a.timestamp)) {
+        html += `
+          <div class="queue-item">
+            <img class="queue-thumb" src="${a.form.foto_url}" alt="Acta" />
+            <div class="queue-info">
+              <div class="queue-title">📜 ACTA: ${a.form.nombres} ${a.form.apellidos}</div>
+              <div class="queue-sub">Tomo ${a.form.inscripcion_tomo || '-'} · Folio ${a.form.inscripcion_folio || '-'} · 🟠 Alojada en celular</div>
+            </div>
+          </div>
+        `;
+      }
+
+      box.innerHTML = html;
+    }
+
+    function toFirestoreFields(obj) {
+      const fields = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === undefined || v === null) continue;
+        if (typeof v === "number") fields[k] = { integerValue: String(Math.floor(v)) };
+        else if (typeof v === "boolean") fields[k] = { booleanValue: v };
+        else fields[k] = { stringValue: String(v) };
+      }
+      return { fields };
+    }
+
+    async function syncAllPendingToCloud(manualTrigger = false) {
+      if (isSyncingNow) return;
+      if (!navigator.onLine) {
+        if (manualTrigger) showToast("🟠 El celular no tiene conexión a internet en este momento", "#f59e0b");
+        return;
+      }
+
+      const folios = await idbGetAll("offline_folios");
+      const actas = await idbGetAll("offline_actas");
+      const books = await idbGetAll("offline_libros");
+      const unsyncedBooks = books.filter(b => !b.syncedToCloud);
+
+      if (folios.length === 0 && actas.length === 0 && unsyncedBooks.length === 0) {
+        if (manualTrigger) showToast("✅ No hay datos pendientes por subir");
+        return;
+      }
+
+      const token = await ensureValidIdToken();
+      if (!token) {
+        if (manualTrigger) {
+          switchTab("user");
+          showToast("🔐 Inicie sesión con su cuenta para subir los datos al servidor", "#f59e0b");
+        }
+        return;
+      }
+
+      isSyncingNow = true;
+      const banner = document.getElementById("sync-banner");
+      const bannerTxt = document.getElementById("sync-banner-text");
+      const bannerPct = document.getElementById("sync-banner-pct");
+      banner.classList.add("active");
+
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      };
+
+      const totalSteps = unsyncedBooks.length + folios.length + actas.length;
+      let doneSteps = 0;
+      let uploadedFolios = 0;
+      let uploadedActas = 0;
+
+      try {
+        // 1. Subir libros creados en modo offline
+        for (const b of unsyncedBooks) {
+          doneSteps++;
+          bannerTxt.textContent = `🔄 Registrando libro ${b.nombre_libro}...`;
+          bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
+
+          const copy = { ...b };
+          delete copy.id;
+          delete copy.syncedToCloud;
+          copy.usuario_id = authSession.uid;
+          copy.username = authSession.username || localOperatorName;
+
+          const res = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${b.id}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify(toFirestoreFields(copy))
+          });
+          if (res.ok) {
+            b.syncedToCloud = true;
+            await idbPut("offline_libros", b);
+          }
+        }
+
+        // 2. Subir fotos de folios a Cloudflare R2 y Firestore
+        for (const item of folios) {
+          doneSteps++;
+          bannerTxt.textContent = `🔄 Subiendo Folio N° ${item.folio} (${item.libroNombre})...`;
+          bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
+
+          try {
+            const padFolio = String(item.folio).padStart(4, "0");
+            let fileBlob = item.blob;
+            if (!fileBlob && item.dataUrl) {
+              const r = await fetch(item.dataUrl);
+              fileBlob = await r.blob();
+            }
+
+            const fd = new FormData();
+            fd.append("file", fileBlob, `folio_${padFolio}.jpg`);
+            fd.append("libroId", item.libroId);
+            fd.append("folio", String(item.folio));
+
+            const r2Res = await fetch(R2_UPLOAD_ENDPOINT, {
+              method: "POST",
+              body: fd
+            });
+            const r2Data = await r2Res.json();
+            if (!r2Res.ok || !r2Data.url) {
+              throw new Error(r2Data.error || "Error subiendo a Cloudflare R2");
+            }
+
+            const publicUrl = r2Data.url;
+
+            // Guardar documento en subcolección libros-escaneo/{libroId}/folios/{padFolio}
+            const folioDoc = {
+              folio: item.folio,
+              foto: publicUrl,
+              usuario_id: authSession.uid,
+              username: authSession.username || localOperatorName,
+              fecha: item.fecha
+            };
+
+            const fsRes = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${item.libroId}/folios/${padFolio}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(toFirestoreFields(folioDoc))
+            });
+            if (!fsRes.ok) throw new Error("Permiso o red al registrar folio en Firestore");
+
+            // Marcar en mapa local de sincronizados y eliminar de la cola pesada
+            if (!syncedFoliosMap[item.libroId]) syncedFoliosMap[item.libroId] = {};
+            syncedFoliosMap[item.libroId][item.folio] = publicUrl;
+            localStorage.setItem("dgrec_synced_folios_map", JSON.stringify(syncedFoliosMap));
+
+            await idbDelete("offline_folios", item.id);
+            uploadedFolios++;
+
+            // Actualizar contador folios_escaneados del libro
+            const totalSyncedForBook = Object.keys(syncedFoliosMap[item.libroId]).length;
+            await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${item.libroId}?updateMask.fieldPaths=folios_escaneados`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({
+                fields: { folios_escaneados: { integerValue: String(totalSyncedForBook) } }
+              })
+            });
+          } catch (folioErr) {
+            item.errorMsg = folioErr.message;
+            await idbPut("offline_folios", item);
+          }
+        }
+
+        // 3. Subir Actas de Defunción a Firestore
+        for (const acta of actas) {
+          doneSteps++;
+          bannerTxt.textContent = `🔄 Subiendo Acta de ${acta.form.nombres}...`;
+          bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
+
+          try {
+            const payload = {
+              ...acta.form,
+              usuario_id: authSession.uid,
+              username: authSession.username || localOperatorName
+            };
+            const res = await fetch(`${FIRESTORE_BASE_URL}/actas-defuncion`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(toFirestoreFields(payload))
+            });
+            if (!res.ok) throw new Error("Error al guardar acta en Firestore");
+            await idbDelete("offline_actas", acta.id);
+            uploadedActas++;
+          } catch (actaErr) {
+            console.warn("Error subiendo acta:", actaErr);
+          }
+        }
+
+        await reloadCurrentBookFolios();
+        if (currentBook) updateCurrentFolioPreview();
+        await renderBooksList();
+        await renderSyncQueue();
+
+        if (uploadedFolios > 0 || uploadedActas > 0) {
+          showToast(`✅ Sincronizado: ${uploadedFolios} folio(s) y ${uploadedActas} acta(s) subidos al servidor`);
+        }
+      } finally {
+        isSyncingNow = false;
+        banner.classList.remove("active");
+      }
+    }
+
+    /* ============================================================================
+     * INICIALIZACIÓN DE LA APLICACIÓN MÓVIL
+     * ============================================================================ */
+    (async function initMobileApp() {
+      updateNetworkUI();
+      renderUserUI();
+      renderOfficeHeader();
+      await openMobileDb();
+      await renderBooksList();
+      await updateHeaderCounters();
+
+      if (navigator.onLine && authSession) {
+        await fetchUserCloudData();
+        syncAllPendingToCloud(false);
+      }
+
+      // Verificador periódico cada 25 segundos por si vuelve la señal
+      setInterval(() => {
+        updateNetworkUI();
+        if (navigator.onLine && !isSyncingNow) {
+          syncAllPendingToCloud(false);
+        }
+      }, 25000);
+    })();
   </script>
 </body>
 </html>
