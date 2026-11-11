@@ -79,7 +79,7 @@ export default function CalendarioCapacitacionesPage() {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
   const { toast } = useToast();
-  const { period, getCollectionName } = useElectionPeriod();
+  const { period, getCollectionName, isHistorical } = useElectionPeriod();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDayActivities, setSelectedDayActivities] = useState<SolicitudCapacitacion[] | null>(null);
   const [informesMap, setInformesMap] = useState<Map<string, InformeDivulgador>>(new Map());
@@ -159,7 +159,7 @@ export default function CalendarioCapacitacionesPage() {
     }
 
     return q;
-  }, [firestore, isUserLoading, profile, currentMonth, filterDept, filterDist, hasAdminFilter, hasDeptFilter, hasDistFilter, isHistorical]);
+  }, [firestore, isUserLoading, profile, currentMonth, filterDept, filterDist, hasAdminFilter, hasDeptFilter, hasDistFilter, isHistorical, period, getCollectionName]);
 
   const { 
     data: rawActivities, 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>DD-DGRE-REC · Depuración Móvil</title>
+  <title>DD-DGRE-REC · Depuración Móvil (Mini-BD Local)</title>
   <link rel="manifest" href="manifest.json" />
   <style>
     :root {
@@ -18,6 +18,7 @@
       --amber: #f59e0b;
       --red: #ef4444;
       --indigo: #6366f1;
+      --blue: #3b82f6;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
@@ -25,13 +26,67 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
-      padding-bottom: 88px;
+      padding-bottom: 92px;
       overflow-x: hidden;
       user-select: none;
     }
     input, select, textarea, button { font-family: inherit; }
 
-    /* Top App Bar */
+    /* ==================== PANTALLA DE LOGIN LOCAL (BLOQUEANTE) ==================== */
+    #login-screen-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: radial-gradient(circle at top, #111827 0%, #040810 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    #login-screen-overlay.hidden { display: none; }
+    .login-box {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 26px;
+      padding: 26px 22px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+    }
+    .login-logo-wrap {
+      width: 68px;
+      height: 68px;
+      border-radius: 20px;
+      background: #fff;
+      padding: 8px;
+      margin: 0 auto 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.25);
+    }
+    .login-logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+    .saved-accounts-list {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border);
+    }
+    .saved-user-chip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    .saved-user-chip:active { transform: scale(0.98); border-color: var(--emerald); }
+
+    /* ==================== TOP APP BAR ==================== */
     .app-header {
       position: sticky;
       top: 0;
@@ -39,431 +94,272 @@
       background: rgba(7, 11, 20, 0.94);
       backdrop-filter: blur(14px);
       border-bottom: 1px solid var(--border);
-      padding: 12px 16px;
+      padding: 12px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .brand-logo {
-      width: 38px;
-      height: 38px;
-      border-radius: 11px;
-      background: #fff;
-      padding: 4px;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 36px; height: 36px; border-radius: 10px;
+      background: #fff; padding: 4px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
     .brand-logo img { width: 100%; height: 100%; object-fit: contain; }
-    .brand-title {
-      font-size: 14px;
-      font-weight: 900;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-      line-height: 1.1;
-    }
-    .brand-sub {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--emerald);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-top: 2px;
-    }
-    .status-pills {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
+    .brand-title { font-size: 13px; font-weight: 900; letter-spacing: 0.4px; text-transform: uppercase; line-height: 1.1; }
+    .brand-sub { font-size: 9px; font-weight: 800; color: var(--emerald); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .status-pills { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 10px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 9px; border-radius: 999px;
+      font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.4px;
     }
     .pill-online { background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
     .pill-offline { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
     .pill-queue { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); cursor: pointer; }
+    .pill-edited { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.45); }
     .dot { width: 7px; height: 7px; border-radius: 50%; }
     .dot-online { background: #10b981; box-shadow: 0 0 8px #10b981; }
-    .dot-offline { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+    .dot-offline { background: #f59e0b; }
 
     /* Sync Banner */
     .sync-banner {
       background: linear-gradient(90deg, #1e1b4b, #064e3b);
       border-bottom: 1px solid rgba(16, 185, 129, 0.3);
-      padding: 10px 16px;
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      font-size: 11px;
-      font-weight: 800;
+      padding: 10px 16px; font-size: 11px; font-weight: 800; color: #a7f3d0;
+      display: none; align-items: center; justify-content: space-between; gap: 10px;
     }
     .sync-banner.active { display: flex; }
 
-    /* Main Container */
-    .container {
-      padding: 14px;
-      max-width: 640px;
-      margin: 0 auto;
-    }
+    /* Layout & Containers */
+    .container { max-width: 640px; margin: 0 auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
     .tab-view { display: none; flex-direction: column; gap: 14px; }
     .tab-view.active { display: flex; }
 
     /* Cards */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 16px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
-    }
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .card-title {
-      font-size: 12px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .card-subtitle {
-      font-size: 11px;
-      color: var(--muted);
-      line-height: 1.4;
-    }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 16px; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35); }
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .card-title { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.4px; color: #fff; }
+    .card-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
 
     /* Form Controls */
-    .field { margin-bottom: 12px; }
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px; }
     .field:last-child { margin-bottom: 0; }
-    .label {
-      display: block;
-      font-size: 10px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--muted);
-      margin-bottom: 5px;
-    }
+    .label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
     .input, .select, .textarea {
-      width: 100%;
-      background: #0b1120;
-      border: 1.5px solid rgba(255, 255, 255, 0.14);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 11px 13px;
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-      outline: none;
-      transition: border-color 0.2s;
+      width: 100%; background: #0b1120; border: 1.5px solid var(--border);
+      color: var(--text); padding: 11px 13px; border-radius: 12px;
+      font-size: 13px; font-weight: 700; outline: none; text-transform: uppercase;
     }
     .input-normal { text-transform: none; }
-    .input:focus, .select:focus, .textarea:focus {
-      border-color: var(--emerald);
-    }
+    .input:focus, .select:focus, .textarea:focus { border-color: var(--emerald); }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      border: none;
-      border-radius: 14px;
-      padding: 13px 16px;
-      font-size: 12px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.2s;
-      width: 100%;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn:disabled { opacity: 0.45; pointer-events: none; }
-    .btn-primary { background: var(--emerald); color: #04130d; box-shadow: 0 6px 18px rgba(16, 185, 129, 0.28); }
-    .btn-indigo { background: var(--indigo); color: #fff; box-shadow: 0 6px 18px rgba(99, 102, 241, 0.3); }
-    .btn-amber { background: var(--amber); color: #1a1002; }
-    .btn-outline { background: rgba(255,255,255,0.05); color: var(--text); border: 1.5px solid var(--border); }
-    .btn-danger { background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); }
-    .btn-sm { padding: 8px 12px; font-size: 10px; border-radius: 10px; width: auto; }
-
-    /* Book Item */
-    .book-card {
-      background: var(--card-2);
-      border: 1.5px solid var(--border);
-      border-left: 5px solid var(--emerald);
-      border-radius: 16px;
-      padding: 14px;
-      cursor: pointer;
-      transition: border-color 0.2s;
-      margin-bottom: 10px;
-    }
-    .book-card:last-child { margin-bottom: 0; }
-    .book-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .book-name { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #fff; }
-    .book-meta { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
-    .progress-track {
-      height: 7px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 999px;
-      overflow: hidden;
-      margin-top: 10px;
-    }
-    .progress-fill { height: 100%; background: var(--emerald); transition: width 0.25s; }
-
-    /* Scanner View & 200 Folios Grid */
-    .scanner-box {
-      background: linear-gradient(180deg, #0f172a, #090d16);
-      border: 2px solid rgba(16, 185, 129, 0.35);
-      border-radius: 22px;
-      padding: 16px;
-      text-align: center;
-    }
-    .folio-badge-lg {
-      display: inline-block;
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      padding: 5px 14px;
-      border-radius: 999px;
-      font-size: 11px;
+    /* Section Divider */
+    .section-tag {
+      background: #0b1120;
+      border-left: 3px solid var(--emerald);
+      padding: 7px 11px;
+      border-radius: 8px;
+      font-size: 10px;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      margin-bottom: 6px;
-    }
-    .folio-number-giant {
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: -0.5px;
-      margin-bottom: 12px;
-    }
-    .preview-frame {
-      width: 100%;
-      aspect-ratio: 3/4;
-      max-height: 330px;
-      background: #04070e;
-      border: 2px dashed rgba(255,255,255,0.16);
-      border-radius: 16px;
-      margin-bottom: 14px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-    }
-    .preview-frame img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-    .folios-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 7px;
-      max-height: 320px;
-      overflow-y: auto;
-      padding: 4px;
-    }
-    .folio-cell {
-      aspect-ratio: 1;
-      border-radius: 11px;
-      border: 1.5px solid var(--border);
-      background: #0b1120;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 900;
-      cursor: pointer;
-      position: relative;
-    }
-    .folio-cell.active-folio {
-      outline: 2.5px solid #fff;
-      transform: scale(1.04);
-      z-index: 2;
-    }
-    .folio-cell.state-local {
-      background: rgba(245, 158, 11, 0.22);
-      border-color: #f59e0b;
-      color: #fde68a;
-    }
-    .folio-cell.state-synced {
-      background: rgba(16, 185, 129, 0.22);
-      border-color: #10b981;
-      color: #a7f3d0;
-    }
-    .folio-cell span.sub-tag {
-      font-size: 7px;
-      font-weight: 800;
-      text-transform: uppercase;
-      margin-top: 2px;
-      opacity: 0.85;
+      color: #34d399;
+      margin: 12px 0 10px;
     }
 
-    /* Queue Item */
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: none; border-radius: 14px; padding: 13px 16px;
+      font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;
+      cursor: pointer; transition: transform 0.1s, opacity 0.15s; width: 100%;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; pointer-events: none; }
+    .btn-primary { background: linear-gradient(135deg, #10b981, #059669); color: #04130e; box-shadow: 0 6px 18px rgba(16, 185, 129, 0.25); }
+    .btn-indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
+    .btn-amber { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; }
+    .btn-outline { background: var(--card-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: rgba(239, 68, 68, 0.16); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); }
+    .btn-sm { padding: 8px 12px; font-size: 10px; border-radius: 10px; width: auto; }
+
+    /* Sub-tabs switcher */
+    .subtab-bar {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+      background: #0b1120; padding: 5px; border-radius: 14px; border: 1px solid var(--border);
+    }
+    .subtab-btn {
+      background: transparent; border: none; color: var(--muted);
+      padding: 10px; border-radius: 10px; font-size: 11px; font-weight: 900;
+      text-transform: uppercase; cursor: pointer;
+    }
+    .subtab-btn.active { background: var(--card-2); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.35); }
+
+    /* Books & Actas Cards */
+    .book-card {
+      background: #0b1120; border: 1.5px solid var(--border);
+      border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .book-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .book-name { font-size: 13px; font-weight: 900; text-transform: uppercase; color: #fff; }
+    .book-meta { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+    .progress-track { width: 100%; height: 8px; background: #1e293b; border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 999px; transition: width 0.25s; }
+
+    /* Scanner View */
+    .scanner-box {
+      background: #0b1120; border: 2px solid rgba(16, 185, 129, 0.35);
+      border-radius: 20px; padding: 16px; text-align: center;
+    }
+    .folio-badge-lg {
+      display: inline-block; background: rgba(16, 185, 129, 0.15); color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px; font-weight: 900;
+      padding: 4px 12px; border-radius: 999px; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .folio-number-giant { font-size: 26px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .preview-frame {
+      width: 100%; height: 240px; background: #050811;
+      border: 1.5px dashed var(--border); border-radius: 16px; margin-bottom: 14px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }
+    .preview-frame img { width: 100%; height: 100%; object-fit: contain; }
+
+    /* 200 Folios Grid */
+    .folios-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px;
+      max-height: 320px; overflow-y: auto; padding: 4px;
+    }
+    .folio-cell {
+      aspect-ratio: 1; border-radius: 11px; border: 1.5px solid var(--border);
+      background: #0b1120; color: var(--muted); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; font-size: 12px; font-weight: 900; cursor: pointer;
+    }
+    .folio-cell .sub-tag { font-size: 8px; font-weight: 800; margin-top: 2px; }
+    .folio-cell.active-folio { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); color: #fff; }
+    .folio-cell.state-local { background: rgba(245, 158, 11, 0.18); border-color: #f59e0b; color: #fbbf24; }
+    .folio-cell.state-synced { background: rgba(16, 185, 129, 0.18); border-color: #10b981; color: #34d399; }
+
+    /* Queue & Mini-DB List */
     .queue-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 12px; background: #0b1120;
+      border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px;
     }
-    .queue-thumb {
-      width: 48px;
-      height: 60px;
-      border-radius: 8px;
-      background: #000;
-      object-fit: cover;
-      flex-shrink: 0;
-      border: 1px solid var(--border);
-    }
+    .queue-thumb { width: 46px; height: 46px; border-radius: 9px; background: #1e293b; object-fit: cover; flex-shrink: 0; }
     .queue-info { flex: 1; min-width: 0; }
     .queue-title { font-size: 12px; font-weight: 900; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .queue-sub { font-size: 10px; color: var(--muted); font-weight: 700; margin-top: 2px; }
+    .queue-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
     /* Bottom Navigation */
     .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 50;
-      background: rgba(10, 15, 28, 0.96);
-      backdrop-filter: blur(16px);
-      border-top: 1px solid var(--border);
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: rgba(11, 17, 32, 0.96); backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border); display: grid;
+      grid-template-columns: repeat(4, 1fr); padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
     }
     .nav-btn {
-      background: none;
-      border: none;
-      color: var(--muted);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      padding: 6px 4px;
-      border-radius: 12px;
-      cursor: pointer;
-      position: relative;
-      font-size: 9px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
+      background: none; border: none; color: var(--muted); display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; padding: 6px 4px; border-radius: 12px; cursor: pointer;
+      position: relative; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3px;
     }
-    .nav-btn.active {
-      color: var(--emerald);
-      background: rgba(16, 185, 129, 0.1);
-    }
+    .nav-btn.active { color: var(--emerald); background: rgba(16, 185, 129, 0.1); }
     .nav-badge {
-      position: absolute;
-      top: 2px;
-      right: 18%;
-      background: var(--amber);
-      color: #000;
-      font-size: 9px;
-      font-weight: 900;
-      padding: 1px 5px;
-      border-radius: 999px;
-      min-width: 16px;
-      text-align: center;
+      position: absolute; top: 2px; right: 18%; background: var(--amber);
+      color: #000; font-size: 9px; font-weight: 900; padding: 1px 5px;
+      border-radius: 999px; min-width: 16px; text-align: center;
     }
 
     /* Toast */
     #toast-box {
-      position: fixed;
-      top: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 100;
-      background: #10b981;
-      color: #03150e;
-      font-size: 11px;
-      font-weight: 900;
-      text-transform: uppercase;
-      padding: 10px 18px;
-      border-radius: 999px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      display: none;
-      white-space: nowrap;
-      max-width: 92vw;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+      z-index: 300; background: #10b981; color: #03150e;
+      font-size: 11px; font-weight: 900; text-transform: uppercase;
+      padding: 10px 18px; border-radius: 999px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: none; white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
     }
 
     /* Modal */
     .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 80;
-      background: rgba(0, 0, 0, 0.78);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
+      position: fixed; inset: 0; z-index: 120; background: rgba(0, 0, 0, 0.8);
+      display: none; align-items: center; justify-content: center; padding: 16px;
+      overflow-y: auto;
     }
     .modal-backdrop.open { display: flex; }
     .modal-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      padding: 20px;
-      width: 100%;
-      max-width: 420px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 22px; padding: 20px; width: 100%; max-width: 440px;
+      max-height: 90vh; overflow-y: auto;
     }
   </style>
 </head>
 <body>
 
-  <!-- TOP HEADER -->
+  <!-- ==================== PANTALLA DE LOGIN DE ACCESO LOCAL (BLOQUEANTE) ==================== -->
+  <div id="login-screen-overlay">
+    <div class="login-box">
+      <div class="login-logo-wrap">
+        <img src="logo1.png" alt="Justicia Electoral" onerror="this.style.display='none'" />
+      </div>
+      <div style="text-align:center; margin-bottom:18px;">
+        <div style="font-size:10px; font-weight:900; color:var(--emerald); letter-spacing:1.2px; text-transform:uppercase;">JUSTICIA ELECTORAL · DGRE-REC</div>
+        <h1 style="font-size:18px; font-weight:900; text-transform:uppercase; margin-top:4px;">Acceso al Módulo Depuración</h1>
+        <p style="font-size:11px; color:var(--muted); margin-top:4px;" id="login-net-status-text">
+          Valida con Firebase en línea o contra la Mini Base de Datos Local sin internet.
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="label">Correo Electrónico o Usuario *</label>
+        <input type="email" id="gate-email" class="input input-normal" placeholder="funcionario@correo.com" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label class="label">Contraseña de Acceso *</label>
+        <input type="password" id="gate-password" class="input input-normal" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <div class="field" id="gate-fullname-wrap" style="display:none;">
+        <label class="label">Nombre y Apellido del Operador (Modo Sin Red Inicial)</label>
+        <input type="text" id="gate-fullname" class="input" placeholder="EJ: JUAN PÉREZ" />
+      </div>
+
+      <button id="btn-gate-login" class="btn btn-primary" style="margin-top:12px;" onclick="handleGateLogin()">
+        🔐 INGRESAR AL MÓDULO DE DEPURACIÓN
+      </button>
+
+      <button id="btn-gate-offline-init" class="btn btn-outline" style="margin-top:8px; font-size:10px; padding:10px;" onclick="toggleOfflineFirstTimeMode()">
+        📴 ¿Primer uso en campo sin internet? Crear Acceso Local
+      </button>
+
+      <!-- Perfiles almacenados en la Mini Base de Datos del Celular -->
+      <div id="saved-accounts-box" class="saved-accounts-list" style="display:none;">
+        <div style="font-size:9px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px;">
+          📱 Operadores en la Mini Base de Datos de este celular:
+        </div>
+        <div id="saved-accounts-items"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOP HEADER ==================== -->
   <header class="app-header">
     <div class="brand">
       <div class="brand-logo">
         <img src="logo1.png" alt="Logo" onerror="this.style.display='none'" />
       </div>
       <div>
-        <div class="brand-title">DD-DGRE-REC</div>
-        <div class="brand-sub">Depuración Móvil Offline</div>
+        <div class="brand-title">DEPURACIÓN DGRE-REC</div>
+        <div class="brand-sub" id="header-user-sub">MINI-BD LOCAL ACTIVA</div>
       </div>
     </div>
     <div class="status-pills">
-      <div id="queue-pill" class="pill pill-queue" onclick="switchTab('sync')" title="Imágenes alojadas en el celular">
-        <span>📱</span> <span id="header-pending-count">0</span>
+      <div id="queue-pill" class="pill pill-queue" onclick="switchTab('sync')" title="Cambios en Mini-BD pendientes de sincronizar">
+        <span>🗄️</span> <span id="header-pending-count">0</span>
       </div>
       <div id="net-pill" class="pill pill-offline">
         <span id="net-dot" class="dot dot-offline"></span>
@@ -474,17 +370,17 @@
 
   <!-- AUTO SYNC BANNER -->
   <div id="sync-banner" class="sync-banner">
-    <span id="sync-banner-text">🔄 Sincronizando datos del celular con el servidor...</span>
+    <span id="sync-banner-text">🔄 Sincronizando Mini Base de Datos Local con Firebase...</span>
     <span id="sync-banner-pct">0%</span>
   </div>
 
   <!-- TOAST -->
   <div id="toast-box"></div>
 
-  <!-- MAIN CONTAINER -->
+  <!-- ==================== MAIN CONTAINER (SOLO MÓDULO DEPURACIÓN) ==================== -->
   <main class="container">
 
-    <!-- ==================== TAB 1: ESCANEO DE LIBROS REC (FOLIOS) ==================== -->
+    <!-- ==================== TAB 1: ESCANEO DE LIBROS REC (AGREGAR Y EDITAR) ==================== -->
     <section id="tab-libros" class="tab-view active">
 
       <!-- Vista Listado de Oficina y Libros -->
@@ -492,19 +388,19 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">🏛️ Oficina del Registro Civil Activa</div>
-              <div class="card-subtitle">Funciona 100% sin señal. Las fotos se alojan en la memoria interna del celular.</div>
+              <div class="card-title">🏛️ Oficina del Registro Civil</div>
+              <div class="card-subtitle">Conectado a la Mini Base de Datos Local del dispositivo.</div>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="openModalOficina()">Configurar</button>
+            <button class="btn btn-outline btn-sm" onclick="openModalOficina()">✏️ Configurar</button>
           </div>
 
           <div id="active-office-box" style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:12px;">
             <div style="font-size:13px; font-weight:900; text-transform:uppercase; color:#34d399;" id="ui-office-name">OFICINA N° -- (SIN CONFIGURAR)</div>
-            <div style="font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-top:3px;" id="ui-office-geo">📍 Toque "Configurar" o inicie sesión para cargar sus oficinas asignadas</div>
+            <div style="font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-top:3px;" id="ui-office-geo">📍 Seleccione o configure su oficina registral</div>
           </div>
 
           <div id="assigned-offices-selector" style="margin-top:10px; display:none;">
-            <label class="label">Cambiar entre mis oficinas asignadas:</label>
+            <label class="label">Cambiar Oficina de la Mini Base de Datos:</label>
             <select id="select-assigned-office" class="select" onchange="handleAssignedOfficeChange(this.value)"></select>
           </div>
         </div>
@@ -512,10 +408,10 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">📚 Libros de Defunciones</div>
-              <div class="card-subtitle">Seleccione un libro para capturar sus 200 folios o agregue uno nuevo.</div>
+              <div class="card-title">📚 Libros en Mini Base de Datos</div>
+              <div class="card-subtitle">Agregue nuevos libros, edite sus datos o escanee sus 200 folios sin internet.</div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="openModalNuevoLibro()">+ Nuevo Libro</button>
+            <button class="btn btn-primary btn-sm" onclick="openModalLibro()">+ Nuevo Libro</button>
           </div>
 
           <div id="books-container"></div>
@@ -526,11 +422,12 @@
       <div id="libro-scanner-view" style="display:none; flex-direction:column; gap:14px;">
         <div class="card" style="padding:12px 14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-            <button class="btn btn-outline btn-sm" onclick="closeBookScanner()">← Volver a Libros</button>
-            <div style="text-align:right; min-width:0;">
+            <button class="btn btn-outline btn-sm" onclick="closeBookScanner()">← Volver</button>
+            <div style="text-align:center; min-width:0; flex:1;">
               <div id="scan-book-title" style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">LIBRO</div>
               <div id="scan-book-sub" style="font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase;">OFICINA</div>
             </div>
+            <button class="btn btn-outline btn-sm" onclick="openModalLibro(currentBook?.id)">✏️ Editar</button>
           </div>
         </div>
 
@@ -543,7 +440,7 @@
             <div id="scan-empty-placeholder" style="padding:20px; color:var(--muted);">
               <div style="font-size:38px; margin-bottom:8px;">📷</div>
               <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#e2e8f0;">Sin imagen en este folio</div>
-              <div style="font-size:10px; margin-top:4px;">Presione "Tomar Foto del Folio" abajo. Se guardará en la memoria del dispositivo aunque no tenga internet.</div>
+              <div style="font-size:10px; margin-top:4px;">Capture la foto del folio. Se guarda o actualiza en la Mini Base de Datos del teléfono.</div>
             </div>
             <img id="scan-preview-img" src="" alt="Vista previa del folio" style="display:none;" />
           </div>
@@ -553,8 +450,8 @@
           <input type="file" id="gallery-folio-input" accept="image/*" style="display:none;" onchange="handleFolioFilePicked(event)" />
 
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <button class="btn btn-primary" style="padding:16px; font-size:14px;" onclick="document.getElementById('camera-folio-input').click()">
-              📸 TOMAR FOTO DEL FOLIO N° <span id="btn-cam-folio-num">1</span>
+            <button class="btn btn-primary" style="padding:16px; font-size:13px;" onclick="document.getElementById('camera-folio-input').click()">
+              📸 <span id="btn-cam-folio-action">CAPTURAR</span> FOLIO N° <span id="btn-cam-folio-num">1</span>
             </button>
             <div class="grid-3">
               <button class="btn btn-outline" onclick="changeFolio(-1)">◀ Anterior</button>
@@ -562,7 +459,7 @@
               <button class="btn btn-outline" onclick="changeFolio(1)">Siguiente ▶</button>
             </div>
             <button id="btn-delete-local-folio" class="btn btn-danger" style="display:none; padding:10px;" onclick="deleteCurrentLocalFolio()">
-              🗑️ Eliminar foto local de este folio
+              🗑️ Descartar cambio local de este folio
             </button>
           </div>
         </div>
@@ -571,8 +468,8 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">🔢 Mapa de 200 Folios del Libro</div>
-              <div class="card-subtitle">🟢 Sincronizado en Nube · 🟠 Alojado en Celular · ⚪ Vacío</div>
+              <div class="card-title">🔢 Mapa de 200 Folios en Mini-BD</div>
+              <div class="card-subtitle">🟢 Sincronizado · 🟠 Nuevo/Editado en Celular · ⚪ Vacío</div>
             </div>
           </div>
           <div id="folios-grid-container" class="folios-grid"></div>
@@ -581,17 +478,34 @@
 
     </section>
 
-    <!-- ==================== TAB 2: ACTA DE DEFUNCIÓN (DEPURACIÓN) ==================== -->
+    <!-- ==================== TAB 2: ACTAS DE DEFUNCIÓN (CARGAR, CONSULTAR Y EDITAR EN MINI-BD) ==================== -->
     <section id="tab-actas" class="tab-view">
-      <div class="card">
+
+      <!-- Selector entre Formulario (Agregar/Editar) y Lista de la Mini Base de Datos -->
+      <div class="subtab-bar">
+        <button id="subbtn-acta-form" class="subtab-btn active" onclick="switchActaSubView('form')">
+          ➕ <span id="subbtn-acta-form-label">Cargar Acta</span>
+        </button>
+        <button id="subbtn-acta-list" class="subtab-btn" onclick="switchActaSubView('list')">
+          📋 Mini-BD Actas (<span id="actas-total-count">0</span>)
+        </button>
+      </div>
+
+      <!-- SUB-VISTA A: FORMULARIO DE CARGA / EDICIÓN LOCAL DE ACTA -->
+      <div id="acta-form-view" class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">📜 Constancia de Acta de Defunción</div>
-            <div class="card-subtitle">Guarda el acta y su fotografía en el celular sin internet y la sube automáticamente al módulo de Depuración al conectar.</div>
+            <div class="card-title" id="acta-form-title">📜 Nueva Constancia de Acta de Defunción</div>
+            <div class="card-subtitle" id="acta-form-subtitle">Se guarda en la Mini Base de Datos del teléfono y se sincroniza con Firebase al conectar.</div>
           </div>
+          <button id="btn-cancel-edit-acta" class="btn btn-danger btn-sm" style="display:none;" onclick="resetActaForm()">✕ Cancelar Edición</button>
         </div>
 
-        <div class="grid-3" style="margin-bottom:12px;">
+        <input type="hidden" id="acta-editing-id" value="" />
+
+        <!-- 1. Datos de Inscripción y Fecha del Acta -->
+        <div class="section-tag">1. Datos de la Inscripción Registral</div>
+        <div class="grid-3">
           <div class="field">
             <label class="label">Tomo *</label>
             <input id="acta-tomo" class="input" placeholder="Ej: I" />
@@ -606,11 +520,28 @@
           </div>
         </div>
 
+        <div class="grid-3" style="margin-top:8px;">
+          <div class="field">
+            <label class="label">Día Acta</label>
+            <input id="acta-dia" class="input" maxlength="2" placeholder="DD" />
+          </div>
+          <div class="field">
+            <label class="label">Mes Acta</label>
+            <input id="acta-mes" class="input" maxlength="2" placeholder="MM" />
+          </div>
+          <div class="field">
+            <label class="label">Año Acta</label>
+            <input id="acta-anio" class="input" maxlength="4" placeholder="2026" />
+          </div>
+        </div>
+
+        <!-- 2. Datos del Fallecido -->
+        <div class="section-tag">2. Datos del Fallecido</div>
         <div class="field">
           <label class="label">Cédula de Identidad del Fallecido</label>
           <div style="display:flex; gap:8px;">
             <input id="acta-cedula" class="input" placeholder="Ej: 1234567" />
-            <button class="btn btn-outline btn-sm" onclick="buscarCedulaPadronOnline()">🔍 Padrón</button>
+            <button class="btn btn-outline btn-sm" onclick="buscarCedulaEnMiniDbYPadron()">🔍 Buscar CI</button>
           </div>
         </div>
 
@@ -625,7 +556,7 @@
           </div>
         </div>
 
-        <div class="grid-2" style="margin-top:12px;">
+        <div class="grid-3" style="margin-top:8px;">
           <div class="field">
             <label class="label">Sexo</label>
             <select id="acta-sexo" class="select">
@@ -634,129 +565,197 @@
             </select>
           </div>
           <div class="field">
+            <label class="label">Estado Civil</label>
+            <select id="acta-estado-civil" class="select">
+              <option value="S">SOLTERO/A</option>
+              <option value="C">CASADO/A</option>
+              <option value="V">VIUDO/A</option>
+              <option value="D">DIVORCIADO/A</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">Nacionalidad</label>
+            <select id="acta-nacionalidad" class="select">
+              <option value="P">PARAGUAYA</option>
+              <option value="E">EXTRANJERA</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:8px;">
+          <div class="field">
             <label class="label">Fecha Fallecimiento *</label>
             <input type="date" id="acta-fecha-fall" class="input" />
           </div>
-        </div>
-
-        <div class="grid-2" style="margin-top:12px;">
           <div class="field">
-            <label class="label">Lugar de Fallecimiento</label>
-            <input id="acta-lugar-fall" class="input" placeholder="HOSPITAL / CIUDAD" />
-          </div>
-          <div class="field">
-            <label class="label">Causa /Observación</label>
-            <input id="acta-obs" class="input" placeholder="OPCIONAL" />
+            <label class="label">Lugar Fallecimiento</label>
+            <input id="acta-lugar-fall" class="input" placeholder="CIUDAD / HOSPITAL" />
           </div>
         </div>
 
-        <!-- Foto del Acta Física -->
-        <div class="field" style="margin-top:14px;">
-          <label class="label">Fotografía del Acta Física *</label>
+        <div class="grid-2" style="margin-top:8px;">
+          <div class="field">
+            <label class="label">Fecha Nacimiento</label>
+            <input type="date" id="acta-fecha-nac" class="input" />
+          </div>
+          <div class="field">
+            <label class="label">Domicilio</label>
+            <input id="acta-domicilio" class="input" placeholder="BARRIO / DIRECCIÓN" />
+          </div>
+        </div>
+
+        <!-- 3. Padres, Declarante y Oficial -->
+        <div class="section-tag">3. Padres, Declarante y Oficial (Opcional)</div>
+        <div class="grid-2">
+          <div class="field">
+            <label class="label">Nombre del Padre</label>
+            <input id="acta-padre" class="input" placeholder="PADRE" />
+          </div>
+          <div class="field">
+            <label class="label">Nombre de la Madre</label>
+            <input id="acta-madre" class="input" placeholder="MADRE" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:8px;">
+          <div class="field">
+            <label class="label">Declarante (Nombre)</label>
+            <input id="acta-declarante" class="input" placeholder="NOMBRE DECLARANTE" />
+          </div>
+          <div class="field">
+            <label class="label">Oficial del Registro Civil</label>
+            <input id="acta-oficial" class="input" placeholder="NOMBRE OFICIAL" />
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:8px;">
+          <label class="label">Observaciones</label>
+          <input id="acta-obs" class="input" placeholder="OBSERVACIONES ADICIONALES" />
+        </div>
+
+        <!-- 4. Fotografía del Acta Física -->
+        <div class="section-tag">4. Respaldo Fotográfico del Acta Física *</div>
+        <div class="field">
           <input type="file" id="acta-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleActaPhotoPicked(event)" />
+          <input type="file" id="acta-gallery-input" accept="image/*" style="display:none;" onchange="handleActaPhotoPicked(event)" />
           <div id="acta-photo-preview-box" style="background:#0b1120; border:2px dashed var(--border); border-radius:14px; padding:14px; text-align:center;">
             <div id="acta-photo-empty">
               <div style="font-size:26px; margin-bottom:4px;">📷</div>
-              <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Capture la foto del acta de defunción física</div>
-              <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">Capturar Foto del Acta</button>
+              <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">Capture o seleccione la foto del acta de defunción física</div>
+              <div style="display:flex; gap:8px; justify-content:center;">
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('acta-camera-input').click()">📸 Cámara</button>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-gallery-input').click()">🖼️ Galería</button>
+              </div>
             </div>
             <div id="acta-photo-loaded" style="display:none;">
-              <img id="acta-photo-img" src="" alt="Foto Acta" style="max-height:200px; border-radius:10px; margin-bottom:8px;" />
-              <div>
-                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">Cambiar Foto</button>
+              <img id="acta-photo-img" src="" alt="Foto Acta" style="max-height:210px; border-radius:10px; margin-bottom:8px;" />
+              <div style="display:flex; gap:8px; justify-content:center;">
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">📸 Reemplazar con Cámara</button>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-gallery-input').click()">🖼️ Galería</button>
               </div>
             </div>
           </div>
         </div>
 
-        <button class="btn btn-primary" style="margin-top:16px;" onclick="saveActaOfflineOrOnline()">
-          💾 GUARDAR ACTA EN EL DISPOSITIVO
+        <button id="btn-save-acta" class="btn btn-primary" style="margin-top:16px;" onclick="saveOrUpdateActaInMiniDb()">
+          💾 GUARDAR ACTA EN LA MINI BASE DE DATOS
         </button>
       </div>
+
+      <!-- SUB-VISTA B: LISTADO DE ACTAS EN MINI BASE DE DATOS (CON BUSCADOR Y EDICIÓN LOCAL) -->
+      <div id="acta-list-view" style="display:none; flex-direction:column; gap:12px;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">📋 Actas en la Mini Base de Datos</div>
+              <div class="card-subtitle">Toque "✏️ Editar" en cualquier registro para corregirlo en el celular (se actualizará en Firebase al conectar).</div>
+            </div>
+          </div>
+          <input id="search-actas-input" class="input" placeholder="🔍 Buscar por nombre, apellido, cédula o acta..." oninput="renderMiniDbActasList()" />
+          <div id="actas-list-container" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
     </section>
 
-    <!-- ==================== TAB 3: COLA DE MEMORIA Y SINCRONIZACIÓN ==================== -->
+    <!-- ==================== TAB 3: MINI BASE DE DATOS Y SINCRONIZACIÓN FIREBASE ==================== -->
     <section id="tab-sync" class="tab-view">
       <div class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">☁️ Memoria Interna y Sincronización</div>
-            <div class="card-subtitle">Todo lo capturado sin internet queda alojado de forma segura en el teléfono hasta conectarse al servidor.</div>
+            <div class="card-title">🗄️ Estado de la Mini Base de Datos Local</div>
+            <div class="card-subtitle">Réplica local alojada en la memoria interna del celular (`DGREC_MINI_DB_V2`).</div>
           </div>
         </div>
 
-        <div class="grid-3" style="margin-bottom:14px; text-align:center;">
-          <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:10px;">
-            <div style="font-size:20px; font-weight:900; color:#fbbf24;" id="stat-pending-folios">0</div>
-            <div style="font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;">Folios en Celular</div>
+        <div class="grid-4" style="margin-bottom:12px; text-align:center;">
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:12px; padding:9px 4px;">
+            <div style="font-size:17px; font-weight:900; color:#34d399;" id="stat-db-offices">0</div>
+            <div style="font-size:8px; font-weight:800; color:var(--muted); text-transform:uppercase;">Oficinas</div>
           </div>
-          <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:10px;">
-            <div style="font-size:20px; font-weight:900; color:#a5b4fc;" id="stat-pending-actas">0</div>
-            <div style="font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;">Actas en Celular</div>
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:12px; padding:9px 4px;">
+            <div style="font-size:17px; font-weight:900; color:#38bdf8;" id="stat-db-books">0</div>
+            <div style="font-size:8px; font-weight:800; color:var(--muted); text-transform:uppercase;">Libros</div>
           </div>
-          <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:10px;">
-            <div style="font-size:20px; font-weight:900; color:#34d399;" id="stat-storage-mb">0 MB</div>
-            <div style="font-size:9px; font-weight:800; color:var(--muted); text-transform:uppercase;">Espacio Usado</div>
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:12px; padding:9px 4px;">
+            <div style="font-size:17px; font-weight:900; color:#fbbf24;" id="stat-db-folios">0</div>
+            <div style="font-size:8px; font-weight:800; color:var(--muted); text-transform:uppercase;">Folios</div>
+          </div>
+          <div style="background:#0b1120; border:1px solid var(--border); border-radius:12px; padding:9px 4px;">
+            <div style="font-size:17px; font-weight:900; color:#a5b4fc;" id="stat-db-actas">0</div>
+            <div style="font-size:8px; font-weight:800; color:var(--muted); text-transform:uppercase;">Actas</div>
           </div>
         </div>
 
-        <button id="btn-sync-now" class="btn btn-primary" onclick="syncAllPendingToCloud(true)">
-          🔄 SUBIR TODO AL MÓDULO DE DEPURACIÓN AHORA
-        </button>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">📦 Imágenes y Registros Alojados en el Celular</div>
-        </div>
-        <div id="queue-list-container"></div>
-      </div>
-    </section>
-
-    <!-- ==================== TAB 4: USUARIO Y CONEXIÓN ==================== -->
-    <section id="tab-user" class="tab-view">
-      <div class="card">
-        <div class="card-header">
+        <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div class="card-title">👤 Credenciales del Funcionario</div>
-            <div class="card-subtitle">Inicie sesión cuando tenga internet para descargar sus oficinas asignadas y habilitar la subida a Firestore.</div>
+            <div style="font-size:10px; font-weight:900; text-transform:uppercase; color:#fbbf24;">Cambios Locales por Subir a Firebase</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:2px;" id="stat-pending-breakdown">0 libros · 0 folios · 0 actas</div>
           </div>
+          <div style="font-size:13px; font-weight:900; color:#fff;" id="stat-storage-mb">0.0 MB</div>
         </div>
 
-        <div id="user-logged-box" style="display:none; background:#0b1120; border:1px solid rgba(16,185,129,0.35); border-radius:14px; padding:14px; margin-bottom:14px;">
-          <div style="font-size:10px; font-weight:900; color:#34d399; text-transform:uppercase;">✅ SESIÓN VINCULADA EN EL DISPOSITIVO</div>
-          <div style="font-size:14px; font-weight:900; margin-top:4px;" id="ui-user-name">FUNCIONARIO</div>
-          <div style="font-size:11px; color:var(--muted);" id="ui-user-email">correo@tsje.gov.py</div>
-          <div style="display:flex; gap:8px; margin-top:12px;">
-            <button class="btn btn-outline btn-sm" onclick="fetchUserCloudData()">🔄 Actualizar Oficinas y Libros</button>
-            <button class="btn btn-danger btn-sm" onclick="logoutUser()">Cerrar Sesión</button>
-          </div>
-        </div>
-
-        <div id="user-login-form">
-          <div class="field">
-            <label class="label">Correo Electrónico Institucional</label>
-            <input type="email" id="login-email" class="input input-normal" placeholder="usuario@correo.com" />
-          </div>
-          <div class="field">
-            <label class="label">Contraseña</label>
-            <input type="password" id="login-password" class="input input-normal" placeholder="••••••••" />
-          </div>
-          <button id="btn-login" class="btn btn-indigo" style="margin-top:10px;" onclick="loginWithFirebaseREST()">
-            🔐 VINCULAR CUENTA Y DESCARGAR OFICINAS
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button id="btn-sync-now" class="btn btn-primary" onclick="syncAllPendingToCloud(true)">
+            🔄 SUBIR AGREGADOS Y EDITADOS A FIREBASE
+          </button>
+          <button id="btn-pull-db" class="btn btn-indigo" onclick="pullMiniDatabaseFromFirebase(true)">
+            📥 DESCARGAR / ACTUALIZAR MINI-BD DESDE FIREBASE
           </button>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">
+          <div class="card-title">📦 Cola de Agregados y Editados en el Celular</div>
+        </div>
+        <div id="queue-list-container"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: OPERADOR Y SESIÓN LOCAL ==================== -->
+    <section id="tab-user" class="tab-view">
+      <div class="card">
+        <div class="card-header">
           <div>
-            <div class="card-title">⚙️ Modo de Trabajo en Campo (Sin Señal)</div>
-            <div class="card-subtitle">Si instaló la APK en una zona sin internet, indique su nombre aquí para etiquetar las fotos que capture hoy.</div>
+            <div class="card-title">👤 Sesión Activa en el Dispositivo</div>
+            <div class="card-subtitle">Credenciales almacenadas en la Mini Base de Datos Local para acceso con o sin internet.</div>
           </div>
         </div>
+
+        <div style="background:#0b1120; border:1px solid rgba(16,185,129,0.35); border-radius:14px; padding:14px; margin-bottom:14px;">
+          <div style="font-size:10px; font-weight:900; color:#34d399; text-transform:uppercase;" id="ui-user-mode-badge">✅ SESIÓN ACTIVA</div>
+          <div style="font-size:15px; font-weight:900; margin-top:4px;" id="ui-user-name">OPERADOR</div>
+          <div style="font-size:11px; color:var(--muted);" id="ui-user-email">correo@tsje.gov.py</div>
+          <div style="font-size:10px; color:var(--muted); margin-top:6px;" id="ui-last-pull-time">Última descarga de Mini-BD: --</div>
+          <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="pullMiniDatabaseFromFirebase(true)">📥 Refrescar Mini-BD</button>
+            <button class="btn btn-danger btn-sm" onclick="lockAndLogoutSession()">🔒 Bloquear / Cambiar Usuario</button>
+          </div>
+        </div>
+
         <div class="field">
-          <label class="label">Nombre del Operador / Funcionario</label>
+          <label class="label">Nombre del Operador Firmante en Actas y Folios</label>
           <input id="local-operator-name" class="input" placeholder="NOMBRE Y APELLIDO" onchange="saveLocalOperatorName()" />
         </div>
       </div>
@@ -764,10 +763,10 @@
 
   </main>
 
-  <!-- MODAL: CONFIGURAR OFICINA LOCALMENTE -->
+  <!-- MODAL: CONFIGURAR / EDITAR OFICINA LOCALMENTE -->
   <div id="modal-oficina" class="modal-backdrop">
     <div class="modal-card">
-      <div class="card-title" style="margin-bottom:12px;">🏛️ Configurar Oficina del Registro Civil</div>
+      <div class="card-title" style="margin-bottom:12px;">🏛️ Configurar Oficina en Mini-BD</div>
       <div class="grid-2">
         <div class="field">
           <label class="label">N° de Oficina *</label>
@@ -790,32 +789,41 @@
       </div>
       <div style="display:flex; gap:8px; margin-top:16px;">
         <button class="btn btn-outline" onclick="closeModalOficina()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveManualOffice()">Guardar Oficina</button>
+        <button class="btn btn-primary" onclick="saveManualOffice()">Guardar en Mini-BD</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: NUEVO LIBRO -->
-  <div id="modal-nuevo-libro" class="modal-backdrop">
+  <!-- MODAL: CREAR O EDITAR LIBRO EN MINI-BD -->
+  <div id="modal-libro" class="modal-backdrop">
     <div class="modal-card">
-      <div class="card-title" style="margin-bottom:12px;">📚 Agregar Libro de Defunciones</div>
+      <div class="card-title" style="margin-bottom:12px;" id="mod-libro-modal-title">📚 Nuevo Libro de Defunciones</div>
+      <input type="hidden" id="mod-libro-editing-id" value="" />
       <div class="field">
-        <label class="label">Nombre / Identificador del Libro o Tomo *</label>
+        <label class="label">Nombre / Tomo del Libro *</label>
         <input id="mod-libro-nombre" class="input" placeholder="Ej: TOMO I - DEFUNCIONES" />
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="field">
-          <label class="label">Año del Libro *</label>
+          <label class="label">Año *</label>
           <input id="mod-libro-anio" type="number" class="input" value="2026" />
+        </div>
+        <div class="field">
+          <label class="label">Libro N°</label>
+          <input id="mod-libro-numero" class="input" value="1" />
         </div>
         <div class="field">
           <label class="label">Total Folios</label>
           <input id="mod-libro-folios" type="number" class="input" value="200" />
         </div>
       </div>
+      <div class="field" style="margin-top:8px;">
+        <label class="label">Observaciones del Libro</label>
+        <input id="mod-libro-obs" class="input" placeholder="OPCIONAL" />
+      </div>
       <div style="display:flex; gap:8px; margin-top:16px;">
-        <button class="btn btn-outline" onclick="closeModalNuevoLibro()">Cancelar</button>
-        <button class="btn btn-primary" onclick="createNewBook()">Crear y Escanear</button>
+        <button class="btn btn-outline" onclick="closeModalLibro()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveOrUpdateBookInMiniDb()">Guardar en Mini-BD</button>
       </div>
     </div>
   </div>
@@ -828,11 +836,11 @@
     </button>
     <button class="nav-btn" id="nav-actas" onclick="switchTab('actas')">
       <span style="font-size:18px;">📜</span>
-      <span>Acta Defunción</span>
+      <span>Actas Def.</span>
     </button>
     <button class="nav-btn" id="nav-sync" onclick="switchTab('sync')">
-      <span style="font-size:18px;">☁️</span>
-      <span>Sincronizar</span>
+      <span style="font-size:18px;">🗄️</span>
+      <span>Mini-BD / Sync</span>
       <span id="nav-pending-badge" class="nav-badge" style="display:none;">0</span>
     </button>
     <button class="nav-btn" id="nav-user" onclick="switchTab('user')">
@@ -852,42 +860,43 @@
     const R2_UPLOAD_ENDPOINT = `${WEB_SERVER_BASE}/api/r2/upload`;
 
     /* ============================================================================
-     * ESTADO LOCAL Y CACHÉ DEL DISPOSITIVO
+     * MINI BASE DE DATOS LOCAL EN EL DISPOSITIVO (INDEXEDDB: DGREC_MINI_DB_V2)
+     * Tablas locales espejo de Firebase:
+     *  - local_users    : Usuarios y credenciales cacheadas para login sin internet
+     *  - local_oficinas : Oficinas del Registro Civil (registros-civiles)
+     *  - local_libros   : Libros de Defunciones (libros-escaneo) [SYNCED | CREATED | UPDATED]
+     *  - local_folios   : Folios de cada libro (1 al 200) [SYNCED | CREATED | UPDATED]
+     *  - local_actas    : Actas de Defunción (actas-defuncion) [SYNCED | CREATED | UPDATED]
+     *  - local_padron   : Caché local de cédulas consultadas
      * ============================================================================ */
-    let authSession = JSON.parse(localStorage.getItem("dgrec_auth_session") || "null");
-    let assignedOffices = JSON.parse(localStorage.getItem("dgrec_assigned_offices") || "[]");
-    let activeOffice = JSON.parse(localStorage.getItem("dgrec_active_office") || "null");
-    let syncedFoliosMap = JSON.parse(localStorage.getItem("dgrec_synced_folios_map") || "{}"); // { [libroId]: { [folioNum]: url } }
-    let localOperatorName = localStorage.getItem("dgrec_operator_name") || "OPERADOR MÓVIL";
-
-    let currentBook = null;
-    let currentFolioNum = 1;
-    let currentBookLocalFolios = {}; // { [folioNum]: OfflineFolioRecord }
-    let currentActaPhotoDataUrl = "";
-    let isSyncingNow = false;
-
-    /* ============================================================================
-     * BASE DE DATOS INDEXEDDB DEL TELÉFONO (DGREC_MOBILE_DEPURACION_V1)
-     * ============================================================================ */
-    const IDB_NAME = "DGREC_MOBILE_DEPURACION_V1";
+    const IDB_NAME = "DGREC_MINI_DB_V2";
     const IDB_VERSION = 1;
     let idbInstance = null;
 
-    function openMobileDb() {
+    function openMiniDb() {
       if (idbInstance) return Promise.resolve(idbInstance);
       return new Promise((resolve, reject) => {
         const req = indexedDB.open(IDB_NAME, IDB_VERSION);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
-          if (!db.objectStoreNames.contains("offline_libros")) {
-            db.createObjectStore("offline_libros", { keyPath: "id" });
+          if (!db.objectStoreNames.contains("local_users")) {
+            db.createObjectStore("local_users", { keyPath: "email" });
           }
-          if (!db.objectStoreNames.contains("offline_folios")) {
-            const s = db.createObjectStore("offline_folios", { keyPath: "id" });
+          if (!db.objectStoreNames.contains("local_oficinas")) {
+            db.createObjectStore("local_oficinas", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("local_libros")) {
+            db.createObjectStore("local_libros", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("local_folios")) {
+            const s = db.createObjectStore("local_folios", { keyPath: "id" });
             s.createIndex("libroId", "libroId", { unique: false });
           }
-          if (!db.objectStoreNames.contains("offline_actas")) {
-            db.createObjectStore("offline_actas", { keyPath: "id" });
+          if (!db.objectStoreNames.contains("local_actas")) {
+            db.createObjectStore("local_actas", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("local_padron")) {
+            db.createObjectStore("local_padron", { keyPath: "cedula" });
           }
         };
         req.onsuccess = (e) => {
@@ -899,7 +908,7 @@
     }
 
     async function idbPut(storeName, val) {
-      const db = await openMobileDb();
+      const db = await openMiniDb();
       return new Promise((resolve, reject) => {
         const tx = db.transaction(storeName, "readwrite");
         tx.objectStore(storeName).put(val);
@@ -908,8 +917,18 @@
       });
     }
 
+    async function idbGet(storeName, key) {
+      const db = await openMiniDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, "readonly");
+        const req = tx.objectStore(storeName).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
     async function idbGetAll(storeName) {
-      const db = await openMobileDb();
+      const db = await openMiniDb();
       return new Promise((resolve, reject) => {
         const tx = db.transaction(storeName, "readonly");
         const req = tx.objectStore(storeName).getAll();
@@ -919,7 +938,7 @@
     }
 
     async function idbDelete(storeName, key) {
-      const db = await openMobileDb();
+      const db = await openMiniDb();
       return new Promise((resolve, reject) => {
         const tx = db.transaction(storeName, "readwrite");
         tx.objectStore(storeName).delete(key);
@@ -929,8 +948,33 @@
     }
 
     /* ============================================================================
-     * UTILIDADES DE INTERFAZ Y COMPRESIÓN DE IMAGEN EN EL CELULAR
+     * ESTADO ACTIVO EN MEMORIA
      * ============================================================================ */
+    let authSession = JSON.parse(localStorage.getItem("dgrec_auth_session") || "null");
+    let activeOffice = JSON.parse(localStorage.getItem("dgrec_active_office") || "null");
+    let localOperatorName = localStorage.getItem("dgrec_operator_name") || "OPERADOR MÓVIL";
+    let lastPullTime = localStorage.getItem("dgrec_last_pull_time") || "";
+
+    let currentBook = null;
+    let currentFolioNum = 1;
+    let currentBookFoliosMap = {}; // { [folioNum]: FolioRecord }
+    let currentActaPhotoDataUrl = "";
+    let isSyncingNow = false;
+    let isOfflineFirstTimeMode = false;
+
+    /* ============================================================================
+     * UTILIDADES GENERALES Y HASH SIMPLE DE CREDENCIAL LOCAL
+     * ============================================================================ */
+    function hashPasswordLocal(email, pass) {
+      const str = `${email.toLowerCase().trim()}::${pass}::DGREC_SALT_2026`;
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return "h_" + (h >>> 0).toString(16);
+    }
+
     function showToast(msg, bg = "#10b981") {
       const el = document.getElementById("toast-box");
       el.textContent = msg;
@@ -947,6 +991,7 @@
         document.getElementById(`nav-${t}`).classList.toggle("active", t === tab);
       });
       if (tab === "sync") renderSyncQueue();
+      if (tab === "actas") renderMiniDbActasList();
     }
 
     function compressPhotoFile(file, maxDim = 1920, quality = 0.82) {
@@ -965,6 +1010,8 @@
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
             const dataUrl = canvas.toDataURL("image/jpeg", quality);
             canvas.toBlob((blob) => {
@@ -988,33 +1035,252 @@
       const pill = document.getElementById("net-pill");
       const dot = document.getElementById("net-dot");
       const lbl = document.getElementById("net-label");
+      const loginNetTxt = document.getElementById("login-net-status-text");
       if (online) {
         pill.className = "pill pill-online";
         dot.className = "dot dot-online";
         lbl.textContent = "EN LÍNEA";
+        if (loginNetTxt) loginNetTxt.textContent = "🟢 Conectado: validará con Firebase y actualizará la Mini Base de Datos Local.";
       } else {
         pill.className = "pill pill-offline";
         dot.className = "dot dot-offline";
-        lbl.textContent = "MODO OFFLINE";
+        lbl.textContent = "OFFLINE";
+        if (loginNetTxt) loginNetTxt.textContent = "🟠 Sin internet: validando contra la Mini Base de Datos Local del teléfono.";
       }
     }
 
     window.addEventListener("online", () => {
       updateNetworkUI();
-      showToast("🌐 Conexión detectada: iniciando sincronización automática...");
-      syncAllPendingToCloud(false);
+      if (authSession) {
+        showToast("🌐 Conexión detectada: sincronizando Mini-BD con Firebase...");
+        syncAllPendingToCloud(false);
+      }
     });
     window.addEventListener("offline", () => {
       updateNetworkUI();
-      showToast("🟠 Sin internet: trabajando en memoria interna del celular", "#f59e0b");
+      showToast("🟠 Sin internet: trabajando sobre la Mini Base de Datos del celular", "#f59e0b");
     });
 
     /* ============================================================================
-     * AUTENTICACIÓN FIREBASE REST Y CACHÉ DE OFICINAS / LIBROS
+     * LOGIN DE ACCESO LOCAL (ONLINE + OFFLINE CONTRA MINI BASE DE DATOS)
      * ============================================================================ */
+    async function renderLoginGate() {
+      const overlay = document.getElementById("login-screen-overlay");
+      if (authSession && authSession.unlocked) {
+        overlay.classList.add("hidden");
+        renderUserUI();
+        return;
+      }
+      overlay.classList.remove("hidden");
+
+      const savedUsers = await idbGetAll("local_users");
+      const box = document.getElementById("saved-accounts-box");
+      const list = document.getElementById("saved-accounts-items");
+      if (savedUsers.length > 0) {
+        box.style.display = "block";
+        list.innerHTML = savedUsers.map(u => `
+          <div class="saved-user-chip" onclick="selectSavedAccount('${u.email}', '${u.username || ''}')">
+            <div>
+              <div style="font-size:12px; font-weight:900; color:#fff;">👤 ${u.username || u.email}</div>
+              <div style="font-size:10px; color:var(--muted);">${u.email}</div>
+            </div>
+            <span class="pill pill-online" style="font-size:8px;">Elegir</span>
+          </div>
+        `).join("");
+      } else {
+        box.style.display = "none";
+      }
+    }
+
+    function selectSavedAccount(email, username) {
+      document.getElementById("gate-email").value = email;
+      document.getElementById("gate-password").focus();
+      showToast(`Ingrese la contraseña de ${username || email}`);
+    }
+
+    function toggleOfflineFirstTimeMode() {
+      isOfflineFirstTimeMode = !isOfflineFirstTimeMode;
+      document.getElementById("gate-fullname-wrap").style.display = isOfflineFirstTimeMode ? "flex" : "none";
+      document.getElementById("btn-gate-login").textContent = isOfflineFirstTimeMode
+        ? "📴 CREAR ACCESO LOCAL E INGRESAR"
+        : "🔐 INGRESAR AL MÓDULO DE DEPURACIÓN";
+    }
+
+    async function handleGateLogin() {
+      const email = document.getElementById("gate-email").value.trim().toLowerCase();
+      const password = document.getElementById("gate-password").value;
+      const fullNameInput = document.getElementById("gate-fullname").value.trim().toUpperCase();
+
+      if (!email || !password) {
+        return showToast("Ingrese su correo/usuario y contraseña", "#ef4444");
+      }
+
+      const btn = document.getElementById("btn-gate-login");
+      btn.disabled = true;
+      btn.textContent = "VERIFICANDO EN MINI-BD / FIREBASE...";
+
+      try {
+        const passHash = hashPasswordLocal(email, password);
+
+        // 1. Si hay internet, autenticar contra Firebase Auth y actualizar Mini-BD Local
+        if (navigator.onLine && !isOfflineFirstTimeMode) {
+          try {
+            const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password, returnSecureToken: true })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error?.message || "Credenciales inválidas");
+
+            const username = fullNameInput || email.split("@")[0].toUpperCase();
+            authSession = {
+              uid: data.localId,
+              email: data.email,
+              idToken: data.idToken,
+              refreshToken: data.refreshToken,
+              username,
+              passwordHash: passHash,
+              tokenTimestamp: Date.now(),
+              unlocked: true,
+              mode: "CLOUD_VERIFIED"
+            };
+            localOperatorName = username;
+            localStorage.setItem("dgrec_operator_name", localOperatorName);
+            localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+
+            // Guardar usuario en la Mini Base de Datos para futuros logins sin internet
+            await idbPut("local_users", {
+              email: data.email.toLowerCase(),
+              uid: data.localId,
+              username,
+              passwordHash: passHash,
+              refreshToken: data.refreshToken,
+              idToken: data.idToken,
+              updatedAt: new Date().toISOString()
+            });
+
+            await pullMiniDatabaseFromFirebase(false);
+            await renderLoginGate();
+            showToast("✅ Acceso verificado y Mini Base de Datos descargada");
+            syncAllPendingToCloud(false);
+            return;
+          } catch (cloudErr) {
+            // Si falló por red inestable, intentar validar contra la Mini-BD local
+            const localUser = await idbGet("local_users", email);
+            if (!localUser || localUser.passwordHash !== passHash) {
+              throw cloudErr;
+            }
+          }
+        }
+
+        // 2. Validación 100% Local contra la Mini Base de Datos (`local_users`)
+        const localUser = await idbGet("local_users", email);
+        if (localUser) {
+          if (localUser.passwordHash !== passHash) {
+            throw new Error("Contraseña incorrecta para este usuario en la Mini-BD local");
+          }
+          authSession = {
+            uid: localUser.uid || ("local_" + Date.now()),
+            email: localUser.email,
+            idToken: localUser.idToken || null,
+            refreshToken: localUser.refreshToken || null,
+            username: localUser.username || email.split("@")[0].toUpperCase(),
+            passwordHash: passHash,
+            tokenTimestamp: Date.now(),
+            unlocked: true,
+            mode: "LOCAL_DB_AUTH"
+          };
+          localOperatorName = authSession.username;
+          localStorage.setItem("dgrec_operator_name", localOperatorName);
+          localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+          await renderLoginGate();
+          await refreshAllLocalViews();
+          showToast("✅ Acceso Local concedido desde la Mini Base de Datos");
+          return;
+        }
+
+        // 3. Si es primer uso en campo sin internet (Modo Creación de Operador Local)
+        if (!navigator.onLine || isOfflineFirstTimeMode) {
+          const opName = fullNameInput || email.split("@")[0].toUpperCase();
+          const newLocalUser = {
+            email,
+            uid: "offline_" + Date.now(),
+            username: opName,
+            passwordHash: passHash,
+            rawPasswordForFirstSync: password,
+            updatedAt: new Date().toISOString()
+          };
+          await idbPut("local_users", newLocalUser);
+          authSession = {
+            uid: newLocalUser.uid,
+            email,
+            idToken: null,
+            refreshToken: null,
+            username: opName,
+            passwordHash: passHash,
+            rawPasswordForFirstSync: password,
+            unlocked: true,
+            mode: "OFFLINE_PROVISIONED"
+          };
+          localOperatorName = opName;
+          localStorage.setItem("dgrec_operator_name", localOperatorName);
+          localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+          await renderLoginGate();
+          await refreshAllLocalViews();
+          showToast("✅ Perfil creado en la Mini Base de Datos Local");
+          return;
+        }
+
+        throw new Error("Usuario no encontrado en la Mini-BD. Conéctese a internet o use 'Crear Acceso Local'.");
+      } catch (err) {
+        showToast("❌ " + err.message, "#ef4444");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = isOfflineFirstTimeMode
+          ? "📴 CREAR ACCESO LOCAL E INGRESAR"
+          : "🔐 INGRESAR AL MÓDULO DE DEPURACIÓN";
+      }
+    }
+
+    function lockAndLogoutSession() {
+      if (authSession) {
+        authSession.unlocked = false;
+        localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+      }
+      document.getElementById("gate-password").value = "";
+      renderLoginGate();
+      showToast("🔒 Sesión bloqueada. Ingrese su contraseña para continuar.");
+    }
+
     async function ensureValidIdToken() {
-      if (!authSession || !authSession.refreshToken) return null;
-      // Refrescar si pasaron más de 45 min
+      if (!authSession) return null;
+      // Si se creó sin internet y guardó credenciales para vincular al conectar:
+      if (!authSession.refreshToken && authSession.rawPasswordForFirstSync && navigator.onLine) {
+        try {
+          const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: authSession.email,
+              password: authSession.rawPasswordForFirstSync,
+              returnSecureToken: true
+            })
+          });
+          if (res.ok) {
+            const d = await res.json();
+            authSession.uid = d.localId;
+            authSession.idToken = d.idToken;
+            authSession.refreshToken = d.refreshToken;
+            authSession.tokenTimestamp = Date.now();
+            delete authSession.rawPasswordForFirstSync;
+            localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+            return authSession.idToken;
+          }
+        } catch {}
+      }
+
+      if (!authSession.refreshToken) return null;
       if (Date.now() - (authSession.tokenTimestamp || 0) < 45 * 60 * 1000 && authSession.idToken) {
         return authSession.idToken;
       }
@@ -1036,45 +1302,10 @@
       }
     }
 
-    async function loginWithFirebaseREST() {
-      const email = document.getElementById("login-email").value.trim().toLowerCase();
-      const password = document.getElementById("login-password").value;
-      if (!email || !password) return showToast("Ingrese su correo y contraseña", "#ef4444");
-      if (!navigator.onLine) return showToast("Necesita conexión para vincular la cuenta por primera vez", "#f59e0b");
-
-      const btn = document.getElementById("btn-login");
-      btn.disabled = true;
-      btn.textContent = "VERIFICANDO CREDENCIALES...";
-      try {
-        const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, returnSecureToken: true })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || "Credenciales inválidas");
-
-        authSession = {
-          uid: data.localId,
-          email: data.email,
-          idToken: data.idToken,
-          refreshToken: data.refreshToken,
-          username: email.split("@")[0].toUpperCase(),
-          tokenTimestamp: Date.now()
-        };
-        localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
-        await fetchUserCloudData();
-        renderUserUI();
-        showToast("✅ Cuenta vinculada y oficinas descargadas al celular");
-        syncAllPendingToCloud(false);
-      } catch (err) {
-        showToast("❌ Error: " + err.message, "#ef4444");
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "🔐 VINCULAR CUENTA Y DESCARGAR OFICINAS";
-      }
-    }
-
+    /* ============================================================================
+     * DESCARGA DE LA MINI BASE DE DATOS DESDE FIREBASE (PULL)
+     * Descarga Oficinas, Asignaciones, Libros, Folios y Actas sin pisar ediciones locales
+     * ============================================================================ */
     function parseFirestoreFields(docObj) {
       const out = {};
       const fields = docObj?.fields || {};
@@ -1091,16 +1322,24 @@
       return out;
     }
 
-    async function fetchUserCloudData() {
-      if (!navigator.onLine || !authSession) return;
+    async function pullMiniDatabaseFromFirebase(manual = false) {
+      if (!navigator.onLine) {
+        if (manual) showToast("🟠 Sin internet: usando los datos alojados en la Mini-BD del celular", "#f59e0b");
+        return;
+      }
       const token = await ensureValidIdToken();
-      if (!token) return;
+      if (!token) {
+        if (manual) showToast("🔐 Inicie sesión con una cuenta de Firebase para descargar la Mini-BD", "#f59e0b");
+        return;
+      }
+
       const headers = { Authorization: `Bearer ${token}` };
+      if (manual) showToast("📥 Descargando Mini Base de Datos desde Firebase...");
 
       try {
-        // 1. Perfil del usuario
+        // 1. Perfil del usuario actual
         const uRes = await fetch(`${FIRESTORE_BASE_URL}/users/${authSession.uid}`, { headers });
-        let profileRegs = [];
+        let assignedIds = [];
         if (uRes.ok) {
           const uData = parseFirestoreFields(await uRes.json());
           if (uData.username) {
@@ -1108,13 +1347,19 @@
             localOperatorName = uData.username;
             localStorage.setItem("dgrec_operator_name", localOperatorName);
             localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+            const savedU = await idbGet("local_users", authSession.email.toLowerCase());
+            if (savedU) {
+              savedU.username = uData.username;
+              await idbPut("local_users", savedU);
+            }
           }
-          if (Array.isArray(uData.oficinas_registro_civil)) profileRegs = uData.oficinas_registro_civil;
+          if (Array.isArray(uData.oficinas_registro_civil)) {
+            assignedIds = uData.oficinas_registro_civil;
+          }
         }
 
-        // 2. Asignaciones del Registro Civil
+        // 2. Asignaciones del Registro Civil (`asignaciones-registro-civil`)
         const aRes = await fetch(`${FIRESTORE_BASE_URL}/asignaciones-registro-civil/${authSession.uid}`, { headers });
-        let assignedIds = [...profileRegs];
         if (aRes.ok) {
           const aData = parseFirestoreFields(await aRes.json());
           if (Array.isArray(aData.registros) && aData.registros.length > 0) {
@@ -1122,53 +1367,101 @@
           }
         }
 
-        // 3. Catálogo de oficinas registros-civiles
+        // 3. Catálogo de Oficinas (`registros-civiles`) -> Tabla `local_oficinas`
         const rRes = await fetch(`${FIRESTORE_BASE_URL}/registros-civiles?pageSize=300`, { headers });
         if (rRes.ok) {
           const rJson = await rRes.json();
           const allOffices = (rJson.documents || []).map(d => {
             const id = d.name.split("/").pop();
-            return { id, ...parseFirestoreFields(d) };
+            const fields = parseFirestoreFields(d);
+            return {
+              id,
+              ...fields,
+              assignedToUser: assignedIds.length === 0 || assignedIds.includes(id),
+              syncState: "SYNCED"
+            };
           });
-          const filtered = assignedIds.length > 0
-            ? allOffices.filter(o => assignedIds.includes(o.id))
-            : allOffices;
-
-          if (filtered.length > 0) {
-            assignedOffices = filtered;
-            localStorage.setItem("dgrec_assigned_offices", JSON.stringify(assignedOffices));
-            if (!activeOffice || !assignedOffices.some(o => o.id === activeOffice.id)) {
-              activeOffice = assignedOffices[0];
-              localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
+          for (const ofi of allOffices) {
+            const existing = await idbGet("local_oficinas", ofi.id);
+            if (!existing || existing.syncState === "SYNCED") {
+              await idbPut("local_oficinas", ofi);
             }
           }
         }
 
-        // 4. Descargar libros de las oficinas asignadas
-        const lRes = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo?pageSize=200`, { headers });
+        // 4. Libros de Escaneo (`libros-escaneo`) -> Tabla `local_libros`
+        const lRes = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo?pageSize=250`, { headers });
         if (lRes.ok) {
           const lJson = await lRes.json();
           const cloudBooks = (lJson.documents || []).map(d => {
             const id = d.name.split("/").pop();
-            return { id, ...parseFirestoreFields(d), syncedToCloud: true };
+            return { id, ...parseFirestoreFields(d), syncState: "SYNCED" };
           });
           for (const b of cloudBooks) {
-            await idbPut("offline_libros", b);
+            const existing = await idbGet("local_libros", b.id);
+            // Respetar si el libro tiene cambios locales pendientes (`CREATED` o `UPDATED`)
+            if (!existing || existing.syncState === "SYNCED") {
+              await idbPut("local_libros", b);
+            }
           }
         }
 
-        renderOfficeHeader();
-        await renderBooksList();
+        // 5. Actas de Defunción (`actas-defuncion`) -> Tabla `local_actas`
+        const actRes = await fetch(`${FIRESTORE_BASE_URL}/actas-defuncion?pageSize=200`, { headers });
+        if (actRes.ok) {
+          const actJson = await actRes.json();
+          for (const d of (actJson.documents || [])) {
+            const id = d.name.split("/").pop();
+            const parsed = parseFirestoreFields(d);
+            const existing = await idbGet("local_actas", id);
+            // No sobrescribir si el usuario editó esta acta localmente en el celular y aún no sincronizó
+            if (!existing || existing.syncState === "SYNCED") {
+              await idbPut("local_actas", {
+                id,
+                form: parsed,
+                syncState: "SYNCED",
+                sizeBytes: 0,
+                timestamp: Date.now()
+              });
+            }
+          }
+        }
+
+        lastPullTime = new Date().toLocaleString("es-PY");
+        localStorage.setItem("dgrec_last_pull_time", lastPullTime);
+
+        await refreshAllLocalViews();
+        if (manual) showToast("✅ Mini Base de Datos actualizada desde Firebase");
       } catch (e) {
-        console.warn("Error sincronizando catálogo inicial:", e);
+        console.warn("Error descargando Mini-BD:", e);
+        if (manual) showToast("⚠️ Descarga parcial: " + e.message, "#f59e0b");
       }
     }
 
-    function logoutUser() {
-      authSession = null;
-      localStorage.removeItem("dgrec_auth_session");
+    /* ============================================================================
+     * GESTIÓN DE OFICINAS Y LIBROS EN LA MINI BASE DE DATOS (AGREGAR Y EDITAR)
+     * ============================================================================ */
+    async function refreshAllLocalViews() {
+      await renderOfficeHeader();
+      await renderBooksList();
+      await renderMiniDbActasList();
+      await updateHeaderCounters();
       renderUserUI();
-      showToast("Sesión cerrada en el dispositivo");
+    }
+
+    function renderUserUI() {
+      document.getElementById("local-operator-name").value = localOperatorName;
+      document.getElementById("header-user-sub").textContent = `OPERADOR: ${localOperatorName}`;
+      if (authSession) {
+        document.getElementById("ui-user-name").textContent = authSession.username || localOperatorName;
+        document.getElementById("ui-user-email").textContent = authSession.email || "";
+        document.getElementById("ui-user-mode-badge").textContent =
+          authSession.mode === "CLOUD_VERIFIED"
+            ? "✅ VINCULADO CON FIREBASE + MINI-BD LOCAL"
+            : "📱 SESIÓN LOCAL ACTIVA EN MINI-BD";
+      }
+      document.getElementById("ui-last-pull-time").textContent =
+        `Última sincronización de Mini-BD: ${lastPullTime || "Pendiente (trabajando en local)"}`;
     }
 
     function saveLocalOperatorName() {
@@ -1176,29 +1469,25 @@
       if (val) {
         localOperatorName = val;
         localStorage.setItem("dgrec_operator_name", val);
-        showToast("Nombre de operador guardado localmente");
+        if (authSession) {
+          authSession.username = val;
+          localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
+        }
+        renderUserUI();
+        showToast("✅ Nombre de operador actualizado en la Mini-BD");
       }
     }
 
-    function renderUserUI() {
-      const loggedBox = document.getElementById("user-logged-box");
-      const loginForm = document.getElementById("user-login-form");
-      document.getElementById("local-operator-name").value = localOperatorName;
-      if (authSession && authSession.uid) {
-        loggedBox.style.display = "block";
-        loginForm.style.display = "none";
-        document.getElementById("ui-user-name").textContent = authSession.username || localOperatorName;
-        document.getElementById("ui-user-email").textContent = authSession.email || "";
-      } else {
-        loggedBox.style.display = "none";
-        loginForm.style.display = "block";
-      }
-    }
+    async function renderOfficeHeader() {
+      const allOffices = await idbGetAll("local_oficinas");
+      const assigned = allOffices.filter(o => o.assignedToUser);
+      const listToUse = assigned.length > 0 ? assigned : allOffices;
 
-    /* ============================================================================
-     * GESTIÓN DE OFICINA REC Y LIBROS (100% OFFLINE + CLOUD)
-     * ============================================================================ */
-    function renderOfficeHeader() {
+      if (!activeOffice && listToUse.length > 0) {
+        activeOffice = listToUse[0];
+        localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
+      }
+
       const nameEl = document.getElementById("ui-office-name");
       const geoEl = document.getElementById("ui-office-geo");
       const selBox = document.getElementById("assigned-offices-selector");
@@ -1212,23 +1501,23 @@
         geoEl.textContent = "📍 Toque 'Configurar' para indicar su Oficina del Registro Civil";
       }
 
-      if (assignedOffices && assignedOffices.length > 1) {
+      if (listToUse.length > 1) {
         selBox.style.display = "block";
-        sel.innerHTML = assignedOffices.map(o =>
-          `<option value="${o.id}" ${activeOffice && activeOffice.id === o.id ? "selected" : ""}>N° ${o.numero} - ${o.nombre} (${o.distrito})</option>`
+        sel.innerHTML = listToUse.map(o =>
+          `<option value="${o.id}" ${activeOffice && activeOffice.id === o.id ? "selected" : ""}>N° ${o.numero} - ${o.nombre} (${o.distrito || ""})</option>`
         ).join("");
       } else {
         selBox.style.display = "none";
       }
     }
 
-    function handleAssignedOfficeChange(officeId) {
-      const found = assignedOffices.find(o => o.id === officeId);
+    async function handleAssignedOfficeChange(officeId) {
+      const found = await idbGet("local_oficinas", officeId);
       if (found) {
         activeOffice = found;
         localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
-        renderOfficeHeader();
-        renderBooksList();
+        await renderOfficeHeader();
+        await renderBooksList();
       }
     }
 
@@ -1246,45 +1535,101 @@
       document.getElementById("modal-oficina").classList.remove("open");
     }
 
-    function saveManualOffice() {
+    async function saveManualOffice() {
       const numero = document.getElementById("mod-oficina-num").value.trim().toUpperCase();
       const nombre = document.getElementById("mod-oficina-nom").value.trim().toUpperCase();
       const departamento = document.getElementById("mod-oficina-dep").value.trim().toUpperCase() || "CENTRAL";
       const distrito = document.getElementById("mod-oficina-dis").value.trim().toUpperCase() || nombre;
       if (!numero || !nombre) return showToast("Complete N° y Nombre de la Oficina", "#ef4444");
 
-      activeOffice = {
+      const officeObj = {
         id: activeOffice?.id || `oficina_${numero.replace(/\W+/g, "")}`,
         numero,
         nombre,
         departamento,
-        distrito
+        distrito,
+        assignedToUser: true,
+        syncState: "LOCAL"
       };
+      await idbPut("local_oficinas", officeObj);
+      activeOffice = officeObj;
       localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
       closeModalOficina();
-      renderOfficeHeader();
-      renderBooksList();
-      showToast("✅ Oficina activa guardada en el dispositivo");
+      await renderOfficeHeader();
+      await renderBooksList();
+      await updateHeaderCounters();
+      showToast("✅ Oficina guardada en la Mini Base de Datos");
     }
 
-    function openModalNuevoLibro() {
-      if (!activeOffice) {
+    async function openModalLibro(editBookId = null) {
+      if (!activeOffice && !editBookId) {
         openModalOficina();
         return showToast("Primero configure la Oficina del Registro Civil", "#f59e0b");
       }
-      document.getElementById("mod-libro-nombre").value = "";
-      document.getElementById("modal-nuevo-libro").classList.add("open");
+
+      if (editBookId) {
+        const b = await idbGet("local_libros", editBookId);
+        if (!b) return;
+        document.getElementById("mod-libro-modal-title").textContent = "✏️ Editar Libro en Mini-BD";
+        document.getElementById("mod-libro-editing-id").value = b.id;
+        document.getElementById("mod-libro-nombre").value = b.nombre_libro || b.tomo || "";
+        document.getElementById("mod-libro-anio").value = b.anio || "2026";
+        document.getElementById("mod-libro-numero").value = b.numero_libro || "1";
+        document.getElementById("mod-libro-folios").value = b.total_folios || 200;
+        document.getElementById("mod-libro-obs").value = b.observaciones || "";
+      } else {
+        document.getElementById("mod-libro-modal-title").textContent = "📚 Nuevo Libro de Defunciones";
+        document.getElementById("mod-libro-editing-id").value = "";
+        document.getElementById("mod-libro-nombre").value = "";
+        document.getElementById("mod-libro-anio").value = "2026";
+        document.getElementById("mod-libro-numero").value = "1";
+        document.getElementById("mod-libro-folios").value = "200";
+        document.getElementById("mod-libro-obs").value = "";
+      }
+      document.getElementById("modal-libro").classList.add("open");
     }
 
-    function closeModalNuevoLibro() {
-      document.getElementById("modal-nuevo-libro").classList.remove("open");
+    function closeModalLibro() {
+      document.getElementById("modal-libro").classList.remove("open");
     }
 
-    async function createNewBook() {
+    async function saveOrUpdateBookInMiniDb() {
+      const editingId = document.getElementById("mod-libro-editing-id").value;
       const nombre = document.getElementById("mod-libro-nombre").value.trim().toUpperCase();
       const anio = document.getElementById("mod-libro-anio").value.trim() || "2026";
+      const numeroLibro = document.getElementById("mod-libro-numero").value.trim() || "1";
       const totalFolios = Number(document.getElementById("mod-libro-folios").value) || 200;
+      const obs = document.getElementById("mod-libro-obs").value.trim().toUpperCase();
       if (!nombre) return showToast("Ingrese el nombre o tomo del libro", "#ef4444");
+
+      if (editingId) {
+        const existing = await idbGet("local_libros", editingId);
+        if (!existing) return;
+        const updatedBook = {
+          ...existing,
+          nombre_libro: nombre,
+          tomo: nombre,
+          anio: String(anio),
+          numero_libro: numeroLibro,
+          total_folios: totalFolios,
+          observaciones: obs,
+          updatedAt: new Date().toISOString(),
+          syncState: existing.syncState === "CREATED" ? "CREATED" : "UPDATED"
+        };
+        await idbPut("local_libros", updatedBook);
+        if (currentBook && currentBook.id === editingId) {
+          currentBook = updatedBook;
+          document.getElementById("scan-book-title").textContent = `${currentBook.nombre_libro} (${currentBook.anio})`;
+          document.getElementById("scan-total-folios").textContent = currentBook.total_folios || 200;
+          renderFoliosGrid();
+        }
+        closeModalLibro();
+        await renderBooksList();
+        await updateHeaderCounters();
+        showToast("✏️ Libro editado en la Mini Base de Datos");
+        if (navigator.onLine) syncAllPendingToCloud(false);
+        return;
+      }
 
       const bookId = "libro_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
       const newBook = {
@@ -1298,30 +1643,31 @@
         tipo_libro: "DEFUNCIONES",
         anio: String(anio),
         tomo: nombre,
-        numero_libro: "1",
+        numero_libro: numeroLibro,
         folio_desde: 1,
         total_folios: totalFolios,
         fecha_apertura: new Date().toISOString().split("T")[0],
         fecha_cierre: "",
-        observaciones: "",
+        observaciones: obs,
         folios_escaneados: 0,
         usuario_id: authSession?.uid || "offline_user",
         username: authSession?.username || localOperatorName,
         fecha_creacion: new Date().toISOString(),
-        syncedToCloud: false
+        syncState: "CREATED"
       };
 
-      await idbPut("offline_libros", newBook);
-      closeModalNuevoLibro();
+      await idbPut("local_libros", newBook);
+      closeModalLibro();
       await renderBooksList();
+      await updateHeaderCounters();
       await openBookScanner(bookId);
-      showToast("📚 Libro creado en memoria del teléfono");
+      showToast("📚 Libro agregado a la Mini Base de Datos del celular");
       if (navigator.onLine) syncAllPendingToCloud(false);
     }
 
     async function renderBooksList() {
-      const allBooks = await idbGetAll("offline_libros");
-      const allFolios = await idbGetAll("offline_folios");
+      const allBooks = await idbGetAll("local_libros");
+      const allFolios = await idbGetAll("local_folios");
       const container = document.getElementById("books-container");
 
       const books = activeOffice
@@ -1335,32 +1681,46 @@
           <div style="text-align:center; padding:26px 12px; color:var(--muted); border:1.5px dashed var(--border); border-radius:16px;">
             <div style="font-size:30px; margin-bottom:6px;">📖</div>
             <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#e2e8f0;">No hay libros en esta oficina</div>
-            <div style="font-size:11px; margin-top:4px;">Toque "+ Nuevo Libro" arriba para iniciar el escaneo de folios (incluso sin internet).</div>
+            <div style="font-size:11px; margin-top:4px;">Toque "+ Nuevo Libro" arriba para agregar uno a la Mini Base de Datos.</div>
           </div>
         `;
         return;
       }
 
       container.innerHTML = books.map(b => {
-        const localCount = allFolios.filter(f => f.libroId === b.id).length;
-        const syncedCount = Object.keys(syncedFoliosMap[b.id] || {}).length;
-        const totalDone = Math.max(b.folios_escaneados || 0, localCount + syncedCount);
+        const bookFolios = allFolios.filter(f => f.libroId === b.id);
+        const pendingFolios = bookFolios.filter(f => f.syncState !== "SYNCED").length;
+        const totalDone = Math.max(b.folios_escaneados || 0, bookFolios.length);
         const total = b.total_folios || 200;
         const pct = Math.min(100, Math.round((totalDone / total) * 100));
 
+        let stateBadge = `<span class="pill pill-online">${totalDone}/${total} FOLIOS</span>`;
+        if (b.syncState === "CREATED") {
+          stateBadge = `<span class="pill pill-offline">🟠 NUEVO EN CELULAR</span>`;
+        } else if (b.syncState === "UPDATED") {
+          stateBadge = `<span class="pill pill-edited">✏️ EDITADO EN CELULAR</span>`;
+        } else if (pendingFolios > 0) {
+          stateBadge = `<span class="pill pill-offline">📱 ${pendingFolios} FOLIOS PEND.</span>`;
+        }
+
         return `
-          <div class="book-card" onclick="openBookScanner('${b.id}')">
-            <div class="book-top">
+          <div class="book-card">
+            <div class="book-top" onclick="openBookScanner('${b.id}')" style="cursor:pointer;">
               <div>
-                <div class="book-name">${b.nombre_libro || b.tomo} · AÑO ${b.anio}</div>
+                <div class="book-name">${b.nombre_libro || b.tomo} · AÑO ${b.anio} (LIBRO N° ${b.numero_libro || '1'})</div>
                 <div class="book-meta">🏛️ OFICINA N° ${b.registro_civil_numero} — ${b.registro_civil_nombre}</div>
               </div>
-              <span class="pill ${localCount > 0 ? 'pill-offline' : 'pill-online'}">
-                ${localCount > 0 ? `📱 ${localCount} EN CELULAR` : `${totalDone}/${total} FOLIOS`}
-              </span>
+              ${stateBadge}
             </div>
-            <div class="progress-track">
+            <div class="progress-track" onclick="openBookScanner('${b.id}')" style="cursor:pointer;">
               <div class="progress-fill" style="width:${pct}%"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+              <span style="font-size:10px; color:var(--muted); font-weight:700;">Progreso: ${totalDone} de ${total} folios (${pct}%)</span>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-outline btn-sm" onclick="openModalLibro('${b.id}')">✏️ Editar Libro</button>
+                <button class="btn btn-primary btn-sm" onclick="openBookScanner('${b.id}')">📸 Escanear Folios</button>
+              </div>
             </div>
           </div>
         `;
@@ -1368,31 +1728,27 @@
     }
 
     /* ============================================================================
-     * ESCÁNER DE FOLIOS (1 AL 200) CON ALMACENAMIENTO FÍSICO EN EL DISPOSITIVO
+     * ESCÁNER DE FOLIOS (1 AL 200) SOBRE LA MINI BASE DE DATOS LOCAL
      * ============================================================================ */
     async function openBookScanner(bookId) {
-      const allBooks = await idbGetAll("offline_libros");
-      currentBook = allBooks.find(b => b.id === bookId);
+      currentBook = await idbGet("local_libros", bookId);
       if (!currentBook) return;
 
       document.getElementById("libros-list-view").style.display = "none";
       document.getElementById("libro-scanner-view").style.display = "flex";
-      document.getElementById("scan-book-title").textContent = `${currentBook.nombre_libro} (${currentBook.anio})`;
+      document.getElementById("scan-book-title").textContent = `${currentBook.nombre_libro || currentBook.tomo} (${currentBook.anio})`;
       document.getElementById("scan-book-sub").textContent = `OFICINA N° ${currentBook.registro_civil_numero} - ${currentBook.registro_civil_nombre}`;
       document.getElementById("scan-total-folios").textContent = currentBook.total_folios || 200;
 
-      // Si estamos en línea y con sesión, consultar folios ya subidos en la nube
       if (navigator.onLine && authSession?.idToken) {
-        fetchCloudFoliosForBook(currentBook.id);
+        fetchCloudFoliosIntoMiniDb(currentBook.id);
       }
 
       await reloadCurrentBookFolios();
-      // Buscar el primer folio vacío para posicionar automáticamente
       const total = currentBook.total_folios || 200;
-      const syncedForBook = syncedFoliosMap[currentBook.id] || {};
       let firstEmpty = 1;
       for (let i = 1; i <= total; i++) {
-        if (!currentBookLocalFolios[i] && !syncedForBook[i]) {
+        if (!currentBookFoliosMap[i]) {
           firstEmpty = i;
           break;
         }
@@ -1400,7 +1756,7 @@
       selectFolio(firstEmpty);
     }
 
-    async function fetchCloudFoliosForBook(bookId) {
+    async function fetchCloudFoliosIntoMiniDb(bookId) {
       try {
         const token = await ensureValidIdToken();
         if (!token) return;
@@ -1409,20 +1765,34 @@
         });
         if (!res.ok) return;
         const data = await res.json();
-        if (!syncedFoliosMap[bookId]) syncedFoliosMap[bookId] = {};
         for (const docItem of (data.documents || [])) {
           const parsed = parseFirestoreFields(docItem);
           if (parsed.folio && parsed.foto) {
-            syncedFoliosMap[bookId][parsed.folio] = parsed.foto;
+            const key = `${bookId}_${parsed.folio}`;
+            const existing = await idbGet("local_folios", key);
+            // Solo guardar si no hay una foto nueva/editada pendiente en el celular para este folio
+            if (!existing || existing.syncState === "SYNCED") {
+              await idbPut("local_folios", {
+                id: key,
+                libroId: bookId,
+                libroNombre: currentBook?.nombre_libro || "",
+                oficinaNombre: currentBook ? `N° ${currentBook.registro_civil_numero} - ${currentBook.registro_civil_nombre}` : "",
+                folio: Number(parsed.folio),
+                cloudUrl: parsed.foto,
+                dataUrl: parsed.foto,
+                sizeBytes: 0,
+                syncState: "SYNCED",
+                timestamp: Date.now()
+              });
+            }
           }
         }
-        localStorage.setItem("dgrec_synced_folios_map", JSON.stringify(syncedFoliosMap));
         if (currentBook && currentBook.id === bookId) {
-          renderFoliosGrid();
+          await reloadCurrentBookFolios();
           updateCurrentFolioPreview();
         }
       } catch (e) {
-        console.warn("No se pudieron consultar folios en la nube:", e);
+        console.warn("No se pudieron consultar folios remotos:", e);
       }
     }
 
@@ -1435,11 +1805,11 @@
 
     async function reloadCurrentBookFolios() {
       if (!currentBook) return;
-      const allFolios = await idbGetAll("offline_folios");
-      currentBookLocalFolios = {};
+      const allFolios = await idbGetAll("local_folios");
+      currentBookFoliosMap = {};
       for (const f of allFolios) {
         if (f.libroId === currentBook.id) {
-          currentBookLocalFolios[f.folio] = f;
+          currentBookFoliosMap[f.folio] = f;
         }
       }
       renderFoliosGrid();
@@ -1465,29 +1835,33 @@
 
     function updateCurrentFolioPreview() {
       if (!currentBook) return;
-      const localItem = currentBookLocalFolios[currentFolioNum];
-      const syncedUrl = (syncedFoliosMap[currentBook.id] || {})[currentFolioNum];
+      const item = currentBookFoliosMap[currentFolioNum];
       const badge = document.getElementById("scan-folio-status-badge");
       const img = document.getElementById("scan-preview-img");
       const empty = document.getElementById("scan-empty-placeholder");
       const delBtn = document.getElementById("btn-delete-local-folio");
+      const actionVerb = document.getElementById("btn-cam-folio-action");
 
-      if (localItem) {
-        badge.textContent = "🟠 ALOJADO EN EL CELULAR (PENDIENTE DE SUBIR)";
+      if (item && item.syncState !== "SYNCED") {
+        badge.textContent = item.syncState === "UPDATED"
+          ? "✏️ FOLIO REEMPLAZADO EN MINI-BD (PENDIENTE DE SUBIR)"
+          : "🟠 FOLIO NUEVO EN MINI-BD (PENDIENTE DE SUBIR)";
         badge.style.background = "rgba(245, 158, 11, 0.2)";
         badge.style.color = "#fbbf24";
-        img.src = localItem.dataUrl;
+        img.src = item.dataUrl;
         img.style.display = "block";
         empty.style.display = "none";
         delBtn.style.display = "inline-flex";
-      } else if (syncedUrl) {
-        badge.textContent = "🟢 SINCRONIZADO EN EL SERVIDOR";
+        actionVerb.textContent = "REEMPLAZAR FOTO DEL";
+      } else if (item && item.syncState === "SYNCED") {
+        badge.textContent = "🟢 EN MINI-BD Y SINCRONIZADO EN FIREBASE";
         badge.style.background = "rgba(16, 185, 129, 0.2)";
         badge.style.color = "#34d399";
-        img.src = syncedUrl;
+        img.src = item.dataUrl || item.cloudUrl;
         img.style.display = "block";
         empty.style.display = "none";
         delBtn.style.display = "none";
+        actionVerb.textContent = "REEMPLAZAR / EDITAR FOTO DEL";
       } else {
         badge.textContent = "⚪ FOLIO PENDIENTE DE CAPTURA";
         badge.style.background = "rgba(255, 255, 255, 0.08)";
@@ -1496,25 +1870,26 @@
         img.style.display = "none";
         empty.style.display = "block";
         delBtn.style.display = "none";
+        actionVerb.textContent = "CAPTURAR";
       }
     }
 
     function renderFoliosGrid() {
       if (!currentBook) return;
       const total = currentBook.total_folios || 200;
-      const syncedForBook = syncedFoliosMap[currentBook.id] || {};
       const grid = document.getElementById("folios-grid-container");
       let html = "";
       for (let i = 1; i <= total; i++) {
-        const isLocal = !!currentBookLocalFolios[i];
-        const isSynced = !!syncedForBook[i];
+        const f = currentBookFoliosMap[i];
         const isCurrent = i === currentFolioNum;
         let cls = "folio-cell";
         let tag = "VACÍO";
         if (isCurrent) cls += " active-folio";
-        if (isLocal) { cls += " state-local"; tag = "CELULAR"; }
-        else if (isSynced) { cls += " state-synced"; tag = "NUBE"; }
-
+        if (f) {
+          if (f.syncState === "SYNCED") { cls += " state-synced"; tag = "NUBE"; }
+          else if (f.syncState === "UPDATED") { cls += " state-local"; tag = "EDITADO"; }
+          else { cls += " state-local"; tag = "CELULAR"; }
+        }
         html += `
           <div class="${cls}" onclick="selectFolio(${i})">
             <span>${i}</span>
@@ -1531,41 +1906,44 @@
       if (!file || !currentBook) return;
 
       const targetFolio = currentFolioNum;
-      showToast(`⏳ Procesando y guardando Folio N° ${targetFolio} en el celular...`);
+      const key = `${currentBook.id}_${targetFolio}`;
+      const prevFolio = await idbGet("local_folios", key);
+      const isEdit = !!(prevFolio && prevFolio.syncState === "SYNCED");
+
+      showToast(`⏳ Guardando Folio N° ${targetFolio} en la Mini Base de Datos...`);
       try {
         const { blob, dataUrl, sizeBytes } = await compressPhotoFile(file, 1920, 0.82);
         const record = {
-          id: `${currentBook.id}_${targetFolio}`,
+          id: key,
           libroId: currentBook.id,
           libroNombre: currentBook.nombre_libro || currentBook.tomo,
           oficinaNombre: `N° ${currentBook.registro_civil_numero} - ${currentBook.registro_civil_nombre}`,
           folio: targetFolio,
           blob,
           dataUrl,
+          cloudUrl: prevFolio?.cloudUrl || "",
           sizeBytes,
           usuario_id: authSession?.uid || "offline_user",
           username: authSession?.username || localOperatorName,
           fecha: new Date().toISOString(),
-          status: "pending",
+          syncState: isEdit ? "UPDATED" : "CREATED",
           timestamp: Date.now()
         };
 
-        await idbPut("offline_folios", record);
+        await idbPut("local_folios", record);
         await reloadCurrentBookFolios();
-        showToast(`✅ Folio N° ${targetFolio} alojado en la memoria del celular`);
+        showToast(isEdit
+          ? `✏️ Folio N° ${targetFolio} actualizado en la Mini Base de Datos`
+          : `✅ Folio N° ${targetFolio} guardado en la Mini Base de Datos`);
 
-        // Avanzar automáticamente al siguiente folio
         const total = currentBook.total_folios || 200;
-        if (targetFolio < total) {
+        if (!isEdit && targetFolio < total) {
           selectFolio(targetFolio + 1);
         } else {
           updateCurrentFolioPreview();
         }
 
-        // Si hay internet, disparar sincronización en segundo plano
-        if (navigator.onLine) {
-          syncAllPendingToCloud(false);
-        }
+        if (navigator.onLine) syncAllPendingToCloud(false);
       } catch (err) {
         showToast("❌ Error al procesar la imagen: " + err.message, "#ef4444");
       }
@@ -1574,15 +1952,41 @@
     async function deleteCurrentLocalFolio() {
       if (!currentBook) return;
       const key = `${currentBook.id}_${currentFolioNum}`;
-      await idbDelete("offline_folios", key);
+      const existing = await idbGet("local_folios", key);
+      if (existing && existing.cloudUrl) {
+        // Si tenía una versión previa en la nube, restaurarla a SYNCED
+        existing.syncState = "SYNCED";
+        existing.dataUrl = existing.cloudUrl;
+        existing.sizeBytes = 0;
+        delete existing.blob;
+        await idbPut("local_folios", existing);
+      } else {
+        await idbDelete("local_folios", key);
+      }
       await reloadCurrentBookFolios();
       updateCurrentFolioPreview();
-      showToast(`🗑️ Foto local del Folio N° ${currentFolioNum} eliminada`);
+      showToast(`🗑️ Cambio local del Folio N° ${currentFolioNum} descartado`);
     }
 
     /* ============================================================================
-     * ACTAS DE DEFUNCIÓN (ALMACENAMIENTO OFFLINE Y BÚSQUEDA EN PADRÓN)
+     * ACTAS DE DEFUNCIÓN EN MINI BASE DE DATOS (AGREGAR, CONSULTAR Y EDITAR)
      * ============================================================================ */
+    function initActaDefaultDates() {
+      const now = new Date();
+      document.getElementById("acta-dia").value = String(now.getDate()).padStart(2, "0");
+      document.getElementById("acta-mes").value = String(now.getMonth() + 1).padStart(2, "0");
+      document.getElementById("acta-anio").value = String(now.getFullYear());
+    }
+
+    function switchActaSubView(mode) {
+      const isForm = mode === "form";
+      document.getElementById("acta-form-view").style.display = isForm ? "block" : "none";
+      document.getElementById("acta-list-view").style.display = isForm ? "none" : "flex";
+      document.getElementById("subbtn-acta-form").classList.toggle("active", isForm);
+      document.getElementById("subbtn-acta-list").classList.toggle("active", !isForm);
+      if (!isForm) renderMiniDbActasList();
+    }
+
     async function handleActaPhotoPicked(event) {
       const file = event.target.files?.[0];
       event.target.value = "";
@@ -1593,21 +1997,34 @@
         document.getElementById("acta-photo-empty").style.display = "none";
         document.getElementById("acta-photo-loaded").style.display = "block";
         document.getElementById("acta-photo-img").src = dataUrl;
-        showToast("📷 Foto del acta cargada");
+        showToast("📷 Foto del acta cargada en el formulario");
       } catch {
         showToast("Error al procesar foto del acta", "#ef4444");
       }
     }
 
-    async function buscarCedulaPadronOnline() {
+    async function buscarCedulaEnMiniDbYPadron() {
       const ci = document.getElementById("acta-cedula").value.trim().replace(/\./g, "");
       if (!ci) return showToast("Ingrese un número de cédula", "#f59e0b");
-      if (!navigator.onLine) return showToast("Sin internet: complete Nombres y Apellidos manualmente", "#f59e0b");
+
+      // 1. Buscar primero en la tabla `local_padron` de la Mini Base de Datos del celular
+      const cached = await idbGet("local_padron", ci);
+      if (cached) {
+        document.getElementById("acta-nombres").value = (cached.nombre || "").toUpperCase();
+        document.getElementById("acta-apellidos").value = (cached.apellido || "").toUpperCase();
+        if (cached.sexo === "M" || cached.sexo === "F") document.getElementById("acta-sexo").value = cached.sexo;
+        if (cached.direccion) document.getElementById("acta-domicilio").value = cached.direccion.toUpperCase();
+        return showToast(`✅ Encontrado en Mini-BD Local: ${cached.nombre} ${cached.apellido}`);
+      }
+
+      if (!navigator.onLine) {
+        return showToast("🟠 Sin internet y no está en caché local: complete Nombres manualmente", "#f59e0b");
+      }
 
       const token = await ensureValidIdToken();
-      if (!token) return showToast("Inicie sesión en la pestaña Operador para consultar el Padrón", "#f59e0b");
+      if (!token) return showToast("Complete Nombres y Apellidos manualmente", "#f59e0b");
 
-      showToast("🔍 Buscando en el padrón...");
+      showToast("🔍 Consultando padrón en Firebase...");
       try {
         const res = await fetch(`${FIRESTORE_BASE_URL}:runQuery`, {
           method: "POST",
@@ -1633,45 +2050,135 @@
           document.getElementById("acta-nombres").value = (d.nombre || "").toUpperCase();
           document.getElementById("acta-apellidos").value = (d.apellido || "").toUpperCase();
           if (d.sexo === "M" || d.sexo === "F") document.getElementById("acta-sexo").value = d.sexo;
-          showToast(`✅ Encontrado: ${d.nombre} ${d.apellido}`);
+          if (d.direccion) document.getElementById("acta-domicilio").value = d.direccion.toUpperCase();
+          // Guardar en la Mini Base de Datos para futuras búsquedas sin internet
+          await idbPut("local_padron", { cedula: ci, ...d });
+          showToast(`✅ Encontrado y guardado en Mini-BD: ${d.nombre} ${d.apellido}`);
         } else {
-          showToast("No figura en el padrón. Ingrese manualmente.", "#f59e0b");
+          showToast("La cédula no figura en el padrón. Complete manualmente.", "#f59e0b");
         }
       } catch {
         showToast("No se pudo consultar el padrón ahora", "#f59e0b");
       }
     }
 
-    async function saveActaOfflineOrOnline() {
+    function resetActaForm() {
+      document.getElementById("acta-editing-id").value = "";
+      document.getElementById("acta-form-title").textContent = "📜 Nueva Constancia de Acta de Defunción";
+      document.getElementById("subbtn-acta-form-label").textContent = "Cargar Acta";
+      document.getElementById("btn-save-acta").textContent = "💾 GUARDAR ACTA EN LA MINI BASE DE DATOS";
+      document.getElementById("btn-cancel-edit-acta").style.display = "none";
+
+      [
+        "acta-tomo", "acta-folio", "acta-numero", "acta-cedula",
+        "acta-nombres", "acta-apellidos", "acta-fecha-fall", "acta-lugar-fall",
+        "acta-fecha-nac", "acta-domicilio", "acta-padre", "acta-madre",
+        "acta-declarante", "acta-oficial", "acta-obs"
+      ].forEach(id => { document.getElementById(id).value = ""; });
+
+      initActaDefaultDates();
+      currentActaPhotoDataUrl = "";
+      document.getElementById("acta-photo-empty").style.display = "block";
+      document.getElementById("acta-photo-loaded").style.display = "none";
+    }
+
+    async function loadActaIntoFormForEdit(actaId) {
+      const rec = await idbGet("local_actas", actaId);
+      if (!rec || !rec.form) return;
+      const f = rec.form;
+
+      document.getElementById("acta-editing-id").value = rec.id;
+      document.getElementById("acta-form-title").textContent = `✏️ Editando Acta: ${f.nombres || ""} ${f.apellidos || ""}`;
+      document.getElementById("subbtn-acta-form-label").textContent = "Editando Acta";
+      document.getElementById("btn-save-acta").textContent = "💾 ACTUALIZAR ACTA EN MINI-BD Y FIREBASE";
+      document.getElementById("btn-cancel-edit-acta").style.display = "inline-flex";
+
+      document.getElementById("acta-tomo").value = f.inscripcion_tomo || "";
+      document.getElementById("acta-folio").value = f.inscripcion_folio || "";
+      document.getElementById("acta-numero").value = f.inscripcion_acta || "";
+      document.getElementById("acta-dia").value = f.fecha_dia || "";
+      document.getElementById("acta-mes").value = f.fecha_mes || "";
+      document.getElementById("acta-anio").value = f.fecha_anio || "";
+      document.getElementById("acta-cedula").value = f.cedula_identidad || "";
+      document.getElementById("acta-nombres").value = f.nombres || "";
+      document.getElementById("acta-apellidos").value = f.apellidos || "";
+      document.getElementById("acta-sexo").value = f.sexo || "M";
+      document.getElementById("acta-estado-civil").value = f.estado_civil || "S";
+      document.getElementById("acta-nacionalidad").value = f.nacionalidad || "P";
+      document.getElementById("acta-fecha-fall").value = f.fecha_fallecimiento || "";
+      document.getElementById("acta-lugar-fall").value = f.lugar_fallecimiento || "";
+      document.getElementById("acta-fecha-nac").value = f.fecha_nacimiento || "";
+      document.getElementById("acta-domicilio").value = f.domicilio || "";
+      document.getElementById("acta-padre").value = f.nombre_padre || "";
+      document.getElementById("acta-madre").value = f.nombre_madre || "";
+      document.getElementById("acta-declarante").value = f.declarante_nombre || "";
+      document.getElementById("acta-oficial").value = f.oficial_nombre || "";
+      document.getElementById("acta-obs").value = f.observaciones || "";
+
+      currentActaPhotoDataUrl = f.foto_url || "";
+      if (currentActaPhotoDataUrl) {
+        document.getElementById("acta-photo-empty").style.display = "none";
+        document.getElementById("acta-photo-loaded").style.display = "block";
+        document.getElementById("acta-photo-img").src = currentActaPhotoDataUrl;
+      } else {
+        document.getElementById("acta-photo-empty").style.display = "block";
+        document.getElementById("acta-photo-loaded").style.display = "none";
+      }
+
+      switchActaSubView("form");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      showToast("✏️ Acta cargada para edición local");
+    }
+
+    async function saveOrUpdateActaInMiniDb() {
+      const editingId = document.getElementById("acta-editing-id").value;
       const tomo = document.getElementById("acta-tomo").value.trim().toUpperCase();
       const folio = document.getElementById("acta-folio").value.trim().toUpperCase();
       const actaNum = document.getElementById("acta-numero").value.trim().toUpperCase();
+      const dia = document.getElementById("acta-dia").value.trim();
+      const mes = document.getElementById("acta-mes").value.trim();
+      const anio = document.getElementById("acta-anio").value.trim();
       const cedula = document.getElementById("acta-cedula").value.trim().toUpperCase();
       const nombres = document.getElementById("acta-nombres").value.trim().toUpperCase();
       const apellidos = document.getElementById("acta-apellidos").value.trim().toUpperCase();
       const sexo = document.getElementById("acta-sexo").value;
+      const estadoCivil = document.getElementById("acta-estado-civil").value;
+      const nacionalidad = document.getElementById("acta-nacionalidad").value;
       const fechaFall = document.getElementById("acta-fecha-fall").value;
       const lugarFall = document.getElementById("acta-lugar-fall").value.trim().toUpperCase();
+      const fechaNac = document.getElementById("acta-fecha-nac").value;
+      const domicilio = document.getElementById("acta-domicilio").value.trim().toUpperCase();
+      const padre = document.getElementById("acta-padre").value.trim().toUpperCase();
+      const madre = document.getElementById("acta-madre").value.trim().toUpperCase();
+      const declarante = document.getElementById("acta-declarante").value.trim().toUpperCase();
+      const oficial = document.getElementById("acta-oficial").value.trim().toUpperCase();
       const obs = document.getElementById("acta-obs").value.trim().toUpperCase();
 
       if (!nombres || !apellidos || !fechaFall) {
         return showToast("Nombres, Apellidos y Fecha de Fallecimiento son obligatorios", "#ef4444");
       }
       if (!currentActaPhotoDataUrl) {
-        return showToast("Por favor capture la fotografía del acta física", "#ef4444");
+        return showToast("Por favor capture o adjunte la fotografía del acta física", "#ef4444");
       }
 
       const now = new Date();
+      let existingRec = editingId ? await idbGet("local_actas", editingId) : null;
+      const recordId = editingId || ("acta_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7));
+
+      const nextSyncState = existingRec
+        ? (existingRec.syncState === "CREATED" ? "CREATED" : "UPDATED")
+        : "CREATED";
+
       const actaRecord = {
-        id: "acta_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+        id: recordId,
         form: {
-          oficina_numero: activeOffice?.numero || "S/N",
-          oficina_descripcion: activeOffice?.nombre || "OFICINA MÓVIL",
-          departamento_registral: activeOffice?.departamento || "",
-          distrito_registral: activeOffice?.distrito || "",
-          fecha_dia: String(now.getDate()).padStart(2, "0"),
-          fecha_mes: String(now.getMonth() + 1).padStart(2, "0"),
-          fecha_anio: String(now.getFullYear()),
+          oficina_numero: activeOffice?.numero || existingRec?.form?.oficina_numero || "S/N",
+          oficina_descripcion: activeOffice?.nombre || existingRec?.form?.oficina_descripcion || "OFICINA MÓVIL",
+          departamento_registral: activeOffice?.departamento || existingRec?.form?.departamento_registral || "",
+          distrito_registral: activeOffice?.distrito || existingRec?.form?.distrito_registral || "",
+          fecha_dia: dia || String(now.getDate()).padStart(2, "0"),
+          fecha_mes: mes || String(now.getMonth() + 1).padStart(2, "0"),
+          fecha_anio: anio || String(now.getFullYear()),
           inscripcion_tomo: tomo,
           inscripcion_folio: folio,
           inscripcion_acta: actaNum,
@@ -1679,41 +2186,117 @@
           nombres,
           apellidos,
           sexo,
+          estado_civil: estadoCivil,
+          nacionalidad,
+          domicilio,
+          fecha_nacimiento: fechaNac,
+          lugar_nacimiento: existingRec?.form?.lugar_nacimiento || "",
           fecha_fallecimiento: fechaFall,
           lugar_fallecimiento: lugarFall,
+          nombre_padre: padre,
+          nombre_madre: madre,
+          declarante_nombre: declarante,
+          declarante_cedula: existingRec?.form?.declarante_cedula || "",
+          declarante_vinculo: existingRec?.form?.declarante_vinculo || "",
+          oficial_nombre: oficial,
+          oficial_cedula: existingRec?.form?.oficial_cedula || "",
+          lugar_expedicion: activeOffice?.distrito || "",
+          fecha_expedicion: now.toISOString().split("T")[0],
           observaciones: obs,
           foto_url: currentActaPhotoDataUrl,
           usuario_id: authSession?.uid || "offline_user",
           username: authSession?.username || localOperatorName,
-          fecha_creacion: now.toISOString()
+          fecha_creacion: existingRec?.form?.fecha_creacion || now.toISOString(),
+          fecha_actualizacion: now.toISOString()
         },
-        sizeBytes: Math.round(currentActaPhotoDataUrl.length * 0.75),
-        status: "pending",
+        sizeBytes: currentActaPhotoDataUrl.startsWith("data:")
+          ? Math.round(currentActaPhotoDataUrl.length * 0.75)
+          : 0,
+        syncState: nextSyncState,
         timestamp: Date.now()
       };
 
-      await idbPut("offline_actas", actaRecord);
-
-      // Limpiar formulario
-      ["acta-tomo", "acta-folio", "acta-numero", "acta-cedula", "acta-nombres", "acta-apellidos", "acta-lugar-fall", "acta-obs"].forEach(id => {
-        document.getElementById(id).value = "";
-      });
-      currentActaPhotoDataUrl = "";
-      document.getElementById("acta-photo-empty").style.display = "block";
-      document.getElementById("acta-photo-loaded").style.display = "none";
-
+      await idbPut("local_actas", actaRecord);
+      resetActaForm();
       await updateHeaderCounters();
-      showToast("✅ Acta y foto alojadas en la memoria del celular");
+      await renderMiniDbActasList();
+
+      showToast(editingId
+        ? "✅ Acta editada en la Mini Base de Datos (lista para actualizar Firebase)"
+        : "✅ Nueva acta guardada en la Mini Base de Datos del celular");
+
       if (navigator.onLine) syncAllPendingToCloud(false);
     }
 
+    async function renderMiniDbActasList() {
+      const allActas = await idbGetAll("local_actas");
+      document.getElementById("actas-total-count").textContent = allActas.length;
+
+      const q = (document.getElementById("search-actas-input")?.value || "").trim().toLowerCase();
+      const filtered = allActas
+        .filter(a => {
+          if (!q) return true;
+          const f = a.form || {};
+          const hay = `${f.nombres || ""} ${f.apellidos || ""} ${f.cedula_identidad || ""} ${f.inscripcion_acta || ""} ${f.inscripcion_tomo || ""}`.toLowerCase();
+          return hay.includes(q);
+        })
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      const box = document.getElementById("actas-list-container");
+      if (!box) return;
+
+      if (filtered.length === 0) {
+        box.innerHTML = `
+          <div style="text-align:center; padding:24px 12px; color:var(--muted);">
+            <div style="font-size:28px; margin-bottom:6px;">📜</div>
+            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#e2e8f0;">Sin actas coincidentes en la Mini-BD</div>
+          </div>
+        `;
+        return;
+      }
+
+      box.innerHTML = filtered.map(a => {
+        const f = a.form || {};
+        let badge = `<span class="pill pill-online">🟢 EN FIREBASE</span>`;
+        if (a.syncState === "CREATED") badge = `<span class="pill pill-offline">🟠 NUEVA EN CELULAR</span>`;
+        else if (a.syncState === "UPDATED") badge = `<span class="pill pill-edited">✏️ EDITADA EN CELULAR</span>`;
+
+        return `
+          <div class="book-card">
+            <div class="book-top">
+              <div style="display:flex; gap:10px; align-items:center; min-width:0;">
+                ${f.foto_url ? `<img src="${f.foto_url}" class="queue-thumb" alt="Acta" />` : ""}
+                <div style="min-width:0;">
+                  <div class="book-name">${f.nombres || ""} ${f.apellidos || ""}</div>
+                  <div class="book-meta">CI: ${f.cedula_identidad || "S/D"} · Tomo ${f.inscripcion_tomo || "-"} · Folio ${f.inscripcion_folio || "-"} · Acta ${f.inscripcion_acta || "-"}</div>
+                  <div class="book-meta">Fallecimiento: ${f.fecha_fallecimiento || "-"} · Of. ${f.oficina_numero || "-"}</div>
+                </div>
+              </div>
+              ${badge}
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+              <button class="btn btn-outline btn-sm" onclick="loadActaIntoFormForEdit('${a.id}')">✏️ Editar en Mini-BD</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
     /* ============================================================================
-     * COLA DE MEMORIA INTERNA Y MOTOR DE SINCRONIZACIÓN A CLOUDFLARE R2 + FIRESTORE
+     * MOTOR DE SINCRONIZACIÓN BIDIRECCIONAL CON FIREBASE + CLOUDFLARE R2
+     * Sube todos los registros con syncState = 'CREATED' o 'UPDATED'
      * ============================================================================ */
     async function updateHeaderCounters() {
-      const folios = await idbGetAll("offline_folios");
-      const actas = await idbGetAll("offline_actas");
-      const totalPending = folios.length + actas.length;
+      const offices = await idbGetAll("local_oficinas");
+      const books = await idbGetAll("local_libros");
+      const folios = await idbGetAll("local_folios");
+      const actas = await idbGetAll("local_actas");
+
+      const pendingBooks = books.filter(b => b.syncState === "CREATED" || b.syncState === "UPDATED");
+      const pendingFolios = folios.filter(f => f.syncState === "CREATED" || f.syncState === "UPDATED");
+      const pendingActas = actas.filter(a => a.syncState === "CREATED" || a.syncState === "UPDATED");
+
+      const totalPending = pendingBooks.length + pendingFolios.length + pendingActas.length;
 
       document.getElementById("header-pending-count").textContent = totalPending;
       const badge = document.getElementById("nav-pending-badge");
@@ -1724,33 +2307,52 @@
         badge.style.display = "none";
       }
 
-      const bytes = folios.reduce((acc, f) => acc + (f.sizeBytes || 0), 0) +
-                    actas.reduce((acc, a) => acc + (a.sizeBytes || 0), 0);
-      const mb = (bytes / (1024 * 1024)).toFixed(1);
+      document.getElementById("stat-db-offices").textContent = offices.length;
+      document.getElementById("stat-db-books").textContent = books.length;
+      document.getElementById("stat-db-folios").textContent = folios.length;
+      document.getElementById("stat-db-actas").textContent = actas.length;
+      document.getElementById("actas-total-count").textContent = actas.length;
 
-      document.getElementById("stat-pending-folios").textContent = folios.length;
-      document.getElementById("stat-pending-actas").textContent = actas.length;
+      document.getElementById("stat-pending-breakdown").textContent =
+        `${pendingBooks.length} libro(s) · ${pendingFolios.length} folio(s) · ${pendingActas.length} acta(s) por subir`;
+
+      const bytes = pendingFolios.reduce((acc, f) => acc + (f.sizeBytes || 0), 0) +
+                    pendingActas.reduce((acc, a) => acc + (a.sizeBytes || 0), 0);
+      const mb = (bytes / (1024 * 1024)).toFixed(1);
       document.getElementById("stat-storage-mb").textContent = `${mb} MB`;
     }
 
     async function renderSyncQueue() {
       await updateHeaderCounters();
-      const folios = await idbGetAll("offline_folios");
-      const actas = await idbGetAll("offline_actas");
+      const books = (await idbGetAll("local_libros")).filter(b => b.syncState === "CREATED" || b.syncState === "UPDATED");
+      const folios = (await idbGetAll("local_folios")).filter(f => f.syncState === "CREATED" || f.syncState === "UPDATED");
+      const actas = (await idbGetAll("local_actas")).filter(a => a.syncState === "CREATED" || a.syncState === "UPDATED");
       const box = document.getElementById("queue-list-container");
 
-      if (folios.length === 0 && actas.length === 0) {
+      if (books.length === 0 && folios.length === 0 && actas.length === 0) {
         box.innerHTML = `
           <div style="text-align:center; padding:28px 12px; color:var(--muted);">
             <div style="font-size:34px; margin-bottom:6px;">✅</div>
-            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399;">Todo sincronizado con el servidor</div>
-            <div style="font-size:11px; margin-top:4px;">No hay imágenes ni actas pendientes en la memoria del teléfono.</div>
+            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399;">Mini Base de Datos 100% sincronizada con Firebase</div>
+            <div style="font-size:11px; margin-top:4px;">Todos los agregados y ediciones locales ya fueron actualizados en el servidor.</div>
           </div>
         `;
         return;
       }
 
       let html = "";
+      for (const b of books) {
+        html += `
+          <div class="queue-item">
+            <div style="font-size:24px;">📚</div>
+            <div class="queue-info">
+              <div class="queue-title">LIBRO: ${b.nombre_libro || b.tomo} (${b.anio})</div>
+              <div class="queue-sub">${b.syncState === "UPDATED" ? "✏️ Editado en Mini-BD" : "🟠 Nuevo en Mini-BD"} · Oficina N° ${b.registro_civil_numero}</div>
+            </div>
+          </div>
+        `;
+      }
+
       for (const f of folios.sort((a, b) => b.timestamp - a.timestamp)) {
         const kb = Math.round((f.sizeBytes || 0) / 1024);
         html += `
@@ -1758,7 +2360,7 @@
             <img class="queue-thumb" src="${f.dataUrl}" alt="Folio" />
             <div class="queue-info">
               <div class="queue-title">📘 ${f.libroNombre} · FOLIO N° ${f.folio}</div>
-              <div class="queue-sub">${f.oficinaNombre} · ${kb} KB · ${f.errorMsg ? '⚠️ ' + f.errorMsg : '🟠 Alojado en celular'}</div>
+              <div class="queue-sub">${f.syncState === "UPDATED" ? "✏️ Foto Reemplazada" : "🟠 Foto Nueva"} · ${kb} KB</div>
             </div>
           </div>
         `;
@@ -1770,8 +2372,9 @@
             <img class="queue-thumb" src="${a.form.foto_url}" alt="Acta" />
             <div class="queue-info">
               <div class="queue-title">📜 ACTA: ${a.form.nombres} ${a.form.apellidos}</div>
-              <div class="queue-sub">Tomo ${a.form.inscripcion_tomo || '-'} · Folio ${a.form.inscripcion_folio || '-'} · 🟠 Alojada en celular</div>
+              <div class="queue-sub">${a.syncState === "UPDATED" ? "✏️ Editada en Mini-BD" : "🟠 Nueva en Mini-BD"} · Tomo ${a.form.inscripcion_tomo || '-'} · Folio ${a.form.inscripcion_folio || '-'}</div>
             </div>
+            <button class="btn btn-outline btn-sm" onclick="switchTab('actas'); loadActaIntoFormForEdit('${a.id}')">✏️ Editar</button>
           </div>
         `;
       }
@@ -1793,25 +2396,23 @@
     async function syncAllPendingToCloud(manualTrigger = false) {
       if (isSyncingNow) return;
       if (!navigator.onLine) {
-        if (manualTrigger) showToast("🟠 El celular no tiene conexión a internet en este momento", "#f59e0b");
+        if (manualTrigger) showToast("🟠 Sin internet: los cambios siguen seguros en la Mini-BD del celular", "#f59e0b");
         return;
       }
 
-      const folios = await idbGetAll("offline_folios");
-      const actas = await idbGetAll("offline_actas");
-      const books = await idbGetAll("offline_libros");
-      const unsyncedBooks = books.filter(b => !b.syncedToCloud);
+      const books = (await idbGetAll("local_libros")).filter(b => b.syncState === "CREATED" || b.syncState === "UPDATED");
+      const folios = (await idbGetAll("local_folios")).filter(f => f.syncState === "CREATED" || f.syncState === "UPDATED");
+      const actas = (await idbGetAll("local_actas")).filter(a => a.syncState === "CREATED" || a.syncState === "UPDATED");
 
-      if (folios.length === 0 && actas.length === 0 && unsyncedBooks.length === 0) {
-        if (manualTrigger) showToast("✅ No hay datos pendientes por subir");
+      if (books.length === 0 && folios.length === 0 && actas.length === 0) {
+        if (manualTrigger) showToast("✅ No hay cambios pendientes por subir a Firebase");
         return;
       }
 
       const token = await ensureValidIdToken();
       if (!token) {
         if (manualTrigger) {
-          switchTab("user");
-          showToast("🔐 Inicie sesión con su cuenta para subir los datos al servidor", "#f59e0b");
+          showToast("🔐 Inicie sesión con una cuenta de Firebase para sincronizar con el servidor", "#f59e0b");
         }
         return;
       }
@@ -1827,21 +2428,20 @@
         Authorization: `Bearer ${token}`
       };
 
-      const totalSteps = unsyncedBooks.length + folios.length + actas.length;
+      const totalSteps = books.length + folios.length + actas.length;
       let doneSteps = 0;
-      let uploadedFolios = 0;
-      let uploadedActas = 0;
+      let syncedCount = 0;
 
       try {
-        // 1. Subir libros creados en modo offline
-        for (const b of unsyncedBooks) {
+        // 1. Sincronizar Libros Nuevos (`CREATED`) y Editados (`UPDATED`) -> `libros-escaneo/{id}`
+        for (const b of books) {
           doneSteps++;
-          bannerTxt.textContent = `🔄 Registrando libro ${b.nombre_libro}...`;
+          bannerTxt.textContent = `🔄 Actualizando libro ${b.nombre_libro} en Firebase...`;
           bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
 
           const copy = { ...b };
           delete copy.id;
-          delete copy.syncedToCloud;
+          delete copy.syncState;
           copy.usuario_id = authSession.uid;
           copy.username = authSession.username || localOperatorName;
 
@@ -1851,12 +2451,13 @@
             body: JSON.stringify(toFirestoreFields(copy))
           });
           if (res.ok) {
-            b.syncedToCloud = true;
-            await idbPut("offline_libros", b);
+            b.syncState = "SYNCED";
+            await idbPut("local_libros", b);
+            syncedCount++;
           }
         }
 
-        // 2. Subir fotos de folios a Cloudflare R2 y Firestore
+        // 2. Sincronizar Folios Nuevos (`CREATED`) y Reemplazados (`UPDATED`) -> R2 + `libros-escaneo/{libroId}/folios/{padFolio}`
         for (const item of folios) {
           doneSteps++;
           bannerTxt.textContent = `🔄 Subiendo Folio N° ${item.folio} (${item.libroNombre})...`;
@@ -1881,12 +2482,10 @@
             });
             const r2Data = await r2Res.json();
             if (!r2Res.ok || !r2Data.url) {
-              throw new Error(r2Data.error || "Error subiendo a Cloudflare R2");
+              throw new Error(r2Data.error || "Error subiendo imagen a R2");
             }
 
             const publicUrl = r2Data.url;
-
-            // Guardar documento en subcolección libros-escaneo/{libroId}/folios/{padFolio}
             const folioDoc = {
               folio: item.folio,
               foto: publicUrl,
@@ -1900,35 +2499,42 @@
               headers,
               body: JSON.stringify(toFirestoreFields(folioDoc))
             });
-            if (!fsRes.ok) throw new Error("Permiso o red al registrar folio en Firestore");
+            if (!fsRes.ok) throw new Error("Error guardando folio en Firestore");
 
-            // Marcar en mapa local de sincronizados y eliminar de la cola pesada
-            if (!syncedFoliosMap[item.libroId]) syncedFoliosMap[item.libroId] = {};
-            syncedFoliosMap[item.libroId][item.folio] = publicUrl;
-            localStorage.setItem("dgrec_synced_folios_map", JSON.stringify(syncedFoliosMap));
+            // Marcar en la Mini Base de Datos como SYNCED y liberar el Blob pesado
+            item.syncState = "SYNCED";
+            item.cloudUrl = publicUrl;
+            item.dataUrl = publicUrl;
+            item.sizeBytes = 0;
+            delete item.blob;
+            await idbPut("local_folios", item);
+            syncedCount++;
 
-            await idbDelete("offline_folios", item.id);
-            uploadedFolios++;
-
-            // Actualizar contador folios_escaneados del libro
-            const totalSyncedForBook = Object.keys(syncedFoliosMap[item.libroId]).length;
+            // Actualizar contador de folios del libro en Firebase y en Mini-BD
+            const allBookFolios = (await idbGetAll("local_folios")).filter(x => x.libroId === item.libroId);
+            const totalForBook = allBookFolios.length;
             await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${item.libroId}?updateMask.fieldPaths=folios_escaneados`, {
               method: "PATCH",
               headers,
               body: JSON.stringify({
-                fields: { folios_escaneados: { integerValue: String(totalSyncedForBook) } }
+                fields: { folios_escaneados: { integerValue: String(totalForBook) } }
               })
             });
+            const localBook = await idbGet("local_libros", item.libroId);
+            if (localBook) {
+              localBook.folios_escaneados = Math.max(localBook.folios_escaneados || 0, totalForBook);
+              await idbPut("local_libros", localBook);
+            }
           } catch (folioErr) {
             item.errorMsg = folioErr.message;
-            await idbPut("offline_folios", item);
+            await idbPut("local_folios", item);
           }
         }
 
-        // 3. Subir Actas de Defunción a Firestore
+        // 3. Sincronizar Actas Nuevas (`CREATED`) y Editadas (`UPDATED`) -> `PATCH /actas-defuncion/{id}`
         for (const acta of actas) {
           doneSteps++;
-          bannerTxt.textContent = `🔄 Subiendo Acta de ${acta.form.nombres}...`;
+          bannerTxt.textContent = `🔄 Sincronizando Acta de ${acta.form.nombres} en Firebase...`;
           bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
 
           try {
@@ -1937,26 +2543,30 @@
               usuario_id: authSession.uid,
               username: authSession.username || localOperatorName
             };
-            const res = await fetch(`${FIRESTORE_BASE_URL}/actas-defuncion`, {
-              method: "POST",
+            // Usamos PATCH con el ID del documento para que tanto la creación como las ediciones posteriores actualicen el mismo registro en Firebase sin duplicarlo
+            const res = await fetch(`${FIRESTORE_BASE_URL}/actas-defuncion/${acta.id}`, {
+              method: "PATCH",
               headers,
               body: JSON.stringify(toFirestoreFields(payload))
             });
-            if (!res.ok) throw new Error("Error al guardar acta en Firestore");
-            await idbDelete("offline_actas", acta.id);
-            uploadedActas++;
+            if (!res.ok) throw new Error("Error al sincronizar acta en Firestore");
+
+            acta.syncState = "SYNCED";
+            acta.sizeBytes = 0;
+            await idbPut("local_actas", acta);
+            syncedCount++;
           } catch (actaErr) {
-            console.warn("Error subiendo acta:", actaErr);
+            console.warn("Error sincronizando acta:", actaErr);
           }
         }
 
         await reloadCurrentBookFolios();
         if (currentBook) updateCurrentFolioPreview();
-        await renderBooksList();
+        await refreshAllLocalViews();
         await renderSyncQueue();
 
-        if (uploadedFolios > 0 || uploadedActas > 0) {
-          showToast(`✅ Sincronizado: ${uploadedFolios} folio(s) y ${uploadedActas} acta(s) subidos al servidor`);
+        if (syncedCount > 0) {
+          showToast(`✅ ${syncedCount} registro(s) creados/editados sincronizados con Firebase`);
         }
       } finally {
         isSyncingNow = false;
@@ -1965,25 +2575,23 @@
     }
 
     /* ============================================================================
-     * INICIALIZACIÓN DE LA APLICACIÓN MÓVIL
+     * INICIALIZACIÓN DE LA APLICACIÓN MÓVIL Y MINI BASE DE DATOS
      * ============================================================================ */
     (async function initMobileApp() {
+      await openMiniDb();
+      initActaDefaultDates();
       updateNetworkUI();
-      renderUserUI();
-      renderOfficeHeader();
-      await openMobileDb();
-      await renderBooksList();
-      await updateHeaderCounters();
+      await renderLoginGate();
+      await refreshAllLocalViews();
 
-      if (navigator.onLine && authSession) {
-        await fetchUserCloudData();
+      if (navigator.onLine && authSession && authSession.unlocked) {
+        await pullMiniDatabaseFromFirebase(false);
         syncAllPendingToCloud(false);
       }
 
-      // Verificador periódico cada 25 segundos por si vuelve la señal
       setInterval(() => {
         updateNetworkUI();
-        if (navigator.onLine && !isSyncingNow) {
+        if (navigator.onLine && !isSyncingNow && authSession && authSession.unlocked) {
           syncAllPendingToCloud(false);
         }
       }, 25000);
