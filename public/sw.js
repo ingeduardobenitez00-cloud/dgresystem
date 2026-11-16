@@ -2,10 +2,8 @@
  * Service Worker para funcionamiento fuera de línea de la aplicación DGREC
  */
 
-const CACHE_NAME = 'dgrec-offline-cache-v1';
+const CACHE_NAME = 'dgrec-offline-cache-v2';
 const OFFLINE_URLS = [
-  '/',
-  '/escaneo-libro',
   '/manifest.json',
   '/logo1.png',
   '/favicon.ico',
@@ -38,19 +36,26 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Peticiones de API o Firestore no se interceptan por caché estático
-  if (event.request.url.includes('/api/') || event.request.url.includes('firestore.googleapis.com')) {
+  const url = event.request.url;
+
+  // No interceptar nunca chunks de Next.js (/_next/), entorno local (localhost), APIs ni Firebase
+  if (
+    url.includes('/_next/') ||
+    url.includes('localhost') ||
+    url.includes('127.0.0.1') ||
+    url.includes('/api/') ||
+    url.includes('firestore.googleapis.com') ||
+    url.includes('identitytoolkit.googleapis.com') ||
+    event.request.method !== 'GET'
+  ) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) return cachedResponse;
-        if (event.request.mode === 'navigate') {
-          return caches.match('/escaneo-libro');
-        }
-      });
+    fetch(event.request).catch(async () => {
+      const cachedResponse = await caches.match(event.request);
+      if (cachedResponse) return cachedResponse;
+      return Response.error();
     })
   );
 });

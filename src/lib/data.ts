@@ -414,3 +414,22 @@ export interface EvaluacionMM {
   fecha_creacion: string;
 }
 
+export interface InformeSoyJoven {
+  id: string;
+  departamento: string;
+  distrito: string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  colegios_visitados: number;
+  formularios_entregados: number;
+  formularios_retirados: number;
+  detalle_colegios?: string;
+  observaciones?: string;
+  foto_solicitud_salida: string;
+  fotos_actividad: string[];
+  usuario_id: string;
+  username?: string;
+  fecha_creacion: string;
+}
+
+

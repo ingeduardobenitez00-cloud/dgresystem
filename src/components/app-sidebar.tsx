@@ -89,6 +89,8 @@ const MODULE_REGISTRY: Record<string, { label: string; icon: any }> = {
   'informe-semanal-registro': { label: "Informe Semanal Registro", icon: ClipboardList },
   'reporte-semanal-registro': { label: "Monitor de Informes", icon: History },
   'archivo-semanal-registro': { label: "Archivo de Informes", icon: Archive },
+  'soy-joven-quiero-votar': { label: "Soy Joven, Quiero Votar", icon: Vote },
+  'reporte-soy-joven': { label: "Monitor Soy Joven", icon: History },
 
   // ANÁLISIS Y REPORTES
   'resumen': { label: "Resumen Ubicaciones", icon: BarChart3 },

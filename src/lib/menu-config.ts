@@ -290,4 +290,16 @@ export const dashboardMenuItems = [
     icon: ScanLine,
     description: 'Relevamiento fotográfico de folios del Libro de Defunciones y asignación de usuarios.',
   },
+  {
+    href: '/soy-joven-quiero-votar',
+    label: 'Campaña Soy Joven, Quiero Votar',
+    icon: Vote,
+    description: 'Informe de colegios visitados, formularios entregados/retirados, solicitud de salida y fotos de actividad.',
+  },
+  {
+    href: '/reporte-soy-joven',
+    label: 'Monitor Soy Joven, Quiero Votar',
+    icon: History,
+    description: 'Monitor en acordeón por Departamento y Distrito para verificar informes y fotos remitidas de Soy Joven, Quiero Votar.',
+  },
 ];

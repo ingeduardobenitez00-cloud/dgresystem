@@ -40,6 +40,8 @@ export const MODULE_STRUCTURE = [
       { id: 'informe-semanal-registro', label: 'INF. SEMANAL REGISTRO' },
       { id: 'reporte-semanal-registro', label: 'MONITOR DE INFORMES' },
       { id: 'archivo-semanal-registro', label: 'ARCHIVO DE INFORMES' },
+      { id: 'soy-joven-quiero-votar', label: 'CAMPAÑA SOY JOVEN, QUIERO VOTAR' },
+      { id: 'reporte-soy-joven', label: 'MONITOR SOY JOVEN, QUIERO VOTAR' },
     ]
   },
   {

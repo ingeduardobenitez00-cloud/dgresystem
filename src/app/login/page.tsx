@@ -109,7 +109,7 @@ export default function LoginPage() {
             'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
             'archivo-capacitaciones', 'divulgadores', 'estadisticas-capacitacion',
             'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
-            'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+            'reporte-semanal-registro', 'archivo-semanal-registro', 'soy-joven-quiero-votar', 'resumen', 'informe-general',
             'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
             'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria'
           ];

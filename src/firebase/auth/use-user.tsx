@@ -25,14 +25,16 @@ export const CIDEE_MODULES = [
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-movimientos-denuncias', 'informe-divulgador', 'galeria-capacitaciones', 
   'informe-semanal-puntos-fijos', 'lista-anexo-iv', 'divulgadores', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'puntos-fijos', 'compendio-general', 'informe-cidee'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'puntos-fijos', 'compendio-general', 'informe-cidee',
+  'soy-joven-quiero-votar', 'reporte-soy-joven'
 ];
 
 export const JEFE_MODULES = [
   'consejo-magistratura', 'calendario-capacitaciones', 'anexo-i', 'lista-anexo-i', 'solicitud-capacitacion', 'agenda-anexo-i', 
   'agenda-anexo-v', 'maquinas', 'control-movimiento-maquinas', 'denuncia-lacres', 
   'informe-divulgador', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
-  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'compendio-general', 'informe-cidee'
+  'encuesta-satisfaccion', 'archivo-capacitaciones', 'reportes-pdf', 'compendio-general', 'informe-cidee',
+  'soy-joven-quiero-votar', 'reporte-soy-joven'
 ];
 
 export const ALL_SYSTEM_MODULES = [
@@ -43,7 +45,7 @@ export const ALL_SYSTEM_MODULES = [
   'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
   'archivo-capacitaciones', 'divulgadores', 
   'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
-  'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+  'reporte-semanal-registro', 'archivo-semanal-registro', 'soy-joven-quiero-votar', 'reporte-soy-joven', 'resumen', 'informe-general',
   'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
   'importar-locales', 'importar-partidos', 'importar-oficinas', 'escaneo-libro', 'acta-defuncion', 'reporte-miembros-mesa',
   'users', 'settings', 'documentacion', 'auditoria',
@@ -102,9 +104,10 @@ export const useUser = (): UserHookResult => {
         'galeria-capacitaciones', 'informe-semanal-puntos-fijos', 'lista-anexo-iv', 
         'archivo-capacitaciones', 'divulgadores', 
         'ficha', 'fotos', 'cargar-ficha', 'configuracion-semanal', 'informe-semanal-registro',
-        'reporte-semanal-registro', 'archivo-semanal-registro', 'resumen', 'informe-general',
+        'reporte-semanal-registro', 'archivo-semanal-registro', 'soy-joven-quiero-votar', 'reporte-soy-joven', 'resumen', 'informe-general',
         'conexiones', 'locales-votacion', 'cargar-fotos-locales', 'importar-reportes',
-        'importar-locales', 'importar-partidos', 'users', 'settings', 'documentacion', 'auditoria',
+        'importar-locales', 'importar-partidos', 'importar-oficinas', 'escaneo-libro', 'acta-defuncion', 'reporte-miembros-mesa',
+        'users', 'settings', 'documentacion', 'auditoria',
         'reportes-pdf', 'puntos-fijos', 'estadisticas-solicitudes', 'compendio-general', 'informe-cidee'
       ];
 

@@ -51,8 +51,21 @@ export function useModuleCategories() {
     }
   }, [categories, isLoading, isUserLoading, firestore, isSeeding, isAdmin]);
 
+  const mergedCategories = useMemo(() => {
+    if (!categories || categories.length === 0) return DEFAULT_CATEGORIES;
+    return categories.map((cat) => {
+      const defCat = DEFAULT_CATEGORIES.find((d) => d.id === cat.id);
+      if (!defCat) return cat;
+      const combinedModules = Array.from(new Set([...(cat.modules || []), ...(defCat.modules || [])]));
+      return {
+        ...cat,
+        modules: combinedModules,
+      };
+    });
+  }, [categories]);
+
   return {
-    categories: categories || [],
+    categories: mergedCategories,
     isLoading: isLoading || isSeeding,
     error
   };

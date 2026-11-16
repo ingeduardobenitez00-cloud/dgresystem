@@ -62,6 +62,8 @@ export const DEFAULT_CATEGORIES: ModuleCategory[] = [
       'informe-semanal-registro',
       'reporte-semanal-registro',
       'archivo-semanal-registro',
+      'soy-joven-quiero-votar',
+      'reporte-soy-joven',
       'acta-defuncion'
     ],
     orden: 2

@@ -207,6 +207,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /informes-soy-joven/{informeId} {
+      allow read, write: if isActive() || isAdmin();
+      allow delete: if isAdmin() || isOwner();
+    }
+
     match /archivos-semanales-registro/{archivoId} {
       allow read: if isAdmin() || isDirector();
       allow write: if isAdmin();
