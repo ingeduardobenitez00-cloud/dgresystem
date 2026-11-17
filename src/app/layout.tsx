@@ -35,8 +35,8 @@ export const metadata: Metadata = {
   keywords: ['justicia electoral', 'paraguay', 'capacitación'],
   authors: [{ name: 'Justicia Electoral' }],
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
+    icon: '/logo1.png',
+    shortcut: '/logo1.png',
     apple: '/logo1.png',
   },
   manifest: '/manifest.json',

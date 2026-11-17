@@ -31,6 +31,16 @@ jobs:
       - name: Instalar dependencias
         run: npm install --legacy-peer-deps
 
+      - name: Aplicar logo1.png como icono oficial de la APK Android
+        run: |
+          for dir in android/app/src/main/res/mipmap-mdpi android/app/src/main/res/mipmap-hdpi android/app/src/main/res/mipmap-xhdpi android/app/src/main/res/mipmap-xxhdpi android/app/src/main/res/mipmap-xxxhdpi; do
+            if [ -d "$dir" ]; then
+              cp public/logo1.png "$dir/ic_launcher.png"
+              cp public/logo1.png "$dir/ic_launcher_round.png"
+              cp public/logo1.png "$dir/ic_launcher_foreground.png"
+            fi
+          done
+
       - name: Sincronizar Capacitor con Android
         run: npx cap sync android
 
