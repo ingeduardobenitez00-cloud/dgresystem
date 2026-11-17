@@ -1337,9 +1337,9 @@
       if (manual) showToast("📥 Descargando Mini Base de Datos desde Firebase...");
 
       try {
-        // 1. Perfil del usuario actual
+        // 1. Perfil del usuario actual (`users/{uid}`)
         const uRes = await fetch(`${FIRESTORE_BASE_URL}/users/${authSession.uid}`, { headers });
-        let assignedIds = [];
+        let profileIds = [];
         if (uRes.ok) {
           const uData = parseFirestoreFields(await uRes.json());
           if (uData.username) {
@@ -1354,54 +1354,120 @@
             }
           }
           if (Array.isArray(uData.oficinas_registro_civil)) {
-            assignedIds = uData.oficinas_registro_civil;
+            profileIds = uData.oficinas_registro_civil.filter(Boolean);
           }
         }
 
-        // 2. Asignaciones del Registro Civil (`asignaciones-registro-civil`)
+        // 2. Asignaciones del Registro Civil (`asignaciones-registro-civil/{uid}`)
+        let asigIds = [];
         const aRes = await fetch(`${FIRESTORE_BASE_URL}/asignaciones-registro-civil/${authSession.uid}`, { headers });
         if (aRes.ok) {
           const aData = parseFirestoreFields(await aRes.json());
           if (Array.isArray(aData.registros) && aData.registros.length > 0) {
-            assignedIds = aData.registros;
+            asigIds = aData.registros.filter(Boolean);
           }
         }
 
-        // 3. Catálogo de Oficinas (`registros-civiles`) -> Tabla `local_oficinas`
-        const rRes = await fetch(`${FIRESTORE_BASE_URL}/registros-civiles?pageSize=300`, { headers });
-        if (rRes.ok) {
-          const rJson = await rRes.json();
-          const allOffices = (rJson.documents || []).map(d => {
-            const id = d.name.split("/").pop();
-            const fields = parseFirestoreFields(d);
-            return {
-              id,
-              ...fields,
-              assignedToUser: assignedIds.length === 0 || assignedIds.includes(id),
-              syncState: "SYNCED"
-            };
-          });
-          for (const ofi of allOffices) {
-            const existing = await idbGet("local_oficinas", ofi.id);
-            if (!existing || existing.syncState === "SYNCED") {
-              await idbPut("local_oficinas", ofi);
+        // Unificar ambas fuentes de asignación (priorizando que estén todas las oficinas asignadas al usuario)
+        const assignedIds = Array.from(new Set([...asigIds, ...profileIds]));
+
+        // 3. Descargar directamente cada Oficina Asignada por su ID exacto (evita que el límite de paginación de 300 oculte la 2da oficina)
+        if (assignedIds.length > 0) {
+          // Desmarcar oficinas viejas que no estén en assignedIds
+          const prevLocalOffices = await idbGetAll("local_oficinas");
+          for (const oldOfi of prevLocalOffices) {
+            const shouldBeAssigned = assignedIds.includes(oldOfi.id);
+            if (oldOfi.assignedToUser !== shouldBeAssigned) {
+              oldOfi.assignedToUser = shouldBeAssigned;
+              await idbPut("local_oficinas", oldOfi);
             }
           }
+
+          for (const ofiId of assignedIds) {
+            try {
+              const singleRes = await fetch(`${FIRESTORE_BASE_URL}/registros-civiles/${encodeURIComponent(ofiId)}`, { headers });
+              if (singleRes.ok) {
+                const docData = await singleRes.json();
+                const fields = parseFirestoreFields(docData);
+                await idbPut("local_oficinas", {
+                  id: ofiId,
+                  ...fields,
+                  assignedToUser: true,
+                  syncState: "SYNCED"
+                });
+              }
+            } catch (errOfi) {
+              console.warn("Error descargando oficina asignada:", ofiId, errOfi);
+            }
+          }
+        } else {
+          // Si es administrador sin asignación específica, descargar catálogo paginado
+          let nextToken = "";
+          do {
+            const url = `${FIRESTORE_BASE_URL}/registros-civiles?pageSize=300${nextToken ? `&pageToken=${encodeURIComponent(nextToken)}` : ""}`;
+            const rRes = await fetch(url, { headers });
+            if (!rRes.ok) break;
+            const rJson = await rRes.json();
+            for (const d of (rJson.documents || [])) {
+              const id = d.name.split("/").pop();
+              const fields = parseFirestoreFields(d);
+              await idbPut("local_oficinas", {
+                id,
+                ...fields,
+                assignedToUser: true,
+                syncState: "SYNCED"
+              });
+            }
+            nextToken = rJson.nextPageToken || "";
+          } while (nextToken);
         }
 
-        // 4. Libros de Escaneo (`libros-escaneo`) -> Tabla `local_libros`
-        const lRes = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo?pageSize=250`, { headers });
-        if (lRes.ok) {
-          const lJson = await lRes.json();
-          const cloudBooks = (lJson.documents || []).map(d => {
-            const id = d.name.split("/").pop();
-            return { id, ...parseFirestoreFields(d), syncState: "SYNCED" };
+        // 4. Libros de Escaneo (`libros-escaneo`) filtrados por las oficinas asignadas para cumplir reglas de Firestore
+        if (assignedIds.length > 0) {
+          const qRes = await fetch(`${FIRESTORE_BASE_URL}:runQuery`, {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              structuredQuery: {
+                from: [{ collectionId: "libros-escaneo" }],
+                where: {
+                  fieldFilter: {
+                    field: { fieldPath: "registro_civil_id" },
+                    op: "IN",
+                    value: {
+                      arrayValue: {
+                        values: assignedIds.slice(0, 10).map(id => ({ stringValue: String(id) }))
+                      }
+                    }
+                  }
+                }
+              }
+            })
           });
-          for (const b of cloudBooks) {
-            const existing = await idbGet("local_libros", b.id);
-            // Respetar si el libro tiene cambios locales pendientes (`CREATED` o `UPDATED`)
-            if (!existing || existing.syncState === "SYNCED") {
-              await idbPut("local_libros", b);
+          if (qRes.ok) {
+            const rows = await qRes.json();
+            for (const row of (rows || [])) {
+              if (!row.document) continue;
+              const d = row.document;
+              const id = d.name.split("/").pop();
+              const cloudBook = { id, ...parseFirestoreFields(d), syncState: "SYNCED" };
+              const existing = await idbGet("local_libros", id);
+              if (!existing || existing.syncState === "SYNCED") {
+                await idbPut("local_libros", cloudBook);
+              }
+            }
+          }
+        } else {
+          const lRes = await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo?pageSize=250`, { headers });
+          if (lRes.ok) {
+            const lJson = await lRes.json();
+            for (const d of (lJson.documents || [])) {
+              const id = d.name.split("/").pop();
+              const cloudBook = { id, ...parseFirestoreFields(d), syncState: "SYNCED" };
+              const existing = await idbGet("local_libros", id);
+              if (!existing || existing.syncState === "SYNCED") {
+                await idbPut("local_libros", cloudBook);
+              }
             }
           }
         }
@@ -1483,7 +1549,7 @@
       const assigned = allOffices.filter(o => o.assignedToUser);
       const listToUse = assigned.length > 0 ? assigned : allOffices;
 
-      if (!activeOffice && listToUse.length > 0) {
+      if ((!activeOffice || !listToUse.some(o => o.id === activeOffice.id)) && listToUse.length > 0) {
         activeOffice = listToUse[0];
         localStorage.setItem("dgrec_active_office", JSON.stringify(activeOffice));
       }
