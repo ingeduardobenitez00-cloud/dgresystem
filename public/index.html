@@ -120,6 +120,7 @@
     .pill-online { background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
     .pill-offline { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
     .pill-queue { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); cursor: pointer; }
+    .pill-logout { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); cursor: pointer; }
     .pill-edited { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.45); }
     .dot { width: 7px; height: 7px; border-radius: 50%; }
     .dot-online { background: #10b981; box-shadow: 0 0 8px #10b981; }
@@ -310,10 +311,10 @@
         <img src="logo1.png" alt="Justicia Electoral" onerror="this.style.display='none'" />
       </div>
       <div style="text-align:center; margin-bottom:18px;">
-        <div style="font-size:10px; font-weight:900; color:var(--emerald); letter-spacing:1.2px; text-transform:uppercase;">JUSTICIA ELECTORAL · DGRE-REC</div>
-        <h1 style="font-size:18px; font-weight:900; text-transform:uppercase; margin-top:4px;">Acceso al Módulo Depuración</h1>
-        <p style="font-size:11px; color:var(--muted); margin-top:4px;" id="login-net-status-text">
-          Valida con Firebase en línea o contra la Mini Base de Datos Local sin internet.
+        <h1 style="font-size:18px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; color:#fff;">Justicia Electoral</h1>
+        <div style="font-size:13px; font-weight:900; color:var(--emerald); letter-spacing:1.2px; text-transform:uppercase; margin-top:4px;">DD-DGRE-REC</div>
+        <p style="font-size:11px; color:var(--muted); margin-top:6px;" id="login-net-status-text">
+          Acceso institucional al sistema
         </p>
       </div>
 
@@ -325,17 +326,10 @@
         <label class="label">Contraseña de Acceso *</label>
         <input type="password" id="gate-password" class="input input-normal" placeholder="••••••••" autocomplete="current-password" />
       </div>
-      <div class="field" id="gate-fullname-wrap" style="display:none;">
-        <label class="label">Nombre y Apellido del Operador (Modo Sin Red Inicial)</label>
-        <input type="text" id="gate-fullname" class="input" placeholder="EJ: JUAN PÉREZ" />
-      </div>
+      <input type="hidden" id="gate-fullname" value="" />
 
       <button id="btn-gate-login" class="btn btn-primary" style="margin-top:12px;" onclick="handleGateLogin()">
-        🔐 INGRESAR AL MÓDULO DE DEPURACIÓN
-      </button>
-
-      <button id="btn-gate-offline-init" class="btn btn-outline" style="margin-top:8px; font-size:10px; padding:10px;" onclick="toggleOfflineFirstTimeMode()">
-        📴 ¿Primer uso en campo sin internet? Crear Acceso Local
+        🔐 INGRESAR AL SISTEMA
       </button>
 
       <!-- Perfiles almacenados en la Mini Base de Datos del Celular -->
@@ -356,23 +350,26 @@
       </div>
       <div>
         <div class="brand-title">DEPURACIÓN DGRE-REC</div>
-        <div class="brand-sub" id="header-user-sub">MINI-BD LOCAL ACTIVA</div>
+        <div class="brand-sub" id="header-user-sub">MEMORIA LOCAL ACTIVA</div>
       </div>
     </div>
     <div class="status-pills">
-      <div id="queue-pill" class="pill pill-queue" onclick="switchTab('sync')" title="Cambios en Mini-BD pendientes de sincronizar">
+      <div id="queue-pill" class="pill pill-queue" onclick="switchTab('sync')" title="Cambios pendientes de sincronizar">
         <span>🗄️</span> <span id="header-pending-count">0</span>
       </div>
       <div id="net-pill" class="pill pill-offline">
         <span id="net-dot" class="dot dot-offline"></span>
         <span id="net-label">OFFLINE</span>
       </div>
+      <button type="button" class="pill pill-logout" onclick="logoutSession()" title="Cerrar Sesión">
+        🚪 SALIR
+      </button>
     </div>
   </header>
 
   <!-- AUTO SYNC BANNER -->
   <div id="sync-banner" class="sync-banner">
-    <span id="sync-banner-text">🔄 Sincronizando Mini Base de Datos Local con Firebase...</span>
+    <span id="sync-banner-text">🔄 Sincronizando datos del dispositivo con el Servidor Central...</span>
     <span id="sync-banner-pct">0%</span>
   </div>
 
@@ -423,13 +420,16 @@
       <!-- Vista Escáner de un Libro (Folios 1 al 200) -->
       <div id="libro-scanner-view" style="display:none; flex-direction:column; gap:14px;">
         <div class="card" style="padding:12px 14px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="closeBookScanner()">← Volver</button>
             <div style="text-align:center; min-width:0; flex:1;">
               <div id="scan-book-title" style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">LIBRO</div>
               <div id="scan-book-sub" style="font-size:9px; font-weight:700; color:var(--muted); text-transform:uppercase;">OFICINA</div>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="openModalLibro(currentBook?.id)">✏️ Editar</button>
+            <div style="display:flex; gap:5px;">
+              <button class="btn btn-outline btn-sm" onclick="openModalLibro(currentBook?.id)">✏️ Editar</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteBookFromMiniDb(currentBook?.id)">🗑️</button>
+            </div>
           </div>
         </div>
 
@@ -442,7 +442,7 @@
             <div id="scan-empty-placeholder" style="padding:20px; color:var(--muted);">
               <div style="font-size:38px; margin-bottom:8px;">📷</div>
               <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#e2e8f0;">Sin imagen en este folio</div>
-              <div style="font-size:10px; margin-top:4px;">Capture la foto del folio. Se guarda o actualiza en la Mini Base de Datos del teléfono.</div>
+              <div style="font-size:10px; margin-top:4px;">Capture la foto del folio y ajústela al tamaño exacto de la hoja.</div>
             </div>
             <img id="scan-preview-img" src="" alt="Vista previa del folio" style="display:none;" />
           </div>
@@ -460,9 +460,14 @@
               <button class="btn btn-outline" onclick="document.getElementById('gallery-folio-input').click()">🖼️ Galería</button>
               <button class="btn btn-outline" onclick="changeFolio(1)">Siguiente ▶</button>
             </div>
-            <button id="btn-delete-local-folio" class="btn btn-danger" style="display:none; padding:10px;" onclick="deleteCurrentLocalFolio()">
-              🗑️ Descartar cambio local de este folio
-            </button>
+            <div id="folio-existing-actions" style="display:none; grid-template-columns:1fr 1fr; gap:8px;">
+              <button id="btn-crop-existing-folio" class="btn btn-outline" style="padding:10px; font-size:10px;" onclick="reopenCropperForCurrentFolio()">
+                ✂️ Ajustar Tamaño Hoja
+              </button>
+              <button id="btn-delete-local-folio" class="btn btn-danger" style="padding:10px; font-size:10px;" onclick="deleteCurrentLocalFolio()">
+                🗑️ Eliminar Foto Folio
+              </button>
+            </div>
           </div>
         </div>
 
@@ -498,7 +503,7 @@
         <div class="card-header">
           <div>
             <div class="card-title" id="acta-form-title">📜 Nueva Constancia de Acta de Defunción</div>
-            <div class="card-subtitle" id="acta-form-subtitle">Se guarda en la Mini Base de Datos del teléfono y se sincroniza con Firebase al conectar.</div>
+            <div class="card-subtitle" id="acta-form-subtitle">Se guarda en la memoria del teléfono y se sincroniza con el sistema central al conectar.</div>
           </div>
           <button id="btn-cancel-edit-acta" class="btn btn-danger btn-sm" style="display:none;" onclick="resetActaForm()">✕ Cancelar Edición</button>
         </div>
@@ -651,9 +656,11 @@
             </div>
             <div id="acta-photo-loaded" style="display:none;">
               <img id="acta-photo-img" src="" alt="Foto Acta" style="max-height:210px; border-radius:10px; margin-bottom:8px;" />
-              <div style="display:flex; gap:8px; justify-content:center;">
-                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">📸 Reemplazar con Cámara</button>
+              <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-camera-input').click()">📸 Cámara</button>
                 <button class="btn btn-outline btn-sm" onclick="document.getElementById('acta-gallery-input').click()">🖼️ Galería</button>
+                <button class="btn btn-outline btn-sm" onclick="reopenCropperForActa()">✂️ Ajustar Hoja</button>
+                <button class="btn btn-danger btn-sm" onclick="clearActaPhoto()">🗑️ Eliminar Foto</button>
               </div>
             </div>
           </div>
@@ -669,8 +676,8 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <div class="card-title">📋 Actas en la Mini Base de Datos</div>
-              <div class="card-subtitle">Toque "✏️ Editar" en cualquier registro para corregirlo en el celular (se actualizará en Firebase al conectar).</div>
+              <div class="card-title">📋 Actas en la Memoria del Dispositivo</div>
+              <div class="card-subtitle">Toque "✏️ Editar" en cualquier registro para corregirlo en el celular (se actualizará en el servidor al conectar).</div>
             </div>
           </div>
           <input id="search-actas-input" class="input" placeholder="🔍 Buscar por nombre, apellido, cédula o acta..." oninput="renderMiniDbActasList()" />
@@ -680,13 +687,13 @@
 
     </section>
 
-    <!-- ==================== TAB 3: MINI BASE DE DATOS Y SINCRONIZACIÓN FIREBASE ==================== -->
+    <!-- ==================== TAB 3: MEMORIA LOCAL Y SINCRONIZACIÓN ==================== -->
     <section id="tab-sync" class="tab-view">
       <div class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">🗄️ Estado de la Mini Base de Datos Local</div>
-            <div class="card-subtitle">Réplica local alojada en la memoria interna del celular (`DGREC_MINI_DB_V2`).</div>
+            <div class="card-title">🗄️ Estado de la Base de Datos Local</div>
+            <div class="card-subtitle">Datos alojados de forma segura en la memoria interna del teléfono.</div>
           </div>
         </div>
 
@@ -711,7 +718,7 @@
 
         <div style="background:#0b1120; border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div style="font-size:10px; font-weight:900; text-transform:uppercase; color:#fbbf24;">Cambios Locales por Subir a Firebase</div>
+            <div style="font-size:10px; font-weight:900; text-transform:uppercase; color:#fbbf24;">Cambios Locales por Subir al Servidor</div>
             <div style="font-size:11px; color:var(--muted); margin-top:2px;" id="stat-pending-breakdown">0 libros · 0 folios · 0 actas</div>
           </div>
           <div style="font-size:13px; font-weight:900; color:#fff;" id="stat-storage-mb">0.0 MB</div>
@@ -719,10 +726,10 @@
 
         <div style="display:flex; flex-direction:column; gap:8px;">
           <button id="btn-sync-now" class="btn btn-primary" onclick="syncAllPendingToCloud(true)">
-            🔄 SUBIR AGREGADOS Y EDITADOS A FIREBASE
+            🔄 SUBIR AGREGADOS Y EDITADOS AL SERVIDOR
           </button>
           <button id="btn-pull-db" class="btn btn-indigo" onclick="pullMiniDatabaseFromFirebase(true)">
-            📥 DESCARGAR / ACTUALIZAR MINI-BD DESDE FIREBASE
+            📥 DESCARGAR / ACTUALIZAR DATOS DEL SISTEMA
           </button>
         </div>
       </div>
@@ -741,7 +748,7 @@
         <div class="card-header">
           <div>
             <div class="card-title">👤 Sesión Activa en el Dispositivo</div>
-            <div class="card-subtitle">Credenciales almacenadas en la Mini Base de Datos Local para acceso con o sin internet.</div>
+            <div class="card-subtitle">Credenciales almacenadas en la memoria del dispositivo para acceso con o sin internet.</div>
           </div>
         </div>
 
@@ -749,10 +756,10 @@
           <div style="font-size:10px; font-weight:900; color:#34d399; text-transform:uppercase;" id="ui-user-mode-badge">✅ SESIÓN ACTIVA</div>
           <div style="font-size:15px; font-weight:900; margin-top:4px;" id="ui-user-name">OPERADOR</div>
           <div style="font-size:11px; color:var(--muted);" id="ui-user-email">correo@tsje.gov.py</div>
-          <div style="font-size:10px; color:var(--muted); margin-top:6px;" id="ui-last-pull-time">Última descarga de Mini-BD: --</div>
+          <div style="font-size:10px; color:var(--muted); margin-top:6px;" id="ui-last-pull-time">Última actualización de datos: --</div>
           <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="pullMiniDatabaseFromFirebase(true)">📥 Refrescar Mini-BD</button>
-            <button class="btn btn-danger btn-sm" onclick="lockAndLogoutSession()">🔒 Bloquear / Cambiar Usuario</button>
+            <button class="btn btn-outline btn-sm" onclick="pullMiniDatabaseFromFirebase(true)">📥 Actualizar Datos</button>
+            <button class="btn btn-danger btn-sm" onclick="logoutSession()">🚪 Cerrar Sesión</button>
           </div>
         </div>
 
@@ -760,6 +767,10 @@
           <label class="label">Nombre del Operador Firmante en Actas y Folios</label>
           <input id="local-operator-name" class="input" placeholder="NOMBRE Y APELLIDO" onchange="saveLocalOperatorName()" />
         </div>
+
+        <button class="btn btn-danger" style="margin-top:14px;" onclick="logoutSession()">
+          🚪 CERRAR SESIÓN DEL OPERADOR
+        </button>
       </div>
     </section>
 
@@ -825,7 +836,47 @@
       </div>
       <div style="display:flex; gap:8px; margin-top:16px;">
         <button class="btn btn-outline" onclick="closeModalLibro()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveOrUpdateBookInMiniDb()">Guardar en Mini-BD</button>
+        <button class="btn btn-primary" onclick="saveOrUpdateBookInMiniDb()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AJUSTADOR / RECORTADOR AL TAMAÑO DE LA HOJA -->
+  <div id="modal-sheet-cropper" class="modal-backdrop">
+    <div class="modal-card" style="max-width:500px; padding:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div>
+          <div class="card-title" style="font-size:12px; color:#34d399;">✂️ Ajustar al Tamaño de la Hoja</div>
+          <div style="font-size:10px; color:var(--muted);">Arrastre las esquinas verdes para encuadrar solo la hoja</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="rotateCropperImage90()">🔄 Girar 90°</button>
+      </div>
+
+      <!-- Formatos rápidos de hoja -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin-bottom:8px;">
+        <button class="btn btn-outline btn-sm" style="padding:6px 4px; font-size:9px;" onclick="applySheetPreset('folio')">📄 Libro/Oficio</button>
+        <button class="btn btn-outline btn-sm" style="padding:6px 4px; font-size:9px;" onclick="applySheetPreset('a4')">📄 Hoja A4</button>
+        <button class="btn btn-outline btn-sm" style="padding:6px 4px; font-size:9px;" onclick="applySheetPreset('acta')">📄 Acta/Media</button>
+        <button class="btn btn-outline btn-sm" style="padding:6px 4px; font-size:9px;" onclick="applySheetPreset('full')">📐 Completa</button>
+      </div>
+
+      <!-- Lienzo táctil de encuadre de hoja -->
+      <div id="cropper-stage" style="position:relative; width:100%; height:54vh; background:#020617; border-radius:14px; overflow:hidden; touch-action:none; display:flex; align-items:center; justify-content:center; border:1px solid var(--border);">
+        <canvas id="cropper-canvas" style="max-width:100%; max-height:100%; display:block;"></canvas>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:7px; margin-top:10px;">
+        <button class="btn btn-primary" style="padding:13px;" onclick="confirmSheetCrop(true)">
+          ✅ RECORTAR AL TAMAÑO DE LA HOJA Y GUARDAR
+        </button>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:7px;">
+          <button class="btn btn-outline btn-sm" style="width:100%; padding:10px;" onclick="confirmSheetCrop(false)">
+            ⚡ Guardar Sin Recortar
+          </button>
+          <button class="btn btn-danger btn-sm" style="width:100%; padding:10px;" onclick="closeSheetCropper()">
+            ✕ Cancelar
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1042,25 +1093,25 @@
         pill.className = "pill pill-online";
         dot.className = "dot dot-online";
         lbl.textContent = "EN LÍNEA";
-        if (loginNetTxt) loginNetTxt.textContent = "🟢 Conectado: validará con Firebase y actualizará la Mini Base de Datos Local.";
+        if (loginNetTxt) loginNetTxt.textContent = "🟢 Conectado: acceso en línea y sincronización automática.";
       } else {
         pill.className = "pill pill-offline";
         dot.className = "dot dot-offline";
         lbl.textContent = "OFFLINE";
-        if (loginNetTxt) loginNetTxt.textContent = "🟠 Sin internet: validando contra la Mini Base de Datos Local del teléfono.";
+        if (loginNetTxt) loginNetTxt.textContent = "🟠 Sin internet: validando contra la memoria interna del teléfono.";
       }
     }
 
     window.addEventListener("online", () => {
       updateNetworkUI();
       if (authSession) {
-        showToast("🌐 Conexión detectada: sincronizando Mini-BD con Firebase...");
+        showToast("🌐 Conexión detectada: sincronizando datos con el servidor...");
         syncAllPendingToCloud(false);
       }
     });
     window.addEventListener("offline", () => {
       updateNetworkUI();
-      showToast("🟠 Sin internet: trabajando sobre la Mini Base de Datos del celular", "#f59e0b");
+      showToast("🟠 Sin internet: trabajando en la memoria interna del celular", "#f59e0b");
     });
 
     /* ============================================================================
@@ -1119,7 +1170,7 @@
 
       const btn = document.getElementById("btn-gate-login");
       btn.disabled = true;
-      btn.textContent = "VERIFICANDO EN MINI-BD / FIREBASE...";
+      btn.textContent = "VERIFICANDO CREDENCIALES...";
 
       try {
         const passHash = hashPasswordLocal(email, password);
@@ -1239,20 +1290,22 @@
         showToast("❌ " + err.message, "#ef4444");
       } finally {
         btn.disabled = false;
-        btn.textContent = isOfflineFirstTimeMode
-          ? "📴 CREAR ACCESO LOCAL E INGRESAR"
-          : "🔐 INGRESAR AL MÓDULO DE DEPURACIÓN";
+        btn.textContent = "🔐 INGRESAR AL SISTEMA";
       }
     }
 
-    function lockAndLogoutSession() {
-      if (authSession) {
-        authSession.unlocked = false;
-        localStorage.setItem("dgrec_auth_session", JSON.stringify(authSession));
-      }
+    function logoutSession() {
+      authSession = null;
+      localStorage.removeItem("dgrec_auth_session");
       document.getElementById("gate-password").value = "";
+      if (currentBook) closeBookScanner();
+      switchTab("libros");
       renderLoginGate();
-      showToast("🔒 Sesión bloqueada. Ingrese su contraseña para continuar.");
+      showToast("🚪 Sesión cerrada correctamente");
+    }
+
+    function lockAndLogoutSession() {
+      logoutSession();
     }
 
     async function ensureValidIdToken() {
@@ -1331,12 +1384,12 @@
       }
       const token = await ensureValidIdToken();
       if (!token) {
-        if (manual) showToast("🔐 Inicie sesión con una cuenta de Firebase para descargar la Mini-BD", "#f59e0b");
+        if (manual) showToast("🔐 Inicie sesión para descargar los datos del servidor", "#f59e0b");
         return;
       }
 
       const headers = { Authorization: `Bearer ${token}` };
-      if (manual) showToast("📥 Descargando Mini Base de Datos desde Firebase...");
+      if (manual) showToast("📥 Descargando datos desde el Servidor Central...");
 
       try {
         // 1. Perfil del usuario actual (`users/{uid}`)
@@ -1499,7 +1552,7 @@
         localStorage.setItem("dgrec_last_pull_time", lastPullTime);
 
         await refreshAllLocalViews();
-        if (manual) showToast("✅ Mini Base de Datos actualizada desde Firebase");
+        if (manual) showToast("✅ Datos actualizados desde el Servidor Central");
       } catch (e) {
         console.warn("Error descargando Mini-BD:", e);
         if (manual) showToast("⚠️ Descarga parcial: " + e.message, "#f59e0b");
@@ -1525,11 +1578,11 @@
         document.getElementById("ui-user-email").textContent = authSession.email || "";
         document.getElementById("ui-user-mode-badge").textContent =
           authSession.mode === "CLOUD_VERIFIED"
-            ? "✅ VINCULADO CON FIREBASE + MINI-BD LOCAL"
-            : "📱 SESIÓN LOCAL ACTIVA EN MINI-BD";
+            ? "✅ CONECTADO AL SISTEMA CENTRAL + MEMORIA LOCAL"
+            : "📱 SESIÓN LOCAL ACTIVA EN EL DISPOSITIVO";
       }
       document.getElementById("ui-last-pull-time").textContent =
-        `Última sincronización de Mini-BD: ${lastPullTime || "Pendiente (trabajando en local)"}`;
+        `Última sincronización: ${lastPullTime || "Pendiente (trabajando en local)"}`;
     }
 
     function saveLocalOperatorName() {
@@ -1783,16 +1836,54 @@
             <div class="progress-track" onclick="openBookScanner('${b.id}')" style="cursor:pointer;">
               <div class="progress-fill" style="width:${pct}%"></div>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px; flex-wrap:wrap; gap:6px;">
               <span style="font-size:10px; color:var(--muted); font-weight:700;">Progreso: ${totalDone} de ${total} folios (${pct}%)</span>
               <div style="display:flex; gap:6px;">
-                <button class="btn btn-outline btn-sm" onclick="openModalLibro('${b.id}')">✏️ Editar Libro</button>
-                <button class="btn btn-primary btn-sm" onclick="openBookScanner('${b.id}')">📸 Escanear Folios</button>
+                <button class="btn btn-outline btn-sm" onclick="openModalLibro('${b.id}')">✏️ Editar</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteBookFromMiniDb('${b.id}')">🗑️ Eliminar</button>
+                <button class="btn btn-primary btn-sm" onclick="openBookScanner('${b.id}')">📸 Escanear</button>
               </div>
             </div>
           </div>
         `;
       }).join("");
+    }
+
+    async function deleteBookFromMiniDb(bookId) {
+      if (!bookId) return;
+      const b = await idbGet("local_libros", bookId);
+      const bookTitle = b ? (b.nombre_libro || b.tomo) : "este libro";
+      if (!confirm(`¿Está seguro de eliminar el libro "${bookTitle}" y todos sus folios?`)) return;
+
+      const allFolios = await idbGetAll("local_folios");
+      for (const f of allFolios) {
+        if (f.libroId === bookId) {
+          await idbDelete("local_folios", f.id);
+        }
+      }
+      await idbDelete("local_libros", bookId);
+
+      if (navigator.onLine) {
+        try {
+          const token = await ensureValidIdToken();
+          if (token) {
+            await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${encodeURIComponent(bookId)}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } catch (e) {
+          console.warn("Error eliminando libro en servidor:", e);
+        }
+      }
+
+      if (currentBook && currentBook.id === bookId) {
+        closeBookScanner();
+      } else {
+        await renderBooksList();
+      }
+      await updateHeaderCounters();
+      showToast("🗑️ Libro eliminado correctamente");
     }
 
     /* ============================================================================
@@ -1907,28 +1998,28 @@
       const badge = document.getElementById("scan-folio-status-badge");
       const img = document.getElementById("scan-preview-img");
       const empty = document.getElementById("scan-empty-placeholder");
-      const delBtn = document.getElementById("btn-delete-local-folio");
+      const actionsBox = document.getElementById("folio-existing-actions");
       const actionVerb = document.getElementById("btn-cam-folio-action");
 
       if (item && item.syncState !== "SYNCED") {
         badge.textContent = item.syncState === "UPDATED"
-          ? "✏️ FOLIO REEMPLAZADO EN MINI-BD (PENDIENTE DE SUBIR)"
-          : "🟠 FOLIO NUEVO EN MINI-BD (PENDIENTE DE SUBIR)";
+          ? "✏️ FOLIO REEMPLAZADO EN CELULAR (PENDIENTE DE SUBIR)"
+          : "🟠 FOLIO NUEVO EN CELULAR (PENDIENTE DE SUBIR)";
         badge.style.background = "rgba(245, 158, 11, 0.2)";
         badge.style.color = "#fbbf24";
         img.src = item.dataUrl;
         img.style.display = "block";
         empty.style.display = "none";
-        delBtn.style.display = "inline-flex";
+        if (actionsBox) actionsBox.style.display = "grid";
         actionVerb.textContent = "REEMPLAZAR FOTO DEL";
       } else if (item && item.syncState === "SYNCED") {
-        badge.textContent = "🟢 EN MINI-BD Y SINCRONIZADO EN FIREBASE";
+        badge.textContent = "🟢 GUARDADO Y SINCRONIZADO EN EL SERVIDOR";
         badge.style.background = "rgba(16, 185, 129, 0.2)";
         badge.style.color = "#34d399";
         img.src = item.dataUrl || item.cloudUrl;
         img.style.display = "block";
         empty.style.display = "none";
-        delBtn.style.display = "none";
+        if (actionsBox) actionsBox.style.display = "grid";
         actionVerb.textContent = "REEMPLAZAR / EDITAR FOTO DEL";
       } else {
         badge.textContent = "⚪ FOLIO PENDIENTE DE CAPTURA";
@@ -1937,7 +2028,7 @@
         img.src = "";
         img.style.display = "none";
         empty.style.display = "block";
-        delBtn.style.display = "none";
+        if (actionsBox) actionsBox.style.display = "none";
         actionVerb.textContent = "CAPTURAR";
       }
     }
@@ -1968,19 +2059,255 @@
       grid.innerHTML = html;
     }
 
-    async function handleFolioFilePicked(event) {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file || !currentBook) return;
+    /* ============================================================================
+     * AJUSTADOR Y RECORTADOR TÁCTIL AL TAMAÑO DE LA HOJA (SHEET CROPPER)
+     * ============================================================================ */
+    let cropperState = {
+      img: null,
+      targetType: null, // 'folio' | 'acta'
+      targetFolioNum: 1,
+      rotation: 0,
+      // Coordenadas normalizadas del recuadro de la hoja [0..1]
+      box: { x1: 0.06, y1: 0.05, x2: 0.94, y2: 0.95 },
+      draggingHandle: null,
+      lastPt: null,
+      drawRect: { x: 0, y: 0, w: 1, h: 1 }
+    };
 
-      const targetFolio = currentFolioNum;
-      const key = `${currentBook.id}_${targetFolio}`;
-      const prevFolio = await idbGet("local_folios", key);
-      const isEdit = !!(prevFolio && prevFolio.syncState === "SYNCED");
+    function openSheetCropperFromDataUrl(dataUrl, targetType, folioNum = 1) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        cropperState.img = img;
+        cropperState.targetType = targetType;
+        cropperState.targetFolioNum = folioNum;
+        cropperState.rotation = 0;
+        // Encuadre inicial de hoja (con pequeño margen para recortar bordes de mesa)
+        cropperState.box = { x1: 0.06, y1: 0.05, x2: 0.94, y2: 0.95 };
+        document.getElementById("modal-sheet-cropper").classList.add("open");
+        setTimeout(() => drawSheetCropperCanvas(), 30);
+      };
+      img.onerror = () => showToast("No se pudo abrir la imagen para ajustar", "#ef4444");
+      img.src = dataUrl;
+    }
 
-      showToast(`⏳ Guardando Folio N° ${targetFolio} en la Mini Base de Datos...`);
-      try {
-        const { blob, dataUrl, sizeBytes } = await compressPhotoFile(file, 1920, 0.82);
+    function closeSheetCropper() {
+      document.getElementById("modal-sheet-cropper").classList.remove("open");
+      cropperState.img = null;
+    }
+
+    function rotateCropperImage90() {
+      if (!cropperState.img) return;
+      const src = cropperState.img;
+      const c = document.createElement("canvas");
+      c.width = src.height;
+      c.height = src.width;
+      const ctx = c.getContext("2d");
+      ctx.translate(c.width / 2, c.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(src, -src.width / 2, -src.height / 2);
+      const rotatedImg = new Image();
+      rotatedImg.onload = () => {
+        cropperState.img = rotatedImg;
+        drawSheetCropperCanvas();
+      };
+      rotatedImg.src = c.toDataURL("image/jpeg", 0.92);
+    }
+
+    function applySheetPreset(preset) {
+      if (!cropperState.img) return;
+      const imgW = cropperState.img.width;
+      const imgH = cropperState.img.height;
+      if (preset === "full") {
+        cropperState.box = { x1: 0.0, y1: 0.0, x2: 1.0, y2: 1.0 };
+      } else if (preset === "folio") {
+        // Proporción Libro / Oficio vertical (~1 : 1.48)
+        cropperState.box = { x1: 0.07, y1: 0.04, x2: 0.93, y2: 0.96 };
+      } else if (preset === "a4") {
+        // Proporción Hoja A4 (~1 : 1.414)
+        cropperState.box = { x1: 0.08, y1: 0.06, x2: 0.92, y2: 0.94 };
+      } else if (preset === "acta") {
+        // Proporción Constancia / Media Hoja
+        cropperState.box = { x1: 0.06, y1: 0.12, x2: 0.94, y2: 0.88 };
+      }
+      drawSheetCropperCanvas();
+    }
+
+    function drawSheetCropperCanvas() {
+      const img = cropperState.img;
+      if (!img) return;
+      const stage = document.getElementById("cropper-stage");
+      const canvas = document.getElementById("cropper-canvas");
+      const maxW = stage.clientWidth || 340;
+      const maxH = stage.clientHeight || 380;
+
+      const scale = Math.min(maxW / img.width, maxH / img.height);
+      const cw = Math.max(100, Math.round(img.width * scale));
+      const ch = Math.max(100, Math.round(img.height * scale));
+      canvas.width = cw;
+      canvas.height = ch;
+
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+
+      // Oscurecer exterior de la hoja
+      const bx = cropperState.box.x1 * cw;
+      const by = cropperState.box.y1 * ch;
+      const bw = (cropperState.box.x2 - cropperState.box.x1) * cw;
+      const bh = (cropperState.box.y2 - cropperState.box.y1) * ch;
+
+      ctx.fillStyle = "rgba(2, 6, 23, 0.62)";
+      ctx.fillRect(0, 0, cw, by);
+      ctx.fillRect(0, by + bh, cw, ch - (by + bh));
+      ctx.fillRect(0, by, bx, bh);
+      ctx.fillRect(bx + bw, by, cw - (bx + bw), bh);
+
+      // Borde verde de la hoja y guías tercios
+      ctx.strokeStyle = "#10b981";
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(bx, by, bw, bh);
+
+      ctx.strokeStyle = "rgba(16, 185, 129, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw / 3, by); ctx.lineTo(bx + bw / 3, by + bh);
+      ctx.moveTo(bx + (2 * bw) / 3, by); ctx.lineTo(bx + (2 * bw) / 3, by + bh);
+      ctx.moveTo(bx, by + bh / 3); ctx.lineTo(bx + bw, by + bh / 3);
+      ctx.moveTo(bx, by + (2 * bh) / 3); ctx.lineTo(bx + bw, by + (2 * bh) / 3);
+      ctx.stroke();
+
+      // Dibujar los 4 tiradores de esquina para arrastrar con el dedo
+      const corners = [
+        [bx, by],
+        [bx + bw, by],
+        [bx, by + bh],
+        [bx + bw, by + bh]
+      ];
+      for (const [cx, cy] of corners) {
+        ctx.fillStyle = "#10b981";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+    }
+
+    (function bindCropperTouchEvents() {
+      const canvas = document.getElementById("cropper-canvas");
+      if (!canvas) return;
+
+      function getNormPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: Math.max(0, Math.min(1, (clientX - rect.left) / (rect.width || 1))),
+          y: Math.max(0, Math.min(1, (clientY - rect.top) / (rect.height || 1)))
+        };
+      }
+
+      function onStart(e) {
+        if (!cropperState.img) return;
+        e.preventDefault();
+        const p = getNormPos(e);
+        const b = cropperState.box;
+        const dist = (xA, yA, xB, yB) => Math.hypot(xA - xB, yA - yB);
+        const tol = 0.12;
+
+        if (dist(p.x, p.y, b.x1, b.y1) < tol) cropperState.draggingHandle = "TL";
+        else if (dist(p.x, p.y, b.x2, b.y1) < tol) cropperState.draggingHandle = "TR";
+        else if (dist(p.x, p.y, b.x1, b.y2) < tol) cropperState.draggingHandle = "BL";
+        else if (dist(p.x, p.y, b.x2, b.y2) < tol) cropperState.draggingHandle = "BR";
+        else if (p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2) cropperState.draggingHandle = "MOVE";
+        else cropperState.draggingHandle = null;
+
+        cropperState.lastPt = p;
+      }
+
+      function onMove(e) {
+        if (!cropperState.draggingHandle || !cropperState.img) return;
+        e.preventDefault();
+        const p = getNormPos(e);
+        const b = cropperState.box;
+        const minSize = 0.15;
+
+        if (cropperState.draggingHandle === "TL") {
+          b.x1 = Math.min(p.x, b.x2 - minSize);
+          b.y1 = Math.min(p.y, b.y2 - minSize);
+        } else if (cropperState.draggingHandle === "TR") {
+          b.x2 = Math.max(p.x, b.x1 + minSize);
+          b.y1 = Math.min(p.y, b.y2 - minSize);
+        } else if (cropperState.draggingHandle === "BL") {
+          b.x1 = Math.min(p.x, b.x2 - minSize);
+          b.y2 = Math.max(p.y, b.y1 + minSize);
+        } else if (cropperState.draggingHandle === "BR") {
+          b.x2 = Math.max(p.x, b.x1 + minSize);
+          b.y2 = Math.max(p.y, b.y1 + minSize);
+        } else if (cropperState.draggingHandle === "MOVE" && cropperState.lastPt) {
+          const dx = p.x - cropperState.lastPt.x;
+          const dy = p.y - cropperState.lastPt.y;
+          const w = b.x2 - b.x1;
+          const h = b.y2 - b.y1;
+          b.x1 = Math.max(0, Math.min(1 - w, b.x1 + dx));
+          b.y1 = Math.max(0, Math.min(1 - h, b.y1 + dy));
+          b.x2 = b.x1 + w;
+          b.y2 = b.y1 + h;
+        }
+        cropperState.lastPt = p;
+        drawSheetCropperCanvas();
+      }
+
+      function onEnd() {
+        cropperState.draggingHandle = null;
+      }
+
+      canvas.addEventListener("touchstart", onStart, { passive: false });
+      canvas.addEventListener("touchmove", onMove, { passive: false });
+      canvas.addEventListener("touchend", onEnd);
+      canvas.addEventListener("mousedown", onStart);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onEnd);
+    })();
+
+    async function confirmSheetCrop(applyCrop = true) {
+      if (!cropperState.img) return;
+      const src = cropperState.img;
+      const b = applyCrop ? cropperState.box : { x1: 0, y1: 0, x2: 1, y2: 1 };
+
+      const sx = Math.round(b.x1 * src.width);
+      const sy = Math.round(b.y1 * src.height);
+      const sw = Math.max(50, Math.round((b.x2 - b.x1) * src.width));
+      const sh = Math.max(50, Math.round((b.y2 - b.y1) * src.height));
+
+      const maxDim = 1920;
+      const scale = Math.min(1, maxDim / Math.max(sw, sh));
+      const outW = Math.round(sw * scale);
+      const outH = Math.round(sh * scale);
+
+      const outCanvas = document.createElement("canvas");
+      outCanvas.width = outW;
+      outCanvas.height = outH;
+      const ctx = outCanvas.getContext("2d");
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.drawImage(src, sx, sy, sw, sh, 0, 0, outW, outH);
+
+      const dataUrl = outCanvas.toDataURL("image/jpeg", 0.84);
+      const blob = await new Promise(res => outCanvas.toBlob(res, "image/jpeg", 0.84));
+      const sizeBytes = blob ? blob.size : Math.round(dataUrl.length * 0.75);
+
+      const targetType = cropperState.targetType;
+      const targetFolio = cropperState.targetFolioNum;
+      closeSheetCropper();
+
+      if (targetType === "folio" && currentBook) {
+        const key = `${currentBook.id}_${targetFolio}`;
+        const prevFolio = await idbGet("local_folios", key);
+        const isEdit = !!(prevFolio && prevFolio.syncState === "SYNCED");
+
         const record = {
           id: key,
           libroId: currentBook.id,
@@ -2000,9 +2327,7 @@
 
         await idbPut("local_folios", record);
         await reloadCurrentBookFolios();
-        showToast(isEdit
-          ? `✏️ Folio N° ${targetFolio} actualizado en la Mini Base de Datos`
-          : `✅ Folio N° ${targetFolio} guardado en la Mini Base de Datos`);
+        showToast(`✅ Folio N° ${targetFolio} ajustado y guardado`);
 
         const total = currentBook.total_folios || 200;
         if (!isEdit && targetFolio < total) {
@@ -2010,8 +2335,37 @@
         } else {
           updateCurrentFolioPreview();
         }
-
         if (navigator.onLine) syncAllPendingToCloud(false);
+      } else if (targetType === "acta") {
+        currentActaPhotoDataUrl = dataUrl;
+        document.getElementById("acta-photo-empty").style.display = "none";
+        document.getElementById("acta-photo-loaded").style.display = "block";
+        document.getElementById("acta-photo-img").src = dataUrl;
+        showToast("✅ Foto del acta ajustada al tamaño de la hoja");
+      }
+    }
+
+    function reopenCropperForCurrentFolio() {
+      if (!currentBook) return;
+      const item = currentBookFoliosMap[currentFolioNum];
+      if (!item || !(item.dataUrl || item.cloudUrl)) return;
+      openSheetCropperFromDataUrl(item.dataUrl || item.cloudUrl, "folio", currentFolioNum);
+    }
+
+    function reopenCropperForActa() {
+      if (!currentActaPhotoDataUrl) return;
+      openSheetCropperFromDataUrl(currentActaPhotoDataUrl, "acta");
+    }
+
+    async function handleFolioFilePicked(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file || !currentBook) return;
+
+      const targetFolio = currentFolioNum;
+      try {
+        const { dataUrl } = await compressPhotoFile(file, 2000, 0.88);
+        openSheetCropperFromDataUrl(dataUrl, "folio", targetFolio);
       } catch (err) {
         showToast("❌ Error al procesar la imagen: " + err.message, "#ef4444");
       }
@@ -2019,21 +2373,29 @@
 
     async function deleteCurrentLocalFolio() {
       if (!currentBook) return;
+      if (!confirm(`¿Está seguro de eliminar la fotografía del Folio N° ${currentFolioNum}?`)) return;
       const key = `${currentBook.id}_${currentFolioNum}`;
       const existing = await idbGet("local_folios", key);
-      if (existing && existing.cloudUrl) {
-        // Si tenía una versión previa en la nube, restaurarla a SYNCED
-        existing.syncState = "SYNCED";
-        existing.dataUrl = existing.cloudUrl;
-        existing.sizeBytes = 0;
-        delete existing.blob;
-        await idbPut("local_folios", existing);
-      } else {
-        await idbDelete("local_folios", key);
+      await idbDelete("local_folios", key);
+
+      if (existing && (existing.syncState === "SYNCED" || existing.cloudUrl) && navigator.onLine) {
+        try {
+          const token = await ensureValidIdToken();
+          if (token) {
+            const padFolio = String(currentFolioNum).padStart(4, "0");
+            await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${encodeURIComponent(currentBook.id)}/folios/${padFolio}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } catch (e) {
+          console.warn("Error eliminando folio en servidor:", e);
+        }
       }
+
       await reloadCurrentBookFolios();
       updateCurrentFolioPreview();
-      showToast(`🗑️ Cambio local del Folio N° ${currentFolioNum} descartado`);
+      showToast(`🗑️ Foto del Folio N° ${currentFolioNum} eliminada`);
     }
 
     /* ============================================================================
@@ -2060,15 +2422,41 @@
       event.target.value = "";
       if (!file) return;
       try {
-        const { dataUrl } = await compressPhotoFile(file, 1600, 0.8);
-        currentActaPhotoDataUrl = dataUrl;
-        document.getElementById("acta-photo-empty").style.display = "none";
-        document.getElementById("acta-photo-loaded").style.display = "block";
-        document.getElementById("acta-photo-img").src = dataUrl;
-        showToast("📷 Foto del acta cargada en el formulario");
+        const { dataUrl } = await compressPhotoFile(file, 1920, 0.86);
+        openSheetCropperFromDataUrl(dataUrl, "acta");
       } catch {
         showToast("Error al procesar foto del acta", "#ef4444");
       }
+    }
+
+    function clearActaPhoto() {
+      currentActaPhotoDataUrl = "";
+      document.getElementById("acta-photo-empty").style.display = "block";
+      document.getElementById("acta-photo-loaded").style.display = "none";
+      document.getElementById("acta-photo-img").src = "";
+      showToast("🗑️ Foto del acta eliminada");
+    }
+
+    async function deleteActaFromMiniDb(actaId) {
+      if (!actaId) return;
+      if (!confirm("¿Está seguro de eliminar esta Acta de Defunción?")) return;
+      await idbDelete("local_actas", actaId);
+      if (navigator.onLine) {
+        try {
+          const token = await ensureValidIdToken();
+          if (token) {
+            await fetch(`${FIRESTORE_BASE_URL}/actas-defuncion/${encodeURIComponent(actaId)}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } catch (e) {
+          console.warn("Error eliminando acta en servidor:", e);
+        }
+      }
+      await updateHeaderCounters();
+      await renderMiniDbActasList();
+      showToast("🗑️ Acta eliminada correctamente");
     }
 
     async function buscarCedulaEnMiniDbYPadron() {
@@ -2092,7 +2480,7 @@
       const token = await ensureValidIdToken();
       if (!token) return showToast("Complete Nombres y Apellidos manualmente", "#f59e0b");
 
-      showToast("🔍 Consultando padrón en Firebase...");
+      showToast("🔍 Consultando padrón en el servidor...");
       try {
         const res = await fetch(`${FIRESTORE_BASE_URL}:runQuery`, {
           method: "POST",
@@ -2158,7 +2546,7 @@
       document.getElementById("acta-editing-id").value = rec.id;
       document.getElementById("acta-form-title").textContent = `✏️ Editando Acta: ${f.nombres || ""} ${f.apellidos || ""}`;
       document.getElementById("subbtn-acta-form-label").textContent = "Editando Acta";
-      document.getElementById("btn-save-acta").textContent = "💾 ACTUALIZAR ACTA EN MINI-BD Y FIREBASE";
+      document.getElementById("btn-save-acta").textContent = "💾 ACTUALIZAR ACTA EN EL SISTEMA";
       document.getElementById("btn-cancel-edit-acta").style.display = "inline-flex";
 
       document.getElementById("acta-tomo").value = f.inscripcion_tomo || "";
@@ -2290,8 +2678,8 @@
       await renderMiniDbActasList();
 
       showToast(editingId
-        ? "✅ Acta editada en la Mini Base de Datos (lista para actualizar Firebase)"
-        : "✅ Nueva acta guardada en la Mini Base de Datos del celular");
+        ? "✅ Acta editada (lista para actualizar en el servidor)"
+        : "✅ Nueva acta guardada en la memoria del celular");
 
       if (navigator.onLine) syncAllPendingToCloud(false);
     }
@@ -2325,7 +2713,7 @@
 
       box.innerHTML = filtered.map(a => {
         const f = a.form || {};
-        let badge = `<span class="pill pill-online">🟢 EN FIREBASE</span>`;
+        let badge = `<span class="pill pill-online">🟢 EN SERVIDOR</span>`;
         if (a.syncState === "CREATED") badge = `<span class="pill pill-offline">🟠 NUEVA EN CELULAR</span>`;
         else if (a.syncState === "UPDATED") badge = `<span class="pill pill-edited">✏️ EDITADA EN CELULAR</span>`;
 
@@ -2343,7 +2731,8 @@
               ${badge}
             </div>
             <div style="display:flex; justify-content:flex-end; gap:8px;">
-              <button class="btn btn-outline btn-sm" onclick="loadActaIntoFormForEdit('${a.id}')">✏️ Editar en Mini-BD</button>
+              <button class="btn btn-outline btn-sm" onclick="loadActaIntoFormForEdit('${a.id}')">✏️ Editar</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteActaFromMiniDb('${a.id}')">🗑️ Eliminar</button>
             </div>
           </div>
         `;
@@ -2401,7 +2790,7 @@
         box.innerHTML = `
           <div style="text-align:center; padding:28px 12px; color:var(--muted);">
             <div style="font-size:34px; margin-bottom:6px;">✅</div>
-            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399;">Mini Base de Datos 100% sincronizada con Firebase</div>
+            <div style="font-size:12px; font-weight:900; text-transform:uppercase; color:#34d399;">Base de Datos 100% sincronizada con el Servidor</div>
             <div style="font-size:11px; margin-top:4px;">Todos los agregados y ediciones locales ya fueron actualizados en el servidor.</div>
           </div>
         `;
@@ -2473,14 +2862,14 @@
       const actas = (await idbGetAll("local_actas")).filter(a => a.syncState === "CREATED" || a.syncState === "UPDATED");
 
       if (books.length === 0 && folios.length === 0 && actas.length === 0) {
-        if (manualTrigger) showToast("✅ No hay cambios pendientes por subir a Firebase");
+        if (manualTrigger) showToast("✅ No hay cambios pendientes por subir al servidor");
         return;
       }
 
       const token = await ensureValidIdToken();
       if (!token) {
         if (manualTrigger) {
-          showToast("🔐 Inicie sesión con una cuenta de Firebase para sincronizar con el servidor", "#f59e0b");
+          showToast("🔐 Inicie sesión para sincronizar con el servidor", "#f59e0b");
         }
         return;
       }
@@ -2504,7 +2893,7 @@
         // 1. Sincronizar Libros Nuevos (`CREATED`) y Editados (`UPDATED`) -> `libros-escaneo/{id}`
         for (const b of books) {
           doneSteps++;
-          bannerTxt.textContent = `🔄 Actualizando libro ${b.nombre_libro} en Firebase...`;
+          bannerTxt.textContent = `🔄 Actualizando libro ${b.nombre_libro} en el servidor...`;
           bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
 
           const copy = { ...b };
@@ -2550,7 +2939,7 @@
             });
             const r2Data = await r2Res.json();
             if (!r2Res.ok || !r2Data.url) {
-              throw new Error(r2Data.error || "Error subiendo imagen a R2");
+              throw new Error(r2Data.error || "Error subiendo imagen al servidor");
             }
 
             const publicUrl = r2Data.url;
@@ -2567,7 +2956,7 @@
               headers,
               body: JSON.stringify(toFirestoreFields(folioDoc))
             });
-            if (!fsRes.ok) throw new Error("Error guardando folio en Firestore");
+            if (!fsRes.ok) throw new Error("Error guardando folio en el servidor");
 
             // Marcar en la Mini Base de Datos como SYNCED y liberar el Blob pesado
             item.syncState = "SYNCED";
@@ -2578,7 +2967,7 @@
             await idbPut("local_folios", item);
             syncedCount++;
 
-            // Actualizar contador de folios del libro en Firebase y en Mini-BD
+            // Actualizar contador de folios del libro en el servidor y en Mini-BD
             const allBookFolios = (await idbGetAll("local_folios")).filter(x => x.libroId === item.libroId);
             const totalForBook = allBookFolios.length;
             await fetch(`${FIRESTORE_BASE_URL}/libros-escaneo/${item.libroId}?updateMask.fieldPaths=folios_escaneados`, {
@@ -2602,7 +2991,7 @@
         // 3. Sincronizar Actas Nuevas (`CREATED`) y Editadas (`UPDATED`) -> `PATCH /actas-defuncion/{id}`
         for (const acta of actas) {
           doneSteps++;
-          bannerTxt.textContent = `🔄 Sincronizando Acta de ${acta.form.nombres} en Firebase...`;
+          bannerTxt.textContent = `🔄 Sincronizando Acta de ${acta.form.nombres} en el servidor...`;
           bannerPct.textContent = `${Math.round((doneSteps / totalSteps) * 100)}%`;
 
           try {
@@ -2611,13 +3000,13 @@
               usuario_id: authSession.uid,
               username: authSession.username || localOperatorName
             };
-            // Usamos PATCH con el ID del documento para que tanto la creación como las ediciones posteriores actualicen el mismo registro en Firebase sin duplicarlo
+            // Usamos PATCH con el ID del documento para que tanto la creación como las ediciones posteriores actualicen el mismo registro sin duplicarlo
             const res = await fetch(`${FIRESTORE_BASE_URL}/actas-defuncion/${acta.id}`, {
               method: "PATCH",
               headers,
               body: JSON.stringify(toFirestoreFields(payload))
             });
-            if (!res.ok) throw new Error("Error al sincronizar acta en Firestore");
+            if (!res.ok) throw new Error("Error al sincronizar acta en el servidor");
 
             acta.syncState = "SYNCED";
             acta.sizeBytes = 0;
@@ -2634,7 +3023,7 @@
         await renderSyncQueue();
 
         if (syncedCount > 0) {
-          showToast(`✅ ${syncedCount} registro(s) creados/editados sincronizados con Firebase`);
+          showToast(`✅ ${syncedCount} registro(s) sincronizados con el Servidor Central`);
         }
       } finally {
         isSyncingNow = false;
